@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -138,8 +139,8 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, "
+                + "use dedicated geometry queries instead: [mapped_geo_point]", e.getMessage());
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
@@ -166,18 +167,30 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
+    public void testParseAndSerializeBigInteger() throws IOException {
+        String json = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"foo\" : {\n" +
+                "      \"value\" : 80315953321748200608\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        QueryBuilder parsedQuery = parseQuery(json);
+        assertSerialization(parsedQuery);
+    }
+
     public void testTypeField() throws IOException {
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
-    }   
+    }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }   
+    }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());

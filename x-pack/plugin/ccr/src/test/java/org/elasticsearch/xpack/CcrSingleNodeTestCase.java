@@ -45,7 +45,6 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");

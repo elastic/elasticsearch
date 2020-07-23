@@ -31,6 +31,10 @@ public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDe
     public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
+        if (randomBoolean()) {
+            categoryDefinition.setPartitionFieldName(randomAlphaOfLength(10));
+            categoryDefinition.setPartitionFieldValue(randomAlphaOfLength(20));
+        }
         categoryDefinition.setTerms(randomAlphaOfLength(10));
         categoryDefinition.setRegex(randomAlphaOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
@@ -128,6 +132,8 @@ public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDe
     private static CategoryDefinition createFullyPopulatedCategoryDefinition() {
         CategoryDefinition category = new CategoryDefinition("jobName");
         category.setCategoryId(42);
+        category.setPartitionFieldName("p");
+        category.setPartitionFieldValue("v");
         category.setTerms("foo bar");
         category.setRegex(".*?foo.*?bar.*");
         category.setMaxMatchingLength(120L);

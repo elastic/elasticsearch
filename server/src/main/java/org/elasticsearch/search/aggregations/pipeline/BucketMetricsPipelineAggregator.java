@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -30,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -48,25 +45,6 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         super(name, bucketsPaths, metadata);
         this.gapPolicy = gapPolicy;
         this.format = format;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    BucketMetricsPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-    }
-
-    @Override
-    public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        gapPolicy.writeTo(out);
-        innerWriteTo(out);
-    }
-
-    protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
     @Override

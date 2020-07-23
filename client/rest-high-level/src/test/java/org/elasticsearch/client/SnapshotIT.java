@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -163,23 +164,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
         if (waitForCompletion == false) {
-            // busy assert on the delete because a known race condition could cause the delete request to not see
-            // the snapshot if delete and snapshot finalization happen at the same time
-            // See https://github.com/elastic/elasticsearch/issues/53509#issuecomment-603899620 for details
-            // TODO: Remove busy assert in 7.x+ once this race is fixed
-            assertBusy(() -> {
-                // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
-                AcknowledgedResponse deleteResponse;
-                try {
-                    deleteResponse = execute(
-                        new DeleteSnapshotRequest(repository, snapshot),
-                        highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
-                    );
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-                assertTrue(deleteResponse.isAcknowledged());
-            });
+            // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
+            AcknowledgedResponse deleteResponse = execute(
+                    new DeleteSnapshotRequest(repository, snapshot),
+                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+            );
+            assertTrue(deleteResponse.isAcknowledged());
         }
     }
 
@@ -292,6 +282,48 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
         assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(restoredIndex)));
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
+    }
+
+    public void testSnapshotHidden() throws IOException {
+        String testRepository = "test";
+        String testSnapshot = "snapshot_1";
+        String testIndex = "test_index";
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        createIndex(testIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,3))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .build());
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
+        createSnapshotRequest.indices("*");
+        createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        deleteIndex(testIndex);
+        assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.waitForCompletion(true);
+        request.indices(randomFrom(testIndex, "test_*"));
+        request.renamePattern(testIndex);
+
+        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync);
+
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.name(), equalTo(testSnapshot));
+        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(testIndex)));
         assertThat(restoreInfo.successfulShards(), greaterThan(0));
         assertThat(restoreInfo.failedShards(), equalTo(0));
     }

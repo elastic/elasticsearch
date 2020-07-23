@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -236,17 +237,34 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             throw new IllegalArgumentException("the following index [" + request.getFollowerIndex() + "] is not ready " +
                     "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
         }
-        // Make a copy, remove settings that are allowed to be different and then compare if the settings are equal.
-        Settings leaderSettings = filter(leaderIndex.getSettings());
-        Settings followerSettings = filter(followIndex.getSettings());
-        if (leaderSettings.equals(followerSettings) == false) {
-            throw new IllegalArgumentException("the leader index setting[" + leaderSettings + "] and follower index settings [" +
-                followerSettings + "] must be identical");
-        }
+
+        validateSettings(leaderIndex.getSettings(), followIndex.getSettings());
 
         // Validates if the current follower mapping is mergable with the leader mapping.
         // This also validates for example whether specific mapper plugins have been installed
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    /**
+     * Validate that the settings that are required to be identical between the leader and follower index are in fact equal.
+     *
+     * @param leaderIndexSettings   the leader index settings
+     * @param followerIndexSettings the follower index settings
+     * @throws IllegalArgumentException if there are settings that are required to be equal that are not equal
+     */
+    private static void validateSettings(final Settings leaderIndexSettings, final Settings followerIndexSettings) {
+        // make a copy, remove settings that are allowed to be different, and then compare if the settings are equal
+        final Settings leaderSettings = filter(leaderIndexSettings);
+        final Settings followerSettings = filter(followerIndexSettings);
+        if (leaderSettings.equals(followerSettings) == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "the leader index settings [%s] and follower index settings [%s] must be identical",
+                leaderSettings,
+                followerSettings
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 
     private static ShardFollowTask createShardFollowTask(
@@ -402,7 +420,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_GC_DELETES_SETTING,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
-            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
             IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
@@ -413,12 +430,10 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -435,7 +450,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             EngineConfig.INDEX_CODEC_SETTING);
 
-    static Settings filter(Settings originalSettings) {
+    public static Settings filter(Settings originalSettings) {
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
@@ -443,6 +458,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_UUID);
+        settings.remove(IndexMetadata.SETTING_HISTORY_UUID);
         settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetadata.SETTING_CREATION_DATE);
 

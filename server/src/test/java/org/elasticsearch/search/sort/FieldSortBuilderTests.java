@@ -30,7 +30,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AssertingIndexSearcher;
@@ -328,34 +327,20 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(MAPPED_STRING_FIELDNAME)) {
-            KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-            fieldType.setName(name);
-            fieldType.setHasDocValues(true);
-            return fieldType;
+            return new KeywordFieldMapper.KeywordFieldType(name);
         } else if (name.startsWith("custom-")) {
             final MappedFieldType fieldType;
             if (name.startsWith("custom-keyword")) {
-                fieldType = new KeywordFieldMapper.KeywordFieldType();
+                fieldType = new KeywordFieldMapper.KeywordFieldType(name);
             } else if (name.startsWith("custom-date")) {
-                fieldType = new DateFieldMapper.DateFieldType();
+                fieldType = new DateFieldMapper.DateFieldType(name);
             } else {
                 String type = name.split("-")[1];
                 if (type.equals("INT")) {
                     type = "integer";
                 }
                 NumberFieldMapper.NumberType numberType = NumberFieldMapper.NumberType.valueOf(type.toUpperCase(Locale.ENGLISH));
-                if (numberType != null) {
-                    fieldType = new NumberFieldMapper.NumberFieldType(numberType);
-                } else {
-                    fieldType = new KeywordFieldMapper.KeywordFieldType();
-                }
-            }
-            fieldType.setName(name);
-            fieldType.setHasDocValues(true);
-            if (name.endsWith("-ni")) {
-                fieldType.setIndexOptions(IndexOptions.NONE);
-            } else {
-                fieldType.setIndexOptions(IndexOptions.DOCS);
+                fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);
             }
             return fieldType;
         } else {

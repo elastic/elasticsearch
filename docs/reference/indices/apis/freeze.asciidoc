@@ -6,7 +6,7 @@
 <titleabbrev>Freeze index</titleabbrev>
 ++++
 
-Freezes an index. 
+Freezes an index.
 
 [[freeze-index-api-request]]
 ==== {api-request-title}
@@ -23,6 +23,11 @@ A frozen index has almost no overhead on the cluster (except for maintaining its
 metadata in memory) and is read-only. Read-only indices are blocked for write
 operations, such as <<indexing,docs-index_>> or <<indices-forcemerge,force
 merges>>. See <<frozen-indices>> and <<unfreeze-index-api>>.
+
+The current write index on a data stream cannot be frozen. In order to freeze
+the current write index, the data stream must first be
+<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+and then the previous write index can be frozen.
 
 IMPORTANT: Freezing an index will close the index and reopen it within the same
 API call. This causes primaries to not be allocated for a short amount of time

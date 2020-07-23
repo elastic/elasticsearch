@@ -58,7 +58,8 @@ public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMean
         return new TargetMeanEncoding(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             valueMap,
-            randomDoubleBetween(0.0, 1.0, false));
+            randomDoubleBetween(0.0, 1.0, false),
+            randomBoolean() ? null : randomBoolean());
     }
 
 }

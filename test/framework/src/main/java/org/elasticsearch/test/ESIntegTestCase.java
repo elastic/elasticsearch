@@ -102,6 +102,7 @@ import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -443,10 +444,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
         }
 
-        if (random.nextBoolean()) {
-            builder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), random.nextBoolean());
-        }
-
         return builder;
     }
 
@@ -658,6 +655,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         internalCluster().setDisruptionScheme(scheme);
+    }
+
+    /**
+     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     *
+     * @param disruptionType type of disruption to create
+     * @return disruption
+     */
+    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+        final String masterNode = internalCluster().getMasterName();
+        return new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(
+                Collections.singleton(masterNode),
+                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
+                    .collect(Collectors.toSet())), disruptionType);
     }
 
     /**
@@ -1473,8 +1485,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, true).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
+            // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
+            Settings settings = Settings.builder().put(block, true).build();
+            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        } else {
+            client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
+        }
     }
 
     /** Sets or unsets the cluster read_only mode **/
@@ -1847,6 +1864,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
+    /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
+    protected boolean addMockGeoShapeFieldMapper() {
+        return true;
+    }
+
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -1879,7 +1901,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(MockFieldFilterPlugin.class);
             }
         }
-
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
         }
@@ -1889,6 +1910,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
+        if (addMockGeoShapeFieldMapper()) {
+            mocks.add(TestGeoShapeFieldMapperPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2127,8 +2151,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                                  RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
-            if (node.getHttp() != null) {
-                TransportAddress publishAddress = node.getHttp().address().publishAddress();
+            if (node.getInfo(HttpInfo.class) != null) {
+                TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
                 InetSocketAddress address = publishAddress.address();
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }

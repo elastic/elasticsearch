@@ -196,6 +196,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "        \"evictions\": 10,"
             + "        \"hit_count\": 11,"
             + "        \"miss_count\": 12"
+            + "      },"
+            + "      \"bulk\": {"
+            + "        \"total_operations\": 0,"
+            + "        \"total_time_in_millis\": 0,"
+            + "        \"total_size_in_bytes\": 0,"
+            + "        \"avg_time_in_millis\": 0,"
+            + "        \"avg_size_in_bytes\": 0"
             + "      }"
             + "    },"
             + "    \"primaries\": {"
@@ -249,6 +256,13 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "        \"evictions\": 10,"
             + "        \"hit_count\": 11,"
             + "        \"miss_count\": 12"
+            + "      },"
+            + "      \"bulk\": {"
+            + "        \"total_operations\": 0,"
+            + "        \"total_time_in_millis\": 0,"
+            + "        \"total_size_in_bytes\": 0,"
+            + "        \"avg_time_in_millis\": 0,"
+            + "        \"avg_size_in_bytes\": 0"
             + "      }"
             + "    }"
             + "  }"
@@ -343,7 +357,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getMerge().add(no, no, no, ++iota, no, no, no, no, no, no);
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         commonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
-        commonStats.getStore().add(new StoreStats(++iota));
+        commonStats.getStore().add(new StoreStats(++iota, no));
         commonStats.getRefresh().add(new RefreshStats(no, ++iota, no, ++iota, (int) no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota);

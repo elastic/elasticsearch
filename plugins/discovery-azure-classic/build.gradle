@@ -19,6 +19,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
@@ -31,30 +32,30 @@ versions << [
 ]
 
 dependencies {
-  compile "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
-  compile "com.microsoft.azure:azure-core:${versions.azure}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-lang:commons-lang:2.6"
-  compile "commons-io:commons-io:2.4"
-  compile 'javax.mail:mail:1.4.5'
-  compile 'javax.inject:javax.inject:1'
-  compile "com.sun.jersey:jersey-client:${versions.jersey}"
-  compile "com.sun.jersey:jersey-core:${versions.jersey}"
-  compile "com.sun.jersey:jersey-json:${versions.jersey}"
-  compile 'org.codehaus.jettison:jettison:1.1'
-  compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
-  compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
-  compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
-  compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
-  compile 'org.codehaus.jackson:jackson-xc:1.9.2'
+  api "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
+  api "com.microsoft.azure:azure-core:${versions.azure}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-lang:commons-lang:2.6"
+  api "commons-io:commons-io:2.4"
+  api 'javax.mail:mail:1.4.5'
+  api 'javax.inject:javax.inject:1'
+  api "com.sun.jersey:jersey-client:${versions.jersey}"
+  api "com.sun.jersey:jersey-core:${versions.jersey}"
+  api "com.sun.jersey:jersey-json:${versions.jersey}"
+  api 'org.codehaus.jettison:jettison:1.1'
+  api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+  api 'org.codehaus.jackson:jackson-core-asl:1.9.2'
+  api 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
+  api 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
+  api 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
-  compile 'javax.xml.bind:jaxb-api:2.2.2'
+  api 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 restResources {
@@ -99,7 +100,7 @@ normalization {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'

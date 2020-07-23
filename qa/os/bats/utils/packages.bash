@@ -59,7 +59,7 @@ install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
     local dir='./'
-    while getopts ":fuv:" opt; do
+    while getopts ":ufd:v:" opt; do
         case $opt in
             u)
                 rpmCommand='-U'
@@ -164,10 +164,6 @@ verify_package_installation() {
         else
             [[ $(/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
         fi
-    fi
-
-    if is_sysvinit; then
-        assert_file "/etc/init.d/elasticsearch" f root root 750
     fi
 
     run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yml"

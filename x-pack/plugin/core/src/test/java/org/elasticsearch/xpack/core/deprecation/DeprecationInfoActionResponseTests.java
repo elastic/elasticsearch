@@ -99,8 +99,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 : emptyList(),
             emptyList());
 
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state, NamedXContentRegistry.EMPTY,
-            resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
+            resolver, request, datafeeds,
             nodeDeprecationIssues, indexSettingsChecks, clusterSettingsChecks, mlSettingsChecks);
 
         if (clusterIssueFound) {

@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -54,17 +55,17 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.MultiFileTransfer;
+import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionReque
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -90,6 +92,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -166,11 +170,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = response.getState().metadata().indices();
+        Metadata metadata = response.getState().metadata();
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
+        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), SnapshotState.SUCCESS,
+            response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override
@@ -185,7 +191,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException {
+    public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         String leaderIndex = index.getName();
         Client remoteClient = getRemoteClusterClient();
@@ -233,7 +239,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
             Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
             Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
-            Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {
@@ -243,23 +249,24 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 snapshotStates.put(indexName, SnapshotState.SUCCESS);
                 snapshotVersions.put(indexName, Version.CURRENT);
                 Index index = remoteIndices.get(indexName).getIndex();
-                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
+                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
-            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots, ShardGenerations.EMPTY);
+            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots,
+                ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
         });
     }
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
-                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 Metadata metadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
-                                 ActionListener<SnapshotInfo> listener) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata metadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<RepositoryData> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -429,6 +436,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void updateState(ClusterState state) {
     }
 
+    @Override
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                             Consumer<Exception> onFailure) {
+        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
                                 Client followerClient, Index followerIndex) {
         final PlainActionFuture<IndexMetadata> indexMetadataFuture = new PlainActionFuture<>();
@@ -495,7 +508,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         protected void restoreFiles(List<FileInfo> filesToRecover, Store store, ActionListener<Void> allFilesListener) {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
             final List<StoreFileMetadata> mds = filesToRecover.stream().map(FileInfo::metadata).collect(Collectors.toList());
-            final MultiFileTransfer<FileChunk> multiFileTransfer = new MultiFileTransfer<>(
+            final MultiChunkTransfer<StoreFileMetadata, FileChunk> multiFileTransfer = new MultiChunkTransfer<>(
                 logger, threadPool.getThreadContext(), allFilesListener, ccrSettings.getMaxConcurrentFileChunks(), mds) {
 
                 final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
@@ -503,7 +516,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 long offset = 0;
 
                 @Override
-                protected void onNewFile(StoreFileMetadata md) {
+                protected void onNewResource(StoreFileMetadata md) {
                     offset = 0;
                 }
 
@@ -574,7 +587,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
 
-        private static class FileChunk implements MultiFileTransfer.ChunkRequest {
+        private static class FileChunk implements MultiChunkTransfer.ChunkRequest {
             final StoreFileMetadata md;
             final int bytesRequested;
             final boolean lastChunk;

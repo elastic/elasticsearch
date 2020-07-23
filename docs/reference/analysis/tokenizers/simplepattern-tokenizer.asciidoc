@@ -1,5 +1,8 @@
 [[analysis-simplepattern-tokenizer]]
-=== Simple Pattern Tokenizer
+=== Simple pattern tokenizer
+++++
+<titleabbrev>Simple pattern</titleabbrev>
+++++
 
 The `simple_pattern` tokenizer uses a regular expression to capture matching
 text as terms. The set of regular expression features it supports is more

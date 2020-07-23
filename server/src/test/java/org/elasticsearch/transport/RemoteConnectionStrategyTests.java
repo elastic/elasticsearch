@@ -91,7 +91,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         FakeConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                                RemoteConnectionStrategy.ConnectionStrategy strategy) {
-            super(clusterAlias, transportService, connectionManager);
+            super(clusterAlias, transportService, connectionManager, Settings.EMPTY);
             this.strategy = strategy;
         }
 

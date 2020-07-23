@@ -1,5 +1,8 @@
 [[analysis-thai-tokenizer]]
-=== Thai Tokenizer
+=== Thai tokenizer
+++++
+<titleabbrev>Thai</titleabbrev>
+++++
 
 The `thai` tokenizer segments Thai text into words, using the Thai
 segmentation algorithm included with Java. Text in other languages in general

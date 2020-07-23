@@ -199,7 +199,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return true;
     }
 
-    private BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
+    protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (ScrollableHitSource.Hit doc : docs) {
             if (accept(doc)) {

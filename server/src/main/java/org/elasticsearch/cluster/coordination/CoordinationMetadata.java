@@ -229,6 +229,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     }
 
     public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
+        public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
         private final String nodeName;
 

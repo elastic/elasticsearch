@@ -53,8 +53,8 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -252,7 +252,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     String xpath = "routing_table.indices." + index + ".shards.0.node";
                     @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
                     assertNotNull(state.toString(), assignedNodes);
-                    assertThat(state.toString(), newNode, isIn(assignedNodes));
+                    assertThat(state.toString(), newNode, in(assignedNodes));
                 }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
@@ -277,6 +277,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+        }
+        if (randomBoolean()) {
+            syncedFlush(index);
         }
     }
 
@@ -730,11 +733,5 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

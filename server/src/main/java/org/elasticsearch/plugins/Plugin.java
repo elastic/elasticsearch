@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -86,12 +88,15 @@ public abstract class Plugin implements Closeable {
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
+     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
+     *                                   is called, but will return the repositories service once the node is initialized.
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return Collections.emptyList();
     }
 

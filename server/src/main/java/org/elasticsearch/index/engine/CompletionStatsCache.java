@@ -30,6 +30,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -100,7 +101,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
 
     private static CompletionStats filterCompletionStatsByFieldName(String[] fieldNamePatterns, CompletionStats fullCompletionStats) {
         final FieldMemoryStats fieldMemoryStats;
-        if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
+        if (CollectionUtils.isEmpty(fieldNamePatterns) == false) {
             final ObjectLongHashMap<String> completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
             for (ObjectLongCursor<String> fieldCursor : fullCompletionStats.getFields()) {
                 if (Regex.simpleMatch(fieldNamePatterns, fieldCursor.key)) {

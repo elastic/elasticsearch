@@ -1,0 +1,47 @@
+[[delete-snapshots]]
+== Delete a snapshot
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
+PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+
+PUT /_snapshot/my_backup/snapshot_3?wait_for_completion=true
+-----------------------------------
+// TESTSETUP
+
+////
+
+Use the <<delete-snapshot-api,delete snapshot API>> to delete a snapshot
+from the repository:
+
+[source,console]
+----
+DELETE /_snapshot/my_backup/snapshot_1
+----
+
+When a snapshot is deleted from a repository, {es} deletes all files associated with the
+snapshot that are not in-use by other snapshots.
+
+If the delete snapshot operation starts while the snapshot is being
+created, the snapshot process halts and all files created as part of the snapshotting process are
+removed. Use the <<delete-snapshot-api,Delete snapshot API>> to cancel long running snapshot operations that were
+started by mistake.
+
+To delete multiple snapshots from a repository, separate snapshot names by commas or use wildcards:
+
+[source,console]
+-----------------------------------
+DELETE /_snapshot/my_backup/snapshot_2,snapshot_3
+DELETE /_snapshot/my_backup/snap*
+-----------------------------------

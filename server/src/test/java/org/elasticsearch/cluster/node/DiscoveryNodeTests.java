@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -33,8 +32,12 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class DiscoveryNodeTests extends ESTestCase {
 
@@ -90,22 +93,20 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientSet() {
-        runTestDiscoveryNodeIsRemoteClusterClient(Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), true).build(), true);
+        runTestDiscoveryNodeIsRemoteClusterClient(remoteClusterClientNode(), true);
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientUnset() {
-        runTestDiscoveryNodeIsRemoteClusterClient(Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build(), false);
+        runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
         assertThat(node.isRemoteClusterClient(), equalTo(expected));
-        final Set<DiscoveryNodeRole> expectedRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         if (expected) {
-            assertThat(node.getRoles(), equalTo(expectedRoles));
+            assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         } else {
-            expectedRoles.remove(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
-            assertThat(node.getRoles(), equalTo(expectedRoles));
+            assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
         }
     }
 

@@ -67,6 +67,8 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -91,6 +93,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
@@ -147,6 +150,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
+    private final NodeHealthService nodeHealthService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -156,7 +160,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       RerouteService rerouteService, ElectionStrategy electionStrategy) {
+                       RerouteService rerouteService, ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -166,7 +170,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
-            rerouteService);
+            rerouteService, nodeHealthService);
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -176,14 +180,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
+        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy,
+            nodeHealthService);
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
             this::handlePublishRequest, this::handleApplyCommit);
-        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure);
-        this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
+        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
+        this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode,
+            nodeHealthService);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
@@ -194,12 +200,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
+        this.nodeHealthService = nodeHealthService;
     }
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy);
+                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy, nodeHealthService.getHealth());
     }
 
     private void onLeaderFailure(Exception e) {
@@ -868,6 +875,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // Package-private for testing
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        assert validVotingConfigExclusionState(clusterState) : clusterState;
 
         // exclude any nodes whose ID is in the voting config exclusions list ...
         final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
@@ -893,6 +901,31 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     .lastAcceptedConfiguration(newConfig).build())).build();
         }
         return clusterState;
+    }
+
+    /*
+    * Valid Voting Configuration Exclusion state criteria:
+    * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
+    * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
+     */
+    static boolean validVotingConfigExclusionState(ClusterState clusterState) {
+        Set<VotingConfigExclusion> votingConfigExclusions = clusterState.getVotingConfigExclusions();
+        Set<String> nodeNamesWithAbsentId = votingConfigExclusions.stream()
+                                                .filter(e -> e.getNodeId().equals(VotingConfigExclusion.MISSING_VALUE_MARKER))
+                                                .map(VotingConfigExclusion::getNodeName)
+                                                .collect(Collectors.toSet());
+        Set<String> nodeIdsWithAbsentName = votingConfigExclusions.stream()
+                                                .filter(e -> e.getNodeName().equals(VotingConfigExclusion.MISSING_VALUE_MARKER))
+                                                .map(VotingConfigExclusion::getNodeId)
+                                                .collect(Collectors.toSet());
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            if (node.isMasterNode() &&
+                (nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName()))) {
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
@@ -1168,6 +1201,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         if (localNodeMayWinElection(lastAcceptedState) == false) {
                             logger.trace("skip prevoting as local node may not win election: {}",
                                 lastAcceptedState.coordinationMetadata());
+                            return;
+                        }
+
+                        final StatusInfo statusInfo = nodeHealthService.getHealth();
+                        if (statusInfo.getStatus() == UNHEALTHY) {
+                            logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
                             return;
                         }
 

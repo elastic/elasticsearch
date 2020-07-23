@@ -21,8 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -49,30 +50,45 @@ public class ForLoopNode extends LoopNode {
         return afterthoughtNode;
     }
 
+    /* ---- end tree structure, begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitForLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        scopeTable = scopeTable.newScope();
+        writeScope = writeScope.newScope();
 
         Label start = new Label();
         Label begin = afterthoughtNode == null ? start : new Label();
         Label end = new Label();
 
         if (initializerNode instanceof DeclarationBlockNode) {
-            initializerNode.write(classWriter, methodWriter, scopeTable);
+            initializerNode.write(classWriter, methodWriter, writeScope);
         } else if (initializerNode instanceof ExpressionNode) {
             ExpressionNode initializer = (ExpressionNode)this.initializerNode;
 
-            initializer.write(classWriter, methodWriter, scopeTable);
+            initializer.write(classWriter, methodWriter, writeScope);
             methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
         }
 
         methodWriter.mark(start);
 
         if (getConditionNode() != null && isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, scopeTable);
+            getConditionNode().write(classWriter, methodWriter, writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
+        }
+
+        Variable loop = writeScope.getInternalVariable("loop");
+
+        if (loop != null) {
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         boolean allEscape = false;
@@ -80,32 +96,14 @@ public class ForLoopNode extends LoopNode {
         if (getBlockNode() != null) {
             allEscape = getBlockNode().doAllEscape();
 
-            int statementCount = Math.max(1, getBlockNode().getStatementCount());
-
-            if (afterthoughtNode != null) {
-                ++statementCount;
-            }
-
-            Variable loop = scopeTable.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), statementCount, location);
-            }
-
             getBlockNode().continueLabel = begin;
             getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, scopeTable);
-        } else {
-            Variable loop = scopeTable.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), 1, location);
-            }
+            getBlockNode().write(classWriter, methodWriter, writeScope);
         }
 
         if (afterthoughtNode != null) {
             methodWriter.mark(begin);
-            afterthoughtNode.write(classWriter, methodWriter, scopeTable);
+            afterthoughtNode.write(classWriter, methodWriter, writeScope);
             methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
         }
 

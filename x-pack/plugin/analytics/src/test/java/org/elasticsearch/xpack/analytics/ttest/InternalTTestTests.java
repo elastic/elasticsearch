@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
@@ -28,35 +24,44 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
 
-    private TTestType type = randomFrom(TTestType.values());
-    private int tails = randomIntBetween(1, 2);
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
 
     @Override
     protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {
-        TTestState state = randomState();
+        TTestState state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalTTest(name, state, formatter, metadata);
     }
 
-    private TTestState randomState() {
+    @Override
+    protected List<InternalTTest> randomResultsToReduce(String name, int size) {
+        TTestType type = randomFrom(TTestType.values());
+        int tails = randomIntBetween(1, 2);
+        List<InternalTTest> inputs = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            // Make sure the sum of all the counts doesn't wrap and type and tail parameters are consistent
+            TTestState state = randomState(Long.MAX_VALUE / size, type, tails);
+            DocValueFormat formatter = randomNumericDocValueFormat();
+            inputs.add(new InternalTTest(name, state, formatter, null));
+        }
+        return inputs;
+    }
+
+    private TTestState randomState(long maxCount, TTestType type, int tails) {
         if (type == TTestType.PAIRED) {
-            return new PairedTTestState(randomStats(), tails);
+            return new PairedTTestState(randomStats(maxCount), tails);
         } else {
-            return new UnpairedTTestState(randomStats(), randomStats(), type == TTestType.HOMOSCEDASTIC, tails);
+            return new UnpairedTTestState(randomStats(maxCount), randomStats(maxCount), type == TTestType.HOMOSCEDASTIC, tails);
         }
     }
 
-    private TTestStats randomStats() {
-        return new TTestStats(randomNonNegativeLong(), randomDouble(), randomDouble());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalTTest> instanceReader() {
-        return InternalTTest::new;
+    private TTestStats randomStats(long maxCount) {
+        return new TTestStats(randomLongBetween(0, maxCount), randomDouble(), randomDouble());
     }
 
     @Override
@@ -84,14 +89,13 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
             throw new IllegalStateException(ex);
         }
         DocValueFormat formatter = instance.format();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;
             case 1:
-                state = randomState();
+                state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
                 break;
             case 2:
                 if (metadata == null) {
@@ -119,13 +123,4 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
         ));
         return extendedNamedXContents;
     }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
-        entries.addAll(new AnalyticsPlugin().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
-    }
-
 }

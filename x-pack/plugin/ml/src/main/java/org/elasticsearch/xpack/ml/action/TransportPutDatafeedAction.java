@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -106,7 +105,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 
@@ -211,7 +210,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 return;
             }
             ElasticsearchMappings.addDocMappingIfMissing(
-                AnomalyDetectorsIndex.configIndexName(),
+                MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 clusterState,
@@ -266,7 +265,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

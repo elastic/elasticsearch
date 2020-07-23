@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -48,17 +48,17 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(PercentilesAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new PercentilesAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                         double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
                     return percentilesConfig.createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed,
-                        formatter, pipelineAggregators, metadata);
+                        formatter, metadata);
                 }
             }
         );
@@ -77,22 +77,19 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed,
-            config.format(), pipelineAggregators, metadata);
+            config.format(), metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
+                                          CardinalityUpperBound bucketCardinality,
                                           Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             PercentilesAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
@@ -100,7 +97,16 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
-        return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, percents, percentilesConfig, keyed,
-            config.format(), pipelineAggregators, metadata);
+        return percentilesAggregatorSupplier.build(
+            name,
+            config.getValuesSource(),
+            searchContext,
+            parent,
+            percents,
+            percentilesConfig,
+            keyed,
+            config.format(),
+            metadata
+        );
     }
 }

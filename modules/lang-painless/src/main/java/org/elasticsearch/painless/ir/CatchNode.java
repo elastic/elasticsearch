@@ -21,8 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -30,15 +31,24 @@ public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    private DeclarationNode declarationNode;
+    private Class<?> exceptionType;
+    private String symbol;
     private BlockNode blockNode;
 
-    public void setDeclarationNode(DeclarationNode declarationNode) {
-        this.declarationNode = declarationNode;
+    public void setExceptionType(Class<?> exceptionType) {
+        this.exceptionType = exceptionType;
     }
 
-    public DeclarationNode getDeclarationNode() {
-        return declarationNode;
+    public Class<?> getExceptionType() {
+        return exceptionType;
+    }
+
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     public void setBlockNode(BlockNode blockNode) {
@@ -49,18 +59,24 @@ public class CatchNode extends StatementNode {
         return blockNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitCatch(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     Label begin = null;
     Label end = null;
     Label exception = null;
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        declarationNode.write(classWriter, methodWriter, scopeTable);
-        Variable variable = scopeTable.getVariable(declarationNode.getName());
+        Variable variable = writeScope.defineVariable(exceptionType, symbol);
 
         Label jump = new Label();
 
@@ -70,7 +86,7 @@ public class CatchNode extends StatementNode {
         if (blockNode != null) {
             blockNode.continueLabel = continueLabel;
             blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, scopeTable);
+            blockNode.write(classWriter, methodWriter, writeScope);
         }
 
         methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());

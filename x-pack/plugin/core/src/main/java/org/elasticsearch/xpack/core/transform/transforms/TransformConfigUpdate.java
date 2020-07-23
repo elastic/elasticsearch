@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.RestStatus;
@@ -33,22 +30,25 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 /**
  * This class holds the mutable configuration items for a data frame transform
  */
-public class TransformConfigUpdate implements Writeable, ToXContentObject {
+public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
         false,
         (args) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
-            TimeValue frequency = args[2] == null ?
-                null :
-                TimeValue.parseTimeValue((String) args[2], TransformField.FREQUENCY.getPreferredName());
+            TimeValue frequency = args[2] == null
+                ? null
+                : TimeValue.parseTimeValue((String) args[2], TransformField.FREQUENCY.getPreferredName());
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description);
-        });
+            SettingsConfig settings = (SettingsConfig) args[5];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
+        }
+    );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), TransformField.SOURCE);
@@ -56,6 +56,7 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
@@ -71,13 +72,17 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
     private final TimeValue frequency;
     private final SyncConfig syncConfig;
     private final String description;
+    private final SettingsConfig settings;
     private Map<String, String> headers;
 
-    public TransformConfigUpdate(final SourceConfig source,
-                                          final DestConfig dest,
-                                          final TimeValue frequency,
-                                          final SyncConfig syncConfig,
-                                          final String description){
+    public TransformConfigUpdate(
+        final SourceConfig source,
+        final DestConfig dest,
+        final TimeValue frequency,
+        final SyncConfig syncConfig,
+        final String description,
+        final SettingsConfig settings
+    ) {
         this.source = source;
         this.dest = dest;
         this.frequency = frequency;
@@ -86,6 +91,7 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
+        this.settings = settings;
     }
 
     public TransformConfigUpdate(final StreamInput in) throws IOException {
@@ -97,6 +103,12 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            settings = in.readOptionalWriteable(SettingsConfig::new);
+        } else {
+            settings = null;
+        }
+
     }
 
     public SourceConfig getSource() {
@@ -120,6 +132,11 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         return description;
     }
 
+    @Nullable
+    public SettingsConfig getSettings() {
+        return settings;
+    }
+
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -141,33 +158,9 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startObject();
-        if (source != null) {
-            builder.field(TransformField.SOURCE.getPreferredName(), source);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalWriteable(settings);
         }
-        if (dest != null) {
-            builder.field(TransformField.DESTINATION.getPreferredName(), dest);
-        }
-        if (frequency != null) {
-            builder.field(TransformField.FREQUENCY.getPreferredName(), frequency.getStringRep());
-        }
-        if (syncConfig != null) {
-            builder.startObject(TransformField.SYNC.getPreferredName());
-            builder.field(syncConfig.getWriteableName(), syncConfig);
-            builder.endObject();
-        }
-        if (description != null) {
-            builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
-        }
-        if (headers != null) {
-            builder.field(TransformConfig.HEADERS.getPreferredName(), headers);
-        }
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -183,21 +176,17 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         final TransformConfigUpdate that = (TransformConfigUpdate) other;
 
         return Objects.equals(this.source, that.source)
-                && Objects.equals(this.dest, that.dest)
-                && Objects.equals(this.frequency, that.frequency)
-                && Objects.equals(this.syncConfig, that.syncConfig)
-                && Objects.equals(this.description, that.description)
-                && Objects.equals(this.headers, that.headers);
+            && Objects.equals(this.dest, that.dest)
+            && Objects.equals(this.frequency, that.frequency)
+            && Objects.equals(this.syncConfig, that.syncConfig)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.settings, that.settings)
+            && Objects.equals(this.headers, that.headers);
     }
 
     @Override
-    public int hashCode(){
-        return Objects.hash(source, dest, frequency, syncConfig, description, headers);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
+    public int hashCode() {
+        return Objects.hash(source, dest, frequency, syncConfig, description, settings, headers);
     }
 
     public static TransformConfigUpdate fromXContent(final XContentParser parser) {
@@ -210,7 +199,12 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
             && isNullOrEqual(frequency, config.getFrequency())
             && isNullOrEqual(syncConfig, config.getSyncConfig())
             && isNullOrEqual(description, config.getDescription())
+            && isNullOrEqual(settings, config.getSettings())
             && isNullOrEqual(headers, config.getHeaders());
+    }
+
+    public boolean changesSettings(TransformConfig config) {
+        return isNullOrEqual(settings, config.getSettings()) == false;
     }
 
     private boolean isNullOrEqual(Object lft, Object rgt) {
@@ -235,11 +229,14 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
             String currentConfigName = config.getSyncConfig() == null ? "null" : config.getSyncConfig().getWriteableName();
             if (syncConfig.getWriteableName().equals(currentConfigName) == false) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
+                    TransformMessages.getMessage(
+                        TransformMessages.TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
                         config.getId(),
                         currentConfigName,
-                        syncConfig.getWriteableName()),
-                    RestStatus.BAD_REQUEST);
+                        syncConfig.getWriteableName()
+                    ),
+                    RestStatus.BAD_REQUEST
+                );
             }
             builder.setSyncConfig(syncConfig);
         }
@@ -248,6 +245,12 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
         }
         if (headers != null) {
             builder.setHeaders(headers);
+        }
+        if (settings != null) {
+            // settings are partially updateable, that means we only overwrite changed settings but keep others
+            SettingsConfig.Builder settingsBuilder = new SettingsConfig.Builder(config.getSettings());
+            settingsBuilder.update(settings);
+            builder.setSettings(settingsBuilder.build());
         }
         builder.setVersion(Version.CURRENT);
         return builder.build();

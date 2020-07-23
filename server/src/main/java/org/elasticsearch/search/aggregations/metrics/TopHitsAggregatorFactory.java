@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
@@ -89,8 +89,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
         subSearchContext.parsedQuery(searchContext.parsedQuery());
@@ -107,7 +106,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            subSearchContext.docValuesContext(new FetchDocValuesContext(docValueFields));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService(), docValueFields);
+            subSearchContext.docValuesContext(docValuesContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);
@@ -118,8 +118,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
-        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
-                pipelineAggregators, metadata);
+        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent, metadata);
     }
 
 }

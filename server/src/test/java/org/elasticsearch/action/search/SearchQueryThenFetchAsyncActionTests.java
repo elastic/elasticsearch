@@ -123,7 +123,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchRequest.source().trackTotalHitsUpTo(2);
         }
         searchRequest.allowPartialSearchResults(false);
-        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),

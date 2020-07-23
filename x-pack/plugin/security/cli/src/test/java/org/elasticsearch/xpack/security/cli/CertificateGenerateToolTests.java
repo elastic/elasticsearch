@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateI
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -74,10 +73,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.TestMatchers.pathExists;
+import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -342,7 +343,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
                 if (pkcs12Password != null) {
-                    assertThat(p12, pathExists(p12));
+                    assertThat(p12, pathExists());
                     try (InputStream in = Files.newInputStream(p12)) {
                         final KeyStore ks = KeyStore.getInstance("PKCS12");
                         ks.load(in, pkcs12Password);
@@ -353,7 +354,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                         assertThat(key, notNullValue());
                     }
                 } else {
-                    assertThat(p12, not(pathExists(p12)));
+                    assertThat(p12, not(pathExists()));
                 }
             }
         }
@@ -493,7 +494,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
                 assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), Matchers.isIn(certInfo.commonNames));
+                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

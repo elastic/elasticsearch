@@ -34,9 +34,13 @@ import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
+import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
+import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
@@ -123,6 +127,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -145,9 +150,9 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -311,6 +316,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PutDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsStatsAction.INSTANCE,
+                UpdateDataFrameAnalyticsAction.INSTANCE,
                 DeleteDataFrameAnalyticsAction.INSTANCE,
                 StartDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
@@ -400,7 +406,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Async Search
                 SubmitAsyncSearchAction.INSTANCE,
                 GetAsyncSearchAction.INSTANCE,
-                DeleteAsyncSearchAction.INSTANCE
+                DeleteAsyncResultAction.INSTANCE
         );
     }
 
@@ -484,6 +490,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(), TimeSyncConfig::new),
+            // Flattened for backward compatibility with 7.x
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FLATTENED, FlattenedFeatureSetUsage::new),
             // Vectors
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
             // Voting Only Node
@@ -492,8 +500,15 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
             // Spatial
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
-            // data science
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new)
+            // Analytics
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
+            // Enrich
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
+            // Searchable snapshots
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SEARCHABLE_SNAPSHOTS,
+                SearchableSnapshotFeatureSetUsage::new),
+            // Data Streams
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new)
         );
     }
 

@@ -8,8 +8,9 @@
     "index" : {
       "auto_expand_replicas" : "0-1",
       "hidden": true
-    }
-    ${xpack.ml.index.lifecycle.settings}
+    },
+    "index.lifecycle.name": "${xpack.ml.index.lifecycle.name}",
+    "index.lifecycle.rollover_alias": "${xpack.ml.index.lifecycle.rollover_alias}"
   },
   "mappings" : {
     "_doc": {

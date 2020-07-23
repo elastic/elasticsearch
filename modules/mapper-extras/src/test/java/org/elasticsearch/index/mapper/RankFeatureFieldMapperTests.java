@@ -30,23 +30,32 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
-public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
+public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeatureFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
+    }
 
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("positive_score_impact", false, (a, b) -> {
+            a.positiveScoreImpact(true);
+            b.positiveScoreImpact(false);
+        });
     }
 
     @Override
@@ -61,6 +70,11 @@ public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
         int freq = freqAttribute.getTermFrequency();
         assertFalse(tk.incrementToken());
         return freq;
+    }
+
+    @Override
+    protected RankFeatureFieldMapper.Builder newBuilder() {
+        return new RankFeatureFieldMapper.Builder("rank-feature");
     }
 
     public void testDefaults() throws Exception {
@@ -171,4 +185,5 @@ public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
                 e.getCause().getMessage());
     }
+
 }

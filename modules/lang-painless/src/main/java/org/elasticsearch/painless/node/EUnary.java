@@ -22,12 +22,17 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.UnaryType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -36,73 +41,117 @@ import java.util.Objects;
  */
 public class EUnary extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression child;
+    private final AExpression childNode;
+    private final Operation operation;
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
+    public EUnary(int identifier, Location location, AExpression childNode, Operation operation) {
+        super(identifier, location);
 
+        this.childNode = Objects.requireNonNull(childNode);
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitUnary(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        childNode.visit(userTreeVisitor, scope);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
-                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        Output output = new Output();
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
 
+        Class<?> valueType;
         Class<?> promote = null;
-        boolean originallyExplicit = input.explicit;
 
-        Input childInput = new Input();
-        Output childOutput;
+        if ((operation == Operation.SUB || operation == Operation.ADD) &&
+                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
+            semanticScope.setCondition(childNode, Read.class);
+            semanticScope.copyDecoration(this, childNode, TargetType.class);
+            semanticScope.replicateCondition(this, childNode, Explicit.class);
+            semanticScope.replicateCondition(this, childNode, Internal.class);
 
-        if (operation == Operation.NOT) {
+            if (childNode instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)childNode;
 
-            childInput.expected = boolean.class;
-            childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-            child.cast(childInput, childOutput);
+                if (operation == Operation.SUB) {
+                    numeric.analyze(semanticScope, numeric.getNumeric().charAt(0) != '-');
+                } else {
+                    childNode.analyze(semanticScope);
+                }
+            } else if (childNode instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)childNode;
 
-            output.actual = boolean.class;
-        } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-            childOutput = child.analyze(classNode, scriptRoot, scope, new Input());
-
-            promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                        "[" + operation.symbol + "] to the type " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
-            }
-
-            childInput.expected = promote;
-            child.cast(childInput, childOutput);
-
-            if (promote == def.class && input.expected != null) {
-                output.actual = input.expected;
+                if (operation == Operation.SUB) {
+                    decimal.analyze(semanticScope, decimal.getDecimal().charAt(0) != '-');
+                } else {
+                    childNode.analyze(semanticScope);
+                }
             } else {
-                output.actual = promote;
+                throw createError(new IllegalArgumentException("illegal tree structure"));
             }
+
+            valueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
         } else {
-            throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            if (operation == Operation.NOT) {
+                semanticScope.setCondition(childNode, Read.class);
+                semanticScope.putDecoration(childNode, new TargetType(boolean.class));
+                analyze(childNode, semanticScope);
+                childNode.cast(semanticScope);
+
+                valueType = boolean.class;
+            } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
+                semanticScope.setCondition(childNode, Read.class);
+                analyze(childNode, semanticScope);
+                Class<?> childValueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
+
+                promote = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
+
+                if (promote == null) {
+                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                            "[" + operation.symbol + "] to the type " +
+                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(childValueType) + "]"));
+                }
+
+                semanticScope.putDecoration(childNode, new TargetType(promote));
+                childNode.cast(semanticScope);
+
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+
+                if (promote == def.class && targetType != null) {
+                    valueType = targetType.getTargetType();
+                } else {
+                    valueType = promote;
+                }
+            } else {
+                throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            }
         }
 
-        UnaryMathNode unaryMathNode = new UnaryMathNode();
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
-        unaryMathNode.setChildNode(child.cast(childOutput));
-
-        unaryMathNode.setLocation(location);
-        unaryMathNode.setExpressionType(output.actual);
-        unaryMathNode.setUnaryType(promote);
-        unaryMathNode.setOperation(operation);
-        unaryMathNode.setOriginallExplicit(originallyExplicit);
-
-        output.expressionNode = unaryMathNode;
-
-        return output;
+        if (promote != null) {
+            semanticScope.putDecoration(this, new UnaryType(promote));
+        }
     }
 }

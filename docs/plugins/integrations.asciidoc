@@ -188,7 +188,9 @@ releases 2.0 and later do not support rivers.
 * http://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
-
+* https://www.zabbix.com/integrations/elasticsearch[Zabbix monitoring template]:
+  Monitor the performance and status of your {es} nodes and cluster with Zabbix
+  and receive events information.
 
 [[other-integrations]]
 [float]
@@ -202,4 +204,3 @@ releases 2.0 and later do not support rivers.
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web
-

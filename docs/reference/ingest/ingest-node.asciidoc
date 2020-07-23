@@ -401,7 +401,7 @@ support new line characters. However, Kibana's console supports
 a triple quote syntax to help with writing and debugging
 scripts like these.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/not_prod_dropper
 {
@@ -424,8 +424,43 @@ PUT _ingest/pipeline/not_prod_dropper
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
 // TEST[continued]
+
+or it can be built with a stored script:
+
+[source,console]
+--------------------------------------------------
+PUT _scripts/not_prod
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        Collection tags = ctx.tags;
+        if(tags != null){
+          for (String tag : tags) {
+              if (tag.toLowerCase().contains('prod')) {
+                  return false;
+              }
+          }
+        }
+        return true;
+    """
+  }
+}
+PUT _ingest/pipeline/not_prod_dropper
+{
+  "processors": [
+    {
+      "drop": {
+        "if": { "id": "not_prod" }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]
+
+Either way, you can run it with:
 
 [source,console]
 --------------------------------------------------

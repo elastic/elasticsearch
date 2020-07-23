@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restTests {
@@ -32,7 +33,7 @@ restResources {
   }
 }
 
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;

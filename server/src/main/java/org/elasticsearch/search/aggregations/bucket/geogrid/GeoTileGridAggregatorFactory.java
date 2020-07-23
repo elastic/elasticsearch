@@ -25,10 +25,10 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -63,10 +62,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
+        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -75,33 +73,28 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoTileGridAggregationBuilder.NAME);
+            .getAggregator(config, GeoTileGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metadata);
+        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), precision, geoBoundingBox,
+            requiredSize, shardSize, searchContext, parent, cardinality, metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, pipelineAggregators, metadata) -> {
+                                         aggregationContext, parent, cardinality, metadata) -> {
                 CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,
                     GeoTileUtils::longEncode);
                 return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                    parent, pipelineAggregators, metadata);
+                    parent, cardinality, metadata);
             });
     }
 }

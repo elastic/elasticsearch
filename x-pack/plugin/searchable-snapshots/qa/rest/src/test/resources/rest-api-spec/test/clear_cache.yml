@@ -67,8 +67,8 @@ teardown:
 ---
 "Clear searchable snapshots cache":
   - skip:
-      version: " - 7.99.99"
-      reason:  searchable snapshots introduced in 8.0
+      version: " - 7.7.99"
+      reason:  searchable snapshots introduced in 7.8.0
 
   - do:
       catch: missing

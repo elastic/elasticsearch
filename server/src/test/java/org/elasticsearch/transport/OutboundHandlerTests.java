@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -47,6 +49,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -56,7 +60,6 @@ public class OutboundHandlerTests extends ESTestCase {
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
     private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
     private InboundPipeline pipeline;
-    private StatsTracker statsTracker;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
@@ -67,11 +70,14 @@ public class OutboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
-        statsTracker = new StatsTracker();
+        StatsTracker statsTracker = new StatsTracker();
         handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        pipeline = new InboundPipeline(Version.CURRENT, new StatsTracker(), PageCacheRecycler.NON_RECYCLING_INSTANCE, millisSupplier,
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator,
             (c, m) -> {
                 try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                     Streams.copy(m.openOrGetStreamInput(), streamOutput);
@@ -79,9 +85,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
-            }, (c, t) -> {
-            throw new AssertionError(t.v2());
-        });
+            });
     }
 
     @After

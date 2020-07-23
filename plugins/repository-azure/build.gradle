@@ -1,4 +1,8 @@
+import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.info.BuildParams
+
+import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -18,6 +22,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -25,20 +30,20 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:8.6.2'
-  compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
+  api 'com.microsoft.azure:azure-storage:8.6.2'
+  api 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   runtimeOnly 'com.google.guava:guava:20.0'
-  compile 'org.apache.commons:commons-lang3:3.4'
-  testCompile project(':test:fixtures:azure-fixture')
+  api 'org.apache.commons:commons-lang3:3.4'
+  testImplementation project(':test:fixtures:azure-fixture')
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes'
+    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'
@@ -69,16 +74,13 @@ thirdPartyAudit {
   )
 }
 
-check {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:microsoft-azure-storage:check'
-}
+boolean useFixture = false
 
-testClusters {
-  integTest {
-    keystore 'azure.client.integration_test.account', 'azure_account'
-    keystore 'azure.client.integration_test.key', 'azure_key'
-  }
+def azureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
+  assert ephemeralPort > 0
+  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/'
 }
 
 String azureAccount = System.getenv("azure_storage_account")
@@ -87,19 +89,60 @@ String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
 String azureSasToken = System.getenv("azure_storage_sas_token")
 
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
+}
+
+Map<String, Object> expansions = [
+  'container': azureContainer,
+  'base_path': azureBasePath + "_integration_tests"
+]
+
+processTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
 test {
+  // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-task thirdPartyTest(type: Test) {
+testClusters {
+  integTest {
+    keystore 'azure.client.integration_test.account', azureAccount
+    if (azureKey != null && azureKey.isEmpty() == false) {
+      keystore 'azure.client.integration_test.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+      keystore 'azure.client.integration_test.sas_token', azureSasToken
+    }
+    if (useFixture) {
+      setting 'azure.client.integration_test.endpoint_suffix', azureAddress
+      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+    }
+  }
+}
+
+task azureThirdPartyTest(type: Test) {
+  dependsOn tasks.integTest
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
   systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
   systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
   systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
+  if (useFixture) {
+    nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
+  }
 }
-
-if (azureAccount || azureKey || azureContainer || azureBasePath || azureSasToken) {
-  check.dependsOn(thirdPartyTest)
-}
+check.dependsOn(azureThirdPartyTest)

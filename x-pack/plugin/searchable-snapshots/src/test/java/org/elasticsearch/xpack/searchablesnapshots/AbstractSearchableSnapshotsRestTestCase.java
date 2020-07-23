@@ -68,7 +68,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 10_000);
+        final int numDocs = randomIntBetween(1, 500);
         logger.info("indexing [{}] documents", numDocs);
 
         final StringBuilder bulkBody = new StringBuilder();
@@ -203,8 +203,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 
-            final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            assertBusy(() -> {
+                final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            });
         });
     }
 
@@ -253,11 +255,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
 
         final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
+        assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -276,11 +274,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         try {
             final Response response = client().performRequest(request);
-            assertThat(
-                "Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-                response.getStatusLine().getStatusCode(),
-                equalTo(RestStatus.OK.getStatus())
-            );
+            assertAcked("Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response, response);
         } catch (IOException e) {
             if (ignoreMissing && e instanceof ResponseException) {
                 Response response = ((ResponseException) e).getResponse();
@@ -320,6 +314,22 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteIndex(String index) throws IOException {
+        final Response response = client().performRequest(new Request("DELETE", "/" + index));
+        assertAcked("Fail to delete index [" + index + ']', response);
+    }
+
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        assertThat(message + ": response is not acknowledged", extractValue(responseAsMap, "acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
@@ -419,6 +429,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
      */
     @FunctionalInterface
     interface SearchableSnapshotsTestCaseBody {
-        void runTest(String indexName, int numDocs) throws IOException;
+        void runTest(String indexName, int numDocs) throws Exception;
     }
 }

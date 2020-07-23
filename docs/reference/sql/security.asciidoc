@@ -35,6 +35,6 @@ indices:
 
 [source, yaml]
 --------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_drivers]
+include-tagged::{sql-tests}server/security/roles.yml[cli_drivers]
 --------------------------------------------------
 

@@ -53,9 +53,9 @@ To get realistic results, you should exercise care when running benchmarks. Here
   `performance` CPU governor.
 * Vary the problem input size with `@Param`.
 * Use the integrated profilers in JMH to dig deeper if benchmark results to not match your hypotheses:
-    * Run the generated uberjar directly and use `-prof gc` to check whether the garbage collector runs during a microbenchmarks and skews
+    * Add `-prof gc` to the options to check whether the garbage collector runs during a microbenchmarks and skews
    your results. If so, try to force a GC between runs (`-gc true`) but watch out for the caveats.
-    * Use `-prof perf` or `-prof perfasm` (both only available on Linux) to see hotspots.
+    * Add `-prof perf` or `-prof perfasm` (both only available on Linux) to see hotspots.
 * Have your benchmarks peer-reviewed.
 
 ### Don't

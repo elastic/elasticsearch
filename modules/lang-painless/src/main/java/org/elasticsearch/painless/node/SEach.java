@@ -19,92 +19,135 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.Scope.Variable;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConditionNode;
-import org.elasticsearch.painless.ir.ForEachLoopNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a for-each loop and defers to subnodes depending on type.
  */
 public class SEach extends AStatement {
 
-    protected final String type;
-    protected final String name;
-    protected final AExpression expression;
-    protected final SBlock block;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression iterableNode;
+    private final SBlock blockNode;
 
-    public SEach(Location location, String type, String name, AExpression expression, SBlock block) {
-        super(location);
+    public SEach(int identifier, Location location, String canonicalTypeName, String symbol, AExpression iterableNode, SBlock blockNode) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.iterableNode = Objects.requireNonNull(iterableNode);
+        this.blockNode = blockNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getIterableNode() {
+        return iterableNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitEach(this, scope);
+    }
 
-        AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-        // TODO: no need to cast here
-        expressionInput.expected = expressionOutput.actual;
-        expression.cast(expressionInput, expressionOutput);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        iterableNode.visit(userTreeVisitor, scope);
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
+        }
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        semanticScope.setCondition(iterableNode, Read.class);
+        AExpression.analyze(iterableNode, semanticScope);
+        Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
+
+        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        scope = scope.newLocalScope();
-        Variable variable = scope.defineVariable(location, clazz, name, true);
+        semanticScope = semanticScope.newLocalScope();
+        Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
 
-        if (block == null) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
         }
 
-        Input blockInput = new Input();
-        blockInput.beginLoop = true;
-        blockInput.inLoop = true;
-        Output blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
-        blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
+        semanticScope.setCondition(blockNode, BeginLoop.class);
+        semanticScope.setCondition(blockNode, InLoop.class);
+        blockNode.analyze(semanticScope);
 
-        if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
+        if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
+                semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
         }
 
-        AStatement sub;
+        if (iterableValueType.isArray()) {
+            PainlessCast painlessCast =
+                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true);
 
-        if (expressionOutput.actual.isArray()) {
-            sub = new SSubEachArray(location, variable, expressionOutput, blockOutput);
-        } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
-            sub = new SSubEachIterable(location, variable, expressionOutput, blockOutput);
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
+        } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
+            if (iterableValueType != def.class) {
+                PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().
+                        lookupPainlessMethod(iterableValueType, false, "iterator", 0);
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException(
+                            "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"));
+                }
+
+                semanticScope.putDecoration(this, new IterablePainlessMethod(method));
+            }
+
+            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true);
+
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expressionOutput.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
         }
-
-        Output subOutput = sub.analyze(classNode, scriptRoot, scope, input);
-
-        output.statementCount = 1;
-
-        ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
-        forEachLoopNode.setConditionNode((ConditionNode)subOutput.statementNode);
-        forEachLoopNode.setLocation(location);
-
-        output.statementNode = forEachLoopNode;
-
-        return output;
-
     }
 }

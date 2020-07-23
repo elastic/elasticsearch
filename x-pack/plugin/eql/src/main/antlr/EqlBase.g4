@@ -30,7 +30,7 @@ sequenceParams
     ;
 
 sequence
-    : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
+    : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
       sequenceTerm sequenceTerm+
       (UNTIL until=sequenceTerm)?
     ;
@@ -59,10 +59,14 @@ sequenceTerm
    ;
 
 subquery
-    : LB eventQuery RB
+    : LB eventFilter RB
     ;
 
 eventQuery
+    : eventFilter
+    ;
+    
+eventFilter
     : (ANY | event=identifier) WHERE expression
     ;
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -32,8 +33,10 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
@@ -43,8 +46,10 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
+        final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
+        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            transport::inboundMessage, transport::inboundDecodeException);
+            breaker, requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override
@@ -55,7 +60,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
+        try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
             pipeline.handleBytes(channel, reference);
             return reference.length();
         }

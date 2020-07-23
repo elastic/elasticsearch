@@ -113,8 +113,8 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return this;
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        StringStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        StringStatsAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

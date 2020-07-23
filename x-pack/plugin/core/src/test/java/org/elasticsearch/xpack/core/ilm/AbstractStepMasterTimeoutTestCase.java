@@ -42,17 +42,19 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     }
 
     public void testMasterTimeout() {
+        IndexMetadata indexMetadata = getIndexMetadata();
         checkMasterTimeout(TimeValue.timeValueSeconds(30),
-            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().build()).build());
+            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true).build()).build(), indexMetadata);
         checkMasterTimeout(TimeValue.timeValueSeconds(10),
             ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(Metadata.builder()
                     .persistentSettings(Settings.builder().put(LIFECYCLE_STEP_MASTER_TIMEOUT, "10s").build())
+                    .put(indexMetadata, true)
                     .build())
-                .build());
+                .build(), indexMetadata);
     }
 
-    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
+    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState, IndexMetadata indexMetadata) {
         AtomicBoolean timeoutChecked = new AtomicBoolean();
         client = new NoOpClient(pool) {
             @Override
@@ -65,7 +67,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
                 }
             }
         };
-        createRandomInstance().performAction(getIndexMetadata(), currentClusterState, null, new AsyncActionStep.Listener() {
+        createRandomInstance().performAction(indexMetadata, currentClusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
 

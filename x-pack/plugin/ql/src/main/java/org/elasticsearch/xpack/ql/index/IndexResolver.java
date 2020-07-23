@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -76,19 +75,14 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 public class IndexResolver {
 
     public enum IndexType {
-        STANDARD_INDEX("BASE TABLE", "INDEX"),
-        ALIAS("VIEW", "ALIAS"),
-        FROZEN_INDEX("BASE TABLE", "FROZEN INDEX"),
+        STANDARD_INDEX(SQL_TABLE, "INDEX"),
+        ALIAS(SQL_VIEW, "ALIAS"),
+        FROZEN_INDEX(SQL_TABLE, "FROZEN INDEX"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final String SQL_BASE_TABLE = "BASE TABLE";
-        public static final String SQL_TABLE = "TABLE";
-        public static final String SQL_VIEW = "VIEW";
-
         public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
         public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
-        public static final EnumSet<IndexType> INDICES_ONLY = EnumSet.of(STANDARD_INDEX, FROZEN_INDEX);
 
         private final String toSql;
         private final String toNative;
@@ -149,6 +143,9 @@ public class IndexResolver {
                     && Objects.equals(type, other.type);
         }
     }
+
+    public static final String SQL_TABLE = "TABLE";
+    public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES, Option.IGNORE_THROTTLED),
@@ -269,7 +266,7 @@ public class IndexResolver {
         if (indicesNames != null) {
             for (String indexName : indicesNames) {
                 boolean isFrozen = retrieveFrozenIndices
-                        && IndexSettings.INDEX_SEARCH_THROTTLED.get(indices.getSettings().get(indexName)) == Boolean.TRUE;
+                        && indices.getSettings().get(indexName).getAsBoolean("index.frozen", false);
 
                 if (pattern == null || pattern.matcher(indexName).matches()) {
                     result.add(new IndexInfo(indexName, isFrozen ? IndexType.FROZEN_INDEX : IndexType.STANDARD_INDEX));

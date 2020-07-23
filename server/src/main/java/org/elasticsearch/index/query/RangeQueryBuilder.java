@@ -486,7 +486,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
-                return ExistsQueryBuilder.newFilter(context, fieldName);
+                return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
         MappedFieldType mapper = context.fieldMapper(this.fieldName);

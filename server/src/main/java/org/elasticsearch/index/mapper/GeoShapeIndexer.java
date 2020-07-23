@@ -49,7 +49,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
 
     private final boolean orientation;
     private final String name;
@@ -190,7 +190,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     private static class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private List<IndexableField> fields = new ArrayList<>();
-        private String name;
+        private final String name;
 
         private LuceneGeometryIndexer(String name) {
             this.name = name;

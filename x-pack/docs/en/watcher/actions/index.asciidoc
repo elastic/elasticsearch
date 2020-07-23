@@ -73,5 +73,34 @@ When a `_doc` field exists, if the field holds an object, it is extracted and in
 as a single document. If the field holds an array of objects, each object is treated as
 a document and the index action indexes all of them in a bulk.
 
-An `_index`, or `_id` value can be added per document to dynamically set the ID
+An `_index`, or `_id` value can be added per document to dynamically set the index and ID
 of the indexed document.
+
+The following snippet shows a multi-document `index` action definition:
+
+[source,js]
+--------------------------------------------------
+"actions": {
+  "index_payload": {
+    "transform": {
+      "script": """
+      def documents = ctx.payload.hits.hits.stream()
+        .map(hit -> [
+          "_index": "my-index", <1>
+          "_id": hit._id, <2>
+          "severity": "Sev: " + hit._source.severity <3>
+        ])
+        .collect(Collectors.toList());
+      return [ "_doc" : documents]; <4>
+      """
+    },
+    "index": {} <5>
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The document's index
+<2> An optional `_id` for the document
+<3> A new `severity` field derived from the original document
+<4> The payload `_doc` field which is an array of documents
+<5> Since the `_index` was informed per document this should be empty

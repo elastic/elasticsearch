@@ -314,7 +314,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
                 indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
-            } else if (previousState.metadata().hasIndex(index.getName())) {
+            } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetadata metadata = previousState.metadata().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
@@ -325,8 +325,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // node was not part of the cluster.  In this case, try reading the index
                 // metadata from disk.  If its not there, there is nothing to delete.
                 // First, though, verify the precondition for applying this case by
-                // asserting that the previous cluster state is not initialized/recovered.
-                assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                // asserting that either this index is already in the graveyard, or the
+                // previous cluster state is not initialized/recovered.
+                assert state.metadata().indexGraveyard().containsIndex(index)
+                    || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);
@@ -602,16 +604,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
-            RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(
                     shardRouting,
-                    recoveryState,
                     recoveryTargetService,
                     new RecoveryListener(shardRouting, primaryTerm),
                     repositoriesService,
                     failedShardHandler,
                     this::updateGlobalCheckpointForShard,
-                    retentionLeaseSyncer);
+                    retentionLeaseSyncer,
+                    nodes.getLocalNode(),
+                    sourceNode);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
@@ -901,25 +903,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Creates a shard for the specified shard routing and starts recovery.
          *
          * @param shardRouting           the shard routing
-         * @param recoveryState          the recovery state
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
          * @param repositoriesService    service responsible for snapshot/restore
          * @param onShardFailure         a callback when this shard fails
          * @param globalCheckpointSyncer a callback when this shard syncs the global checkpoint
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
+         * @param targetNode             the node where this shard will be recovered
+         * @param sourceNode             the source node to recover this shard from (it might be null)
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         T createShard(
                 ShardRouting shardRouting,
-                RecoveryState recoveryState,
                 PeerRecoveryTargetService recoveryTargetService,
                 PeerRecoveryTargetService.RecoveryListener recoveryListener,
                 RepositoriesService repositoriesService,
                 Consumer<IndexShard.ShardFailure> onShardFailure,
                 Consumer<ShardId> globalCheckpointSyncer,
-                RetentionLeaseSyncer retentionLeaseSyncer) throws IOException;
+                RetentionLeaseSyncer retentionLeaseSyncer,
+                DiscoveryNode targetNode,
+                @Nullable DiscoveryNode sourceNode) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

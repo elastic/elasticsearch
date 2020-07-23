@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
@@ -75,15 +78,17 @@ public final class Processors {
         entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // datetime
-        entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, TimeProcessor.NAME, TimeProcessor::new));
-        entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         entries.add(new Entry(Processor.class, DateAddProcessor.NAME, DateAddProcessor::new));
         entries.add(new Entry(Processor.class, DateDiffProcessor.NAME, DateDiffProcessor::new));
         entries.add(new Entry(Processor.class, DatePartProcessor.NAME, DatePartProcessor::new));
+        entries.add(new Entry(Processor.class, DateTimeFormatProcessor.NAME, DateTimeFormatProcessor::new));
+        entries.add(new Entry(Processor.class, DateTimeParseProcessor.NAME, DateTimeParseProcessor::new));
+        entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         entries.add(new Entry(Processor.class, DateTruncProcessor.NAME, DateTruncProcessor::new));
+        entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
+        entries.add(new Entry(Processor.class, TimeProcessor.NAME, TimeProcessor::new));
         // math
         entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         entries.add(new Entry(Processor.class, BinaryOptionalMathProcessor.NAME, BinaryOptionalMathProcessor::new));
@@ -97,6 +102,7 @@ public final class Processors {
         entries.add(new Entry(Processor.class, LocateFunctionProcessor.NAME, LocateFunctionProcessor::new));
         entries.add(new Entry(Processor.class, ReplaceFunctionProcessor.NAME, ReplaceFunctionProcessor::new));
         entries.add(new Entry(Processor.class, SubstringFunctionProcessor.NAME, SubstringFunctionProcessor::new));
+        entries.add(new Entry(Processor.class, StartsWithFunctionProcessor.NAME, StartsWithFunctionProcessor::new));
         // geo
         entries.add(new Entry(Processor.class, GeoProcessor.NAME, GeoProcessor::new));
         entries.add(new Entry(Processor.class, StWkttosqlProcessor.NAME, StWkttosqlProcessor::new));

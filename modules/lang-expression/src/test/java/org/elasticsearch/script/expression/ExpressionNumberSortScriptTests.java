@@ -47,7 +47,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
+        NumberFieldType fieldType = new NumberFieldType("field", NumberType.DOUBLE);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType("field")).thenReturn(fieldType);
         when(mapperService.fieldType("alias")).thenReturn(fieldType);

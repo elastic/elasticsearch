@@ -2,7 +2,7 @@
 "Help":
   - skip:
       version: " - 7.99.99"
-      reason:  shard path stats were added in 8.0.0
+      reason:  bulk stats were added in 8.0.0
   - do:
       cat.shards:
         help: true
@@ -80,6 +80,11 @@
                     warmer.total_time                .+   \n
                     path.data                        .+   \n
                     path.state                       .+   \n
+                    bulk.total_operations            .+   \n
+                    bulk.total_time                  .+   \n
+                    bulk.total_size_in_bytes         .+   \n
+                    bulk.avg_time                    .+   \n
+                    bulk.avg_size_in_bytes           .+   \n
                $/
 ---
 "Test cat shards output":

@@ -20,8 +20,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -32,9 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class TrainedModelDefinition implements ToXContentObject, Writeable, Accountable {
@@ -73,7 +69,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     private final TrainedModel trainedModel;
     private final List<PreProcessor> preProcessors;
-    private Map<String, String> decoderMap;
 
     private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors) {
         this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
@@ -114,37 +109,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     public List<PreProcessor> getPreProcessors() {
         return preProcessors;
-    }
-
-    void preProcess(Map<String, Object> fields) {
-        preProcessors.forEach(preProcessor -> preProcessor.process(fields));
-    }
-
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
-        preProcess(fields);
-        if (config.requestingImportance() && trainedModel.supportsFeatureImportance() == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Feature importance is not supported for the configured model of type [{}]",
-                trainedModel.getName());
-        }
-        return trainedModel.infer(fields,
-            config,
-            config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
-    }
-
-    private Map<String, String> getDecoderMap() {
-        if (decoderMap != null) {
-            return decoderMap;
-        }
-        synchronized (this) {
-            if (decoderMap != null) {
-                return decoderMap;
-            }
-            this.decoderMap = preProcessors.stream()
-                .map(PreProcessor::reverseLookup)
-                .collect(HashMap::new, Map::putAll, Map::putAll);
-            return decoderMap;
-        }
     }
 
     @Override
@@ -216,14 +180,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         public Builder setTrainedModel(TrainedModel trainedModel) {
             this.trainedModel = trainedModel;
             return this;
-        }
-
-        private Builder setTrainedModel(List<TrainedModel> trainedModel) {
-            if (trainedModel.size() != 1) {
-                throw ExceptionsHelper.badRequestException("[{}] must have exactly one trained model defined.",
-                    TRAINED_MODEL.getPreferredName());
-            }
-            return setTrainedModel(trainedModel.get(0));
         }
 
         private void setProcessorsInOrder(boolean value) {

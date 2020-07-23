@@ -20,10 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -32,30 +34,40 @@ import java.util.Objects;
  */
 public class EString extends AExpression {
 
-    protected String constant;
+    private final String string;
 
-    public EString(Location location, String string) {
-        super(location);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
 
-        this.constant = Objects.requireNonNull(string);
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: string constant [" + constant + "] not used"));
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitString(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
-        Output output = new Output();
-        output.actual = String.class;
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
+        }
 
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
-
-        output.expressionNode = constantNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(String.class));
+        semanticScope.putDecoration(this, new StandardConstant(string));
     }
 }

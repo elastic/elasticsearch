@@ -24,11 +24,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
@@ -48,22 +47,28 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-
-        return doCreateInternal(searchContext, configs, format, parent,
-            collectsFromSingleBucket, pipelineAggregators, metadata);
+        return doCreateInternal(searchContext, configs, format, parent, cardinality, metadata);
     }
 
+    /**
+     * Create an aggregator that won't collect anything but will return an
+     * appropriate empty aggregation.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metadata) throws IOException;
 
+    /**
+     * Create the {@linkplain Aggregator}.
+     * 
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
+     */
     protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
-                                                   DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
-                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   DocValueFormat format, Aggregator parent, CardinalityUpperBound cardinality,
                                                    Map<String, Object> metadata) throws IOException;
 
 }

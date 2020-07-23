@@ -34,7 +34,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isGraphAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, null,

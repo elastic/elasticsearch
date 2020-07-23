@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
@@ -90,7 +90,7 @@ public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
-    private final Configuration cfg;
+    private final SqlConfiguration cfg;
     private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
@@ -298,7 +298,7 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
         }
@@ -355,7 +355,7 @@ public class Querier {
 
         private final boolean isPivot;
 
-        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        CompositeActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
 
@@ -386,8 +386,8 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output, QueryContainer query,
-                SearchRequest request) {
+        BaseAggActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output);
 
             this.query = query;
@@ -456,7 +456,7 @@ public class Querier {
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query) {
             super(listener, client, cfg, output);
             this.query = query;
@@ -525,11 +525,11 @@ public class Querier {
         final ActionListener<Page> listener;
 
         final Client client;
-        final Configuration cfg;
+        final SqlConfiguration cfg;
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output) {
+        BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
             this.listener = listener;
 
             this.client = client;

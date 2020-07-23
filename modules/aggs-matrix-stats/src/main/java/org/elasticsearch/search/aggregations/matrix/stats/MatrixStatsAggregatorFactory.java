@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -32,7 +32,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory {
@@ -53,18 +52,16 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
+                                            CardinalityUpperBound cardinality,
                                             Map<String, Object> metadata) throws IOException {
         Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
@@ -75,6 +72,6 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
             // TODO: There must be a better option than this.
             typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
         }
-        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
+        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
     }
 }

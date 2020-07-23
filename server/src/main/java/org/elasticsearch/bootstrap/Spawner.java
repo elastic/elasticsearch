@@ -55,10 +55,12 @@ final class Spawner implements Closeable {
     /**
      * Spawns the native controllers for each module.
      *
-     * @param environment the node environment
+     * @param environment The node environment
+     * @param inheritIo   Should the stdout and stderr of the spawned process inherit the
+     *                    stdout and stderr of the JVM spawning it?
      * @throws IOException if an I/O error occurs reading the module or spawning a native process
      */
-    void spawnNativeControllers(final Environment environment) throws IOException {
+    void spawnNativeControllers(final Environment environment, final boolean inheritIo) throws IOException {
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
@@ -83,7 +85,7 @@ final class Spawner implements Closeable {
                     modules.getFileName());
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativeController(spawnPath, environment.tmpFile());
+            final Process process = spawnNativeController(spawnPath, environment.tmpFile(), inheritIo);
             processes.add(process);
         }
     }
@@ -92,7 +94,7 @@ final class Spawner implements Closeable {
      * Attempt to spawn the controller daemon for a given module. The spawned process will remain connected to this JVM via its stdin,
      * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
-    private Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
+    private Process spawnNativeController(final Path spawnPath, final Path tmpPath, final boolean inheritIo) throws IOException {
         final String command;
         if (Constants.WINDOWS) {
             /*
@@ -113,6 +115,14 @@ final class Spawner implements Closeable {
         // the only environment variable passes on the path to the temporary directory
         pb.environment().clear();
         pb.environment().put("TMPDIR", tmpPath.toString());
+
+        // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
+        // it will block if nothing is reading that output. To avoid this we can inherit the
+        // JVM's stdout and stderr (which are redirected to files in standard installations).
+        if (inheritIo) {
+            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        }
 
         // the output stream of the process object corresponds to the daemon's stdin
         return pb.start();

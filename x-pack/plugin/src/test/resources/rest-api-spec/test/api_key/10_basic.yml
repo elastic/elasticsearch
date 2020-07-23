@@ -119,8 +119,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "api_key_user" }
-  - match: { roles.0:  "role-b" }
-  - match: { roles.1:  "role-a" }
+  - length: { roles: 0 }
   - match: { authentication_realm.name: "_es_api_key" }
   - match: { authentication_realm.type: "_es_api_key" }
 

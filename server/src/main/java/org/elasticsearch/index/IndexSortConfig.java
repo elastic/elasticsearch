@@ -161,6 +161,11 @@ public final class IndexSortConfig {
         return sortSpecs.length > 0;
     }
 
+    public boolean hasPrimarySortOnField(String field) {
+        return sortSpecs.length > 0
+            && sortSpecs[0].field.equals(field);
+    }
+
     /**
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.

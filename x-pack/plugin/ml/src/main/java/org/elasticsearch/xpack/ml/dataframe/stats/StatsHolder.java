@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.ml.dataframe.stats;
 
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -16,16 +18,22 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class StatsHolder {
 
-    private final ProgressTracker progressTracker;
+    private volatile ProgressTracker progressTracker;
     private final AtomicReference<MemoryUsage> memoryUsageHolder;
     private final AtomicReference<AnalysisStats> analysisStatsHolder;
     private final DataCountsTracker dataCountsTracker;
 
-    public StatsHolder() {
-        progressTracker = new ProgressTracker();
+    public StatsHolder(List<PhaseProgress> progressOnStart) {
+        progressTracker = new ProgressTracker(progressOnStart);
         memoryUsageHolder = new AtomicReference<>();
         analysisStatsHolder = new AtomicReference<>();
         dataCountsTracker = new DataCountsTracker();
+    }
+
+    public void resetProgressTrackerPreservingReindexingProgress(List<String> analysisPhases, boolean hasInferencePhase) {
+        int reindexingProgressPercent = progressTracker.getReindexingProgressPercent();
+        progressTracker = ProgressTracker.fromZeroes(analysisPhases, hasInferencePhase);
+        progressTracker.updateReindexingProgress(reindexingProgressPercent);
     }
 
     public ProgressTracker getProgressTracker() {

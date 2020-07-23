@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -34,19 +32,12 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         super(name, bucketsPaths, metadata);
     }
 
-    /**
-     * Read from a stream.
-     */
-    SiblingPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-    }
-
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         return aggregation.copyWithRewritenBuckets(aggregations -> {
             List<InternalAggregation> aggs = aggregations.copyResults();
             aggs.add(doReduce(aggregations, reduceContext));
-            return new InternalAggregations(aggs);
+            return InternalAggregations.from(aggs);
         });
     }
 

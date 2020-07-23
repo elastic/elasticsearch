@@ -1,0 +1,64 @@
+---
+setup:
+  - skip:
+      version: " - 7.4.99"
+      reason:  "analytics wasn't available before 7.5"
+      features: allowed_warnings
+  - do:
+      bulk:
+        index: analytics_usage
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 1, "v1": 3.1415, "v2": 2.1415, "str": "a"}'
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 2, "v1": 1.0, "v2": 2.0, "str": "a"}'
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 3, "v1": 2.71828, "v2": 3.71828, "str": "b"}'
+
+---
+"Basic test for usage stats on analytics indices":
+  - skip:
+      version: " - 7.7.99"
+      reason:  "stats are not working in earlier versions"
+  - do:
+      xpack.info: {}
+  - match: { features.analytics.available: true }
+  - match: { features.analytics.enabled: true }
+  - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      xpack.usage: {}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - is_true: analytics.stats
+  - set: {analytics.stats.cumulative_cardinality_usage: cumulative_cardinality_usage}
+
+  # use cumulative_cardinality agg
+  - do:
+      search:
+        index: "analytics_usage"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                distinct_s:
+                  cardinality:
+                    field: "s"
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: "distinct_s"
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      xpack.usage: {}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - gt: { analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage }

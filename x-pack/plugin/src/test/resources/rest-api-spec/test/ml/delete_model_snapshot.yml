@@ -103,6 +103,7 @@ setup:
                 "frequent_category_count" : 0,
                 "rare_category_count" : 0,
                 "dead_category_count" : 0,
+                "failed_category_count" : 0,
                 "categorization_status" : "ok",
                 "log_time" : 1495808248662,
                 "timestamp" : 1495808248662

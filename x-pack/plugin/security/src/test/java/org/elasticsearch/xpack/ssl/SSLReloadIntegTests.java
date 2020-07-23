@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-
 import java.io.IOException;
 import java.net.SocketException;
 import java.nio.file.AtomicMoveNotSupportedException;

@@ -14,7 +14,7 @@ public class XmlFileStructureFinderTests extends FileStructureTestCase {
     private FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
-        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);

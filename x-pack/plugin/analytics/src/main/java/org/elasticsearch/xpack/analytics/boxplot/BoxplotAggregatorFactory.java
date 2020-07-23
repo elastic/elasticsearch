@@ -11,10 +11,9 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -29,8 +28,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(BoxplotAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(BoxplotAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
             (BoxplotAggregatorSupplier) BoxplotAggregator::new);
     }
@@ -49,28 +48,24 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata)
         throws IOException {
-        return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent,
-            pipelineAggregators, metadata);
+        return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             BoxplotAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof BoxplotAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected BoxplotAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), compression,
-            searchContext, parent, pipelineAggregators, metadata);
+        return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), config.format(), compression,
+            searchContext, parent, metadata);
     }
 }

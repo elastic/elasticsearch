@@ -137,6 +137,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     @Override
     public final AggregatorFactory build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
         AggregatorFactory factory = doBuild(queryShardContext, parent, factoriesBuilder);
+        queryShardContext.getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
         return factory;
     }
 

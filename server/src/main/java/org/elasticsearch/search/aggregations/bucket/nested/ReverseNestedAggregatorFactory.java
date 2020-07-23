@@ -24,13 +24,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class ReverseNestedAggregatorFactory extends AggregatorFactory {
@@ -50,14 +49,13 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         if (unmapped) {
-            return new Unmapped(name, searchContext, parent, pipelineAggregators, metadata);
+            return new Unmapped(name, searchContext, parent, metadata);
         } else {
             return new ReverseNestedAggregator(name, factories, parentObjectMapper,
-                searchContext, parent, pipelineAggregators, metadata);
+                searchContext, parent, cardinality, metadata);
         }
     }
 
@@ -66,14 +64,13 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         Unmapped(String name,
                     SearchContext context,
                     Aggregator parent,
-                    List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metadata) throws IOException {
-            super(name, context, parent, pipelineAggregators, metadata);
+            super(name, context, parent, metadata);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
+            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
         }
     }
 }

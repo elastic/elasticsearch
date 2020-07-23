@@ -32,28 +32,18 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
             }
         }
     }
-    
+
     /**
      * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
      */
     protected abstract Writeable.Reader<T> instanceReader();
 
     protected ZoneId instanceZoneId(T instance) {
-        return randomSafeZone();
+        return randomZone();
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Cursors.getNamedWriteables());
-    }
-
-
-    /**
-     * We need to exclude SystemV/* time zones because they cannot be converted
-     * back to DateTimeZone which we currently still need to do internally,
-     * e.g. in bwc serialization and in the extract() method
-     */
-    protected static ZoneId randomSafeZone() {
-        return randomValueOtherThanMany(zi -> zi.getId().startsWith("SystemV"), () -> randomZone());
     }
 }

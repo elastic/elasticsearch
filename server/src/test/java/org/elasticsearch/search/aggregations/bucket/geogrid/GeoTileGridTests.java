@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
@@ -30,11 +29,6 @@ public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket,
     protected InternalGeoTileGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
                                                         Map<String, Object> metadata) {
         return new InternalGeoTileGrid(name, size, buckets, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoTileGrid> instanceReader() {
-        return InternalGeoTileGrid::new;
     }
 
     @Override

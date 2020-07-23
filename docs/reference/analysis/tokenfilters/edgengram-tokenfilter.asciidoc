@@ -136,7 +136,7 @@ The filter produces the following tokens:
 ==== Add to an analyzer
 
 The following <<indices-create-index,create index API>> request uses the
-`edge_ngram` filter to configure a new 
+`edge_ngram` filter to configure a new
 <<analysis-custom-analyzer,custom analyzer>>.
 
 [source,console]
@@ -172,6 +172,10 @@ See <<analysis-edgengram-tokenfilter-max-gram-limits>>.
 `min_gram`::
 (Optional, integer)
 Minimum character length of a gram. Defaults to `1`.
+
+`preserve_original`::
+(Optional, boolean)
+Emits original token when set to `true`. Defaults to `false`.
 
 `side`::
 +

@@ -50,10 +50,10 @@ public final class MultiValuesSourceParseHelper {
 
     public static <VS extends ValuesSource, T> void declareField(String fieldName,
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean scriptable, boolean timezoneAware) {
+        boolean scriptable, boolean timezoneAware, boolean filterable) {
 
         objectParser.declareField((o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),
-            (p, c) -> MultiValuesSourceFieldConfig.PARSER.apply(scriptable, timezoneAware).parse(p, null),
+            (p, c) -> MultiValuesSourceFieldConfig.parserBuilder(scriptable, timezoneAware, filterable).parse(p, null),
             new ParseField(fieldName), ObjectParser.ValueType.OBJECT);
     }
 }

@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -35,11 +36,12 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class FilterRepository implements Repository {
 
@@ -65,8 +67,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException {
-        return in.getSnapshotIndexMetadata(snapshotId, index);
+    public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
+        return in.getSnapshotIndexMetaData(repositoryData, snapshotId, index);
     }
 
     @Override
@@ -75,18 +77,17 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
-        in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metadata, userMetadata, repositoryMetaVersion, listener);
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
+        in.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion, stateTransformer,
+            listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<RepositoryData> listener) {
+        in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     @Override
@@ -140,6 +141,12 @@ public class FilterRepository implements Repository {
     @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
+    }
+
+    @Override
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                             Consumer<Exception> onFailure) {
+        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override

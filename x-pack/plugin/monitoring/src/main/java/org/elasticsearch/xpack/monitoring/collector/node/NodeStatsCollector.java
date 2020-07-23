@@ -44,7 +44,8 @@ public class NodeStatsCollector extends Collector {
                                  CommonStatsFlags.Flag.QueryCache,
                                  CommonStatsFlags.Flag.RequestCache,
                                  CommonStatsFlags.Flag.Search,
-                                 CommonStatsFlags.Flag.Segments);
+                                 CommonStatsFlags.Flag.Segments,
+                                 CommonStatsFlags.Flag.Bulk);
 
     private final Client client;
 

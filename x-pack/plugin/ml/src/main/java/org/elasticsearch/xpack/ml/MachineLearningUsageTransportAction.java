@@ -86,7 +86,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
-            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
+            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
@@ -102,7 +103,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ActionListener<SearchResponse> trainedModelConfigCountListener = ActionListener.wrap(
             response -> {
                 addTrainedModelStats(response, inferenceUsage);
-                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
+                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                    licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING),
                     enabled, jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, nodeCount);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },
@@ -182,9 +184,14 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Map<String, Long> allJobsCreatedBy = jobs.stream().map(this::jobCreatedBy)
             .collect(Collectors.groupingBy(item -> item, Collectors.counting()));;
         for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
-            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
             Job job = jobMap.get(jobStats.getJobId());
+            if (job == null) {
+                // It's possible we can get job stats without a corresponding job config, if a
+                // persistent task is orphaned. Omit these corrupt jobs from the usage info.
+                continue;
+            }
             int detectorsCount = job.getAnalysisConfig().getDetectors().size();
+            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
             double modelSize = modelSizeStats == null ? 0.0
                 : jobStats.getModelSizeStats().getModelBytes();
 

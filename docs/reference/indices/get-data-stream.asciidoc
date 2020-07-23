@@ -1,0 +1,237 @@
+[role="xpack"]
+[[indices-get-data-stream]]
+=== Get data stream API
+++++
+<titleabbrev>Get data stream</titleabbrev>
+++++
+
+Retrieves information about one or more <<data-streams,data streams>>.
+See <<get-info-about-a-data-stream>>.
+
+////
+[source,console]
+----
+PUT /_ilm/policy/my-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/my-index-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": {},
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "my-lifecycle-policy"
+    }
+  }
+}
+
+PUT /_data_stream/my-data-stream
+
+POST /my-data-stream/_rollover
+
+PUT /_data_stream/my-data-stream_two
+----
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+DELETE /_ilm/policy/my-lifecycle-policy
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+GET /_data_stream/my-data-stream
+----
+
+[[get-data-stream-api-request]]
+==== {api-request-title}
+
+`GET /_data_stream/<data-stream>`
+
+[[get-data-stream-api-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Optional, string)
+Comma-separated list of data stream names used to limit the request. Wildcard
+(`*`) expressions are supported. If omitted, all data streams will be
+returned.
+
+[role="child_attributes"]
+[[get-data-stream-api-response-body]]
+==== {api-response-body-title}
+
+`data_streams`::
+(array of objects)
+Contains information about retrieved data streams.
++
+.Properties of objects in `data_streams`
+[%collapsible%open]
+====
+`name`::
+(string)
+Name of the data stream.
+
+`timestamp_field`::
+(object)
+Contains information about the data stream's `@timestamp` field.
++
+.Properties of `timestamp_field`
+[%collapsible%open]
+=====
+`name`::
+(string)
+Name of the data stream's timestamp field, which must be `@timestamp`. The
+`@timestamp` field must be included in every document indexed to the data
+stream.
+=====
+
+`indices`::
+(array of objects)
+Array of objects containing information about the data stream's backing
+indices.
++
+The last item in this array contains information about the stream's current
+<<data-stream-write-index,write index>>.
++
+.Properties of `indices` objects
+[%collapsible%open]
+=====
+`index_name`::
+(string)
+Name of the backing index. For naming conventions, see
+<<data-streams-generation>>.
+
+`index_uuid`::
+(string)
+Universally unique identifier (UUID) for the index.
+=====
+
+`generation`::
+(integer)
+Current <<data-streams-generation,generation>> for the data stream. This number
+acts as a cumulative count of the stream's backing indices, including
+deleted indices.
+
+`status`::
+(string)
+<<cluster-health,Health status>> of the data stream.
++
+This health status is based on the state of the primary and replica shards of
+the stream's backing indices.
++
+.Values for `status`
+[%collapsible%open]
+=====
+`green`:::
+All shards are assigned.
+
+`yellow`:::
+All primary shards are assigned, but one or more replica shards are
+unassigned.
+
+`red`:::
+One or more primary shards are unassigned, so some data is unavailable.
+=====
+
+`template`::
+(string)
+Name of the index template used to create the data stream's backing indices.
++
+The template's index pattern must match the name of this data stream. See
+<<create-a-data-stream-template>>.
+
+`ilm_policy`::
+(string)
+Name of the current {ilm-init} lifecycle policy in the stream's matching index
+template. This lifecycle policy is set in the `index.lifecycle.name` setting.
++
+If the template does not include a lifecycle policy, this property is not
+included in the response.
++
+NOTE: A data stream's backing indices may be assigned different lifecycle
+policies. To retrieve the lifecycle policy for individual backing indices,
+use the <<indices-get-settings,get index settings API>>.
+====
+
+[[get-data-stream-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET _data_stream/my-data-stream*
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "data_streams": [
+    {
+      "name": "my-data-stream",
+      "timestamp_field": {
+        "name": "@timestamp"
+      },
+      "indices": [
+        {
+          "index_name": ".ds-my-data-stream-000001",
+          "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"
+        },
+        {
+          "index_name": ".ds-my-data-stream-000002",
+          "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "my-index-template",
+      "ilm_policy": "my-lifecycle-policy"
+    },
+    {
+      "name": "my-data-stream_two",
+      "timestamp_field": {
+        "name": "@timestamp"
+      },
+      "indices": [
+        {
+          "index_name": ".ds-my-data-stream_two-000001",
+          "index_uuid": "3liBu2SYS5axasRt6fUIpA"
+        }
+      ],
+      "generation": 1,
+      "status": "YELLOW",
+      "template": "my-index-template",
+      "ilm_policy": "my-lifecycle-policy"
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]

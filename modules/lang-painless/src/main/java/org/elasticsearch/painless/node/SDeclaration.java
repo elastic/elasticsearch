@@ -20,10 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -32,46 +35,64 @@ import java.util.Objects;
  */
 public class SDeclaration extends AStatement {
 
-    protected final DType type;
-    protected final String name;
-    protected final boolean requiresDefault;
-    protected final AExpression expression;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression valueNode;
 
-    public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
-        super(location);
+    public SDeclaration(int identifier, Location location, String canonicalTypeName, String symbol, AExpression valueNode) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.requiresDefault = requiresDefault;
-        this.expression = expression;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.valueNode = valueNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclaration(this, scope);
+    }
 
-        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (valueNode != null) {
+            valueNode.visit(userTreeVisitor, scope);
+        }
+    }
 
-        AExpression.Output expressionOutput = null;
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
-        if (expression != null) {
-            AExpression.Input expressionInput = new AExpression.Input();
-            expressionInput.expected = resolvedType.getType();
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
 
-        scope.defineVariable(location, resolvedType.getType(), name, false);
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        DeclarationNode declarationNode = new DeclarationNode();
-        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expressionOutput));
-        declarationNode.setLocation(location);
-        declarationNode.setDeclarationType(resolvedType.getType());
-        declarationNode.setName(name);
-        declarationNode.setRequiresDefault(requiresDefault);
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
+        }
 
-        output.statementNode = declarationNode;
+        if (valueNode != null) {
+            semanticScope.setCondition(valueNode, Read.class);
+            semanticScope.putDecoration(valueNode, new TargetType(type));
+            AExpression.analyze(valueNode, semanticScope);
+            valueNode.cast(semanticScope);
+        }
 
-        return output;
+        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
     }
 }

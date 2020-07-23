@@ -47,12 +47,37 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             .test();
     }
 
+    public static Template randomTemplate() {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings();
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+        return new Template(settings, mappings, aliases);
+    }
+
+    public static Map<String, Object> randomMeta() {
+        if (randomBoolean()) {
+            return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+        } else {
+            return Collections.singletonMap(randomAlphaOfLength(5),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+        }
+    }
+
     private static GetComponentTemplatesResponse createTestInstance() {
         Map<String, ComponentTemplate> templates = new HashMap<>();
         if (randomBoolean()) {
             int count = randomInt(10);
             for (int i = 0; i < count; i++) {
-                templates.put(randomAlphaOfLength(10), randomTemplate());
+                templates.put(randomAlphaOfLength(10), randomComponentTemplate());
             }
         }
         return new GetComponentTemplatesResponse(templates);
@@ -72,20 +97,8 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private static ComponentTemplate randomTemplate() {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
-        if (randomBoolean()) {
-            settings = randomSettings();
-        }
-        if (randomBoolean()) {
-            mappings = randomMappings();
-        }
-        if (randomBoolean()) {
-            aliases = randomAliases();
-        }
-        Template template = new Template(settings, mappings, aliases);
+    private static ComponentTemplate randomComponentTemplate() {
+        Template template = randomTemplate();
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -118,14 +131,5 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
         return Settings.builder()
             .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
             .build();
-    }
-
-    private static Map<String, Object> randomMeta() {
-        if (randomBoolean()) {
-            return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
-        } else {
-            return Collections.singletonMap(randomAlphaOfLength(5),
-                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
-        }
     }
 }

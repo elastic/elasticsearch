@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.'
@@ -23,7 +24,7 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-smartcn:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-smartcn:${versions.lucene}"
 }
 
 restResources {
@@ -32,7 +33,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 

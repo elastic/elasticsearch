@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.XYShape;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,48 +36,33 @@ import java.util.Map;
  * <p>
  * "field" : "POLYGON ((1050.0 -1000.0, 1051.0 -1000.0, 1051.0 -1001.0, 1050.0 -1001.0, 1050.0 -1000.0))
  */
-public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
+public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
-    public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
-        public static final ShapeFieldType FIELD_TYPE = new ShapeFieldType();
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, ShapeFieldMapper> {
+    @SuppressWarnings({"unchecked"})
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, ShapeFieldType> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, new FieldType());
+            fieldType.setDimensions(7, 4, Integer.BYTES);
             builder = this;
         }
 
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new ShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-
-        @Override
-        public ShapeFieldType fieldType() {
-            return (ShapeFieldType)fieldType;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-
-            GeometryParser geometryParser = new GeometryParser(orientation == ShapeBuilder.Orientation.RIGHT,
-                coerce(context).value(), ignoreZValue().value());
-
-            fieldType().setGeometryIndexer(new ShapeIndexer(fieldType().name()));
-            fieldType().setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
-            fieldType().setGeometryQueryBuilder(new ShapeQueryProcessor());
+            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeometryParser geometryParser
+                = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
+            ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
+            ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
+            ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
+            ft.setOrientation(orientation().value());
+            return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
+                ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
-    public static class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public static class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
         @Override
         protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry,
                                                   Map<String, Object> params) throws MapperParsingException {
@@ -88,19 +75,9 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static final class ShapeFieldType extends AbstractGeometryFieldType {
-        public ShapeFieldType() {
-            super();
-        }
-
-        public ShapeFieldType(ShapeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public ShapeFieldType clone() {
-            return new ShapeFieldType(this);
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
+        public ShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
         }
 
         @Override
@@ -114,12 +91,34 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
         }
     }
 
-    public ShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    public ShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                            Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                             MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
             multiFields, copyTo);
+    }
+
+    @Override
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
+
+    }
+
+    @Override
+    protected void addStoredFields(ParseContext context, Geometry geometry) {
+        // noop: we currently do not store geo_shapes
+        // @todo store as geojson string?
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    protected void addDocValuesFields(String name, Geometry geometry, List fields, ParseContext context) {
+        // we should throw a mapping exception before we get here
+    }
+
+    @Override
+    protected void addMultiFields(ParseContext context, Geometry geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
     }
 
     @Override

@@ -21,16 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 interface TermsAggregatorSupplier extends AggregatorSupplier {
@@ -46,6 +43,6 @@ interface TermsAggregatorSupplier extends AggregatorSupplier {
                      Aggregator parent,
                      Aggregator.SubAggCollectionMode subAggCollectMode,
                      boolean showTermDocCountError,
-                     List<PipelineAggregator> pipelineAggregators,
+                     CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
 }

@@ -50,7 +50,7 @@ public class DeleteAction implements LifecycleAction {
     }
 
     public DeleteAction(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             this.deleteSearchableSnapshot = in.readBoolean();
         } else {
             this.deleteSearchableSnapshot = true;
@@ -59,7 +59,7 @@ public class DeleteAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeBoolean(deleteSearchableSnapshot);
         }
     }

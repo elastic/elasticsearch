@@ -3,10 +3,12 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ml'), configuration: 'runtime')
-  testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ml'))
+  testImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: xpackModule('data-streams'))
 }
 
 // location for keys and certificates
@@ -40,10 +42,9 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name
@@ -52,6 +53,8 @@ testClusters.integTest {
   setting 'xpack.security.audit.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.ml.min_disk_space_off_heap', '200mb'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
 
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'

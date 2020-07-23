@@ -1,5 +1,5 @@
-[[allocation-awareness]]
-=== Shard allocation awareness
+[[shard-allocation-awareness]]
+==== Shard allocation awareness
 
 You can use custom node attributes as _awareness attributes_ to enable {es}
 to take your physical hardware configuration into account when allocating shards.
@@ -22,9 +22,8 @@ allocated in each location. If the number of nodes in each location is
 unbalanced and there are a lot of replicas, replica shards might be left
 unassigned.
 
-[float]
 [[enabling-awareness]]
-==== Enabling shard allocation awareness
+===== Enabling shard allocation awareness
 
 To enable shard allocation awareness:
 
@@ -76,9 +75,8 @@ allocates the lost shard copies to nodes in `rack_one`. To prevent multiple
 copies of a particular shard from being allocated in the same location, you can
 enable forced awareness.
 
-[float]
 [[forced-awareness]]
-==== Forced awareness
+===== Forced awareness
 
 By default, if one location fails, Elasticsearch assigns all of the missing
 replica shards to the remaining locations. While you might have sufficient

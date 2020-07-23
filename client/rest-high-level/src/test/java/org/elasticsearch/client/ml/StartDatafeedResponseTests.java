@@ -27,7 +27,8 @@ public class StartDatafeedResponseTests extends AbstractXContentTestCase<StartDa
 
     @Override
     protected StartDatafeedResponse createTestInstance() {
-        return new StartDatafeedResponse(randomBoolean());
+        String node = randomFrom("", randomAlphaOfLength(10), null);
+        return new StartDatafeedResponse(randomBoolean(), node);
     }
 
     @Override

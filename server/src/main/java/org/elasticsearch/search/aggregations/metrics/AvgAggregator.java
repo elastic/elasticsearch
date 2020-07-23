@@ -30,12 +30,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class AvgAggregator extends NumericMetricsAggregator.SingleValue {
@@ -47,11 +46,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray compensations;
     DocValueFormat format;
 
-    AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
-        super(name, context, parent, pipelineAggregators, metadata);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+    AvgAggregator(String name, ValuesSourceConfig valuesSourceConfig, SearchContext context,
+                  Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
+        // TODO Stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);

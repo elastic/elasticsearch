@@ -25,6 +25,8 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
 
@@ -76,6 +78,7 @@ import java.util.Map;
  * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
  * Rest API specification.
  *
+ * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.
  * @see CopyRestApiTask
  * @see CopyRestTestsTask
  */
@@ -89,7 +92,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
-        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTest");
+        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
         project.getConfigurations().create("restTests");
         project.getConfigurations().create("restXpackTests");
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
@@ -97,6 +100,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = testConfig;
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -108,10 +112,6 @@ public class RestResourcesPlugin implements Plugin<Project> {
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXPackTestdependency);
                     task.dependsOn(task.xpackConfig);
-                    // watcher
-                    Dependency restWatcherTests = project.getDependencies()
-                        .project(Map.of("path", ":x-pack:plugin:watcher:qa:rest", "configuration", "restXpackTests"));
-                    project.getDependencies().add(task.xpackConfig.getName(), restWatcherTests);
                 } else {
                     Dependency dependency = project.getDependencies()
                         .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());
@@ -131,6 +131,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
@@ -148,6 +149,12 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
-        project.getTasks().named("processTestResources").configure(t -> t.dependsOn(copyRestYamlSpecTask));
+        project.afterEvaluate(p -> {
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if (testSourceSet != null) {
+                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+            }
+        });
     }
 }

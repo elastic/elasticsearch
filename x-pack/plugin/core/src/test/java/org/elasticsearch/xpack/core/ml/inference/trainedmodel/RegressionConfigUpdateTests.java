@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,11 +17,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests.randomRegressionConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCase<RegressionConfigUpdate> {
 
-    public static RegressionConfigUpdate randomRegressionConfig() {
+    public static RegressionConfigUpdate randomRegressionConfigUpdate() {
         return new RegressionConfigUpdate(randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10));
     }
@@ -40,9 +43,48 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
 
+    public void testApply() {
+        RegressionConfig originalConfig = randomRegressionConfig();
+
+        assertThat(originalConfig, equalTo(RegressionConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+
+        assertThat(new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
+            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig)));
+        assertThat(new RegressionConfig.Builder()
+                .setNumTopFeatureImportanceValues(1)
+                .setResultsField("foo")
+                .build(),
+            equalTo(new RegressionConfigUpdate.Builder()
+                .setNumTopFeatureImportanceValues(1)
+                .setResultsField("foo")
+                .build()
+                .apply(originalConfig)
+            ));
+    }
+
+    public void testInvalidResultFieldNotUnique() {
+        ElasticsearchStatusException e =
+            expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
+        assertEquals("Invalid inference config. More than one field is configured as [warning]", e.getMessage());
+    }
+
+    public void testNewBuilder() {
+        RegressionConfigUpdate update = randomRegressionConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertThat(updateWithField, instanceOf(RegressionConfigUpdate.class));
+        assertEquals(update.getNumTopFeatureImportanceValues(),
+            ((RegressionConfigUpdate)updateWithField).getNumTopFeatureImportanceValues());
+    }
+
     @Override
     protected RegressionConfigUpdate createTestInstance() {
-        return randomRegressionConfig();
+        return randomRegressionConfigUpdate();
     }
 
     @Override

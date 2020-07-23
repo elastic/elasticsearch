@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.closeTo;
 
 public class InternalGeoBoundsTests extends InternalAggregationTestCase<InternalGeoBounds> {
@@ -40,8 +37,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
         InternalGeoBounds geo = new InternalGeoBounds(name,
             top, randomDouble(), randomDouble(), randomDouble(),
-            randomDouble(), randomDouble(), randomBoolean(),
-            emptyList(), metadata);
+            randomDouble(), randomDouble(), randomBoolean(), metadata);
         return geo;
     }
 
@@ -99,11 +95,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     }
 
     @Override
-    protected Writeable.Reader<InternalGeoBounds> instanceReader() {
-        return InternalGeoBounds::new;
-    }
-
-    @Override
     protected InternalGeoBounds mutateInstance(InternalGeoBounds instance) {
         String name = instance.getName();
         double top = instance.top;
@@ -113,7 +104,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         double negLeft = instance.negLeft;
         double negRight = instance.negRight;
         boolean wrapLongitude = instance.wrapLongitude;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 8)) {
         case 0:
@@ -155,6 +145,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metadata);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata);
     }
 }

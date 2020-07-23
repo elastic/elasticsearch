@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.sql;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
-    
+
     private final Map<String, Object> stats;
 
     public SqlFeatureSetUsage(StreamInput in) throws IOException {
@@ -24,9 +25,14 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
         stats = in.readMap();
     }
 
-    public SqlFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
-        super(XPackField.SQL, available, enabled);
+    public SqlFeatureSetUsage(boolean available, Map<String, Object> stats) {
+        super(XPackField.SQL, available, true);
         this.stats = stats;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     public Map<String, Object> stats() {

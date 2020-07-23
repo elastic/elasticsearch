@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -24,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
@@ -35,6 +38,8 @@ import java.util.List;
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
+    private final IndexingPressure indexingPressure;
+
     @Inject
     public TransportBulkShardOperationsAction(
             final Settings settings,
@@ -43,7 +48,8 @@ public class TransportBulkShardOperationsAction
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+            final ActionFilters actionFilters,
+            final IndexingPressure indexingPressure) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -55,17 +61,35 @@ public class TransportBulkShardOperationsAction
                 actionFilters,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE, false);
+                ThreadPool.Names.WRITE, false, indexingPressure);
+        this.indexingPressure = indexingPressure;
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
+    protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
+        // This is executed on the follower coordinator node and we need to mark the bytes.
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationSize(request));
+        ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            super.doExecute(task, request, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
+    }
+
+    @Override
+    protected void dispatchedShardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
         ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
             request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
+    }
+
+    @Override
+    protected long primaryOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
@@ -86,7 +110,6 @@ public class TransportBulkShardOperationsAction
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     primaryTerm,
                     delete.version());
@@ -158,12 +181,19 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
-            final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
-        if (logger.isTraceEnabled()) {
-            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
-        }
-        return shardOperationOnReplica(request, replica, logger);
+    protected void dispatchedShardOperationOnReplica(BulkShardOperationsRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+            }
+            return shardOperationOnReplica(request, replica, logger);
+        });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
     }
 
     // public for testing purposes only

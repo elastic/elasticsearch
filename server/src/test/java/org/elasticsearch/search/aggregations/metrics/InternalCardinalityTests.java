@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
-
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -65,11 +63,6 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
         }
         return new InternalCardinality(name, hllpp, metadata);
-    }
-
-    @Override
-    protected Reader<InternalCardinality> instanceReader() {
-        return InternalCardinality::new;
     }
 
     @Override

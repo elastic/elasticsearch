@@ -80,8 +80,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(1, 10));
         }
         aliasBuilder.writeIndex(randomBoolean());
-        AliasMetadata aliasMetaData = aliasBuilder.build();
-        IndexMetadata sourceIndexMetaData = sourceIndexMetadataBuilder.putAlias(aliasMetaData).build();
+        AliasMetadata aliasMetadata = aliasBuilder.build();
+        IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.putAlias(aliasMetadata).build();
 
         String targetIndexPrefix = "index_prefix";
         String targetIndexName = targetIndexPrefix + sourceIndexName;
@@ -89,26 +89,26 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         List<AliasActions> expectedAliasActions = Arrays.asList(
             AliasActions.removeIndex().index(sourceIndexName),
             AliasActions.add().index(targetIndexName).alias(sourceIndexName),
-            AliasActions.add().index(targetIndexName).alias(aliasMetaData.alias())
-                .searchRouting(aliasMetaData.searchRouting()).indexRouting(aliasMetaData.indexRouting())
+            AliasActions.add().index(targetIndexName).alias(aliasMetadata.alias())
+                .searchRouting(aliasMetadata.searchRouting()).indexRouting(aliasMetadata.indexRouting())
                 .writeIndex(null));
 
         try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(randomStepKey(), randomStepKey(),
                 client, targetIndexPrefix);
 
-            IndexMetadata.Builder targetIndexMetaDataBuilder = IndexMetadata.builder(targetIndexName).settings(settings(Version.CURRENT))
+            IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
             ClusterState clusterState = ClusterState.builder(emptyClusterState())
                 .metadata(
                     Metadata.builder()
-                        .put(sourceIndexMetaData, true)
-                        .put(targetIndexMetaDataBuilder)
+                        .put(sourceIndexMetadata, true)
+                        .put(targetIndexMetadataBuilder)
                         .build()
                 ).build();
 
-            step.performAction(sourceIndexMetaData, clusterState, null, new Listener() {
+            step.performAction(sourceIndexMetadata, clusterState, null, new Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                 }

@@ -30,11 +30,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -52,7 +53,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(MapperExtrasPlugin.class);
+        return Arrays.asList(MapperExtrasPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

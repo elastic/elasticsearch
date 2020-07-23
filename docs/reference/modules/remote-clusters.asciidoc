@@ -1,17 +1,9 @@
 [[modules-remote-clusters]]
 == Remote clusters
 
-ifndef::include-xpack[]
-The _remote clusters_ module enables you to establish uni-directional
-connections to a remote cluster. This functionality is used in
-<<modules-cross-cluster-search,{ccs}>>.
-endif::[]
-ifdef::include-xpack[]
-The _remote clusters_ module enables you to establish uni-directional
-connections to a remote cluster. This functionality is used in
-<<xpack-ccr,{ccr}>> and
-<<modules-cross-cluster-search,{ccs}>>.
-endif::[]
+The _remote clusters_ functionality enables you to establish unidirectional
+connections to a remote cluster. Remote clusters are required for
+<<xpack-ccr,{ccr}>> and <<modules-cross-cluster-search,{ccs}>>.
 
 Remote cluster connections work by configuring a remote cluster and connecting
 to a limited number of nodes in that remote cluster. There are two modes for
@@ -265,7 +257,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
 `cluster.remote.<cluster_alias>.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
-  nodes belonging to them are available and they are the targetof a remote
+  nodes belonging to them are available and they are the target of a remote
   cluster request. Default is `false`, meaning that all clusters are mandatory
   by default, but they can selectively be made optional by setting this setting
   to `true`.

@@ -1,5 +1,8 @@
 [[analysis-keyword-tokenizer]]
-=== Keyword Tokenizer
+=== Keyword tokenizer
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 The `keyword` tokenizer  is a ``noop'' tokenizer that accepts whatever text it
 is given and outputs the exact same text as a single term.  It can be combined

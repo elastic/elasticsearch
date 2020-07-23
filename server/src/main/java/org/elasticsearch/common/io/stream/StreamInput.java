@@ -35,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
@@ -70,6 +71,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -678,6 +680,25 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
+    }
+
+    /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
      * be immutable if it is empty.
      */
@@ -735,6 +756,10 @@ public abstract class StreamInput extends InputStream {
                 return readGeoPoint();
             case 23:
                 return readZonedDateTime();
+            case 24:
+                return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
+            case 25:
+                return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -1098,7 +1123,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Get the registry of named writeables is his stream has one,
+     * Get the registry of named writeables if this stream has one,
      * {@code null} otherwise.
      */
     public NamedWriteableRegistry namedWriteableRegistry() {

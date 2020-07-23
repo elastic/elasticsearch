@@ -36,7 +36,7 @@
         id: "missing_index"
 
 ---
-"Test start given source index has no compatible fields":
+"Test start outlier_detection given source index has no fields":
 
   - do:
       indices.create:
@@ -57,7 +57,41 @@
           }
 
   - do:
-      catch: /No compatible fields could be detected in index \[empty-index\]/
+      catch: /at least one field must be included in the analysis/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start regression given source index only has dependent variable":
+
+  - do:
+      indices.create:
+        index: index-with-dep-var-only
+        body:
+          mappings:
+            properties:
+              my_dep_var: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-only"
+            },
+            "dest": {
+              "index": "results"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "my_dep_var"
+              }
+            }
+          }
+
+  - do:
+      catch: /at least one field must be included in the analysis \(excluding fields \[my_dep_var\]\)/
       ml.start_data_frame_analytics:
         id: "foo"
 
@@ -89,6 +123,7 @@
       catch: /Unable to start empty-with-compatible-fields as no documents in the source indices \[empty-index-with-compatible-fields\] contained all the fields selected for analysis/
       ml.start_data_frame_analytics:
         id: "empty-with-compatible-fields"
+
 ---
 "Test start with inconsistent body/param ids":
 
@@ -179,3 +214,32 @@
       catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
       ml.start_data_frame_analytics:
         id: "classification-cardinality-limits"
+
+---
+"Test start classification analysis when the dependent variable is missing":
+  - do:
+      indices.create:
+        index: index-with-missing-dep-var
+        body:
+          mappings:
+            properties:
+              numeric_field: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "classification-missing-dep-var"
+        body: >
+          {
+            "source": {
+              "index": "index-with-missing-dep-var"
+            },
+            "dest": {
+              "index": "index-with-missing-dep-var-dest"
+            },
+            "analysis": { "classification": { "dependent_variable": "missing" } }
+          }
+
+  - do:
+      catch: /no mappings could be found for field \[missing\]/
+      ml.start_data_frame_analytics:
+        id: "classification-missing-dep-var"

@@ -16,7 +16,7 @@ public class UpdateTransformActionDeprecated extends ActionType<UpdateTransformA
     public static final String NAME = "cluster:admin/data_frame/update";
 
     private UpdateTransformActionDeprecated() {
-        super(NAME, Response::new);
+        super(NAME, Response::fromStreamWithBWC);
     }
 
 }

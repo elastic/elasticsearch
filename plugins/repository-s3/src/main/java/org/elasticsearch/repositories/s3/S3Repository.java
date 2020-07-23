@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,19 +36,19 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -191,8 +192,9 @@ class S3Repository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
-        final ClusterService clusterService) {
-        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -234,24 +236,24 @@ class S3Repository extends BlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
-                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 Metadata clusterMetadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
-                                 ActionListener<SnapshotInfo> listener) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, listener);
+        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
+            stateTransformer, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<RepositoryData> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**

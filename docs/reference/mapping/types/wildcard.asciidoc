@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[wildcard]]
-=== Wildcard datatype
+=== Wildcard data type
 ++++
 <titleabbrev>Wildcard</titleabbrev>
 ++++
@@ -59,11 +59,6 @@ The following parameters are accepted by `wildcard` fields:
 
     Do not index any string longer than this value.  Defaults to `2147483647`
     so that all values would be accepted.
-
-<<normalizer,`normalizer`>>::
-
-    How to pre-process the value prior to indexing. Defaults to `null`,
-    meaning the value is kept as-is.
 
 ==== Limitations
 

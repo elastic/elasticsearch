@@ -13,10 +13,12 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
@@ -36,7 +38,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFu
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
@@ -65,10 +66,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     //
     // Conditional
     //
-    public static Object caseFunction(List<Object> expressions) {
-        return CaseProcessor.apply(expressions);
-    }
-
     public static Object coalesce(List<Object> expressions) {
         return ConditionalOperation.COALESCE.apply(expressions);
     }
@@ -283,10 +280,26 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
-    public static Integer datePart(String dateField, Object dateTime, String tzId) {
-        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
+    public static Object dateParse(String dateField, String pattern, String tzId) {
+        return Parser.DATE.parse(dateField, pattern, ZoneId.of(tzId));
     }
 
+    public static Integer datePart(String dateField, Object dateTime, String tzId) {
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
+    }
+
+    public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
+        return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
+    public static Object dateTimeParse(String dateField, String pattern, String tzId) {
+        return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+
+    public static Object timeParse(String dateField, String pattern, String tzId) {
+        return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+    
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }
@@ -414,6 +427,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static String substring(String s, Number start, Number length) {
         return (String) SubstringFunctionProcessor.doProcess(s, start, length);
+    }
+
+    public static String trim(String s) {
+        return (String) StringOperation.TRIM.apply(s);
     }
 
     public static String ucase(String s) {

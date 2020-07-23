@@ -176,6 +176,10 @@ include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
 include::indices/reload_analyzers.asciidoc[]
+include::indices/get_index_template.asciidoc[]
+include::indices/put_index_template.asciidoc[]
+include::indices/delete_index_template.asciidoc[]
+include::indices/simulate_index_template.asciidoc[]
 
 == Cluster APIs
 
@@ -192,6 +196,9 @@ include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 include::cluster/remote_info.asciidoc[]
+include::cluster/get_component_template.asciidoc[]
+include::cluster/put_component_template.asciidoc[]
+include::cluster/delete_component_template.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:
@@ -315,6 +322,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-data-frame-analytics>>
 * <<{upid}-get-data-frame-analytics-stats>>
 * <<{upid}-put-data-frame-analytics>>
+* <<{upid}-update-data-frame-analytics>>
 * <<{upid}-delete-data-frame-analytics>>
 * <<{upid}-start-data-frame-analytics>>
 * <<{upid}-stop-data-frame-analytics>>
@@ -372,6 +380,7 @@ include::ml/estimate-model-memory.asciidoc[]
 include::ml/get-data-frame-analytics.asciidoc[]
 include::ml/get-data-frame-analytics-stats.asciidoc[]
 include::ml/put-data-frame-analytics.asciidoc[]
+include::ml/update-data-frame-analytics.asciidoc[]
 include::ml/delete-data-frame-analytics.asciidoc[]
 include::ml/start-data-frame-analytics.asciidoc[]
 include::ml/stop-data-frame-analytics.asciidoc[]
@@ -448,6 +457,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-get-roles>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
+* <<{upid}-clear-privileges-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
 * <<{upid}-has-privileges>>
@@ -479,6 +489,7 @@ include::security/delete-privileges.asciidoc[]
 include::security/get-builtin-privileges.asciidoc[]
 include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/clear-privileges-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/has-privileges.asciidoc[]

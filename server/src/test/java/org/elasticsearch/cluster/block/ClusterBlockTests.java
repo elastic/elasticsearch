@@ -37,8 +37,8 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ClusterBlockTests extends ESTestCase {
 
@@ -121,7 +121,7 @@ public class ClusterBlockTests extends ESTestCase {
         }
 
         assertThat(builder.build().indices().get("index").size(), equalTo(clusterBlocks.length));
-        assertThat(builder.build().getIndexBlockWithId("index", blockId), isOneOf(clusterBlocks));
+        assertThat(builder.build().getIndexBlockWithId("index", blockId), is(oneOf(clusterBlocks)));
         assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
     }
 

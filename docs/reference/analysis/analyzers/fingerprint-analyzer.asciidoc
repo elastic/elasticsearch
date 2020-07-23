@@ -1,5 +1,8 @@
 [[analysis-fingerprint-analyzer]]
-=== Fingerprint Analyzer
+=== Fingerprint analyzer
+++++
+<titleabbrev>Fingerprint</titleabbrev>
+++++
 
 The `fingerprint` analyzer implements a
 https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[fingerprinting algorithm]

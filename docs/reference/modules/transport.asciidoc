@@ -1,9 +1,9 @@
 [[modules-transport]]
-== Transport
+=== Transport
 
-The transport module is used for internal communication between nodes
+The transport networking layer is used for internal communication between nodes
 within the cluster. Each call that goes from one node to the other uses
-the transport module (for example, when an HTTP GET request is processed
+the transport layer (for example, when an HTTP GET request is processed
 by one node, and should actually be processed by another node that holds
 the data).
 
@@ -14,8 +14,8 @@ http://en.wikipedia.org/wiki/C10k_problem[C10k problem], as well as
 being the ideal solution for scatter (broadcast) / gather operations such
 as search in Elasticsearch.
 
-[float]
-=== Transport Settings
+[[transport-settings]]
+==== Transport settings
 
 The internal transport communicates over TCP. You can configure it with the
 following settings:
@@ -56,8 +56,8 @@ transport connections.
 It also uses the common
 <<modules-network,network settings>>.
 
-[float]
-==== Transport Profiles
+[[transport-profiles]]
+===== Transport profiles
 
 Elasticsearch allows you to bind to multiple ports on different interfaces by
 the use of transport profiles. See this example configuration
@@ -105,8 +105,8 @@ example above:
 * `tcp.send_buffer_size`: Configures the send buffer size of the socket
 * `tcp.receive_buffer_size`: Configures the receive buffer size of the socket
 
-[float]
-==== Long-lived idle connections
+[[long-lived-connections]]
+===== Long-lived idle connections
 
 Elasticsearch opens a number of long-lived TCP connections between each pair of
 nodes in the cluster, and some of these connections may be idle for an extended
@@ -119,11 +119,9 @@ and ensuring that the keepalive interval is shorter than any timeout that might
 cause idle connections to be closed, or by setting `transport.ping_schedule` if
 keepalives cannot be configured.
 
-[float]
-==== Transport Compression
 
-[float]
-===== Request Compression
+[[request-compression]]
+===== Request compression
 
 By default, the `transport.compress` setting is `false` and network-level
 request compression is disabled between nodes in the cluster. This default
@@ -138,8 +136,8 @@ request compression, you can set it on a per-remote cluster basis using the
 <<remote-cluster-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
 
 
-[float]
-===== Response Compression
+[[response-compression]]
+===== Response compression
 
 The compression settings do not configure compression for responses. {es} will
 compress a response if the inbound request was compressed--even when compression
@@ -147,10 +145,10 @@ is not enabled. Similarly, {es} will not compress a response if the inbound
 request was uncompressed--even when compression is enabled.
 
 
-[float]
-=== Transport Tracer
+[[transport-tracer]]
+==== Transport tracer
 
-The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
+The transport layer has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
 by setting the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
 
 [source,console]

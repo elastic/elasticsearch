@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
@@ -44,11 +43,6 @@ public class InternalStatsBucketTests extends InternalStatsTests {
     @Override
     protected void assertReduced(InternalStats reduced, List<InternalStats> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected Writeable.Reader<InternalStats> instanceReader() {
-        return InternalStatsBucket::new;
     }
 
     @Override

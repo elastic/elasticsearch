@@ -90,7 +90,7 @@ public class MetadataIndexAliasesService {
             });
     }
 
-     /**
+    /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
      public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
@@ -108,6 +108,7 @@ public class MetadataIndexAliasesService {
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }
+                    validateAliasTargetIsNotDSBackingIndex(currentState, action);
                     indicesToDelete.add(index.getIndex());
                     changed = true;
                 }
@@ -128,6 +129,7 @@ public class MetadataIndexAliasesService {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
+                validateAliasTargetIsNotDSBackingIndex(currentState, action);
                 NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
@@ -149,10 +151,10 @@ public class MetadataIndexAliasesService {
                             }
                             indices.put(action.getIndex(), indexService);
                         }
-                        // the context is only used for validation so it's fine to pass fake values for the shard id and the current
-                        // timestamp
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L, null),
-                                xContentRegistry);
+                        // the context is only used for validation so it's fine to pass fake values for the shard id,
+                        // but the current timestamp should be set to real value as we may use `now` in a filtered alias
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
+                            () -> System.currentTimeMillis(), null), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
@@ -187,4 +189,13 @@ public class MetadataIndexAliasesService {
         }
     }
 
+    private void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
+        assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
+        if (indexAbstraction.getParentDataStream() != null) {
+            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
+                + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
+                + "]. Data streams and their backing indices don't support alias operations.");
+        }
+    }
 }

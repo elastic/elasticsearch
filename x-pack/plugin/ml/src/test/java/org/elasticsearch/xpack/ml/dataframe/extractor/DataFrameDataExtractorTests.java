@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
@@ -66,6 +67,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private QueryBuilder query;
     private int scrollSize;
     private Map<String, String> headers;
+    private TrainTestSplitterFactory trainTestSplitterFactory;
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
 
@@ -84,6 +86,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             new DocValueField("field_2", Collections.singleton("keyword"))), Collections.emptyMap());
         scrollSize = 1000;
         headers = Collections.emptyMap();
+
+        trainTestSplitterFactory = mock(TrainTestSplitterFactory.class);
+        when(trainTestSplitterFactory.create()).thenReturn(row -> true);
 
         clearScrollFuture = mock(ActionFuture.class);
         capturedClearScrollRequests = ArgumentCaptor.forClass(ClearScrollRequest.class);
@@ -462,8 +467,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
-        DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
-            JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource, supportsRowsWithMissingValues);
+        DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
+            headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
         return new TestExtractor(client, context);
     }
 

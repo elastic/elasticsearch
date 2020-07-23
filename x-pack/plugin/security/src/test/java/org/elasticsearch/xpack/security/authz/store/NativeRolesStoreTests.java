@@ -35,7 +35,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,7 +86,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
         RoleDescriptor role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "role1",
-            new BytesArray(roleString), logger, new XPackLicenseState(Settings.EMPTY));
+            new BytesArray(roleString), logger, TestUtils.newTestLicenseState());
         assertNotNull(role);
         assertNotNull(role.getIndicesPrivileges());
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
@@ -94,7 +96,8 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().privileges("READ").indices("*")
                         .grantedFields("*")
@@ -156,7 +159,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         builder = flsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = BytesReference.bytes(builder);
         role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls", bytes, logger, licenseState);

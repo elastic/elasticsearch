@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -30,11 +29,10 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -51,9 +49,6 @@ import java.util.function.Supplier;
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(GeoShapeQueryBuilder.class));
-
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
@@ -207,8 +202,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
                 + String.join(",", validContentTypes()) +  "]");
         }
 
-        final AbstractSearchableGeometryFieldType ft =
-            (AbstractSearchableGeometryFieldType) fieldType;
+        final AbstractGeometryFieldType ft =
+            (AbstractGeometryFieldType) fieldType;
         return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
     }
 

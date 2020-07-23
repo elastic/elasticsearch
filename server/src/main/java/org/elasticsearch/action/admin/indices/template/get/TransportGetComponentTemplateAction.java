@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -71,22 +72,23 @@ public class TransportGetComponentTemplateAction extends
         Map<String, ComponentTemplate> allTemplates = state.metadata().componentTemplates();
 
         // If we did not ask for a specific name, then we return all templates
-        if (request.names().length == 0) {
+        if (request.name() == null) {
             listener.onResponse(new GetComponentTemplateAction.Response(allTemplates));
             return;
         }
 
         final Map<String, ComponentTemplate> results = new HashMap<>();
-        for (String name : request.names()) {
-            if (Regex.isSimpleMatchPattern(name)) {
-                for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
-                    if (Regex.simpleMatch(name, entry.getKey())) {
-                        results.put(entry.getKey(), entry.getValue());
-                    }
+        String name = request.name();
+        if (Regex.isSimpleMatchPattern(name)) {
+            for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
+                if (Regex.simpleMatch(name, entry.getKey())) {
+                    results.put(entry.getKey(), entry.getValue());
                 }
-            } else if (allTemplates.containsKey(name)) {
-                results.put(name, allTemplates.get(name));
             }
+        } else if (allTemplates.containsKey(name)) {
+            results.put(name, allTemplates.get(name));
+        } else {
+            throw new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
         }
 
         listener.onResponse(new GetComponentTemplateAction.Response(results));

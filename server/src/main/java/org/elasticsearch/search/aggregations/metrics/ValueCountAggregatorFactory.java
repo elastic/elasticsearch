@@ -24,33 +24,22 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.registerAny(ValueCountAggregationBuilder.NAME,
-            new ValueCountAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        SearchContext aggregationContext,
-                                        Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, pipelineAggregators, metadata);
-                }
-            });
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MetricAggregatorSupplier) ValueCountAggregator::new);
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -62,25 +51,22 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metadata);
+        return new ValueCountAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound bucketCardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             ValueCountAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((ValueCountAggregatorSupplier) aggregatorSupplier)
-            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier)
+            .build(name, config, searchContext, parent, metadata);
     }
 }

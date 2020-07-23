@@ -26,12 +26,15 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
 
@@ -41,10 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class StubbableTransport implements Transport {
+public class StubbableTransport implements Transport {
 
     private final ConcurrentHashMap<TransportAddress, SendRequestBehavior> sendBehaviors = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TransportAddress, OpenConnectionBehavior> connectBehaviors = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RequestHandlerRegistry<?>> replacedRequestRegistries = new ConcurrentHashMap<>();
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
@@ -74,14 +78,39 @@ public final class StubbableTransport implements Transport {
         return connectBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
+    <Request extends TransportRequest> void addRequestHandlingBehavior(String actionName, RequestHandlingBehavior<Request> behavior) {
+        final RequestHandlers requestHandlers = delegate.getRequestHandlers();
+        final RequestHandlerRegistry<Request> realRegistry = requestHandlers.getHandler(actionName);
+        if (realRegistry == null) {
+            throw new IllegalStateException("Cannot find registered action for: " + actionName);
+        }
+        replacedRequestRegistries.put(actionName, realRegistry);
+        final TransportRequestHandler<Request> realHandler = realRegistry.getHandler();
+        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(realRegistry, (request, channel, task) ->
+            behavior.messageReceived(realHandler, request, channel, task));
+        requestHandlers.forceRegister(newRegistry);
+    }
+
     void clearBehaviors() {
+        clearOutboundBehaviors();
+        clearInboundBehaviors();
+    }
+
+    void clearInboundBehaviors() {
+        for (Map.Entry<String, RequestHandlerRegistry<?>> entry : replacedRequestRegistries.entrySet()) {
+            getRequestHandlers().forceRegister(entry.getValue());
+        }
+        replacedRequestRegistries.clear();
+    }
+
+    void clearOutboundBehaviors() {
         this.defaultSendRequest = null;
         sendBehaviors.clear();
         this.defaultConnectBehavior = null;
         connectBehaviors.clear();
     }
 
-    void clearBehavior(TransportAddress transportAddress) {
+    void clearOutboundBehaviors(TransportAddress transportAddress) {
         SendRequestBehavior behavior = sendBehaviors.remove(transportAddress);
         if (behavior != null) {
             behavior.clearCallback();
@@ -99,16 +128,6 @@ public final class StubbableTransport implements Transport {
     @Override
     public void setMessageListener(TransportMessageListener listener) {
         delegate.setMessageListener(listener);
-    }
-
-    @Override
-    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        delegate.registerRequestHandler(reg);
-    }
-
-    @Override
-    public RequestHandlerRegistry getRequestHandler(String action) {
-        return delegate.getRequestHandler(action);
     }
 
     @Override
@@ -150,6 +169,11 @@ public final class StubbableTransport implements Transport {
     @Override
     public Transport.ResponseHandlers getResponseHandlers() {
         return delegate.getResponseHandlers();
+    }
+
+    @Override
+    public RequestHandlers getRequestHandlers() {
+        return delegate.getRequestHandlers();
     }
 
     @Override
@@ -257,7 +281,15 @@ public final class StubbableTransport implements Transport {
         void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                          TransportRequestOptions options) throws IOException;
 
-        default void clearCallback() {
-        }
+        default void clearCallback() {}
+    }
+
+    @FunctionalInterface
+    public interface RequestHandlingBehavior<Request extends TransportRequest> {
+
+        void messageReceived(TransportRequestHandler<Request> handler, Request request, TransportChannel channel, Task task)
+            throws Exception;
+
+        default void clearCallback() {}
     }
 }

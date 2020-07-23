@@ -130,7 +130,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
         // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
         // current license allows authentication.
-        return licenseState.isAuthAllowed() && isStateNotRecovered == false;
+        return licenseState.isSecurityEnabled() && isStateNotRecovered == false;
     }
 
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
@@ -243,7 +243,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isAuthAllowed()) {
+                if (licenseState.isSecurityEnabled()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

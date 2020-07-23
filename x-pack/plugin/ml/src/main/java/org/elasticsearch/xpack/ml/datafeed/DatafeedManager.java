@@ -108,7 +108,7 @@ public class DatafeedManager {
                 }, finishHandler::accept
         );
 
-        datafeedJobBuilder.build(datafeedId, datafeedJobHandler);
+        datafeedJobBuilder.build(datafeedId, task.getParentTaskId(), datafeedJobHandler);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -101,7 +101,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             if (numberOfFragments == 0
                     // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
-                    || fieldType.tokenized() == false) {
+                    || fieldType.getTextSearchInfo().isTokenized() == false) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
@@ -217,10 +217,12 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
-        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+        TextSearchInfo tsi = fieldType.getTextSearchInfo();
+        if (tsi.hasOffsets()) {
+            return tsi.termVectors() != TextSearchInfo.TermVector.NONE
+                ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
         }
-        if (fieldType.storeTermVectorOffsets()) {
+        if (tsi.termVectors() == TextSearchInfo.TermVector.OFFSETS) {
             return OffsetSource.TERM_VECTORS;
         }
         return OffsetSource.ANALYSIS;

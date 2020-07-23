@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -59,19 +58,20 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         long interval = randomIntBetween(1, 3);
         intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
         Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(intervalMillis)).build();
-        baseMillis = rounding.round(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        baseMillis = rounding.prepare(now, now).round(now);
         if (randomBoolean()) {
             minDocCount = randomIntBetween(1, 10);
             emptyBucketInfo = null;
         } else {
             minDocCount = 0;
-            ExtendedBounds extendedBounds = null;
+            LongBounds extendedBounds = null;
             if (randomBoolean()) {
                 //it's ok if min and max are outside the range of the generated buckets, that will just mean that
                 //empty buckets won't be added before the first bucket and/or after the last one
                 long min = baseMillis - intervalMillis * randomNumberOfBuckets();
                 long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
-                extendedBounds = new ExtendedBounds(min, max);
+                extendedBounds = new LongBounds(min, max);
             }
             emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(rounding, InternalAggregations.EMPTY, extendedBounds);
         }
@@ -109,8 +109,12 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             long minBound = -1;
             long maxBound = -1;
             if (emptyBucketInfo.bounds != null) {
-                minBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMin());
-                maxBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMax());
+                Rounding.Prepared prepared = emptyBucketInfo.rounding.prepare(
+                    emptyBucketInfo.bounds.getMin(),
+                    emptyBucketInfo.bounds.getMax()
+                );
+                minBound = prepared.round(emptyBucketInfo.bounds.getMin());
+                maxBound = prepared.round(emptyBucketInfo.bounds.getMax());
                 if (expectedCounts.isEmpty() && minBound <= maxBound) {
                     expectedCounts.put(minBound, 0L);
                 }
@@ -140,11 +144,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalDateHistogram> instanceReader() {
-        return InternalDateHistogram::new;
     }
 
     @Override

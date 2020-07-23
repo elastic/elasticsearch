@@ -25,18 +25,20 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 public abstract class GroupByKey extends Agg {
 
     protected final Direction direction;
-    private final ScriptTemplate script;
 
-    protected GroupByKey(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        super(id, fieldName);
+    protected GroupByKey(String id, AggSource source, Direction direction) {
+        super(id, source);
         // ASC is the default order of CompositeValueSource
         this.direction = direction == null ? Direction.ASC : direction;
-        this.script = script;
+    }
+
+    public ScriptTemplate script() {
+        return source().script();
     }
 
     public final CompositeValuesSourceBuilder<?> asValueSource() {
         CompositeValuesSourceBuilder<?> builder = createSourceBuilder();
-        
+        ScriptTemplate script = source().script();
         if (script != null) {
             builder.script(script.toPainless());
             if (script.outputType().isInteger()) {
@@ -59,7 +61,7 @@ public abstract class GroupByKey extends Agg {
         }
         // field based
         else {
-            builder.field(fieldName());
+            builder.field(source().fieldName());
         }
         return builder.order(direction.asOrder())
                .missingBucket(true);
@@ -67,25 +69,29 @@ public abstract class GroupByKey extends Agg {
 
     protected abstract CompositeValuesSourceBuilder<?> createSourceBuilder();
 
-    protected abstract GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction);
+    protected abstract GroupByKey copy(String id, AggSource source, Direction direction);
 
     public GroupByKey with(Direction direction) {
-        return this.direction == direction ? this : copy(id(), fieldName(), script, direction);
-    }
-
-    public ScriptTemplate script() {
-        return script;
+        return this.direction == direction ? this : copy(id(), source(), direction);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id(), fieldName(), script, direction);
+        return Objects.hash(super.hashCode(), direction);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj)
-                && Objects.equals(script, ((GroupByKey) obj).script)
-                && Objects.equals(direction, ((GroupByKey) obj).direction);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        GroupByKey that = (GroupByKey) o;
+        return direction == that.direction;
     }
 }

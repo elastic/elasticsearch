@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -59,11 +58,6 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         }
         Collections.shuffle(listOfRanges, random());
         geoDistanceRanges = Collections.unmodifiableList(listOfRanges);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoDistance> instanceReader() {
-        return InternalGeoDistance::new;
     }
 
     @Override

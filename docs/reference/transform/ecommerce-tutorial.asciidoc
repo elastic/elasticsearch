@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ecommerce-transforms]]
-=== Tutorial: Transforming the eCommerce sample data
+= Tutorial: Transforming the eCommerce sample data
 
 <<transforms,{transforms-cap}>> enable you to retrieve information
 from an {es} index, transform it, and store it in another index. Let's use the

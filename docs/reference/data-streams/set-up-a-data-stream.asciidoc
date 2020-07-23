@@ -131,9 +131,9 @@ template is used exclusively for data streams.
 [role="screenshot"]
 image::images/data-streams/create-index-template.png[Create template page]
 
-You can also create a template using the <<<indices-templates,put index template
-API>>. The template must include a `data_stream` object with an empty body
-(`{ }`). This object indicates the template is used exclusively for data
+You can also create a template using the <<indices-put-template,put index
+template API>>. The template must include a `data_stream` object with an empty
+body (`{ }`). This object indicates the template is used exclusively for data
 streams.
 
 The following request configures the `logs_data_stream` index template. Because

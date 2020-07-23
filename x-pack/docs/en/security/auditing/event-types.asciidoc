@@ -227,13 +227,12 @@ that have been previously described:
                              using the <<run-as-privilege, run as authorization functionality>>
                              and denotes the name of the realm that the _authenticated_
                              (_impersonator_) user belongs to.
-  `authentication.type`::    One of `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::    This attribute is present only if authentication is performed using an
-                             API Key, and contains the value for the key id that is returned in response
-                             to the <<security-api-create-api-key, Create API Key>> call.
-  `api_key.name`       ::    This attribute is present only if authentication is performed using an
-                             API Key, and contains the value for the key name given in the request
-                             to <<security-api-create-api-key, Create API Keys>>
+  `authentication.type`::   Method used to authenticate the user.
+                            Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
+  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
+  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
 
 
 [float]

@@ -502,20 +502,4 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").to("3.0.0")).get();
         assertEquals(2, response.getHits().getTotalHits().value);
     }
-
-    // TODO how to test scripts in ESSingleNodeTestCase?
-    // Currently fails with "java.lang.IllegalArgumentException: Illegal list shortcut value [value]".
-
-    // public void testScripting() throws Exception {
-    // String indexName = setUpIndex("test");
-    //
-    // ScriptQueryBuilder query = QueryBuilders.scriptQuery(new Script("doc['version'].value.length() <= 5"));
-    // SearchResponse response = client().prepareSearch(indexName).addDocValueField("version").setQuery(query).get();
-    // assertEquals(2, response.getHits().getTotalHits().value);
-    // assertEquals("2", response.getHits().getAt(0).getId());
-    // assertEquals("1.0.0", response.getHits().getAt(0).field("version").getValue());
-    //
-    // assertEquals("5", response.getHits().getAt(1).getId());
-    // assertEquals("2.1.0", response.getHits().getAt(1).field("version").getValue());
-    // }
 }

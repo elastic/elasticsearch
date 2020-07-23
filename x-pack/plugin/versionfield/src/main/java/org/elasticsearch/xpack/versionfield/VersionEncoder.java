@@ -44,14 +44,6 @@ class VersionEncoder {
     private static final char DOT_SEPARATOR = '.';
     private static final char BUILD_SEPARATOR = '+';
 
-    // Regex to test version validity: \d+(\.\d+)*(-[\-\dA-Za-z]+){0,1}(\.[-\dA-Za-z]+)*(\+[\.\-\dA-Za-z]+)?
-    // private static Pattern LEGAL_VERSION_PATTERN = Pattern.compile(
-    // "\\d+(\\.\\d+)*(-[\\-\\dA-Za-z]+){0,1}(\\.[\\-\\dA-Za-z]+)*(\\+[\\.\\-\\dA-Za-z]+)?"
-    // );
-
-    // Regex to test strict Semver Main Version validity:
-    // private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)");
-
     // Regex to test relaxed Semver Main Version validity. Allows for more or less than three main version parts
     private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)(\\.(0|[1-9]\\d*))*");
 
@@ -65,7 +57,6 @@ class VersionEncoder {
      * Encodes a version string.
      */
     public static EncodedVersion encodeVersion(String versionString) {
-        // System.out.println("encoding: " + versionString);
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
         // don't treat non-legal versions further, just mark them as illegal and return
@@ -100,7 +91,6 @@ class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedBytes.append(new BytesRef(versionParts.buildSuffix));
         }
-        // System.out.println("encoded: " + encodedBytes.toBytesRef());
         return new EncodedVersion(
             encodedBytes.toBytesRef(),
             true,
@@ -146,7 +136,6 @@ class VersionEncoder {
     }
 
     public static String decodeVersion(BytesRef version) {
-        // System.out.println("decoding: " + version);
         int inputPos = version.offset;
         int resultPos = 0;
         byte[] result = new byte[version.length];
@@ -163,7 +152,6 @@ class VersionEncoder {
             }
             inputPos++;
         }
-        // System.out.println("decoded to: " + new String(result, 0, resultPos));
         return new String(result, 0, resultPos, StandardCharsets.UTF_8);
     }
 

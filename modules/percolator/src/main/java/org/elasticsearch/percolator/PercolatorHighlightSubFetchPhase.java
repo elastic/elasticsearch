@@ -98,12 +98,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                         highlight.globalForceSource(true);
                         QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
                         shardContext.freezeContext();
-                        shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, slot);
-                        shardContext.lookup().source().setSource(document);
                         hitContext.reset(
                             new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
+                        hitContext.sourceLookup().setSource(document);
                         hitContext.cache().clear();
                         highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, hitContext);
                         for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {

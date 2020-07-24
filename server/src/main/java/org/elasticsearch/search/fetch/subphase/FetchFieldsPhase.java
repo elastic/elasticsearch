@@ -44,7 +44,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         SearchHit hit = hitContext.hit();
-        SourceLookup sourceLookup = context.lookup().source();
+        SourceLookup sourceLookup = hitContext.sourceLookup();
         FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();
 
         Set<String> ignoredFields = getIgnoredFields(hit);

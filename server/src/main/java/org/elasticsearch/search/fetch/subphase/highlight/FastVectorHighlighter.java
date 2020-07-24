@@ -39,7 +39,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
@@ -71,7 +70,6 @@ public class FastVectorHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
-        QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;
 
@@ -104,7 +102,7 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                 field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, context,
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, hitContext,
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
@@ -115,7 +113,7 @@ public class FastVectorHighlighter implements Highlighter {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, context,
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, hitContext,
                                     field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
@@ -124,7 +122,7 @@ public class FastVectorHighlighter implements Highlighter {
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder =
-                                new SourceSimpleFragmentsBuilder(fieldType, context, field.fieldOptions().preTags(),
+                                new SourceSimpleFragmentsBuilder(fieldType, hitContext, field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }

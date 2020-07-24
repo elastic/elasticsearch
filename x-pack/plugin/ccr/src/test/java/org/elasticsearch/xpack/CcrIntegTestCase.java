@@ -8,9 +8,6 @@ package org.elasticsearch.xpack;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -26,7 +23,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -82,6 +78,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -89,11 +86,16 @@ import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -151,7 +153,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         if (clusterGroup != null && reuseClusters()) {
             clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
-            setupMasterNodeRequestsValidatorOnFollowerCluster(clusterGroup.followerCluster);
+            setupMasterNodeRequestsValidatorOnFollowerCluster();
             return;
         }
 
@@ -182,14 +184,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
-        setupMasterNodeRequestsValidatorOnFollowerCluster(followerCluster);
+        setupMasterNodeRequestsValidatorOnFollowerCluster();
     }
 
-    private void setupMasterNodeRequestsValidatorOnFollowerCluster(InternalTestCluster followerCluster) {
+    protected void setupMasterNodeRequestsValidatorOnFollowerCluster() {
+        final InternalTestCluster followerCluster = clusterGroup.followerCluster;
         for (String nodeName : followerCluster.getNodeNames()) {
             MockTransportService transportService = (MockTransportService) followerCluster.getInstance(TransportService.class, nodeName);
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (request instanceof AcknowledgedRequest<?>) {
+                if (isCcrAdminRequest(request) == false && request instanceof AcknowledgedRequest<?>) {
                     final TimeValue masterTimeout = ((AcknowledgedRequest<?>) request).masterNodeTimeout();
                     if (masterTimeout == null || masterTimeout.nanos() != TimeValue.MAX_VALUE.nanos()) {
                         throw new AssertionError("time out of a master request [" + request + "] on the follower is not set to unbounded");
@@ -200,7 +203,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
     }
 
-    private void removeMasterNodeRequestsValidatorOnFollowerCluster(InternalTestCluster followerCluster) {
+    protected void removeMasterNodeRequestsValidatorOnFollowerCluster() {
+        final InternalTestCluster followerCluster = clusterGroup.followerCluster;
         for (String nodeName : followerCluster.getNodeNames()) {
             MockTransportService transportService =
                 (MockTransportService) getFollowerCluster().getInstance(TransportService.class, nodeName);
@@ -208,12 +212,23 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
     }
 
+    private static boolean isCcrAdminRequest(TransportRequest request) {
+        return request instanceof PutFollowAction.Request ||
+            request instanceof ResumeFollowAction.Request ||
+            request instanceof PauseFollowAction.Request ||
+            request instanceof UnfollowAction.Request ||
+            request instanceof ForgetFollowerAction.Request ||
+            request instanceof PutAutoFollowPatternAction.Request ||
+            request instanceof ActivateAutoFollowPatternAction.Request ||
+            request instanceof DeleteAutoFollowPatternAction.Request;
+    }
+
     /**
      * Follower indices don't get all the settings from leader, for example 'index.unassigned.node_left.delayed_timeout'
      * is not replicated and if tests kill nodes, we have to wait 60s by default...
      */
     protected void disableDelayedAllocation(String index) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index).masterNodeTimeout(TimeValue.MAX_VALUE);
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
         updateSettingsRequest.settings(settingsBuilder);
@@ -223,7 +238,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     @After
     public void afterTest() throws Exception {
         ensureEmptyWriteBuffers();
-        removeMasterNodeRequestsValidatorOnFollowerCluster(clusterGroup.followerCluster);
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         String masterNode = clusterGroup.followerCluster.getMasterName();
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
         removeCCRRelatedMetadataFromClusterState(clusterService);
@@ -314,17 +329,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final Client followerClient() {
-        return new FilterClient(clusterGroup.followerCluster.client()) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                // Set timeout to unbounded to bypass MasterNodeRequestsValidatorOnFollowerCluster for requests used in tests.
-                if (request instanceof AcknowledgedRequest<?>) {
-                    ((AcknowledgedRequest<?>) request).masterNodeTimeout(TimeValue.MAX_VALUE);
-                }
-                super.doExecute(action, request, listener);
-            }
-        };
+        return clusterGroup.followerCluster.client();
     }
 
     protected final InternalTestCluster getLeaderCluster() {

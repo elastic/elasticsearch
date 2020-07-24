@@ -451,6 +451,6 @@ VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 Note that Amazon has published instructions at 
 https://docs.aws.amazon.com/cli/latest/reference/ec2/create-vpc-endpoint.html
 that permit you to create a gateway endpoint that will expose access to S3 to 
-endpoints within subnets within your VPC, which will network load upon your
-VPC's NAT instance while backing up and restoring your ElasticSearch cluster
-to Amazon S3.
+endpoints within subnets within your VPC, which will reduce network load upon 
+your VPC's NAT instance while backing up and restoring your ElasticSearch 
+cluster to Amazon S3.

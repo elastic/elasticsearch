@@ -128,6 +128,13 @@ public class InetAddressesTests extends ESTestCase {
         assertTrue(InetAddresses.isInetAddress(ipStr));
     }
 
+    public void testForStringIPv6WithScopeIdInput() throws UnknownHostException {
+        String ipStr = "0:0:0:0:0:0:0:1%lo";
+        InetAddress ipv6Addr = InetAddress.getByName(ipStr);
+        assertEquals(ipv6Addr, InetAddresses.forString(ipStr));
+        assertTrue(InetAddresses.isInetAddress(ipStr));
+    }
+
     public void testForStringIPv6EightColons() throws UnknownHostException {
         String[] eightColons = {
                 "::7:6:5:4:3:2:1",

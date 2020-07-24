@@ -20,6 +20,8 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
+include::indices/index-templates.asciidoc[]
+
 include::data-streams/data-streams.asciidoc[]
 
 include::search/index.asciidoc[]

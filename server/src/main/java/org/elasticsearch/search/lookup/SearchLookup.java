@@ -27,31 +27,22 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.util.function.Function;
 
 public class SearchLookup {
-
-    final DocLookup docMap;
-
-    final SourceLookup sourceLookup;
-
-    final FieldsLookup fieldsLookup;
+    private final DocLookup docMap;
+    private final MapperService mapperService;
 
     public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         docMap = new DocLookup(mapperService, fieldDataLookup);
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService);
+        this.mapperService = mapperService;
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(context,
                 docMap.getLeafDocLookup(context),
-                sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context));
+                new SourceLookup(),
+                new LeafFieldsLookup(mapperService, context.reader()));
     }
 
     public DocLookup doc() {
         return docMap;
-    }
-
-    public SourceLookup source() {
-        return sourceLookup;
     }
 }

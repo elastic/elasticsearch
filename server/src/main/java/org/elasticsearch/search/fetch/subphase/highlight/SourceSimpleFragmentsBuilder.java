@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchSubPhase;

@@ -122,10 +122,3 @@ or higher-priority templates.
 <1> The number of shards from the simulated template body
 <2> The `@timestamp` field inherited from the `ct2` component template
 <3> Any overlapping templates that would have matched, but have lower priority
-
-////
-[source,console]
----------------------------------------------------------
-DELETE /_component_template/ct*
----------------------------------------------------------
-////

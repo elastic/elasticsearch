@@ -40,12 +40,7 @@ Reduce the number of primary shards by shrinking the index into a new index.
 
 [[ilm-unfollow-action]]<<ilm-unfollow,Unfollow>>::
 Convert a follower index to a regular index.
-ifdef::permanently-unreleased-branch[]
 Performed automatically before a rollover or shrink action.
-endif::[]
-ifndef::permanently-unreleased-branch[]
-Performed automatically before a rollover, shrink, or searchable snapshot action. 
-endif::[]
 
 [[ilm-wait-for-snapshot-action]]<<ilm-wait-for-snapshot,Wait for snapshot>>::
 Ensure that a snapshot exists before deleting the index. 

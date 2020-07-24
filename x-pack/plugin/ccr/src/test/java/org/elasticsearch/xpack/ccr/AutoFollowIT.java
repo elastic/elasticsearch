@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,12 +69,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("metrics-201901", leaderIndexSettings);
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201901");
             assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
         });
         createLeaderIndex("transactions-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
 
@@ -94,7 +97,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
 
@@ -115,7 +118,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("logs-201901");
         assertAcked(leaderClient().admin().indices().delete(deleteIndexRequest).actionGet());
 
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService().state()
                 .metaData()
                 .custom(AutoFollowMetadata.TYPE);
@@ -141,7 +144,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         MetaData[] metaData = new MetaData[1];
         AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
-            assertBusy(() -> {
+            assertLongBusy(() -> {
                 metaData[0] = getFollowerCluster().clusterService().state().metaData();
                 autoFollowStats[0] = getAutoFollowStats();
 
@@ -160,7 +163,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // then the leader index created after that should never be auto followed:
         deleteAutoFollowPatternSetting();
         try {
-            assertBusy(() -> {
+            assertLongBusy(() -> {
                 metaData[0] = getFollowerCluster().clusterService().state().metaData();
                 autoFollowStats[0] = getAutoFollowStats();
 
@@ -185,7 +188,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         long expectedVal2 = numIndices;
 
         try {
-            assertBusy(() -> {
+            assertLongBusy(() -> {
                 metaData[0] = getFollowerCluster().clusterService().state().metaData();
                 autoFollowStats[0] = getAutoFollowStats();
 
@@ -255,7 +258,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             FollowInfoAction.Request followInfoRequest = new FollowInfoAction.Request();
             followInfoRequest.setFollowerIndices("copy-logs-201901");
             FollowInfoAction.Response followInfoResponse;
@@ -332,7 +335,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
 
         createLeaderIndex("logs-201801", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
             assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(1L));
@@ -364,7 +367,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createLeaderIndex("logs-20200101", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
             assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(1L));
@@ -383,7 +386,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createLeaderIndex("logs-20200102", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
             IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200102");
@@ -417,4 +420,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         leaderClient().admin().indices().create(request).actionGet();
     }
 
+    private void assertLongBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
+        try {
+            assertBusy(codeBlock, 120L, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            AutoFollowStats autoFollowStats = null;
+            try {
+                autoFollowStats = getAutoFollowStats();
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            final AutoFollowStats finalAutoFollowStats = autoFollowStats;
+            logger.warn(() -> new ParameterizedMessage("AssertionError when waiting for auto-follower, auto-follow stats are: {}",
+                finalAutoFollowStats != null ? Strings.toString(finalAutoFollowStats) : "null"), ae);
+            throw ae;
+        }
+    }
 }

@@ -126,7 +126,6 @@ or higher-priority templates.
 ////
 [source,console]
 ---------------------------------------------------------
-DELETE /_component_template/ct1
-DELETE /_component_template/ct2
+DELETE /_component_template/ct*
 ---------------------------------------------------------
 ////

@@ -49,14 +49,21 @@ index settings, aliases, mappings, and index templates.
 * <<indices-analyze>>
 
 [discrete]
-[[index-templates]]
+[[index-templates-apis]]
 === Index templates:
-* <<indices-templates>>
+
+Index templates automatically apply settings, mappings, and aliases to new indices.
+They are most often used to configure rolling indices for time series data to 
+ensure that each new index has the same configuration as the previous one. 
+The index template associated with a data stream configures its backing indices. 
+For more information, see <<indices-templates, Index Templates>>.
+
 * <<indices-put-template>>
 * <<indices-get-template>>
 * <<indices-delete-template>>
 * <<indices-component-template>>
 * <<getting-component-templates>>
+* <<indices-delete-component-template>>
 * <<indices-template-exists>>
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
@@ -103,6 +110,8 @@ include::indices/delete-index.asciidoc[]
 
 include::indices/delete-alias.asciidoc[]
 
+include::indices/delete-component-template.asciidoc[]
+
 include::indices/delete-index-template.asciidoc[]
 
 include::indices/flush.asciidoc[]
@@ -110,6 +119,8 @@ include::indices/flush.asciidoc[]
 include::indices/forcemerge.asciidoc[]
 
 include::indices/apis/freeze.asciidoc[]
+
+include::indices/get-component-template.asciidoc[]
 
 include::indices/get-field-mapping.asciidoc[]
 
@@ -120,6 +131,8 @@ include::indices/get-alias.asciidoc[]
 include::indices/get-settings.asciidoc[]
 
 include::indices/get-index-template.asciidoc[]
+
+include::indices/get-index-template-v1.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]
 
@@ -139,11 +152,11 @@ include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 
-include::indices/index-templates.asciidoc[]
+include::indices/put-index-template.asciidoc[]
 
-include::indices/component-templates.asciidoc[]
+include::indices/put-index-template-v1.asciidoc[]
 
-include::indices/templates.asciidoc[]
+include::indices/put-component-template.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]
 

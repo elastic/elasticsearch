@@ -907,6 +907,11 @@ See <<release-highlights>>.
 
 The `xpack.sql.enabled` setting has been deprecated. SQL access is always enabled.
 
+[role="exclude",id="indices-templates"]
+=== Index templates [[getting]]
+
+See <<index-templates>>. 
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search

@@ -23,7 +23,7 @@ GET /_search
 <1> The query string.
 <2> The fields to be queried.
 
-[float]
+[discrete]
 [[field-boost]]
 ==== `fields` and per-field boosting
 
@@ -71,7 +71,7 @@ at once. It is defined by the `indices.query.bool.max_clause_count` <<search-set
 which defaults to 1024.
 
 [[multi-match-types]]
-[float]
+[discrete]
 ==== Types of `multi_match` query:
 
 The way the `multi_match` query is executed internally depends on the `type`

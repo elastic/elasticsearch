@@ -8,7 +8,7 @@ When the built-in analyzers do not fulfill your needs, you can create a
 * a <<analysis-tokenizers,tokenizer>>
 * zero or more <<analysis-tokenfilters,token filters>>.
 
-[float]
+[discrete]
 === Configuration
 
 The `custom` analyzer accepts the following parameters:
@@ -36,7 +36,7 @@ The `custom` analyzer accepts the following parameters:
     ensure that a phrase query doesn't match two terms from different array
     elements.  Defaults to `100`. See <<position-increment-gap>> for more.
 
-[float]
+[discrete]
 === Example configuration
 
 Here is an example that combines the following:

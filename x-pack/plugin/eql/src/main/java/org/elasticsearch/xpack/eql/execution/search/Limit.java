@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.xpack.eql.util.MathUtils;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 public class Limit {
 
@@ -21,6 +25,10 @@ public class Limit {
         this.limit = limit;
         this.offset = offset;
         this.total = MathUtils.abs(limit) + offset;
+    }
+
+    public int limit() {
+        return limit;
     }
 
     public int absLimit() {
@@ -58,7 +66,19 @@ public class Limit {
      * Offer a limited view (including offset) for the given list.
      */
     public <E> List<E> view(List<E> values) {
+        if (values == null || values.isEmpty()) {
+            return values;
+        }
+        if (limit == 0) {
+            return emptyList();
+        }
+        
+        if (limit < 0) {
+            values = new ArrayList<>(values);
+            Collections.reverse(values);
+        }
         int size = values.size();
+
         if (size >= total) {
             return values.subList(offset, total);
         }

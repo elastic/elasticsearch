@@ -4,7 +4,7 @@
 <titleabbrev>Delete index template</titleabbrev>
 ++++
 
-Deletes an existing index.
+Deletes an index template.
 
 ////
 [source,console]
@@ -35,9 +35,9 @@ DELETE /_template/template_1
 [[delete-template-api-desc]]
 ==== {api-description-title}
 
-Use the delete index template API to delete one or more index templates
-
-include::templates.asciidoc[tag=index-template-def]
+Use the delete index template API to delete one or more index templates.
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
+and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
 
 
 [[delete-template-api-path-params]]

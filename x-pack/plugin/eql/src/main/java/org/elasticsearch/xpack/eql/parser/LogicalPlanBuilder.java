@@ -210,8 +210,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
 
         // add fetch size as a limit so it gets propagated into the resulting query
-        LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"), 
-                new Literal(synthetic("<fetch-value>"), params.fetchSize(), DataTypes.INTEGER), 
+        LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"),
+                new Literal(synthetic("<fetch-value>"), params.fetchSize(), DataTypes.INTEGER),
                 eventQuery);
         // filter fields
         LogicalPlan child = new Project(source(ctx), fetchSize, CollectionUtils.combine(keys, defaultProjection()));

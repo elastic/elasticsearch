@@ -390,7 +390,7 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             ModulesBuilder modules = new ModulesBuilder();
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             final FsHealthService fsHealthService = new FsHealthService(settings, clusterService.getClusterSettings(), threadPool,
                 nodeEnvironment);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);
@@ -1114,7 +1114,10 @@ public class Node implements Closeable {
     /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
-        return new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
+        clusterService.addListener(service);
+        return service;
     }
 
     /** Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests. */

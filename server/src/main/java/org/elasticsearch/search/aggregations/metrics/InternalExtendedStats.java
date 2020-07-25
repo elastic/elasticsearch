@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,8 +61,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(in);
         sumOfSqrs = in.readDouble();
         sigma = in.readDouble();
-        //While reading from previous version indices, we won't have m2 value, to be handled
-        m2 = in.readDouble();
+        //TODO:  While merging should make sure that Version check is appropriate
+        if(in.getVersion().onOrAfter(Version.V_8_0_0)){
+            m2 = in.readDouble();
+        } else {
+            m2 = Double.NaN;
+        }
     }
 
     @Override
@@ -139,10 +144,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if(count < 1){
             return Double.NaN;
         }
-        return m2 / count;
-        //For previous versions, we need to find variance in the below method
-        //double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        //return variance < 0  ? 0 : variance + 2;
+        if(Double.isNaN(m2)){
+            double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance + 2;
+        }
+        else{
+            return m2 / count;
+        }
     }
 
     @Override
@@ -150,9 +158,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if(count < 2){
             return Double.NaN;
         }
-        return m2 / (count - 1);
-        //double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        //return variance < 0  ? 0 : variance;
+        if(Double.isNaN(m2)){
+            double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+            return variance < 0  ? 0 : variance;
+        } else {
+            return m2 / (count - 1);
+        }
     }
 
     @Override

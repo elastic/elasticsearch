@@ -73,7 +73,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
         out.writeDouble(sigma);
-        out.writeDouble(m2);
+        if(out.getVersion().onOrAfter(Version.V_8_0_0)){
+            out.writeDouble(m2);
+        }
     }
 
     @Override
@@ -127,6 +129,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     public double getSigma() {
         return this.sigma;
+    }
+
+    public double getM2(){
+        return this.m2;
     }
 
     @Override
@@ -393,6 +399,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
         return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
-            Double.compare(sigma, other.sigma) == 0;
+            Double.compare(sigma, other.sigma) == 0 &&
+            Double.compare(m2, other.m2) == 0;
     }
 }

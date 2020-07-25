@@ -32,10 +32,10 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
     @Override
     protected InternalExtendedStatsBucket createInstance(String name, long count, double sum, double min,
                                                          double max, double sumOfSqrs,
-                                                         double sigma, DocValueFormat formatter,
+                                                         double sigma, double m2, DocValueFormat formatter,
                                                          Map<String, Object> metadata) {
         //need to handle tests
-        return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, 0d, formatter, metadata);
+        return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, m2, formatter, metadata);
     }
 
     @Override

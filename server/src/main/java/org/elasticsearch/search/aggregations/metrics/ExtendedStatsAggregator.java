@@ -241,7 +241,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, 0d, format, metadata());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, 0d, format,
+            metadata());
     }
 
     @Override

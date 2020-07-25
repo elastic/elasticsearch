@@ -257,6 +257,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public InternalExtendedStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sumOfSqrs = 0;
+        double m2 = 0;
+        double mean = 0;
+        long count = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
@@ -271,6 +274,19 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
                 compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
                 sumOfSqrs = newSumOfSqrs;
+            }
+
+            if (Double.isNaN(m2) || stats.count == 0) {
+                continue;
+            } else if(Double.isNaN(stats.m2)) {
+                m2 = Double.NaN;
+            } else {
+                long newCount = count + stats.count;
+                double mean2 = stats.sum/stats.count;
+                double delta = mean2 - mean;
+                m2 = m2 + stats.m2 + ((delta * delta) * count * stats.count /newCount);
+                mean = (mean * count + mean2 * stats.count) / newCount;
+                count = newCount;
             }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);

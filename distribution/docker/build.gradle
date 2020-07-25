@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.distribution-download'
+apply plugin: 'elasticsearch.rest-resources'
 
 testFixtures.useFixture()
 
@@ -93,6 +94,7 @@ project.ext {
          * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
          * by creating config files in oss or default build-context sub-modules.
          */
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
         from project.projectDir.toPath().resolve("src/docker/config")
         if (oss) {
           from project.projectDir.toPath().resolve("src/docker/config/oss")

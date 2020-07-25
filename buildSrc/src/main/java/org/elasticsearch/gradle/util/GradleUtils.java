@@ -163,6 +163,15 @@ public abstract class GradleUtils {
 
         extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourceSetName);
 
+        setupIdeForTestSourceSet(project, testSourceSet);
+
+        // add to the check task
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
+
+        return testTask;
+    }
+
+    public static void setupIdeForTestSourceSet(Project project, SourceSet testSourceSet) {
         // setup IDEs
         String runtimeClasspathName = testSourceSet.getRuntimeClasspathConfigurationName();
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
@@ -178,14 +187,9 @@ public abstract class GradleUtils {
                 eclipseSourceSets.add(old);
             }
             eclipseSourceSets.add(testSourceSet);
-            eclipse.getClasspath().setSourceSets(sourceSets);
+            eclipse.getClasspath().setSourceSets(project.getExtensions().getByType(SourceSetContainer.class));
             eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
-
-        // add to the check task
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
-
-        return testTask;
     }
 
     /**

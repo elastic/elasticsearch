@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(":x-pack:plugin:core")
-  testImplementation project(path: xpackModule('ml'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('ml'))
 }
 
 testClusters.integTest {

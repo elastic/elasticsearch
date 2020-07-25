@@ -3,7 +3,7 @@
 [[inference-processor]]
 === {infer-cap} Processor
 
-Uses a pre-trained {dfanalytics} model to infer against the data that is being 
+Uses a pre-trained {dfanalytics} model to infer against the data that is being
 ingested in the pipeline.
 
 
@@ -14,8 +14,8 @@ ingested in the pipeline.
 | Name               | Required  | Default                        | Description
 | `model_id`         | yes       | -                              | (String) The ID of the model to load and infer against.
 | `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
-| `field_map`        | yes       | -                              | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
-| `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
+| `field_map`        | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
+| `inference_config` | no        | The default settings defined in the model  | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
 include::common-options.asciidoc[]
 |======
 
@@ -26,7 +26,9 @@ include::common-options.asciidoc[]
   "inference": {
     "model_id": "flight_delay_regression-1571767128603",
     "target_field": "FlightDelayMin_prediction_infer",
-    "field_map": {},
+    "field_map": {
+      "your_field": "my_field"
+    },
     "inference_config": { "regression": {} }
   }
 }
@@ -42,7 +44,7 @@ Regression configuration for inference.
 
 `results_field`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
@@ -65,7 +67,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 `results_field`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
 
 `top_classes_results_field`::
 (Optional, string)
@@ -91,8 +93,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 --------------------------------------------------
 // NOTCONSOLE
 
-This configuration specifies a `regression` inference and the results are 
-written to the `my_regression` field contained in the `target_field` results 
+This configuration specifies a `regression` inference and the results are
+written to the `my_regression` field contained in the `target_field` results
 object.
 
 
@@ -110,10 +112,10 @@ object.
 --------------------------------------------------
 // NOTCONSOLE
 
-This configuration specifies a `classification` inference. The number of 
-categories for which the predicted probabilities are reported is 2 
-(`num_top_classes`). The result is written to the `prediction` field and the top 
-classes to the `probabilities` field. Both fields are contained in the 
+This configuration specifies a `classification` inference. The number of
+categories for which the predicted probabilities are reported is 2
+(`num_top_classes`). The result is written to the `prediction` field and the top
+classes to the `probabilities` field. Both fields are contained in the
 `target_field` results object.
 
 
@@ -121,8 +123,8 @@ classes to the `probabilities` field. Both fields are contained in the
 [[inference-processor-feature-importance]]
 ==== {feat-imp-cap} object mapping
 
-Update your index mapping of the {feat-imp} result field as you can see below to 
-get the full benefit of aggregating and searching for 
+Update your index mapping of the {feat-imp} result field as you can see below to
+get the full benefit of aggregating and searching for
 {ml-docs}/ml-feature-importance.html[{feat-imp}].
 
 [source,js]
@@ -146,7 +148,7 @@ The mapping field name for {feat-imp} is compounded as follows:
 
 `<ml.inference.target_field>`.`<inference.tag>`.`feature_importance`
 
-If `inference.tag` is not provided in the processor definition, it is not part 
+If `inference.tag` is not provided in the processor definition, it is not part
 of the field path. The `<ml.inference.target_field>` defaults to `ml.inference`.
 
 For example, you provide a tag `foo` in the definition as you can see below:
@@ -161,7 +163,7 @@ For example, you provide a tag `foo` in the definition as you can see below:
 // NOTCONSOLE
 
 
-The {feat-imp} value is written to the `ml.inference.foo.feature_importance` 
+The {feat-imp} value is written to the `ml.inference.foo.feature_importance`
 field.
 
 You can also specify a target field as follows:
@@ -175,5 +177,5 @@ You can also specify a target field as follows:
 --------------------------------------------------
 // NOTCONSOLE
 
-In this case, {feat-imp} is exposed in the 
+In this case, {feat-imp} is exposed in the
 `my_field.foo.feature_importance` field.

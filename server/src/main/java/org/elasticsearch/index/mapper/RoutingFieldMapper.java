@@ -105,16 +105,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         private RoutingFieldType() {
             super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected RoutingFieldType(RoutingFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new RoutingFieldType(this);
         }
 
         @Override

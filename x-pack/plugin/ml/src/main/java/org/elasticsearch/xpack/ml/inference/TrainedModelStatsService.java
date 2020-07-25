@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -145,7 +146,7 @@ public class TrainedModelStatsService {
         if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
-        if (verifyIndicesPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
+        if (verifyIndicesExistAndPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
                 logger.debug("About to create the stats index as it does not exist yet");
                 createStatsIndexIfNecessary();
@@ -188,10 +189,14 @@ public class TrainedModelStatsService {
             (msg) -> {});
     }
 
-    private static boolean verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
+    static boolean verifyIndicesExistAndPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
         String[] indices = expressionResolver.concreteIndexNames(clusterState,
             IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
             MlStatsIndex.writeAlias());
+        // If there are no indices, we need to make sure we attempt to create it properly
+        if (indices.length == 0) {
+            return false;
+        }
         for (String index : indices) {
             if (clusterState.metadata().hasIndex(index) == false) {
                 return false;
@@ -205,16 +210,16 @@ public class TrainedModelStatsService {
     }
 
     private void createStatsIndexIfNecessary() {
-        PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
-        listener.actionGet();
-        listener = new PlainActionFuture<>();
-        ElasticsearchMappings.addDocMappingIfMissing(
-            MlStatsIndex.writeAlias(),
-            MlStatsIndex::mapping,
-            client,
-            clusterState,
-            listener);
+        final PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, ActionListener.wrap(
+            r -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlStatsIndex.writeAlias(),
+                MlStatsIndex::mapping,
+                client,
+                clusterState,
+                listener),
+            listener::onFailure
+        ));
         listener.actionGet();
         logger.debug("Created stats index");
     }

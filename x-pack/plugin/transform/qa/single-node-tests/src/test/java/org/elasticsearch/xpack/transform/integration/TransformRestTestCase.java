@@ -87,12 +87,17 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("properties").startObject("timestamp").field("type", dateType);
 
+                builder.startObject("mappings").startObject("properties");
+                builder.startObject("@timestamp").field("type", dateType);
                 if (dateType.equals("date_nanos")) {
                     builder.field("format", "strict_date_optional_time_nanos");
                 }
-
+                builder.endObject();
+                builder.startObject("timestamp").field("type", dateType);
+                if (dateType.equals("date_nanos")) {
+                    builder.field("format", "strict_date_optional_time_nanos");
+                }
                 builder.endObject()
                     .startObject("user_id")
                     .field("type", "keyword")
@@ -116,7 +121,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     "{\n" +
                         "  \"index_patterns\": [ \"" + indexName + "\" ],\n" +
                         "  \"data_stream\": {\n" +
-                        "    \"timestamp_field\": \"timestamp\"\n" +
                         "  },\n" +
                         "  \"template\": \n" + Strings.toString(builder) +
                         "}"
@@ -168,6 +172,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 .append(",\"location\":\"")
                 .append(location)
                 .append("\",\"timestamp\":\"")
+                .append(date_string)
+                .append("\",\"@timestamp\":\"")
                 .append(date_string)
                 .append("\"}\n");
 

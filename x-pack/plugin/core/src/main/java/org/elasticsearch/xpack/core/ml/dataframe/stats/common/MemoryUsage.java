@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -49,12 +47,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             Fields.TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Status.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATUS, ObjectParser.ValueType.STRING);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
         parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
         return parser;
     }
@@ -91,13 +84,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         jobId = in.readString();
         timestamp = in.readOptionalInstant();
         peakUsageBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status = Status.readFromStream(in);
-            memoryReestimateBytes = in.readOptionalVLong();
-        } else {
-            status = Status.OK;
-            memoryReestimateBytes = null;
-        }
+        status = Status.readFromStream(in);
+        memoryReestimateBytes = in.readOptionalVLong();
     }
 
     public Status getStatus() {
@@ -109,10 +97,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         out.writeString(jobId);
         out.writeOptionalInstant(timestamp);
         out.writeVLong(peakUsageBytes);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status.writeTo(out);
-            out.writeOptionalVLong(memoryReestimateBytes);
-        }
+        status.writeTo(out);
+        out.writeOptionalVLong(memoryReestimateBytes);
     }
 
     @Override

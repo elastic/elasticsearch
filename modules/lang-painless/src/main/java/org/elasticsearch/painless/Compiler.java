@@ -24,7 +24,10 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.SemanticHeaderPhase;
+import org.elasticsearch.painless.phase.UserTreeToIRTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
@@ -210,8 +213,11 @@ final class Compiler {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
-        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source);
-        ClassNode classNode = root.analyze(scriptScope);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new SemanticHeaderPhase().visitClass(root, scriptScope);
+        root.analyze(scriptScope);
+        new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);
         byte[] bytes = classNode.write();
@@ -240,8 +246,11 @@ final class Compiler {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
-        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source);
-        ClassNode classNode = root.analyze(scriptScope);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new SemanticHeaderPhase().visitClass(root, scriptScope);
+        root.analyze(scriptScope);
+        new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         classNode.setDebugStream(debugStream);
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);

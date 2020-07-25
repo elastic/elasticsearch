@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -55,24 +57,26 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", "filter", "head", "sort", "tail", "unique", "unique_count");
 
-    private final UnresolvedRelation RELATION = new UnresolvedRelation(Source.EMPTY, null, "", false, "");
-    private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(Source.EMPTY);
+    private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
+    private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));
 
     public LogicalPlanBuilder(ParserParams params) {
         super(params);
     }
 
     private Attribute fieldTimestamp() {
-        return new UnresolvedAttribute(Source.EMPTY, params.fieldTimestamp());
+        return new UnresolvedAttribute(synthetic("<timestamp>"), params.fieldTimestamp());
     }
 
     private Attribute fieldTiebreaker() {
-        return params.fieldTiebreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
+        return params.fieldTiebreaker() != null ?
+                new UnresolvedAttribute(synthetic("<tiebreaker>"), params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
     }
 
     private OrderDirection defaultDirection() {
@@ -84,19 +88,49 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = plan(ctx.query());
 
         // the first pipe will be the implicit order
+        boolean asc = defaultDirection() == OrderDirection.ASC;
+        NullsPosition position = asc ? NullsPosition.FIRST : NullsPosition.LAST;
+
         List<Order> orders = new ArrayList<>(2);
-        Source source = plan.source();
-        orders.add(new Order(source, fieldTimestamp(), defaultDirection(), Order.NullsPosition.FIRST));
+        Source defaultOrderSource = synthetic("<default-order>");
+        orders.add(new Order(defaultOrderSource, fieldTimestamp(), defaultDirection(), position));
         // make sure to add the tiebreaker as well
         Attribute tiebreaker = fieldTiebreaker();
         if (Expressions.isPresent(tiebreaker)) {
-            orders.add(new Order(source, tiebreaker, defaultDirection(), Order.NullsPosition.FIRST));
+            orders.add(new Order(defaultOrderSource, tiebreaker, defaultDirection(), position));
         }
-        plan = new OrderBy(source, plan, orders);
-        // add the actual declared pipes
+        plan = new OrderBy(defaultOrderSource, plan, orders);
+
+        // add the default limit only if specified
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+        Source defaultLimitSource = synthetic("<default-limit>");
+
+        LogicalPlan previous = plan;
+        boolean missingLimit = true;
+
         for (PipeContext pipeCtx : ctx.pipe()) {
-            plan = pipe(pipeCtx, plan);
+            plan = pipe(pipeCtx, previous);
+            if (missingLimit && plan instanceof LimitWithOffset) {
+                missingLimit = false;
+                if (plan instanceof Head) {
+                    previous = new Head(defaultLimitSource, defaultSize, previous);
+                } else {
+                    previous = new Tail(defaultLimitSource, defaultSize, previous);
+                }
+                plan = plan.replaceChildren(singletonList(previous));
+            }
+            previous = plan;
         }
+
+        // add limit based on the default order if no tail/head was specified
+        if (missingLimit) {
+            if (asc) {
+                plan = new Head(defaultLimitSource, defaultSize, plan);
+            } else {
+                plan = new Tail(defaultLimitSource, defaultSize, plan);
+            }
+        }
+
         return plan;
     }
 
@@ -175,7 +209,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
 
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, defaultProjection()));
+        // add fetch size as a limit so it gets propagated into the resulting query
+        LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"),
+                new Literal(synthetic("<fetch-value>"), params.fetchSize(), DataTypes.INTEGER),
+                eventQuery);
+        // filter fields
+        LogicalPlan child = new Project(source(ctx), fetchSize, CollectionUtils.combine(keys, defaultProjection()));
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
     }
 

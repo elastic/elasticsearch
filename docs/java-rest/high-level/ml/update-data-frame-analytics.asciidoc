@@ -1,0 +1,52 @@
+--
+:api: update-data-frame-analytics
+:request: UpdateDataFrameAnalyticsRequest
+:response: UpdateDataFrameAnalyticsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Update {dfanalytics-jobs} API
+
+Updates an existing {dfanalytics-job}.
+The API accepts an +{request}+ object as a request and returns an +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Update {dfanalytics-jobs} request
+
+An +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {dfanalytics-job} update to perform
+
+[id="{upid}-{api}-config"]
+==== {dfanalytics-cap} configuration update
+
+The `DataFrameAnalyticsConfigUpdate` object contains all the details about the {dfanalytics-job}
+configuration update and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-update]
+--------------------------------------------------
+<1> The {dfanalytics-job} ID
+<2> The human-readable description
+<3> The memory limit for the model created as part of the analysis process
+<4> The maximum number of threads to be used by the analysis
+
+[id="{upid}-{api}-query-config"]
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the updated {dfanalytics-job}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

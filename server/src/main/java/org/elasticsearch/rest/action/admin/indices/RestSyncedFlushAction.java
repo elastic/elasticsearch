@@ -45,7 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
     @Override
     public List<Route> routes() {

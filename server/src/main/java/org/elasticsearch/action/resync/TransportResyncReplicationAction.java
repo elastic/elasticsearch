@@ -20,7 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -57,11 +57,16 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                            WriteMemoryLimits writeMemoryLimits) {
+                                            IndexingPressure indexingPressure) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             ResyncReplicationRequest::new, ResyncReplicationRequest::new, ThreadPool.Names.WRITE,
             true, /* we should never reject resync because of thread pool capacity on primary */
-            writeMemoryLimits);
+            indexingPressure);
+    }
+
+    @Override
+    protected void doExecute(Task parentTask, ResyncReplicationRequest request, ActionListener<ResyncReplicationResponse> listener) {
+        assert false : "use TransportResyncReplicationAction#sync";
     }
 
     @Override

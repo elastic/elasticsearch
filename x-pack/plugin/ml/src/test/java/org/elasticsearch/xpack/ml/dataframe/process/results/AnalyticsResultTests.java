@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierD
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -46,20 +44,17 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
         PhaseProgress phaseProgress = null;
-        TrainedModelDefinition.Builder inferenceModel = null;
         MemoryUsage memoryUsage = null;
         OutlierDetectionStats outlierDetectionStats = null;
         ClassificationStats classificationStats = null;
         RegressionStats regressionStats = null;
         ModelSizeInfo modelSizeInfo = null;
+        TrainedModelDefinitionChunk trainedModelDefinitionChunk = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
         if (randomBoolean()) {
             phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
-        }
-        if (randomBoolean()) {
-            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
         if (randomBoolean()) {
             memoryUsage = MemoryUsageTests.createRandom();
@@ -76,8 +71,12 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             modelSizeInfo = ModelSizeInfoTests.createRandom();
         }
-        return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats, modelSizeInfo);
+        if (randomBoolean()) {
+            String def = randomAlphaOfLengthBetween(100, 1000);
+            trainedModelDefinitionChunk = new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean());
+        }
+        return new AnalyticsResult(rowResults, phaseProgress, memoryUsage, outlierDetectionStats,
+            classificationStats, regressionStats, modelSizeInfo, trainedModelDefinitionChunk);
     }
 
     @Override

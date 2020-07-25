@@ -64,7 +64,8 @@ public class FakeStringFieldMapper extends FieldMapper {
         @Override
         public FakeStringFieldMapper build(BuilderContext context) {
             return new FakeStringFieldMapper(
-                fieldType, new FakeStringFieldType(name),
+                fieldType,
+                new FakeStringFieldType(name, new TextSearchInfo(fieldType, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -85,18 +86,9 @@ public class FakeStringFieldMapper extends FieldMapper {
     public static final class FakeStringFieldType extends StringFieldType {
 
 
-        public FakeStringFieldType(String name) {
-            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        public FakeStringFieldType(String name, TextSearchInfo textSearchInfo) {
+            super(name, true, true, textSearchInfo, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
-            setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
-        }
-
-        protected FakeStringFieldType(FakeStringFieldType ref) {
-            super(ref);
-        }
-
-        public FakeStringFieldType clone() {
-            return new FakeStringFieldType(this);
         }
 
         @Override

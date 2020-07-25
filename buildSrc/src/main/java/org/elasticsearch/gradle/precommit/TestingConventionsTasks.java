@@ -26,6 +26,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SourceSet;
@@ -348,12 +349,8 @@ public class TestingConventionsTasks extends DefaultTask {
         return false;
     }
 
-    private FileCollection getTestsClassPath() {
-        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
-        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
-        // the classes these don't influence the checks done by this task.
-        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
-        // running the tests.
+    @Classpath
+    public FileCollection getTestsClassPath() {
         return Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath();
     }
 

@@ -89,15 +89,6 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
             super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected NestedPathFieldType(NestedPathFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NestedPathFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return NAME;

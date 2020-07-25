@@ -1,5 +1,5 @@
 [[geo-point]]
-=== Geo-point datatype
+=== Geo-point data type
 ++++
 <titleabbrev>Geo-point</titleabbrev>
 ++++

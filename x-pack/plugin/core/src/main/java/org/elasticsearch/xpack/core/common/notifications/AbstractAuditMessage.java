@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
@@ -39,12 +38,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
 
         PARSER.declareString(optionalConstructorArg(), resourceField);
         PARSER.declareString(constructorArg(), MESSAGE);
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Level.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, LEVEL, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), Level::fromString, LEVEL);
         PARSER.declareField(constructorArg(),
             p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,

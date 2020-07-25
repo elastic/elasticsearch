@@ -82,15 +82,6 @@ public class MetaJoinFieldMapper extends FieldMapper {
             this.joinField = joinField;
         }
 
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-            this.joinField = ref.joinField;
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -99,7 +90,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

@@ -6,15 +6,15 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 [discrete]
 [[eql-nested-fields]]
 === EQL search on nested fields is not supported
 
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
-sub-fields of a `nested` field. However, indices containing `nested` field
-mappings are otherwise supported.
+sub-fields of a `nested` field. However, data streams and indices containing
+`nested` field mappings are otherwise supported.
 
 [discrete]
 [[eql-unsupported-syntax]]
@@ -35,8 +35,9 @@ queries that contain:
 ** `descendant of`
 ** `event of`
 
-* {eql-ref}/pipes.html[Pipes]
-
-* {eql-ref}/sequences.html[State and timespan-related sequence keywords]:
-** `with maxspan`
-** `until`
+* The following {eql-ref}/pipes.html[pipes]:
+** {eql-ref}/pipes.html#count[`count`]
+** {eql-ref}/pipes.html#filter[`filter`]
+** {eql-ref}/pipes.html#sort[`sort`]
+** {eql-ref}/pipes.html#unique[`unique`]
+** {eql-ref}/pipes.html#unique-count[`unique_count`]

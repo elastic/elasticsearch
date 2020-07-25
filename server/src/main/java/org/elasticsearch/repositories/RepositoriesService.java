@@ -86,7 +86,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addStateApplier(this);
+            clusterService.addHighPriorityApplier(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
     }
@@ -355,6 +355,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
             repositories = Collections.unmodifiableMap(builder);
         } catch (Exception ex) {
+            assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
         }
     }

@@ -28,11 +28,9 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -78,7 +76,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        createRepository(repo, "fs", randomRepoPath());
+        createRepository(repo, "fs");
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
@@ -152,7 +150,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot1 = "snap-1";
         final String repo = "test-repo";
-        createRepository(repo, "fs", randomRepoPath());
+        createRepository(repo, "fs");
 
         logger.info("--> creating snapshot 1");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
@@ -172,9 +170,9 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }
 
-    private void assertCountInIndexThenDelete(String index, long expectedCount) throws ExecutionException, InterruptedException {
+    private void assertCountInIndexThenDelete(String index, long expectedCount) {
         logger.info("--> asserting that index [{}] contains [{}] documents", index, expectedCount);
-        assertThat(getCountForIndex(index), is(expectedCount));
+        assertDocCount(index, expectedCount);
         logger.info("--> deleting index [{}]", index);
         assertThat(client().admin().indices().prepareDelete(index).get().isAcknowledged(), is(true));
     }
@@ -202,10 +200,5 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
         assertThat(restoreInfo.totalShards(), is(1));
         assertThat(restoreInfo.failedShards(), is(0));
-    }
-
-    private long getCountForIndex(String indexName) throws ExecutionException, InterruptedException {
-        return client().search(new SearchRequest(new SearchRequest(indexName).source(
-            new SearchSourceBuilder().size(0).trackTotalHits(true)))).get().getHits().getTotalHits().value;
     }
 }

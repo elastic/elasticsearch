@@ -1,5 +1,5 @@
 [[number]]
-=== Numeric datatypes
+=== Numeric data types
 ++++
 <titleabbrev>Numeric</titleabbrev>
 ++++
@@ -84,7 +84,7 @@ to help make a decision.
 .Mapping numeric identifiers
 ====
 // tag::map-ids-as-keyword[]
-Not all numeric data should be mapped as a <<number,numeric>> field datatype.
+Not all numeric data should be mapped as a <<number,numeric>> field data type.
 {es} optimizes numeric fields, such as `integer` or `long`, for
 <<query-dsl-range-query,`range`>> queries. However, <<keyword,`keyword`>> fields
 are better for <<query-dsl-term-query,`term`>> and other
@@ -101,7 +101,7 @@ Consider mapping a numeric identifier as a `keyword` if:
   often faster than `term` searches on numeric fields.
 
 If you're unsure which to use, you can use a <<multi-fields,multi-field>> to map
-the data as both a `keyword` _and_ a numeric datatype.
+the data as both a `keyword` _and_ a numeric data type.
 // end::map-ids-as-keyword[]
 ====
 

@@ -41,7 +41,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     protected final long maxDocCount;
     private final double precision;
     protected final DocValueFormat format;
-    protected final boolean collectsFromSingleBucket;
     private final int filterSeed;
 
     protected MergingBucketsDeferringCollector deferringCollector;
@@ -54,15 +53,13 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        DocValueFormat format,
-        boolean collectsFromSingleBucket
+        DocValueFormat format
     ) throws IOException {
         super(name, factories, context, parent, metadata);
 
         this.maxDocCount = maxDocCount;
         this.precision = precision;
         this.format = format;
-        this.collectsFromSingleBucket = collectsFromSingleBucket;
         // We seed the rng with the ShardID so results are deterministic and don't change randomly
         this.filterSeed = context.indexShard().shardId().hashCode();
         String scoringAgg = subAggsNeedScore();

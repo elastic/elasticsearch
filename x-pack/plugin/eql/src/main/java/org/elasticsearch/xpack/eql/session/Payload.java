@@ -22,7 +22,5 @@ public interface Payload {
 
     TimeValue timeTook();
 
-    Object[] nextKeys();
-
     <V> List<V> values();
 }

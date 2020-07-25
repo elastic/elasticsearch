@@ -153,15 +153,15 @@ public class SparseFileTrackerTests extends ESTestCase {
             }, e -> { throw new AssertionError(e); }));
             for (int gapIndex = 0; gapIndex < gaps.size(); gapIndex++) {
                 final SparseFileTracker.Gap gap = gaps.get(gapIndex);
-                assertThat(gap.start, greaterThanOrEqualTo(start));
-                assertThat(gap.end, lessThanOrEqualTo(end));
+                assertThat(gap.start(), greaterThanOrEqualTo(start));
+                assertThat(gap.end(), lessThanOrEqualTo(end));
                 // listener is notified when the last gap is completed
                 final AtomicBoolean shouldNotifyListener = new AtomicBoolean();
-                for (long i = gap.start; i < gap.end; i++) {
+                for (long i = gap.start(); i < gap.end(); i++) {
                     assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
                     fileContents[Math.toIntExact(i)] = AVAILABLE;
                     // listener is notified when the progress reached the last byte of the last gap
-                    if ((gapIndex == gaps.size() - 1) && (i == gap.end - 1L)) {
+                    if ((gapIndex == gaps.size() - 1) && (i == gap.end() - 1L)) {
                         assertTrue(shouldNotifyListener.compareAndSet(false, true));
                         expectNotification.set(true);
                     }
@@ -232,10 +232,10 @@ public class SparseFileTrackerTests extends ESTestCase {
             );
 
             for (final SparseFileTracker.Gap gap : gaps) {
-                assertThat(gap.start, greaterThanOrEqualTo(range.v1()));
-                assertThat(gap.end, lessThanOrEqualTo(range.v2()));
+                assertThat(gap.start(), greaterThanOrEqualTo(range.v1()));
+                assertThat(gap.end(), lessThanOrEqualTo(range.v2()));
 
-                for (long i = gap.start; i < gap.end; i++) {
+                for (long i = gap.start(); i < gap.end(); i++) {
                     assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
                     fileContents[Math.toIntExact(i)] = AVAILABLE;
                     assertTrue(wasNotified.get());
@@ -263,10 +263,10 @@ public class SparseFileTrackerTests extends ESTestCase {
             assertThat(triggeringProgress, greaterThanOrEqualTo(0L));
 
             for (final SparseFileTracker.Gap gap : gaps) {
-                assertThat(gap.start, greaterThanOrEqualTo(range.v1()));
-                assertThat(gap.end, lessThanOrEqualTo(range.v2()));
+                assertThat(gap.start(), greaterThanOrEqualTo(range.v1()));
+                assertThat(gap.end(), lessThanOrEqualTo(range.v2()));
 
-                for (long i = gap.start; i < gap.end; i++) {
+                for (long i = gap.start(); i < gap.end(); i++) {
                     assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
                     fileContents[Math.toIntExact(i)] = AVAILABLE;
                     if (triggeringProgress == i) {
@@ -303,7 +303,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                         + gap
                         + "] was completed",
                     wasNotified.get(),
-                    equalTo(triggeringProgress < gap.end)
+                    equalTo(triggeringProgress < gap.end())
                 );
             }
             assertTrue(wasNotified.get());
@@ -454,7 +454,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         );
 
         for (final SparseFileTracker.Gap gap : gaps) {
-            for (long i = gap.start; i < gap.end; i++) {
+            for (long i = gap.start(); i < gap.end(); i++) {
                 assertThat(Long.toString(i), fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
             }
             gapConsumer.accept(gap);
@@ -462,14 +462,14 @@ public class SparseFileTrackerTests extends ESTestCase {
     }
 
     private static void processGap(byte[] fileContents, SparseFileTracker.Gap gap) {
-        for (long i = gap.start; i < gap.end; i++) {
+        for (long i = gap.start(); i < gap.end(); i++) {
             assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
         }
 
         if (randomBoolean()) {
             gap.onFailure(new ElasticsearchException("simulated"));
         } else {
-            for (long i = gap.start; i < gap.end; i++) {
+            for (long i = gap.start(); i < gap.end(); i++) {
                 fileContents[Math.toIntExact(i)] = AVAILABLE;
                 gap.onProgress(i + 1L);
             }

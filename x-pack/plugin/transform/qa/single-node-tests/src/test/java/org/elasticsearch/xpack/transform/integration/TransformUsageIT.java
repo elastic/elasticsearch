@@ -72,6 +72,8 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
+        logger.info("test_usage/_stats response: [{}]", stats);
         Map<String, Double> expectedStats = new HashMap<>();
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
@@ -82,6 +84,8 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         getRequest = new Request("GET", getTransformEndpoint() + "test_usage_continuous/_stats");
         stats = entityAsMap(client().performRequest(getRequest));
+        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
+        logger.info("test_usage_continuous/_stats response: [{}]", stats);
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
             List<Object> specificStatistic = (List<Object>) (XContentMapValues.extractValue("transforms.stats." + statName, stats));

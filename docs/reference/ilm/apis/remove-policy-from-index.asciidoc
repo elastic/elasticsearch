@@ -6,12 +6,13 @@
 <titleabbrev>Remove policy</titleabbrev>
 ++++
 
-Removes the assigned lifecycle policy from an index.
+Removes assigned lifecycle policies from an index or a data stream's backing
+indices.
 
 [[ilm-remove-policy-request]]
 ==== {api-request-title}
 
-`POST <index>/_ilm/remove`
+`POST <target>/_ilm/remove`
 
 [[ilm-remove-policy-prereqs]]
 ==== {api-prereq-title}
@@ -23,15 +24,21 @@ see <<security-privileges>>.
 [[ilm-remove-policy-desc]]
 ==== {api-description-title}
 
-Removes the assigned lifecycle policy and stops managing the specified index.
-If an index pattern is specified, removes the assigned policies from all matching
-indices.
+For indices, the remove lifecycle policy API removes the assigned lifecycle
+policy and stops managing the specified index.
+
+For data streams, the API removes any assigned lifecycle policies from 
+the stream's backing indices and stops managing the indices.
 
 [[ilm-remove-policy-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-  (Required, string) Identifier for the index.
+`<target>`::
+(Required, string)
+Comma-separated list of data streams, indices, and index aliases to target.
+Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, use `_all` or `*`.
 
 [[ilm-remove-policy-query-params]]
 ==== {api-query-parms-title}

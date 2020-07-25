@@ -148,7 +148,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             return null;
         } else {
-            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
+            return new ComposableIndexTemplate.DataStreamTemplate();
         }
     }
 

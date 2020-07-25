@@ -4,7 +4,8 @@
 <titleabbrev>Get mapping</titleabbrev>
 ++++
 
-Retrieves <<mapping,mapping definitions>> for indices in a cluster.
+Retrieves <<mapping,mapping definitions>> for one or more indices. For data
+streams, the API retrieves mappings for the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
@@ -17,13 +18,19 @@ GET /twitter/_mapping
 
 `GET /_mapping`
 
-`GET /<index>/_mapping`
+`GET /<target>/_mapping`
 
 
 [[get-mapping-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[get-mapping-api-query-params]]
@@ -48,12 +55,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ==== {api-examples-title}
 
 [[get-mapping-api-multi-ex]]
-===== Multiple indices
+===== Multiple data streams and indices
 
-The get mapping API can be used to get more than one index with a
+The get mapping API can be used to get more than one data stream or index with a
 single call. General usage of the API follows the following syntax:
-`host:port/{index}/_mapping` where  `{index}` can accept a comma-separated
-list of names. To get mappings for all indices you can use `_all` for `{index}`.
+`host:port/<target>/_mapping` where `<target>` can accept a comma-separated
+list of names. To get mappings for all data streams and indices in a cluster, use `_all` or `*` for `<target>`
+or omit the `<target>` parameter.
 The following are some examples:
 
 [source,console]
@@ -63,11 +71,13 @@ GET /twitter,kimchy/_mapping
 // TEST[setup:twitter]
 // TEST[s/^/PUT kimchy\nPUT book\n/]
 
-If you want to get mappings of all indices and types then the following
-two examples are equivalent:
+If you want to get mappings of all indices in a cluster, the following
+examples are equivalent:
 
 [source,console]
 --------------------------------------------------
+GET /*/_mapping
+
 GET /_all/_mapping
 
 GET /_mapping

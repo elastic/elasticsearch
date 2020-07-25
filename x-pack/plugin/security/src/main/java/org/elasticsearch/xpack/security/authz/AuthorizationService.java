@@ -15,6 +15,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -176,7 +177,7 @@ public class AuthorizationService {
             if (isInternalUser(authentication.getUser()) != false) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
-                auditTrailService.get().tamperedRequest(null, authentication.getUser(), action, originalRequest);
+                auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
                 final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
                     + "] without an existing request-id";
                 assert false : message;
@@ -294,11 +295,11 @@ public class AuthorizationService {
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert request instanceof CreateIndexRequest;
-            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-            if (aliases.isEmpty()) {
+            assert (request instanceof CreateIndexRequest) || (request instanceof CreateDataStreamAction.Request);
+            if (request instanceof CreateDataStreamAction.Request || ((CreateIndexRequest) request).aliases().isEmpty()) {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
+                Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME);
                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo,
                     ril -> {
@@ -367,7 +368,7 @@ public class AuthorizationService {
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
         if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() &&
-            licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
+            licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
             if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
                 return rbacEngine;
             } else {

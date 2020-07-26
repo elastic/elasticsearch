@@ -587,6 +587,7 @@ public final class NodeEnvironment  implements Closeable {
      * Deletes a shard data directory iff the shards locks were successfully acquired.
      *
      * @param shardId the id of the shard to delete to delete
+     * @param shardPath the shard path of the shard to delete
      * @throws IOException if an IOException occurs
      */
     public void deleteShardDirectorySafe(ShardId shardId, ShardPath shardPath, IndexSettings indexSettings)
@@ -643,19 +644,12 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectoryUnderLock(ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
-        final Path[] paths;
-        NodePath nodePath = null;
-        if (shardPath == null || shardPath.getNodePath() == null) {
-            paths = availableShardPaths(shardId);
-        } else {
-            nodePath = shardPath.getNodePath();
-            paths = new Path[]{nodePath.resolve(shardId)};
-        }
+        final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
         IOUtils.rm(paths);
-        if (nodePath != null) {
-            nodePath.removeShard(shardId);
+        if (shardPath != null && shardPath.getNodePath() != null) {
+            shardPath.getNodePath().removeShard(shardId);
         }
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);

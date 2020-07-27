@@ -53,7 +53,7 @@ Token Filters::
 
 [source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -74,7 +74,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_custom_analyzer",
   "text": "Is this <b>déjà vu</b>?"
@@ -155,7 +155,7 @@ Here is an example:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -197,7 +197,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_custom_analyzer",
   "text": "I'm a :) person, and you?"

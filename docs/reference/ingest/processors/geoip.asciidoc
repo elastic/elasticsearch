@@ -55,11 +55,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-00001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -68,7 +68,7 @@ Which returns:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -105,11 +105,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-00001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
 
 returns this:
@@ -118,7 +118,7 @@ returns this:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -156,12 +156,12 @@ PUT _ingest/pipeline/geoip
   ]
 }
 
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-00001/_doc/my_id?pipeline=geoip
 {
   "ip": "80.231.5.0"
 }
 
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -169,7 +169,7 @@ Which returns:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my_index",
+  "_index" : "my-index-00001",
   "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,

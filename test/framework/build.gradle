@@ -19,20 +19,20 @@
 import org.elasticsearch.gradle.info.BuildParams;
 
 dependencies {
-  compile project(":client:rest")
-  compile project(":client:sniffer")
-  compile project(':libs:elasticsearch-nio')
-  compile project(":server")
-  compile project(":libs:elasticsearch-cli")
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
-  compile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
-  compile "org.apache.lucene:lucene-codecs:${versions.lucene}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "org.elasticsearch:securemock:${versions.securemock}"
-  compile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api project(":client:rest")
+  api project(":client:sniffer")
+  api project(':libs:elasticsearch-nio')
+  api project(":server")
+  api project(":libs:elasticsearch-cli")
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  api "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.elasticsearch:securemock:${versions.securemock}"
+  api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'
@@ -44,7 +44,7 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 // TODO: should we have licenses for our test deps?
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 thirdPartyAudit.ignoreMissingClasses(

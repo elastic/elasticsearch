@@ -10,6 +10,7 @@ cases:
 * Disaster recovery in case a primary cluster fails. A secondary cluster can
   serve as a hot backup
 * Geo-proximity so that reads can be served locally
+* Prevent search load from interfering with indexing by offloading search to a secondary cluster
 
 This guide provides an overview of {ccr}:
 

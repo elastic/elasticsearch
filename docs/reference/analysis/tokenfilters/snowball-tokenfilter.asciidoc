@@ -84,7 +84,7 @@ analyzer>>.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -201,7 +201,7 @@ words using the `lovins` algorithm for the English language:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

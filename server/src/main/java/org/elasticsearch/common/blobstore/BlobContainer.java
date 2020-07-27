@@ -39,6 +39,15 @@ public interface BlobContainer {
     BlobPath path();
 
     /**
+     * Tests whether a blob with the given blob name exists in the container.
+     *
+     * @param   blobName
+     *          The name of the blob whose existence is to be determined.
+     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
+     */
+    boolean blobExists(String blobName) throws IOException;
+
+    /**
      * Creates a new {@link InputStream} for the given blob name.
      *
      * @param   blobName
@@ -61,9 +70,7 @@ public interface BlobContainer {
      * @throws NoSuchFileException if the blob does not exist
      * @throws IOException         if the blob can not be read.
      */
-    default InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
-        throw new UnsupportedOperationException(); // NORELEASE
-    }
+    InputStream readBlob(String blobName, long position, long length) throws IOException;
 
     /**
      * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.

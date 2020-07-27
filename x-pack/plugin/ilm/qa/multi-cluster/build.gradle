@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(':x-pack:plugin:ccr:qa')
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(':x-pack:plugin:ilm')
+  testImplementation project(':x-pack:plugin:ccr:qa')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:ilm')
 }
 
 File repoDir = file("$buildDir/testclusters/repo")

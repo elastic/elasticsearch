@@ -24,6 +24,8 @@ import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -40,10 +42,12 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +60,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -91,6 +97,8 @@ public class TaskManager implements ClusterStateApplier {
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final ByteSizeValue maxHeaderSize;
+    private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
+    private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
@@ -101,6 +109,10 @@ public class TaskManager implements ClusterStateApplier {
     public void setTaskResultsService(TaskResultsService taskResultsService) {
         assert this.taskResultsService == null;
         this.taskResultsService = taskResultsService;
+    }
+
+    public void setTaskCancellationService(TaskCancellationService taskCancellationService) {
+        this.cancellationService.set(taskCancellationService);
     }
 
     /**
@@ -442,17 +454,6 @@ public class TaskManager implements ClusterStateApplier {
                     }
                 }
             }
-            // Cancel cancellable tasks for the nodes that are gone
-            for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
-                CancellableTaskHolder holder = taskEntry.getValue();
-                CancellableTask task = holder.getTask();
-                TaskId parentTaskId = task.getParentTaskId();
-                if (parentTaskId.isSet() && lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId()) == false) {
-                    if (task.cancelOnParentLeaving()) {
-                        holder.cancel("Coordinating node [" + parentTaskId.getNodeId() + "] left the cluster");
-                    }
-                }
-            }
         }
     }
 
@@ -607,4 +608,98 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Start tracking a cancellable task with its tcp channel, so if the channel gets closed we can get a set of
+     * pending tasks associated that channel and cancel them as these results won't be retrieved by the parent task.
+     *
+     * @return a releasable that should be called when this pending task is completed
+     */
+    public Releasable startTrackingCancellableChannelTask(TcpChannel channel, CancellableTask task) {
+        assert cancellableTasks.containsKey(task.getId()) : "task [" + task.getId() + "] is not registered yet";
+        final ChannelPendingTaskTracker tracker = channelPendingTaskTrackers.compute(channel, (k, curr) -> {
+            if (curr == null) {
+                curr = new ChannelPendingTaskTracker();
+            }
+            curr.addTask(task);
+            return curr;
+        });
+        if (tracker.registered.compareAndSet(false, true)) {
+            channel.addCloseListener(ActionListener.wrap(
+                r -> {
+                    final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
+                    assert removedTracker == tracker;
+                    cancelTasksOnChannelClosed(tracker.drainTasks());
+                },
+                e -> {
+                    assert false : new AssertionError("must not be here", e);
+                }));
+        }
+        return () -> tracker.removeTask(task);
+    }
+
+    // for testing
+    final int numberOfChannelPendingTaskTrackers() {
+        return channelPendingTaskTrackers.size();
+    }
+
+    private static class ChannelPendingTaskTracker {
+        final AtomicBoolean registered = new AtomicBoolean();
+        final Semaphore permits = Assertions.ENABLED ? new Semaphore(Integer.MAX_VALUE) : null;
+        final Set<CancellableTask> pendingTasks = ConcurrentCollections.newConcurrentSet();
+
+        void addTask(CancellableTask task) {
+            assert permits.tryAcquire() : "tracker was drained";
+            final boolean added = pendingTasks.add(task);
+            assert added : "task " + task.getId() + " is in the pending list already";
+            assert releasePermit();
+        }
+
+        boolean acquireAllPermits() {
+            permits.acquireUninterruptibly(Integer.MAX_VALUE);
+            return true;
+        }
+
+        boolean releasePermit() {
+            permits.release();
+            return true;
+        }
+
+        Set<CancellableTask> drainTasks() {
+            assert acquireAllPermits(); // do not release permits so we can't add tasks to this tracker after draining
+            return Collections.unmodifiableSet(pendingTasks);
+        }
+
+        void removeTask(CancellableTask task) {
+            final boolean removed = pendingTasks.remove(task);
+            assert removed : "task " + task.getId() + " is not in the pending list";
+        }
+    }
+
+    private void cancelTasksOnChannelClosed(Set<CancellableTask> tasks) {
+        if (tasks.isEmpty() == false) {
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to cancel tasks on channel closed", e);
+                }
+
+                @Override
+                protected void doRun() {
+                    for (CancellableTask task : tasks) {
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
+                    }
+                }
+            });
+        }
+    }
+
+    public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+        final TaskCancellationService service = cancellationService.get();
+        if (service != null) {
+            service.cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
+        } else {
+            assert false : "TaskCancellationService is not initialized";
+            throw new IllegalStateException("TaskCancellationService is not initialized");
+        }
+    }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
@@ -73,9 +74,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService) {
+                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
             return Collections.singletonMap(REPO_TYPE,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService) {
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
                     @Override
                     protected void assertSnapshotOrGenericThread() {
                         // eliminate thread name check as we access blobStore on test/main threads
@@ -198,7 +199,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
         final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, true, Function.identity(),future1);
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(),future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
@@ -221,8 +222,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
-        PlainActionFuture.<RepositoryData, Exception>get(f -> repository.writeIndexGen(repositoryData, generation, true,
-                Function.identity(), f));
+        PlainActionFuture.<RepositoryData, Exception>get(
+                f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f));
     }
 
     private BlobStoreRepository setupRepo() {
@@ -259,8 +260,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             for (int j = 0; j < numIndices; j++) {
                 builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
             }
+            final ShardGenerations shardGenerations = builder.build();
+            final Map<IndexId, String> indexLookup =
+                shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), Version.CURRENT, builder.build());
+                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), Version.CURRENT, shardGenerations,
+                indexLookup,
+                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
         }
         return repoData;
     }

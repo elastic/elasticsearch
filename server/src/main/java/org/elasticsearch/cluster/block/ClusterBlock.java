@@ -81,6 +81,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return this.id;
     }
 
+    @Nullable
     public String uuid() {
         return uuid;
     }

@@ -1,0 +1,44 @@
+[[dangling-index-delete]]
+=== Delete dangling index API
+++++
+<titleabbrev>Delete dangling index</titleabbrev>
+++++
+
+Deletes a dangling index.
+
+[[dangling-index-delete-api-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+DELETE /_dangling/<index-uuid>?accept_data_loss=true
+--------------------------------------------------
+// TEST[skip:Difficult to set up]
+
+[[dangling-index-delete-api-desc]]
+==== {api-description-title}
+
+include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
+
+
+Deletes a dangling index by referencing its UUID. Use the
+<<dangling-indices-list,List dangling indices API>> to locate the UUID of an index.
+
+
+[[dangling-index-delete-api-path-params]]
+==== {api-path-parms-title}
+
+`<index-uuid>`::
+(Required, string)
+UUID of the index to delete. You can find this using the
+<<dangling-indices-list,List dangling indices API>>.
+
+[[dangling-index-delete-api-query-params]]
+==== {api-query-parms-title}
+
+`accept_data_loss`::
+(Optional, boolean)
+This field must be set to `true` in order to carry out the import, since it will
+no longer be possible to recover the data from the dangling index.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]

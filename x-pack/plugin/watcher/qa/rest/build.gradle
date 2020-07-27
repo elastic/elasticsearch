@@ -1,13 +1,15 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 task testJar(type: Jar) {

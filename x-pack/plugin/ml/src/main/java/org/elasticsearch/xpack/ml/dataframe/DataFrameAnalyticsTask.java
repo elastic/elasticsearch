@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -107,7 +108,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     @Override
     protected void onCancelled() {
-        stop(getReasonCancelled(), TimeValue.ZERO);
+        stop(getReasonCancelled(), StopDataFrameAnalyticsAction.DEFAULT_TIMEOUT);
         markAsCompleted();
     }
 

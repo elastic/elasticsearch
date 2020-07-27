@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -119,6 +121,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+    }
+
+    protected PutDataFrameAnalyticsAction.Response updateAnalytics(DataFrameAnalyticsConfigUpdate update) {
+        UpdateDataFrameAnalyticsAction.Request request = new UpdateDataFrameAnalyticsAction.Request(update);
+        return client().execute(UpdateDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
     protected AcknowledgedResponse deleteAnalytics(String id) {
@@ -212,6 +219,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 100), is(true));
     }
 
+    abstract boolean supportsInference();
+
     private List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
@@ -220,7 +229,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat(progress.size(), greaterThanOrEqualTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
-        assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        if (supportsInference()) {
+            assertThat(progress.get(progress.size() - 2).getPhase(), equalTo("writing_results"));
+            assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("inference"));
+        } else {
+            assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        }
         return progress;
     }
 

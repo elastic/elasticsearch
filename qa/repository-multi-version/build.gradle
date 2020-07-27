@@ -26,7 +26,7 @@ apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':client:rest-high-level')
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
@@ -89,6 +89,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 task testJar(type: Jar) {

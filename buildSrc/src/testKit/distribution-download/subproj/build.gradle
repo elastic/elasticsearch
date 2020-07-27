@@ -36,7 +36,7 @@ elasticsearch_distributions {
   }
 }
 
-task assertDistroFile {
+tasks.register("assertDistroFile") {
   dependsOn elasticsearch_distributions.test_distro
   doLast {
     File distroFile = new File(elasticsearch_distributions.test_distro.toString())
@@ -50,7 +50,7 @@ task assertDistroFile {
 }
 
 if (['rpm', 'deb'].contains(distroType) == false) {
-  task assertDistroExtracted {
+  tasks.register("assertDistroExtracted") {
     dependsOn elasticsearch_distributions.test_distro.extracted, assertDistroFile
     doLast {
       File distroExtracted = new File(elasticsearch_distributions.test_distro.extracted.toString())

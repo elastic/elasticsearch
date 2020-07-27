@@ -654,7 +654,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithFieldInListOfValues() {
-        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+        assertEquals("1:26: Comparisons against fields are not (currently) supported; offender [int] in [int IN (1, int)]",
             error("SELECT * FROM test WHERE int IN (1, int)"));
     }
 
@@ -1020,6 +1020,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testProjectUnresolvedAliasInFilter() {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInFilter() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
     }
 
     public void testGeoShapeInWhereClause() {

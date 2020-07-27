@@ -312,6 +312,14 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return dataType;
     }
 
+    public boolean useDocValues() {
+        return useDocValue;
+    }
+
+    public boolean arrayLeniency() {
+        return arrayLeniency;
+    }
+
     @Override
     public String toString() {
         return fieldName + "@" + hitName + "@" + zoneId;

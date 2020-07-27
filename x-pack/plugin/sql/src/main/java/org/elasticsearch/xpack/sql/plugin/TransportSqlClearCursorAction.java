@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -45,7 +45,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
             ActionListener<SqlClearCursorResponse> listener) {
         Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor()).v1();
         planExecutor.cleanCursor(
-                new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
+                new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
                         request.mode(), StringUtils.EMPTY, StringUtils.EMPTY, StringUtils.EMPTY, Protocol.FIELD_MULTI_VALUE_LENIENCY,
                         Protocol.INDEX_INCLUDE_FROZEN),
                 cursor, ActionListener.wrap(

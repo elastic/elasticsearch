@@ -54,9 +54,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -83,9 +81,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .field("non_existent")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -106,9 +102,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = point.getX();
@@ -141,9 +135,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
 
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -199,9 +191,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

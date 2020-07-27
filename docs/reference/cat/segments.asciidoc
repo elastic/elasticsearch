@@ -8,10 +8,13 @@ Returns low-level information about the https://lucene.apache.org/core/[Lucene]
 segments in index shards, similar to the <<indices-segments, indices segments>>
 API.
 
+For data streams, the API returns information about the stream's backing
+indices.
+
 [[cat-segments-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/segments/<index>`
+`GET /_cat/segments/<target>`
 
 `GET /_cat/segments`
 
@@ -19,17 +22,22 @@ API.
 [[cat-segments-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[cat-segments-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -52,39 +60,39 @@ Valid columns are:
 
 `segment`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `docs.count`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
                 
 `docs.deleted`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `size.memory`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=memory]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `searchable`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Default) If `true`, the segment is stored in a compound file. This means Lucene
@@ -94,11 +102,11 @@ merged all files from the segment in a single file to save file descriptors.
 ID of the node, such as `k0zy`.
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-segments-api-example]]

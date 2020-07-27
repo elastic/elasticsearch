@@ -115,7 +115,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
-        int totalCount = 0;
+        long totalCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoCentroid centroidAgg = (InternalGeoCentroid) aggregation;
             if (centroidAgg.count > 0) {

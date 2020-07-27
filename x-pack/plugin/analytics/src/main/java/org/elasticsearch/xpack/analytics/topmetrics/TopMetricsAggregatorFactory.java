@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -49,7 +50,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         int maxBucketSize = MAX_BUCKET_SIZE.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
         if (size > maxBucketSize) {
@@ -61,9 +62,9 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                     ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
                             searchContext.getQueryShardContext(), ValueType.NUMERIC,
                             config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
-                        CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
+                        CoreValuesSourceType.NUMERIC);
                     return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
-                        (ValuesSource.Numeric) resolved.toValuesSource());
+                        (ValuesSource.Numeric) resolved.getValuesSource());
                 }).collect(toList());
         return new TopMetricsAggregator(name, searchContext, parent, metadata, size, sortBuilders.get(0), metricSources);
     }

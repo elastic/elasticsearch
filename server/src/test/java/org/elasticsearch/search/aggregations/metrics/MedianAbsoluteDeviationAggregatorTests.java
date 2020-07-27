@@ -201,9 +201,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
             .field(FIELD_NAME)
@@ -227,8 +226,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
@@ -253,8 +252,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             .field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         testAggregation(builder, query, buildIndex, verify, fieldType);
     }

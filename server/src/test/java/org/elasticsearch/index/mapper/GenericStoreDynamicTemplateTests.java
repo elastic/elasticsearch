@@ -50,16 +50,12 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        MappedFieldType fieldType = mapperService.fieldType("name");
-        assertThat(fieldType.stored(), equalTo(true));
+        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isStored());
 
         boolean stored = false;
         for (IndexableField field : doc.getFields("age")) {
             stored |=  field.fieldType().stored();
         }
         assertTrue(stored);
-
-        fieldType = mapperService.fieldType("age");
-        assertThat(fieldType.stored(), equalTo(true));
     }
 }

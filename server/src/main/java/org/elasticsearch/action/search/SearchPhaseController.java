@@ -706,7 +706,7 @@ public final class SearchPhaseController {
                         InternalAggregations reduced =
                                 InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
                         reducedAggs = aggsBuffer[0] = DelayableWriteable.referencing(reduced)
-                                .asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                                .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry);
                         long previousBufferSize = aggsCurrentBufferSize;
                         aggsMaxBufferSize = Math.max(aggsMaxBufferSize, aggsCurrentBufferSize);
                         aggsCurrentBufferSize = aggsBuffer[0].ramBytesUsed();
@@ -729,7 +729,7 @@ public final class SearchPhaseController {
                 }
                 final int i = index++;
                 if (hasAggs) {
-                    aggsBuffer[i] = querySearchResult.consumeAggs().asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                    aggsBuffer[i] = querySearchResult.consumeAggs().asSerialized(InternalAggregations::readFrom, namedWriteableRegistry);
                     aggsCurrentBufferSize += aggsBuffer[i].ramBytesUsed();
                 }
                 if (hasTopDocs) {

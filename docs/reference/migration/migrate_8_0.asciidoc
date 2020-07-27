@@ -40,7 +40,7 @@ coming[8.0.0]
 
 //tag::notable-breaking-changes[]
 
-.Indices created in {es} 7.0 and earlier versions are not supported.
+.Indices created in {es} 6.x and earlier versions are not supported.
 [%collapsible]
 ====
 *Details* +

@@ -64,7 +64,7 @@ public final class AutoCreateIndex {
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
     public boolean shouldAutoCreate(String index, ClusterState state) {
-        if (resolver.hasIndexOrAlias(index, state)) {
+        if (resolver.hasIndexAbstraction(index, state)) {
             return false;
         }
         // One volatile read, so that all checks are done against the same instance:

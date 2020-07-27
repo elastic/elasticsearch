@@ -16,16 +16,79 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R>  implements HttpPipelinedMessage {
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
-    private final R request;
+import java.util.List;
+import java.util.Map;
+
+public class HttpPipelinedRequest implements HttpRequest, HttpPipelinedMessage {
+
     private final int sequence;
+    private final HttpRequest delegate;
 
-    HttpPipelinedRequest(int sequence, R request) {
+    public HttpPipelinedRequest(int sequence, HttpRequest delegate) {
         this.sequence = sequence;
-        this.request = request;
+        this.delegate = delegate;
+    }
+
+    @Override
+    public RestRequest.Method method() {
+        return delegate.method();
+    }
+
+    @Override
+    public String uri() {
+        return delegate.uri();
+    }
+
+    @Override
+    public BytesReference content() {
+        return delegate.content();
+    }
+
+    @Override
+    public Map<String, List<String>> getHeaders() {
+        return delegate.getHeaders();
+    }
+
+    @Override
+    public List<String> strictCookies() {
+        return delegate.strictCookies();
+    }
+
+    @Override
+    public HttpVersion protocolVersion() {
+        return delegate.protocolVersion();
+    }
+
+    @Override
+    public HttpRequest removeHeader(String header) {
+        return delegate.removeHeader(header);
+    }
+
+    @Override
+    public HttpPipelinedResponse createResponse(RestStatus status, BytesReference content) {
+        return new HttpPipelinedResponse(sequence, delegate.createResponse(status, content));
+    }
+
+    @Override
+    public void release() {
+        delegate.release();
+    }
+
+    @Override
+    public HttpRequest releaseAndCopy() {
+        return delegate.releaseAndCopy();
+    }
+
+    @Override
+    public Exception getInboundException() {
+        return delegate.getInboundException();
     }
 
     @Override
@@ -33,7 +96,7 @@ public class HttpPipelinedRequest<R>  implements HttpPipelinedMessage {
         return sequence;
     }
 
-    public R getRequest() {
-        return request;
+    public HttpRequest getDelegateRequest() {
+        return delegate;
     }
 }

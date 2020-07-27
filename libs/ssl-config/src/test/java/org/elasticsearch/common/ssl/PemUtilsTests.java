@@ -24,10 +24,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AlgorithmParameters;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
+import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.util.function.Supplier;
 
@@ -72,8 +74,10 @@ public class PemUtilsTests extends ESTestCase {
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
         assertThat(privateKey, instanceOf(ECPrivateKey.class));
         ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
-        // This is brittle but we can't access sun.security.util.NamedCurve
-        assertThat(parameterSpec.toString(), containsString(curve));
+        ECGenParameterSpec algorithmParameterSpec = new ECGenParameterSpec(curve);
+        AlgorithmParameters algoParameters = AlgorithmParameters.getInstance("EC");
+        algoParameters.init(algorithmParameterSpec);
+        assertThat(parameterSpec, equalTo(algoParameters.getParameterSpec(ECParameterSpec.class)));
     }
 
     public void testReadPKCS8EcKey() throws Exception {

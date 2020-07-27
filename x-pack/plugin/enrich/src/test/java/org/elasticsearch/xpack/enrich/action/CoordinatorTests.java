@@ -34,11 +34,14 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction.Coordinator;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CoordinatorTests extends ESTestCase {
@@ -189,31 +192,54 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testQueueing() throws Exception {
+    public void testNoBlockingWhenQueueing() throws Exception {
         MockLookupFunction lookupFunction = new MockLookupFunction();
+        // Only one request allowed in flight. Queue size maxed at 1.
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);
+
+        // Pre-load the queue to be at capacity and spoof the coordinator state to seem like max requests in flight.
         coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.wrap(() -> {})));
+        coordinator.remoteRequestsCurrent.incrementAndGet();
 
-        AtomicBoolean completed = new AtomicBoolean(false);
+        // Try to schedule an item into the coordinator, should emit an exception
         SearchRequest searchRequest = new SearchRequest();
-        Thread t = new Thread(() -> {
-            coordinator.schedule(searchRequest, ActionListener.wrap(() -> {}));
-            completed.set(true);
-        });
-        t.start();
-        assertBusy(() -> {
-            assertThat(t.getState(), equalTo(Thread.State.WAITING));
-            assertThat(completed.get(), is(false));
-        });
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
 
-        coordinator.coordinateLookups();
-        assertBusy(() -> { assertThat(completed.get(), is(true)); });
+        // Ensure rejection since queue is full
+        Exception rejectionException = capturedException.get();
+        assertThat(rejectionException.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
+        // Ensure that nothing was scheduled because max requests is already in flight
+        assertThat(lookupFunction.capturedConsumers, is(empty()));
+
+        // Try to schedule again while max requests is not full. Ensure that despite the rejection, the queued request is sent.
+        coordinator.remoteRequestsCurrent.decrementAndGet();
+        capturedException.set(null);
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
+        rejectionException = capturedException.get();
+        assertThat(rejectionException.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
+        assertThat(lookupFunction.capturedRequests.size(), is(1));
+        assertThat(lookupFunction.capturedConsumers.size(), is(1));
+
+        // Schedule once more now, the queue should be able to accept the item, but will not schedule it yet
+        capturedException.set(null);
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
+        rejectionException = capturedException.get();
+        assertThat(rejectionException, is(nullValue()));
+        assertThat(coordinator.queue.size(), is(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), is(1));
+        assertThat(lookupFunction.capturedRequests.size(), is(1));
+        assertThat(lookupFunction.capturedConsumers.size(), is(1));
+
+        // Fulfill the captured consumer which will schedule the next item in the queue.
         lookupFunction.capturedConsumers.get(0)
             .accept(
                 new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L),
                 null
             );
+
+        // Ensure queue was drained and that the item in it was scheduled
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
         assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));

@@ -93,9 +93,9 @@
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
       },
-      "prefer_v2_templates": {
+      "require_alias": {
         "type": "boolean",
-        "description": "favor V2 templates instead of V1 templates during automatic index creation"
+        "description": "When true, requires destination to be an alias. Default is false"
       }
     },
     "body":{

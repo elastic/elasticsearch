@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[eql-function-ref]]
 == EQL function reference
 ++++
@@ -19,6 +21,7 @@ experimental::[]
 * <<eql-fn-match>>
 * <<eql-fn-modulo>>
 * <<eql-fn-multiply>>
+* <<eql-fn-number>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
 * <<eql-fn-stringcontains>>
@@ -71,7 +74,7 @@ Addend to add. If `null`, the function returns `null`.
 Two addends are required. No more than two addends can be provided.
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
 ====
@@ -89,14 +92,14 @@ source string.
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")   // returns "cmd"
-between(file.path, "workspace\\\\", ".exe")  // returns ""
-
+between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "workspace\\\\", ".exe")               // returns ""
 
 // Greedy matching defaults to false.
-between(file.path, "\\\\", "\\\\", false)  // returns "Windows"
+between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
+
 // Sets greedy matching to true
-between(file.path, "\\\\", "\\\\", true)  // returns "Windows\\System32"
+between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
 // Case sensitivity defaults to false.
 between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
@@ -105,11 +108,11 @@ between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
 between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
 
 // empty source string
-between("", "system32\\\\", ".exe")          // returns ""
-between("", "", "")                          // returns ""
+between("", "system32\\\\", ".exe")                       // returns ""
+between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                   // returns null
+between(null, "system32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*
@@ -128,14 +131,12 @@ Source string. Empty strings return an empty string (`""`), regardless of the
 `<left>` or `<right>` parameters. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<left>`::
@@ -146,14 +147,12 @@ Text to the left of the substring to extract. This text should include
 whitespace.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<right>`::
@@ -164,14 +163,12 @@ Text to the right of the substring to extract. This text should include
 whitespace.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<greedy_matching>`::
@@ -227,7 +224,7 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
 returns `null`.
 +
 If using a field as the argument, this parameter supports only the <<ip,`ip`>>
-field datatype.
+field data type.
 
 `<cidr_block>`::
 (Required{multi-arg}, string or `null`)
@@ -282,7 +279,7 @@ concat(<value>[, <value>])
 Value to concatenate. If any of the arguments are `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
-<<text,`text`>> field datatype.
+<<text,`text`>> field data type.
 
 *Returns:* string or `null`
 ====
@@ -379,7 +376,7 @@ divide(<dividend>, <divisor>)
 Dividend to divide. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 `<divisor>`::
 (Required, integer or float or `null`)
@@ -387,7 +384,7 @@ Divisor to divide by. If `null`, the function returns `null`. This value cannot
 be zero (`0`).
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or null
 ====
@@ -415,10 +412,6 @@ endsWith(file.name, ".dll")               // returns false
 endsWith("regsvr32.exe", file.extension)  // returns true
 endsWith("ntdll.dll", file.name)          // returns false
 
-// file.name = [ "ntdll.dll", "regsvr32.exe" ]
-endsWith(file.name, ".dll")               // returns true
-endsWith(file.name, ".exe")               // returns false
-
 // null handling
 endsWith("regsvr32.exe", null)            // returns null
 endsWith("", null)                        // returns null
@@ -441,14 +434,12 @@ endsWith(<source>, <substring>)
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::
@@ -458,7 +449,7 @@ Fields containing <<array,array values>> use the first array item only.
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -524,7 +515,7 @@ indexOf(<source>, <substring>[, <start_pos>])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -545,7 +536,7 @@ If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
 Otherwise, empty strings return `0`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -566,7 +557,7 @@ If this argument is `null` or higher than the length of the `<source>` string,
 the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-<<number,numeric>> field datatypes:
+<<number,numeric>> field data types:
 
 * `long`
 * `integer`
@@ -614,14 +605,12 @@ String for which to return the character length. If `null`, the function returns
 `null`. Empty strings return `0`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 *Returns:* integer or `null`
@@ -669,7 +658,7 @@ match(<source>, <reg_exp>[, ...])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -739,7 +728,7 @@ Dividend to divide. If `null`, the function returns `null`. Floating point
 numbers return `0`.
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 `<divisor>`::
 (Required, integer or float or `null`)
@@ -747,7 +736,7 @@ Divisor to divide by. If `null`, the function returns `null`. Floating point
 numbers return `0`. This value cannot be zero (`0`).
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
 ====
@@ -799,10 +788,106 @@ Factor to multiply.  If `null`, the function returns `null`.
 Two factors are required. No more than two factors can be provided.
 
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 --
 
 *Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-number]]
+=== `number`
+
+Converts a string to the corresponding integer or float.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+number("1337")              // returns 1337
+number("42.5")              // returns 42.5
+number("deadbeef", 16)      // returns 3735928559
+
+// integer literals beginning with "0x" are auto-detected as hexadecimal
+number("0xdeadbeef")        // returns 3735928559
+number("0xdeadbeef", 16)    // returns 3735928559
+
+// "+" and "-" are supported
+number("+1337")             // returns 1337
+number("-1337")             // returns -1337
+
+// surrounding whitespace is ignored
+number("  1337  ")          // returns 1337
+
+// process.pid = "1337"
+number(process.pid)         // returns 1337
+
+// null handling
+number(null)                // returns null
+number(null, 16)            // returns null
+
+// strings beginning with "0x" are treated as hexadecimal (base 16),
+// even if the <base_num> is explicitly null.
+number("0xdeadbeef", null) // returns 3735928559
+
+// otherwise, strings are treated as decimal (base 10)
+// if the <base_num> is explicitly null.
+number("1337", null)        // returns 1337
+----
+
+*Syntax*
+[source,txt]
+----
+number(<string>[, <base_num>])
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String to convert to an integer or float. If this value is a string, it must be
+one of the following:
+
+* A string representation of an integer (e.g., `"42"`)
+* A string representation of a float (e.g., `"9.5"`)
+* If the `<base_num>` parameter is specified, a string containing an integer
+  literal in the base notation (e.g., `"0xDECAFBAD"` in hexadecimal or base
+  `16`)
+
+Strings that begin with `0x` are auto-detected as hexadecimal and use a default
+`<base_num>` of `16`.
+
+`-` and `+` are supported with no space between. Surrounding whitespace is
+ignored. Empty strings (`""`) are not supported.
+
+If using a field as the argument, this parameter supports only the following
+field data types:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+If this argument is `null`, the function returns `null`.
+--
+
+`<base_num>`::
++
+--
+(Optional, integer or `null`)
+Radix or base used to convert the string. If the `<string>` begins with `0x`,
+this parameter defaults to `16` (hexadecimal). Otherwise, it defaults to base
+`10`.
+
+If this argument is explicitly `null`, the default value is used.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* integer or float or `null`
 ====
 
 [discrete]
@@ -828,10 +913,6 @@ startsWith(process.name, "explorer")    // returns false
 startsWith("regsvr32.exe", process.name) // returns true
 startsWith("explorer.exe", process.name) // returns false
 
-// process.name = [ "explorer.exe", "regsvr32.exe" ]
-startsWith(process.name, "explorer")    // returns true
-startsWith(process.name, "regsvr32")    // returns false
-
 // null handling
 startsWith("regsvr32.exe", null)        // returns null
 startsWith("", null)                    // returns null
@@ -854,14 +935,12 @@ startsWith(<source>, <substring>)
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::
@@ -871,7 +950,7 @@ Fields containing <<array,array values>> use the first array item only.
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -915,7 +994,7 @@ string(<value>)
 Value to convert to a string. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
-<<text,`text`>> field datatype.
+<<text,`text`>> field data type.
 
 *Returns:* string or `null`
 ====
@@ -961,7 +1040,7 @@ stringContains(<source>, <substring>)
 Source string to search. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -973,7 +1052,7 @@ field datatypes:
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -1080,14 +1159,14 @@ subtract(<minuend>, <subtrahend>)
 Minuend to subtract from.
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 `<subtrahend>`::
 (Optional, integer or float or `null`)
 Subtrahend to subtract. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter supports only
-<<number,`numeric`>> field datatypes.
+<<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
 ====
@@ -1139,7 +1218,7 @@ wildcard(<source>, <wildcard_exp>[, ...])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>

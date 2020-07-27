@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 File repoDir = file("$buildDir/testclusters/repo")

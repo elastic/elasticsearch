@@ -8,26 +8,26 @@ evaluation>> (based on different fields) for each hit, for example:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match_all": {}
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "test1": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * 2"
+      }
     },
-    "script_fields" : {
-        "test1" : {
-            "script" : {
-                "lang": "painless",
-                "source": "doc['price'].value * 2"
-            }
-        },
-        "test2" : {
-            "script" : {
-                "lang": "painless",
-                "source": "doc['price'].value * params.factor",
-                "params" : {
-                    "factor"  : 2.0
-                }
-            }
+    "test2": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * params.factor",
+        "params": {
+          "factor": 2.0
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

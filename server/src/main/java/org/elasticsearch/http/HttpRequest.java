@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -67,6 +68,9 @@ public interface HttpRequest {
      * Create an http response from this request and the supplied status and content.
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
+
+    @Nullable
+    Exception getInboundException();
 
     /**
      * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}

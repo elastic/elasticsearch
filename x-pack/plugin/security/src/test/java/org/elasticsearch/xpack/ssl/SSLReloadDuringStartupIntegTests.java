@@ -12,6 +12,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -22,6 +23,11 @@ import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 
 public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
+
+    @BeforeClass
+    public static void skipInFips() {
+        assumeFalse("Can't use JKS keystores in FIPS JVM", inFipsJvm());
+    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

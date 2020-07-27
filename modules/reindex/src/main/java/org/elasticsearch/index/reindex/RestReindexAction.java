@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
@@ -68,9 +69,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
-
-        if (request.hasParam("prefer_v2_templates")) {
-            internal.preferV2Templates(Boolean.parseBoolean(request.param("prefer_v2_templates")));
+        if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
+            internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
 
         return internal;

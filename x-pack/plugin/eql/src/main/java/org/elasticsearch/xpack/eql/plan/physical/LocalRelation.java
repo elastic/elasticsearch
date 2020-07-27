@@ -6,12 +6,15 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Executable;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
@@ -23,7 +26,15 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
     private final Executable executable;
 
-    public LocalRelation(Source source, Executable executable) {
+    public LocalRelation(Source source, List<Attribute> output) {
+        this(source, output, Results.Type.SEARCH_HIT);
+    }
+
+    public LocalRelation(Source source, List<Attribute> output, Results.Type resultType) {
+        this(source, new EmptyExecutable(output, resultType));
+    }
+
+    private LocalRelation(Source source, Executable executable) {
         super(source, emptyList());
         this.executable = executable;
     }
@@ -53,7 +64,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
         executable.execute(session, listener);
     }
 
@@ -74,5 +85,11 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
         LocalRelation other = (LocalRelation) obj;
         return Objects.equals(executable, other.executable);
+    }
+
+
+    @Override
+    public String nodeString() {
+        return nodeName() + NodeUtils.limitedToString(output());
     }
 }

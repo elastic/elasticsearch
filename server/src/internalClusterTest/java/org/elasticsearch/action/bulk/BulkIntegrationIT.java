@@ -200,4 +200,5 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             assertFalse(thread.isAlive());
         }
     }
+
 }

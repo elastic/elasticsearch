@@ -30,12 +30,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.shards.ShardCounts;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -86,7 +82,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -585,73 +580,4 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
-
-    public void testOverShardLimit() {
-        int nodesInCluster = randomIntBetween(1,90);
-        ShardCounts counts = forDataNodeCount(nodesInCluster);
-
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            clusterSettings);
-
-        int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
-
-        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertTrue(errorMessage.isPresent());
-        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
-            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
-    }
-
-    public void testUnderShardLimit() {
-        int nodesInCluster = randomIntBetween(2,90);
-        // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
-        ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
-
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            clusterSettings);
-
-        int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
-
-        assertFalse(errorMessage.isPresent());
-    }
-
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas,
-                                                              Settings clusterSettings) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
-        for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5,15), mock(DiscoveryNode.class));
-        }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
-
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .creationDate(randomLong())
-            .numberOfShards(shardsInIndex)
-            .numberOfReplicas(replicas);
-        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
-        if (randomBoolean()) {
-            metadata.transientSettings(clusterSettings);
-        } else {
-            metadata.persistentSettings(clusterSettings);
-        }
-
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .nodes(nodes)
-            .build();
-    }
-
 }

@@ -23,7 +23,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -67,14 +66,8 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
         List<String> roles = objectPath.evaluate("roles");
-
-        if (anonymousEnabled) {
-            assertThat(roles.size(), is(2));
-            assertThat(roles, containsInAnyOrder(SecuritySettingsSource.TEST_ROLE, "foo"));
-        } else {
-            assertThat(roles.size(), is(1));
-            assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));
-        }
+        assertThat(roles.size(), is(1));
+        assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
@@ -87,7 +80,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
                 @SuppressWarnings("unchecked")
                 List<String> roles = (List<String>) objectPath.evaluate("roles");
                 assertThat(roles.size(), is(2));
-                assertThat(roles, containsInAnyOrder(SecuritySettingsSource.TEST_ROLE, "foo"));
+                assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE, "foo"));
             } else {
                 fail("request should have failed");
             }

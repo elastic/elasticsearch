@@ -6,7 +6,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,7 +28,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetLicenseAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetLicenseAction.class);
 
     RestGetLicenseAction() {}
 
@@ -58,9 +57,9 @@ public class RestGetLicenseAction extends BaseRestHandler {
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
         // TODO Remove this from 9.0
         if (request.hasParam("accept_enterprise")) {
-            deprecationLogger.deprecatedAndMaybeLog("get_license_accept_enterprise",
+            deprecationLogger.deprecate("get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated." +
-                    " The parameter will be removed in the next major version");
+                        " The parameter will be removed in the next major version");
             if (request.paramAsBoolean("accept_enterprise", true) == false) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }

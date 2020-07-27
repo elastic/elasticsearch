@@ -1,0 +1,103 @@
+[role="xpack"]
+[testenv="platinum"]
+[[update-dfanalytics]]
+= Update {dfanalytics-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Update {dfanalytics-jobs}</titleabbrev>
+++++
+
+Updates an existing {dfanalytics-job}.
+
+experimental[]
+
+[[ml-update-dfanalytics-request]]
+== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_update`
+
+
+[[ml-update-dfanalytics-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `machine_learning_admin`
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+  
+For more information, see <<built-in-roles>>, <<security-privileges>>, and
+{ml-docs-setup-privileges}.
+
+NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
+the time of creation. When you start the job, it performs the analysis using
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, 
+those credentials are used instead.
+
+[[ml-update-dfanalytics-desc]]
+== {api-description-title}
+
+This API updates an existing {dfanalytics-job} that performs an analysis on the source
+indices and stores the outcome in a destination index.
+
+
+[[ml-update-dfanalytics-path-params]]
+== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+
+[role="child_attributes"]
+[[ml-update-dfanalytics-request-body]]
+== {api-request-body-title}
+
+`allow_lazy_start`::
+(Optional, boolean) 
+Specifies whether this job can start when there is insufficient {ml} node 
+capacity for it to be immediately assigned to a node. The default is `false`; if
+a {ml} node with capacity to run the job cannot immediately be found, the API
+returns an error. However, this is also subject to the cluster-wide
+`xpack.ml.max_lazy_ml_nodes` setting. See <<advanced-ml-settings>>. If this
+option is set to `true`, the API does not return an error and the job waits in
+the `starting` state until sufficient {ml} node capacity is available.
+
+`description`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
+
+`max_num_threads`::
+(Optional, integer)
+The maximum number of threads to be used by the analysis.
+The default value is `1`. Using more threads may decrease the time
+necessary to complete the analysis at the cost of using more CPU.
+Note that the process may use additional threads for operational
+functionality other than the analysis itself.
+
+`model_memory_limit`::
+(Optional, string)
+The approximate maximum amount of memory resources that are permitted for 
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
+your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit` 
+setting, an error occurs when you try to create {dfanalytics-jobs} that have 
+`model_memory_limit` values greater than that setting. For more information, see 
+<<ml-settings>>.
+
+[[ml-update-dfanalytics-example]]
+== {api-examples-title}
+
+[[ml-update-dfanalytics-example-preprocess]]
+=== Updating model memory limit example
+
+The following example shows how to update the model memory limit for the existing {dfanalytics} configuration.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/analytics/model-flight-delays/_update
+{
+  "model_memory_limit": "200mb"
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -15,13 +16,18 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -47,6 +53,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -57,12 +64,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,6 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
+    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -82,6 +94,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(DELETE_INTERVAL_MILLIS))
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
+            .put("xpack.security.crypto.thread_pool.queue_size", CRYPTO_THREAD_POOL_QUEUE_SIZE)
             .build();
     }
 
@@ -522,13 +535,42 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testGetApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
-        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        final Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+
+        final int noOfApiKeys = randomIntBetween(1, 3);
+        final List<CreateApiKeyResponse> createApiKeyResponses1 = createApiKeys(noOfApiKeys, null);
+        final List<CreateApiKeyResponse> createApiKeyResponses2 = createApiKeys(
+            headers, noOfApiKeys, "another-test-key-", null, "monitor");
+
+        Client client = client().filterWithHeader(headers);
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        List<CreateApiKeyResponse> responses = randomFrom(createApiKeyResponses1, createApiKeyResponses2);
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false), listener);
-        GetApiKeyResponse response = listener.get();
-        verifyGetResponse(1, responses, response, Collections.singleton(responses.get(0).getId()), null);
+        verifyGetResponse(1, responses, listener.get(), Collections.singleton(responses.get(0).getId()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener2 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("test-key*", false), listener2);
+        verifyGetResponse(noOfApiKeys, createApiKeyResponses1, listener2.get(),
+            createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener3 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("*", false), listener3);
+        responses = Stream.concat(createApiKeyResponses1.stream(), createApiKeyResponses2.stream()).collect(Collectors.toList());
+        verifyGetResponse(2 * noOfApiKeys, responses, listener3.get(),
+            responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener4 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("does-not-exist*", false), listener4);
+        verifyGetResponse(0, Collections.emptyList(), listener4.get(), Collections.emptySet(), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener5 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("another-test-key*", false), listener5);
+        verifyGetResponse(noOfApiKeys, createApiKeyResponses2, listener5.get(),
+            createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
     }
 
     public void testGetApiKeysOwnedByCurrentAuthenticatedUser() throws InterruptedException, ExecutionException {
@@ -823,6 +865,74 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client, "key-5");
     }
 
+    public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
+        final String nodeName = randomFrom(internalCluster().getNodeNames());
+        final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+
+        final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
+            .setName("auth only key")
+            .setRoleDescriptors(Collections.singletonList(descriptor))
+            .get();
+
+        assertNotNull(createApiKeyResponse.getId());
+        assertNotNull(createApiKeyResponse.getKey());
+
+        final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
+            .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
+            .collect(Collectors.toList());
+        assertEquals(1, nodeInfos.size());
+
+        final ExecutorService executorService = threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME);
+        final int numberOfThreads = (allocatedProcessors + 1) / 2;
+        final CountDownLatch blockingLatch = new CountDownLatch(1);
+        final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads);
+        for (int i = 0; i < numberOfThreads; i++) {
+            executorService.submit(() -> {
+                readyLatch.countDown();
+                try {
+                    blockingLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        // Make sure above tasks are running
+        readyLatch.await();
+        // Then fill the whole queue for the crypto thread pool
+        Future<?> lastTaskFuture = null;
+        int i = 0;
+        try {
+            for (i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
+                lastTaskFuture = executorService.submit(() -> { });
+            }
+        } catch (EsRejectedExecutionException e) {
+            logger.info("Attempted to push {} tasks but only pushed {}", CRYPTO_THREAD_POOL_QUEUE_SIZE, i + 1);
+        }
+
+        try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
+            final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+                (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+
+            final Request authRequest = new Request("GET", "_security/_authenticate");
+            authRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(
+                "Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
+            final ResponseException responseException = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
+            assertThat(responseException.getMessage(), containsString("429 Too Many Requests"));
+            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(429));
+        } finally {
+            blockingLatch.countDown();
+            if (lastTaskFuture != null) {
+                lastTaskFuture.get();
+            }
+        }
+    }
+
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {
         new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_MAIN_ALIAS).execute().get();
         assertEquals(0, client.execute(GetApiKeyAction.INSTANCE,
@@ -885,12 +995,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private List<CreateApiKeyResponse> createApiKeys(Map<String, String> headers,
         int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
+        return createApiKeys(headers, noOfApiKeys, "test-key-", expiration, clusterPrivileges);
+    }
+
+    private List<CreateApiKeyResponse> createApiKeys(Map<String, String> headers,
+        int noOfApiKeys, String namePrefix, TimeValue expiration, String... clusterPrivileges) {
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
             final RoleDescriptor descriptor = new RoleDescriptor("role", clusterPrivileges, null, null);
             Client client = client().filterWithHeader(headers);
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-                .setName("test-key-" + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)
+                .setName(namePrefix + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)
                 .setRoleDescriptors(Collections.singletonList(descriptor)).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());

@@ -162,9 +162,9 @@ public class SamlUtils {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    static String getXmlContent(SAMLObject object) {
+    static String getXmlContent(SAMLObject object, boolean pretty) {
         try {
-            return toString(XMLObjectSupport.marshall(object), false);
+            return toString(XMLObjectSupport.marshall(object), pretty);
         } catch (MarshallingException e) {
             LOGGER.info("Error marshalling SAMLObject ", e);
             return SAML_MARSHALLING_ERROR_STRING;
@@ -202,7 +202,7 @@ public class SamlUtils {
             sb.append("]");
             return sb.toString();
         }
-        return getXmlContent(object);
+        return getXmlContent(object, true);
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")

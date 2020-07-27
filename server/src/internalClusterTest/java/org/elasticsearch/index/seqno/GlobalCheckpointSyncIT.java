@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -200,29 +195,19 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         afterIndexing.accept(client());
 
         assertBusy(() -> {
-            final IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
-            final IndexStats indexStats = stats.getIndex("test");
-            for (final IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
-                Optional<ShardStats> maybePrimary =
-                        Stream.of(indexShardStats.getShards())
-                                .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
-                                .findFirst();
-                if (!maybePrimary.isPresent()) {
-                    continue;
-                }
-                final ShardStats primary = maybePrimary.get();
-                final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
-                for (final ShardStats shardStats : indexShardStats) {
-                    final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
-                    if (seqNoStats == null) {
-                        // the shard is initializing
-                        continue;
+            for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.routingEntry().primary()) {
+                            final SeqNoStats seqNoStats = shard.seqNoStats();
+                            assertThat("shard " + shard.routingEntry() + " seq_no [" + seqNoStats + "]",
+                                seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+                        }
                     }
-                    assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                 }
             }
-        }, 30, TimeUnit.SECONDS);
-
+        }, 60, TimeUnit.SECONDS);
+        ensureGreen("test");
         for (final Thread thread : threads) {
             thread.join();
         }

@@ -90,7 +90,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             () -> plan("process where cidrMatch(source_address, 12345)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
+            "line 1:15: second argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
     }
 
     public void testConcatWithInexact() {
@@ -158,18 +158,44 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "must be [string], found value [1] type [integer]", msg);
     }
 
+    public void testNumberFunctionAlreadyNumber() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(pid) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: first argument of [number(pid)] must be [string], "
+            + "found value [pid] type [long]", msg);
+    }
+
+    public void testNumberFunctionFloatBase() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(process_name, 1.0) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: second argument of [number(process_name, 1.0)] must be [integer], "
+            + "found value [1.0] type [double]", msg);
+
+    }
+
+    public void testNumberFunctionNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(plain_text) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [number(plain_text)] cannot operate on first argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+
+    }
+
     public void testPropertyEquationFilterUnsupported() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
                 () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)"));
         String msg = e.getMessage();
-        assertEquals("Line 1:74: Comparisons against variables are not (currently) supported; offender [pid] in [==]", msg);
+        assertEquals("Line 1:74: Comparisons against fields are not (currently) supported; offender [pid] in [==]", msg);
     }
 
     public void testPropertyEquationInClauseFilterUnsupported() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where opcode in (1,3) and process_name in (parent_process_name, \"SYSTEM\")"));
         String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
+        assertEquals("Found 1 problem\nline 1:35: Comparisons against fields are not (currently) supported; " +
                 "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
 
@@ -190,7 +216,6 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
 
     public void testStringContainsWrongParams() {
         assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",

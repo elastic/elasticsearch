@@ -453,7 +453,13 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     );
                     return;
                 }
-                foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));
+                // if only exact ids have been given, take the count from docs to avoid potential duplicates
+                // in versioned indexes (like transform)
+                if (requiredMatches.isOnlyExact()) {
+                    foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
+                } else {
+                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));    
+                }
             }, foundIdsListener::onFailure),
             client::search
         );

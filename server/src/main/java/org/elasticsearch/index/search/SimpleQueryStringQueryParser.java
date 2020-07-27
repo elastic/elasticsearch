@@ -85,7 +85,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.searchAnalyzer();
+        return ft.getTextSearchInfo().getSearchAnalyzer();
     }
 
     /**

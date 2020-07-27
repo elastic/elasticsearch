@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -30,7 +31,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -40,12 +40,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
@@ -102,8 +101,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNotMasterEligible() {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder()
-                .put(internalCluster().getDefaultSettings())
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(nonMasterNode(internalCluster().getDefaultSettings()))
                 .build());
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_MASTER_NODE_MSG);
     }
@@ -292,6 +290,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> ensure index test is green");
         ensureGreen("test");
+        IndexMetadata indexMetadata = clusterService().state().metadata().index("test");
+        assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
 
         logger.info("--> detach-cluster on 2nd and 3rd master-eligible nodes");
         Environment environmentMaster2 = TestEnvironment.newEnvironment(
@@ -305,56 +305,6 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(master2DataPathSettings);
         internalCluster().startMasterOnlyNode(master3DataPathSettings);
         ensureStableCluster(4);
-    }
-
-    public void testAllMasterEligibleNodesFailedDanglingIndexImport() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-
-        logger.info("--> start mixed data and master-eligible node and bootstrap cluster");
-        String masterNode = internalCluster().startNode(); // node ordinal 0
-
-        logger.info("--> start data-only node and ensure 2 nodes stable cluster");
-        String dataNode = internalCluster().startDataOnlyNode(); // node ordinal 1
-        ensureStableCluster(2);
-
-        logger.info("--> index 1 doc and ensure index is green");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        ensureGreen("test");
-        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
-            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
-
-        logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> stop data-only node and detach it from the old cluster");
-        Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
-        assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
-        final Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataNodeDataPathSettings).build());
-        detachCluster(environment, false);
-
-        logger.info("--> stop master-eligible node, clear its data and start it again - new cluster should form");
-        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback(){
-            @Override
-            public boolean clearData(String nodeName) {
-                return true;
-            }
-        });
-
-        logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
-        internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
-        ensureStableCluster(2);
-
-        logger.info("--> verify that the dangling index exists and has green status");
-        assertBusy(() -> {
-            assertThat(indexExists("test"), equalTo(true));
-        });
-        ensureGreen("test");
-
-        logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +54,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.analytics.InferencePipelineAggregationBuilder;
+import org.elasticsearch.client.analytics.ParsedInference;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
@@ -113,6 +113,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedVariableWidthHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.VariableWidthHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.ParsedMissing;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
@@ -129,10 +131,10 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -1874,18 +1876,11 @@ public class RestHighLevelClient implements Closeable {
         return elasticsearchException;
     }
 
-    protected final <Resp> Resp parseEntity(final HttpEntity httpEntity,
+    protected final <Resp> Resp parseEntity(final HttpEntity entity,
                                       final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
-        if (httpEntity == null) {
+        if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
         }
-
-        final HttpEntity entity = Optional.ofNullable(httpEntity.getContentEncoding())
-            .map(Header::getValue)
-            .filter("gzip"::equalsIgnoreCase)
-            .map(gzipHeaderValue -> (HttpEntity) new GzipDecompressingEntity(httpEntity))
-            .orElse(httpEntity);
-
         if (entity.getContentType() == null) {
             throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
         }
@@ -1938,6 +1933,8 @@ public class RestHighLevelClient implements Closeable {
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
         map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
+        map.put(VariableWidthHistogramAggregationBuilder.NAME,
+            (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
@@ -1962,6 +1959,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
         map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
         map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
+        map.put(InferencePipelineAggregationBuilder.NAME, (p, c) -> ParsedInference.fromXContent(p, (String ) (c)));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

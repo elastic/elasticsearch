@@ -19,13 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -34,54 +29,31 @@ import java.util.Objects;
  */
 public class EFunctionRef extends AExpression {
 
-    protected final String type;
-    protected final String call;
+    private final String symbol;
+    private final String methodName;
 
-    public EFunctionRef(Location location, String type, String call) {
-        super(location);
+    public EFunctionRef(int identifier, Location location, String symbol, String methodName) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.call = Objects.requireNonNull(call);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.methodName = Objects.requireNonNull(methodName);
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public String getMethodName() {
+        return methodName;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to function reference [" + type + ":"  + call + "]"));
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitFunctionRef(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: function reference [" + type + ":"  + call + "] not used"));
-        }
-
-        Output output = new Output();
-
-        if (input.expected == null) {
-            output.actual = String.class;
-            String defReferenceEncoding = "S" + type + "." + call + ",0";
-
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-
-            defInterfaceReferenceNode.setLocation(location);
-            defInterfaceReferenceNode.setExpressionType(output.actual);
-            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-
-            output.expressionNode = defInterfaceReferenceNode;
-        } else {
-            FunctionRef ref = FunctionRef.create(
-                    scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
-            output.actual = input.expected;
-
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-            typedInterfaceReferenceNode.setLocation(location);
-            typedInterfaceReferenceNode.setExpressionType(output.actual);
-            typedInterfaceReferenceNode.setReference(ref);
-
-            output.expressionNode = typedInterfaceReferenceNode;
-        }
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

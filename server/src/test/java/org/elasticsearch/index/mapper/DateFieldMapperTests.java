@@ -314,7 +314,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("[format] must not have a [null] value", e.getMessage());
+        assertEquals("[format] on mapper [field] of type [date] must not have a [null] value", e.getMessage());
     }
 
     public void testEmptyName() throws IOException {
@@ -372,7 +372,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(indexService.mapperService().fieldType("release_date"), notNullValue());
-        assertFalse(indexService.mapperService().fieldType("release_date").stored());
+        assertFalse(indexService.mapperService().fieldType("release_date")
+            .getTextSearchInfo().isStored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")
@@ -382,7 +383,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
                 MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
+        assertThat(e.getMessage(), containsString("parameter [format] from [yyyy/MM/dd] to [epoch_millis]"));
     }
 
     public void testMergeText() throws Exception {
@@ -397,8 +398,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapper.merge(update.mapping()));
-        assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+                () -> mapper.merge(update.mapping(), MergeReason.MAPPING_UPDATE));
+        assertEquals("mapper [date] cannot be changed from type [date] to [text]", e.getMessage());
     }
 
     public void testIllegalFormatField() throws Exception {
@@ -444,4 +445,5 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
+
 }

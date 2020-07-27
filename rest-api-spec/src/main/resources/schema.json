@@ -43,6 +43,37 @@
                     "$ref": "#/definitions/Body"
                 }
             },
+            "if": {
+              "properties": {
+                "stability": {
+                  "const": "stable"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "documentation": {
+                  "$ref": "#/definitions/Documentation",
+                  "properties": {
+                    "url" : {
+                      "type": ["string"]
+                    }
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "documentation": {
+                  "$ref": "#/definitions/Documentation",
+                  "properties": {
+                    "url" : {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            },
             "required": [
                 "documentation",
                 "stability",
@@ -130,7 +161,6 @@
             "additionalProperties": false,
             "properties": {
                 "url": {
-                    "type": "string",
                     "format": "uri"
                 },
                 "description": {

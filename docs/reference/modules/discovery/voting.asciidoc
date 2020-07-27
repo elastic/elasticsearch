@@ -73,7 +73,7 @@ setting affects only its availability in the event of the failure of some of its
 nodes and the administrative tasks that must be performed as nodes join and
 leave the cluster.
 
-[float]
+[discrete]
 ==== Even numbers of master-eligible nodes
 
 There should normally be an odd number of master-eligible nodes in a cluster.
@@ -98,7 +98,7 @@ node, but quorum-based decisions require votes from two of the three voting
 nodes. In the event of an even split, one half will contain two of the three
 voting nodes so that half will remain available.
 
-[float]
+[discrete]
 ==== Setting the initial voting configuration
 
 When a brand-new cluster starts up for the first time, it must elect its first

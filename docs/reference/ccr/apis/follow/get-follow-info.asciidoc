@@ -23,13 +23,6 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 --------------------------------------------------
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
-
-[source,console]
---------------------------------------------------
-POST /follower_index/_ccr/pause_follow
---------------------------------------------------
-// TEARDOWN
-
 //////////////////////////
 
 [source,console]
@@ -76,7 +69,8 @@ replication options and whether the follower indices are active or paused.
 
 //Begin parameters
 `parameters`::
-(object) An object that encapsulates {ccr} parameters.
+(object) An object that encapsulates {ccr} parameters. If the follower index's `status` is `paused`,
+this object is omitted.
 +
 .Properties of `parameters`
 [%collapsible%open]
@@ -132,7 +126,7 @@ to read from the leader again.
 leader index.
 
 `status`::
-(string) Whether index following is `active` or `paused`. 
+(string) Whether index following is `active` or `paused`.
 ====
 //End follower_indices
 
@@ -146,30 +140,60 @@ This example retrieves follower info:
 GET /follower_index/_ccr/info
 --------------------------------------------------
 
-The API returns the following results:
+If the follower index is `active`, the API returns the following results:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "follower_indices" : [
-        {
-            "follower_index" : "follower_index",
-            "remote_cluster" : "remote_cluster",
-            "leader_index" : "leader_index",
-            "status" : "active",
-            "parameters" : {
-                "max_read_request_operation_count" : 5120,
-                "max_read_request_size" : "32mb",
-                "max_outstanding_read_requests" : 12,
-                "max_write_request_operation_count" : 5120,
-                "max_write_request_size" : "9223372036854775807b",
-                "max_outstanding_write_requests" : 9,
-                "max_write_buffer_count" : 2147483647,
-                "max_write_buffer_size" : "512mb",
-                "max_retry_delay" : "500ms",
-                "read_poll_timeout" : "1m"
-            }
-        }
-    ]
+  "follower_indices": [
+    {
+      "follower_index": "follower_index",
+      "remote_cluster": "remote_cluster",
+      "leader_index": "leader_index",
+      "status": "active",
+      "parameters": {
+        "max_read_request_operation_count": 5120,
+        "max_read_request_size": "32mb",
+        "max_outstanding_read_requests": 12,
+        "max_write_request_operation_count": 5120,
+        "max_write_request_size": "9223372036854775807b",
+        "max_outstanding_write_requests": 9,
+        "max_write_buffer_count": 2147483647,
+        "max_write_buffer_size": "512mb",
+        "max_retry_delay": "500ms",
+        "read_poll_timeout": "1m"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+////
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// TEST[continued]
+
+[source,console]
+--------------------------------------------------
+GET /follower_index/_ccr/info
+--------------------------------------------------
+// TEST[continued]
+////
+
+If the follower index is `paused`, the API returns the following results:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "follower_indices": [
+    {
+      "follower_index": "follower_index",
+      "remote_cluster": "remote_cluster",
+      "leader_index": "leader_index",
+      "status": "paused"
+    }
+  ]
 }
 --------------------------------------------------

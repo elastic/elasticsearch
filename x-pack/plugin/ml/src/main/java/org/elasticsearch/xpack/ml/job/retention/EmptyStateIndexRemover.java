@@ -32,7 +32,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         try {
             if (isTimedOutSupplier.get()) {
                 listener.onResponse(false);

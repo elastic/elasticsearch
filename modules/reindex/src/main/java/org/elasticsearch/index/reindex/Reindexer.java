@@ -30,9 +30,9 @@ import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -219,11 +219,6 @@ public class Reindexer {
         }
 
         @Override
-        protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
-            return super.buildBulk(docs).preferV2Templates(mainRequest.preferV2Templates());
-        }
-
-        @Override
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
 
@@ -271,7 +266,9 @@ public class Reindexer {
              */
             index.routing(mainRequest.getDestination().routing());
             index.setPipeline(mainRequest.getDestination().getPipeline());
-            // OpType is synthesized from version so it is handled when we copy version above.
+            if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
+                index.opType(mainRequest.getDestination().opType());
+            }
 
             return wrap(index);
         }

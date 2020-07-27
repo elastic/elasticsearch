@@ -60,7 +60,6 @@ class ClientTransformIndexer extends TransformIndexer {
         String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -80,7 +79,6 @@ class ClientTransformIndexer extends TransformIndexer {
             executorName,
             transformsConfigManager,
             checkpointProvider,
-            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -222,6 +220,18 @@ class ClientTransformIndexer extends TransformIndexer {
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)
+        );
+    }
+
+    @Override
+    void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            responseListener
         );
     }
 

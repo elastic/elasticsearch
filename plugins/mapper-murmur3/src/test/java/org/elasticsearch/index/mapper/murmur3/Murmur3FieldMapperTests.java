@@ -30,29 +30,36 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
+public class Murmur3FieldMapperTests extends FieldMapperTestCase<Murmur3FieldMapper.Builder> {
 
     MapperRegistry mapperRegistry;
     IndexService indexService;
     DocumentMapperParser parser;
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "index");
+    }
 
     @Before
     public void setup() {
@@ -69,7 +76,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, MapperMurmur3Plugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -155,5 +162,10 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    @Override
+    protected Murmur3FieldMapper.Builder newBuilder() {
+        return new Murmur3FieldMapper.Builder("murmur");
     }
 }

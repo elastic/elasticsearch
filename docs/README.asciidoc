@@ -3,6 +3,33 @@ Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
+=== Adding API reference pages
+
+When you need to add a reference page for a new API:
+
+* Use the API reference template: 
+https://github.com/elastic/docs/blob/master/shared/api-ref-ex.asciidoc[template], 
+https://www.elastic.co/guide/en/elasticsearch/reference/master/get-snapshot-repo-api.html[real-life example].
+* Create a separate source file for each API. 
+* The anchor for the top-level heading should match the heading as closely as possible. 
+* Use dashes to separate words in the anchor. (Avoid underscores.) 
+* The name of the source file should match the anchor text. 
+* Include an abbreviated title that drops the heading's _API_ suffix.
+* Start the short description with a verb.
+* Include the sections from the reference template as applicable. 
+See the template for information about each section. 
+* Add a link to the new topic from the appropriate API category page.
+These links are typically grouped into sub-categories and listed in logical order. 
+For example, the put API is listed before the get and delete APIs.
+* Include the new file so the API appears in alphabetical order in the TOC nav.
+
+The template uses https://github.com/elastic/docs/blob/master/shared/attributes.asciidoc[shared attributes] 
+for a number of the standard headings so we can tweak them globally if need be. 
+
+Many of the API reference pages also use shared parameter definitions from 
+https://github.com/elastic/elasticsearch/blob/master/docs/reference/rest-api/common-parms.asciidoc[elasticsearch/docs/reference/rest-api/common-parms].
+You don't have to do that. 
+
 === Backporting doc fixes
 
 * Doc changes should generally be made against master and backported through to the current version

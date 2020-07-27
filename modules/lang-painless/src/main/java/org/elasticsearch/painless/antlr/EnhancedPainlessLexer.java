@@ -24,7 +24,6 @@ import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 
 /**
  * A lexer that is customized for painless. It:
@@ -39,14 +38,11 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
  */
 final class EnhancedPainlessLexer extends PainlessLexer {
     private final String sourceName;
-    private final PainlessLookup painlessLookup;
-
     private Token current = null;
 
-    EnhancedPainlessLexer(CharStream charStream, String sourceName, PainlessLookup painlessLookup) {
+    EnhancedPainlessLexer(CharStream charStream, String sourceName) {
         super(charStream);
         this.sourceName = sourceName;
-        this.painlessLookup = painlessLookup;
     }
 
     @Override
@@ -74,12 +70,7 @@ final class EnhancedPainlessLexer extends PainlessLexer {
     }
 
     @Override
-    protected boolean isType(String name) {
-        return painlessLookup.isValidCanonicalClassName(name);
-    }
-
-    @Override
-    protected boolean slashIsRegex() {
+    protected boolean isSlashRegex() {
         Token lastToken = current;
         if (lastToken == null) {
             return true;

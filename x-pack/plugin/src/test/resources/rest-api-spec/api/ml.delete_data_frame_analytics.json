@@ -26,6 +26,10 @@
         "type":"boolean",
         "description":"True if the job should be forcefully deleted",
         "default":false
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Controls the time to wait until a job is deleted. Defaults to 1 minute"
       }
     }
   }

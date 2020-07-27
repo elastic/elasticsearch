@@ -32,12 +32,12 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         throw new SqlIllegalArgumentException("there is no next page");
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         // There is nothing to clean
         listener.onResponse(false);
     }

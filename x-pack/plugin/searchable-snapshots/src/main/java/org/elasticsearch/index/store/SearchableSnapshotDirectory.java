@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -45,11 +47,13 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -68,6 +72,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
@@ -76,7 +81,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 /**
  * Implementation of {@link Directory} that exposes files from a snapshot as a Lucene directory. Because snapshot are immutable this
@@ -314,6 +320,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return cacheService.get(cacheKey, fileLength, cacheDir);
     }
 
+    public Executor cacheFetchAsyncExecutor() {
+        return threadPool.executor(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+    }
+
+    public Executor prewarmExecutor() {
+        return threadPool.executor(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+    }
+
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
@@ -322,6 +336,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         if (fileInfo.metadata().hashEqualsContents()) {
             final BytesRef content = fileInfo.metadata().hash();
             return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
+        }
+        if (context == Store.READONCE_CHECKSUM) {
+            return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
@@ -360,7 +377,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private void prewarmCache() {
         if (prewarmCache) {
             final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
-            final Executor executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+            final Executor executor = prewarmExecutor();
 
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
                 if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
@@ -405,7 +422,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
 
             // Start as many workers as fit into the searchable snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME).getMax(), queue.size());
+            final int workers = Math.min(threadPool.info(CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getMax(), queue.size());
             for (int i = 0; i < workers; ++i) {
                 prewarmNext(executor, queue);
             }
@@ -434,6 +451,31 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         ThreadPool threadPool
     ) throws IOException {
 
+        if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
+            || SNAPSHOT_INDEX_ID_SETTING.exists(indexSettings.getSettings()) == false
+            || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
+            || SNAPSHOT_SNAPSHOT_ID_SETTING.exists(indexSettings.getSettings()) == false) {
+
+            throw new IllegalArgumentException(
+                "directly setting ["
+                    + INDEX_STORE_TYPE_SETTING.getKey()
+                    + "] to ["
+                    + SNAPSHOT_DIRECTORY_FACTORY_KEY
+                    + "] is not permitted; use the mount snapshot API instead"
+            );
+        }
+
+        if (indexSettings.hasCustomDataPath()) {
+            // cache management requires the shard data path to be in a non-custom location
+            throw new IllegalArgumentException(
+                "setting ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
+                    + "] is not permitted on searchable snapshots, but was ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.get(indexSettings.getSettings())
+                    + "]"
+            );
+        }
+
         final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
@@ -456,8 +498,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
         );
 
-        final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
+        final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
+        assert assertCacheIsEmpty(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(
             new SearchableSnapshotDirectory(
@@ -473,6 +516,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 threadPool
             )
         );
+    }
+
+    private static boolean assertCacheIsEmpty(Path cacheDir) {
+        try (DirectoryStream<Path> cacheDirStream = Files.newDirectoryStream(cacheDir)) {
+            final Set<Path> cacheFiles = new HashSet<>();
+            cacheDirStream.forEach(cacheFiles::add);
+            assert cacheFiles.isEmpty() : "should start with empty cache, but found " + cacheFiles;
+        } catch (IOException e) {
+            assert false : e;
+        }
+        return true;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

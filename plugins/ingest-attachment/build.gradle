@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
@@ -33,47 +34,47 @@ versions << [
 
 dependencies {
   // mandatory for tika
-  compile "org.apache.tika:tika-core:${versions.tika}"
+  api "org.apache.tika:tika-core:${versions.tika}"
   // build against Jackson 2.9.5, but still works on our current version
-  compile "org.apache.tika:tika-parsers:${versions.tika}"
-  compile 'org.tukaani:xz:1.8'
-  compile 'commons-io:commons-io:2.6'
-  compile "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.tika:tika-parsers:${versions.tika}"
+  api 'org.tukaani:xz:1.8'
+  api 'commons-io:commons-io:2.6'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
-  compile 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
+  api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
   // external parser libraries
   // HTML
-  compile 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  api 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
   // Adobe PDF
-  compile "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
-  compile "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  compile "org.apache.pdfbox:jempbox:1.8.16"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
+  api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  api "org.apache.pdfbox:jempbox:1.8.16"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   // OpenOffice
-  compile "org.apache.poi:poi-ooxml:${versions.poi}"
-  compile "org.apache.poi:poi:${versions.poi}"
-  compile "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'org.apache.xmlbeans:xmlbeans:3.0.1'
-  compile 'org.apache.commons:commons-collections4:4.1'
+  api "org.apache.poi:poi-ooxml:${versions.poi}"
+  api "org.apache.poi:poi:${versions.poi}"
+  api "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'org.apache.xmlbeans:xmlbeans:3.0.1'
+  api 'org.apache.commons:commons-collections4:4.1'
   // MS Office
-  compile "org.apache.poi:poi-scratchpad:${versions.poi}"
+  api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.19'
+  api 'org.apache.commons:commons-compress:1.19'
   // Outlook documents
-  compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
-  compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+  api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
+  api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  compile 'org.apache.commons:commons-lang3:3.9'
+  api 'org.apache.commons:commons-lang3:3.9'
   // Microsoft Word files with visio diagrams
-  compile 'org.apache.commons:commons-math3:3.6.1'
+  api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency
-  compile 'com.zaxxer:SparseBitSet:1.2'
+  api 'com.zaxxer:SparseBitSet:1.2'
 }
 
 restResources {
@@ -82,7 +83,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }
 

@@ -153,8 +153,8 @@ settings, but may be further configured independently:
 
 TCP Transport::
 Used for communication between nodes in the cluster.
-See the <<modules-transport>>.
+See <<modules-transport>>.
 
 HTTP::
 Exposes the JSON-over-HTTP interface used by all clients.
-See the <<modules-http>>.
+See <<modules-http>>.

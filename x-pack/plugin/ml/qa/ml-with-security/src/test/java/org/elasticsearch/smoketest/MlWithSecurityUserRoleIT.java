@@ -47,14 +47,16 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
                 if (section instanceof DoSection) {
                     String apiName = ((DoSection) section).getApiCallSection().getApi();
 
-                    if (((DoSection) section).getApiCallSection().getApi().startsWith("ml.") && isAllowed(apiName) == false) {
-                        fail("should have failed because of missing role");
+                    if (apiName.startsWith("ml.") && isAllowed(apiName) == false) {
+                        fail("call to ml endpoint [" + apiName + "] should have failed because of missing role");
                     }
                 }
             }
         } catch (AssertionError ae) {
             assertThat(ae.getMessage(),
-                    either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
+                either(containsString("action [cluster:monitor/xpack/ml"))
+                    .or(containsString("action [cluster:admin/xpack/ml"))
+                    .or(containsString("action [cluster:admin/ingest")));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }
@@ -74,4 +76,3 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
         return new String[]{"ml_user", "x-pack-test-password"};
     }
 }
-

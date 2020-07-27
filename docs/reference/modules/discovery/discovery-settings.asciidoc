@@ -46,7 +46,7 @@ for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
     default this list is empty, meaning that this node expects to join a cluster
     that has already been bootstrapped. See <<initial_master_nodes>>.
             
-[float]
+[discrete]
 ==== Expert settings
 
 Discovery and cluster formation are also affected by the following

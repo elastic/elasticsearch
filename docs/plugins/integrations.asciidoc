@@ -4,11 +4,11 @@
 
 Integrations are not plugins, but are external tools or modules that make it easier to work with Elasticsearch.
 
-[float]
+[discrete]
 [[cms-integrations]]
 === CMS integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * http://drupal.org/project/search_api_elasticsearch[Drupal]:
@@ -31,14 +31,14 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
   XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
 
-[float]
+[discrete]
 [[data-integrations]]
 === Data import/export and validation
 
 NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch
 releases 2.0 and later do not support rivers.
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
@@ -50,7 +50,7 @@ releases 2.0 and later do not support rivers.
 * {logstash-ref}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
@@ -75,11 +75,11 @@ releases 2.0 and later do not support rivers.
 * https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
   A library to migrate elasticsearch mappings.
 
-[float]
+[discrete]
 [[deployment]]
 === Deployment
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * https://github.com/elastic/ansible-elasticsearch[Ansible playbook for Elasticsearch]:
@@ -88,17 +88,17 @@ releases 2.0 and later do not support rivers.
 * https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
 
-[float]
+[discrete]
 [[framework-integrations]]
 === Framework integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * http://www.searchtechnologies.com/aspire-for-elasticsearch[Aspire for Elasticsearch]:
@@ -157,29 +157,29 @@ releases 2.0 and later do not support rivers.
 * https://micrometer.io[Micrometer]:
   Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
 
-[float]
+[discrete]
 [[hadoop-integrations]]
 === Hadoop integrations
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/criteo/garmadon[Garmadon]:
   Garmadon is a solution for Hadoop Cluster realtime introspection.
 
 
-[float]
+[discrete]
 [[monitoring-integrations]]
 === Health and Performance Monitoring
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/radu-gheorghe/check-es[check-es]:
@@ -193,10 +193,10 @@ releases 2.0 and later do not support rivers.
   and receive events information.
 
 [[other-integrations]]
-[float]
+[discrete]
 === Other integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://www.wireshark.org/[Wireshark]:

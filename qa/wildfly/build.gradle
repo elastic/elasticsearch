@@ -23,7 +23,7 @@ import org.elasticsearch.gradle.VersionProperties
 apply plugin: 'war'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.distribution-download'
+apply plugin: 'elasticsearch.internal-distribution-download'
 
 testFixtures.useFixture()
 

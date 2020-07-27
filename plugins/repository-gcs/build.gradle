@@ -294,7 +294,6 @@ testClusters {
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 task largeBlobYamlRestTest(type: RestIntegTestTask) {
-  mustRunAfter yamlRestTest  //to allow maven style filtering
   dependsOn project(':plugins:repository-gcs').bundlePlugin
   if (useFixture) {
     dependsOn createServiceAccountFile

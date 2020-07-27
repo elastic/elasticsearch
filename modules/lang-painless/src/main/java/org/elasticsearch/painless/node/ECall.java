@@ -78,8 +78,17 @@ public class ECall extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitCall(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCall(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        prefixNode.visit(userTreeVisitor, scope);
+
+        for (AExpression argumentNode : argumentNodes) {
+            argumentNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

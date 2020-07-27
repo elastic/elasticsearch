@@ -73,12 +73,12 @@ The API returns following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true,
-    "shards_acknowledged" : true,
-    "indices" : {
-        "my_index" : {
-            "closed" : true
-        }
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "indices": {
+    "my_index": {
+      "closed": true
     }
+  }
 }
 --------------------------------------------------

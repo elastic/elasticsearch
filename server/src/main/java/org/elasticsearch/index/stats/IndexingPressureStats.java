@@ -22,6 +22,7 @@ package org.elasticsearch.index.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -93,26 +94,43 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(replicaRejections);
     }
 
+    private static final String COMBINED = "combined_coordinating_and_primary";
+    private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
+    private static final String COORDINATING = "coordinating";
+    private static final String COORDINATING_IN_BYTES = "coordinating_in_bytes";
+    private static final String PRIMARY = "primary";
+    private static final String PRIMARY_IN_BYTES = "primary_in_bytes";
+    private static final String REPLICA = "replica";
+    private static final String REPLICA_IN_BYTES = "replica_in_bytes";
+    private static final String ALL = "all";
+    private static final String ALL_IN_BYTES = "all_in_bytes";
+    private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
+    private static final String PRIMARY_REJECTIONS = "primary_rejections";
+    private static final String REPLICA_REJECTIONS = "replica_rejections";
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("indexing_pressure");
-        builder.startObject("total");
-        builder.field("combined_coordinating_and_primary_bytes", totalCombinedCoordinatingAndPrimaryBytes);
-        builder.field("coordinating_bytes", totalCoordinatingBytes);
-        builder.field("primary_bytes", totalPrimaryBytes);
-        builder.field("replica_bytes", totalReplicaBytes);
-        builder.field("all_bytes", totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes);
-        builder.field("coordinating_rejections", coordinatingRejections);
-        builder.field("primary_rejections", primaryRejections);
-        builder.field("replica_rejections", replicaRejections);
-        builder.endObject();
+        builder.startObject("memory");
         builder.startObject("current");
-        builder.field("combined_coordinating_and_primary_bytes", currentCombinedCoordinatingAndPrimaryBytes);
-        builder.field("coordinating_bytes", currentCoordinatingBytes);
-        builder.field("primary_bytes", currentPrimaryBytes);
-        builder.field("replica_bytes", currentReplicaBytes);
-        builder.field("all_bytes", currentCombinedCoordinatingAndPrimaryBytes + currentReplicaBytes);
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(currentCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(currentCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(currentPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(currentReplicaBytes));
+        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes));
+        builder.endObject();
+        builder.startObject("total");
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(totalCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(totalPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(totalReplicaBytes));
+        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
+        builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
+        builder.field(PRIMARY_REJECTIONS, primaryRejections);
+        builder.field(REPLICA_REJECTIONS, replicaRejections);
+        builder.endObject();
         builder.endObject();
         return builder.endObject();
     }
 }
+

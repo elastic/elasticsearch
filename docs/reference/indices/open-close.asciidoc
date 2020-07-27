@@ -129,7 +129,7 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true,
-    "shards_acknowledged" : true
+  "acknowledged" : true,
+  "shards_acknowledged" : true
 }
 --------------------------------------------------

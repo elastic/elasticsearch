@@ -187,7 +187,7 @@ public class AnalyticsProcessManager {
             processContext.setFailureReason(resultProcessor.getFailure());
             LOGGER.info("[{}] Result processor has completed", config.getId());
 
-            runInference(parentTaskClient, task, processContext);
+            runInference(parentTaskClient, task, processContext, dataExtractor.getExtractedFields());
 
             processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
                 DataCounts::documentId);
@@ -321,16 +321,17 @@ public class AnalyticsProcessManager {
         };
     }
 
-    private void runInference(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsTask task, ProcessContext processContext) {
-        if (processContext.failureReason.get() != null) {
-            // If there has been an error thus far let's not run inference at all
+    private void runInference(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsTask task, ProcessContext processContext,
+                              ExtractedFields extractedFields) {
+        if (task.isStopping() || processContext.failureReason.get() != null) {
+            // If the task is stopping or there has been an error thus far let's not run inference at all
             return;
         }
 
         if (processContext.config.getAnalysis().supportsInference()) {
             refreshDest(parentTaskClient, processContext.config);
             InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, modelLoadingService, resultsPersisterService,
-                task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker(),
+                task.getParentTaskId(), processContext.config, extractedFields, task.getStatsHolder().getProgressTracker(),
                 task.getStatsHolder().getDataCountsTracker());
             processContext.setInferenceRunner(inferenceRunner);
             inferenceRunner.run(processContext.resultProcessor.get().getLatestModelId());
@@ -433,7 +434,6 @@ public class AnalyticsProcessManager {
             if (inferenceRunner.get() != null) {
                 inferenceRunner.get().cancel();
             }
-            statsPersister.cancel();
             if (process.get() != null) {
                 try {
                     process.get().kill();

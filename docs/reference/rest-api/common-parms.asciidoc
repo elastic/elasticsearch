@@ -373,7 +373,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when frozen.
+ignored when frozen. Defaults to `true`.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -512,6 +512,13 @@ tag::index-template[]
 Comma-separated list or wildcard expression of index template names
 used to limit the request.
 end::index-template[]
+
+tag::component-template[]
+`<component-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of component template names
+used to limit the request.
+end::component-template[]
 
 tag::lenient[]
 `lenient`::

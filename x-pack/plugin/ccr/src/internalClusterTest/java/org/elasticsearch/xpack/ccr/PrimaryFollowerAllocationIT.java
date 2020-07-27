@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -29,6 +30,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
     }
 
     public void testAllocateFollowerPrimaryToNodesWithRemoteClusterClientRole() throws Exception {
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         final String leaderIndex = "leader-allow-index";
         final String followerIndex = "follower-allow-index";
         final List<String> dataOnlyNodes = getFollowerCluster().startNodes(between(2, 3),
@@ -48,6 +50,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         }
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
+            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
             .get();
         assertBusy(() -> {

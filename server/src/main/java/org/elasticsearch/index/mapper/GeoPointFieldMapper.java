@@ -181,7 +181,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder(CoreValuesSourceType.GEOPOINT);
+            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT);
         }
 
     }

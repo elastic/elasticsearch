@@ -19,12 +19,12 @@ or `elasticsearch`.
 ----
 GET /_search
 {
-    "query" : {
-        "terms" : {
-            "user" : ["kimchy", "elasticsearch"],
-            "boost" : 1.0
-        }
+  "query": {
+    "terms": {
+      "user": [ "kimchy", "elasticsearch" ],
+      "boost": 1.0
     }
+  }
 }
 ----
 
@@ -67,7 +67,7 @@ increases the relevance score.
 
 [[query-dsl-terms-query-highlighting]]
 ===== Highlighting `terms` queries
-<<request-body-search-highlighting,Highlighting>> is best-effort only. {es} may not
+<<highlighting,Highlighting>> is best-effort only. {es} may not
 return highlight results for `terms` queries depending on:
 
 * Highlighter type
@@ -127,11 +127,11 @@ To see how terms lookup works, try the following example.
 ----
 PUT my_index
 {
-    "mappings" : {
-        "properties" : {
-            "color" : { "type" : "keyword" }
-        }
+  "mappings": {
+    "properties": {
+      "color": { "type": "keyword" }
     }
+  }
 }
 ----
 --

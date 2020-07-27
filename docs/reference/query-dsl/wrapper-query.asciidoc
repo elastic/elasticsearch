@@ -10,11 +10,11 @@ A query that accepts any other query as base64 encoded string.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "wrapper": {
-            "query" : "eyJ0ZXJtIiA6IHsgInVzZXIiIDogIktpbWNoeSIgfX0=" <1>
-        }
+  "query": {
+    "wrapper": {
+      "query": "eyJ0ZXJtIiA6IHsgInVzZXIiIDogIktpbWNoeSIgfX0=" <1>
     }
+  }
 }
 --------------------------------------------------
 

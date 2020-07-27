@@ -71,7 +71,8 @@ Defaults to `network.tcp.keep_alive`.
 Configures the `TCP_KEEPIDLE` option for this socket, which
 determines the time in seconds that a connection must be idle before
 starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle`, which
-is the system default. May not be greater than 300. In case where the system default
+Defaults to `network.tcp.keep_idle` if set, or the system default otherwise.
+May not be greater than 300. In case where the system default
 is higher than 300, the value is automatically lowered to 300. Only applicable on
 Linux and macOS, and requires Java 11 or newer.
 

@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.DelayableWriteable.Serialized;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -54,7 +53,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.setShardInde
  * them asynchronously in the provided {@link Executor} iff the buffer is exhausted.
  */
 class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
-    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
+    private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
     private final SearchPhaseController controller;
@@ -167,7 +166,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
             newTopDocs = null;
         }
 
-        final Serialized<InternalAggregations> newAggs;
+        final DelayableWriteable.Serialized<InternalAggregations> newAggs;
         if (hasAggs) {
             List<InternalAggregations> aggsList = new ArrayList<>();
             if (lastMerge != null) {
@@ -377,10 +376,10 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
     private static class MergeResult {
         private final List<SearchShard> processedShards;
         private final TopDocs reducedTopDocs;
-        private final Serialized<InternalAggregations> reducedAggs;
+        private final DelayableWriteable.Serialized<InternalAggregations> reducedAggs;
 
         private MergeResult(List<SearchShard> processedShards, TopDocs reducedTopDocs,
-                            Serialized<InternalAggregations> reducedAggs) {
+                            DelayableWriteable.Serialized<InternalAggregations> reducedAggs) {
             this.processedShards = processedShards;
             this.reducedTopDocs = reducedTopDocs;
             this.reducedAggs = reducedAggs;

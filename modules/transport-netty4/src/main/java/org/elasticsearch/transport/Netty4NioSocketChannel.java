@@ -17,28 +17,29 @@
  * under the License.
  */
 
+package org.elasticsearch.transport;
+
+import io.netty.channel.Channel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+
+import java.nio.channels.SocketChannel;
+
 /**
- * This script sets up a local distribution.
- * To install a local distribution run `localDistro`.
- * The local distribution will be installed to
- * build/distributions/local
- * */
-import org.elasticsearch.gradle.Architecture
+ * Helper class to expose {@link #javaChannel()} method
+ */
+public class Netty4NioSocketChannel extends NioSocketChannel {
 
-apply plugin:'elasticsearch.internal-distribution-download'
+    public Netty4NioSocketChannel() {
+        super();
+    }
 
-elasticsearch_distributions {
-  local {
-    flavor = 'default'
-    type = 'archive'
-    architecture = Architecture.current()
-  }
-}
+    public Netty4NioSocketChannel(Channel parent, SocketChannel socket) {
+        super(parent, socket);
+    }
 
-tasks.register('localDistro', Sync) {
-  from(elasticsearch_distributions.local.extracted)
-  into("build/distribution/local")
-  doLast {
-    logger.lifecycle("Elasticsearch distribution installed to ${destinationDir}.")
-  }
+    @Override
+    public SocketChannel javaChannel() {
+        return super.javaChannel();
+    }
+
 }

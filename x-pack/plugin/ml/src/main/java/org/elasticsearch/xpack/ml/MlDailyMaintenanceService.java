@@ -149,7 +149,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
                 return;
             }
-            LOGGER.warn("triggering scheduled [ML] maintenance tasks");
+            LOGGER.info("triggering scheduled [ML] maintenance tasks");
             triggerDeleteExpiredDataTask();
             triggerDeleteJobsInStateDeletingWithoutDeletionTask(
                 ActionListener.wrap(

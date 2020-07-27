@@ -17,28 +17,40 @@
  * under the License.
  */
 
-/**
- * This script sets up a local distribution.
- * To install a local distribution run `localDistro`.
- * The local distribution will be installed to
- * build/distributions/local
- * */
-import org.elasticsearch.gradle.Architecture
+package org.elasticsearch.gradle;
 
-apply plugin:'elasticsearch.internal-distribution-download'
+import org.gradle.api.Project;
 
-elasticsearch_distributions {
-  local {
-    flavor = 'default'
-    type = 'archive'
-    architecture = Architecture.current()
-  }
-}
+public class DistributionResolution {
+    private Resolver resolver;
+    private String name;
+    private int priority;
 
-tasks.register('localDistro', Sync) {
-  from(elasticsearch_distributions.local.extracted)
-  into("build/distribution/local")
-  doLast {
-    logger.lifecycle("Elasticsearch distribution installed to ${destinationDir}.")
-  }
+    public DistributionResolution(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Resolver getResolver() {
+        return resolver;
+    }
+
+    public void setResolver(Resolver resolver) {
+        this.resolver = resolver;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public interface Resolver {
+        Object resolve(Project project, ElasticsearchDistribution distribution);
+    }
 }

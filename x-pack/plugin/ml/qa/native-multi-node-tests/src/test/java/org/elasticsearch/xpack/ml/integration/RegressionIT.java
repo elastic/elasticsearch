@@ -36,7 +36,6 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

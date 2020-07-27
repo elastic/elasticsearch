@@ -182,9 +182,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
         } catch (FileAlreadyExistsException faee) {
             if (failIfAlreadyExists) {
                 throw faee;
-            } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);

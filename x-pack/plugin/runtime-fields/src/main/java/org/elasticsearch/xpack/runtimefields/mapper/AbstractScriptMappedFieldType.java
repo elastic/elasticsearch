@@ -38,6 +38,11 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         this.script = script;
     }
 
+    @Override
+    public final boolean isRuntimeField() {
+        return true;
+    }
+
     protected abstract String runtimeType();
 
     @Override

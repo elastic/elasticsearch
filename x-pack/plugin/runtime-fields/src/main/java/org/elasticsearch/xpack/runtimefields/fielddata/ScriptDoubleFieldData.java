@@ -7,57 +7,43 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptDoubleFieldData extends IndexNumericFieldData implements SearchLookupAware {
+public final class ScriptDoubleFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final Script script;
-        private final DoubleScriptFieldScript.Factory scriptFactory;
+        private final DoubleScriptFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, Script script, DoubleScriptFieldScript.Factory scriptFactory) {
+        public Builder(String name, DoubleScriptFieldScript.LeafFactory leafFactory) {
             this.name = name;
-            this.script = script;
-            this.scriptFactory = scriptFactory;
+            this.leafFactory = leafFactory;
         }
 
         @Override
         public ScriptDoubleFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptDoubleFieldData(name, script, scriptFactory);
+            return new ScriptDoubleFieldData(name, leafFactory);
         }
     }
 
     private final String fieldName;
-    private final Script script;
-    private final DoubleScriptFieldScript.Factory scriptFactory;
-    private final SetOnce<DoubleScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
+    DoubleScriptFieldScript.LeafFactory leafFactory;
 
-    private ScriptDoubleFieldData(String fieldName, Script script, DoubleScriptFieldScript.Factory scriptFactory) {
+    private ScriptDoubleFieldData(String fieldName, DoubleScriptFieldScript.LeafFactory leafFactory) {
         this.fieldName = fieldName;
-        this.script = script;
-        this.scriptFactory = scriptFactory;
-    }
-
-    @Override
-    public void setSearchLookup(SearchLookup searchLookup) {
-        this.leafFactory.set(scriptFactory.newFactory(script.getParams(), searchLookup));
+        this.leafFactory = leafFactory;
     }
 
     @Override
@@ -81,7 +67,7 @@ public final class ScriptDoubleFieldData extends IndexNumericFieldData implement
 
     @Override
     public ScriptDoubleLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptDoubleLeafFieldData(new ScriptDoubleDocValues(leafFactory.get().newInstance(context)));
+        return new ScriptDoubleLeafFieldData(new ScriptDoubleDocValues(leafFactory.newInstance(context)));
     }
 
     @Override

@@ -63,8 +63,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptLongMappedFieldType ft = build("add_param", Map.of("param", 1));
-                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptLongFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -72,11 +71,11 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     }
 
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    public LeafCollector getLeafCollector(LeafReaderContext context) {
                         SortedNumericDocValues dv = ifd.load(context).getLongValues();
                         return new LeafCollector() {
                             @Override
-                            public void setScorer(Scorable scorer) throws IOException {}
+                            public void setScorer(Scorable scorer) {}
 
                             @Override
                             public void collect(int doc) throws IOException {
@@ -102,8 +101,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptLongFieldData ifd = simpleMappedFieldType().fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptLongFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
@@ -129,7 +127,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                    public ScoreScript newInstance(LeafReaderContext ctx) {
                         return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {

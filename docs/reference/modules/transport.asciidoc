@@ -88,7 +88,7 @@ and requires Java 11 or newer.
 Configures the `TCP_KEEPCNT` option for this socket, which
 determines the number of unacknowledged TCP keepalive probes that may be
 sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`
-which means to use the system default. Only applicable on Linux and macOS, and
+if set, or the system default otherwise. Only applicable on Linux and macOS, and
 requires Java 11 or newer.
 
 transport.tcp.reuse_address::

@@ -58,6 +58,12 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
@@ -210,7 +216,6 @@ if (useFixture) {
   testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
   task yamlRestTestMinio(type: RestIntegTestTask) {
-    mustRunAfter 'yamlRestTest' //to allow maven style filtering
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.bundlePlugin
     runner {
@@ -240,9 +245,7 @@ if (useFixture) {
 // ECS
 if (useFixture) {
   testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
-
   task yamlRestTestECS(type: RestIntegTestTask.class) {
-    mustRunAfter 'yamlRestTest' //to allow maven style filtering
     description = "Runs tests using the ECS repository."
     dependsOn('bundlePlugin')
     runner {
@@ -279,10 +282,7 @@ task s3ThirdPartyTest(type: Test) {
   systemProperty 'test.s3.bucket', s3PermanentBucket
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
   if (useFixture) {
-   // dependsOn tasks.yamlRestTestMinio
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000') }"
-  } else {
-   // dependsOn tasks.yamlRestTest
   }
 }
 check.dependsOn(s3ThirdPartyTest)

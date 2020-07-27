@@ -122,7 +122,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
 
         logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, aggsMaxBufferSize);
         // ensure consistent ordering
-        Arrays.sort(pendingMerges.buffer, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+        pendingMerges.sortBuffer();
         final TopDocsStats topDocsStats = pendingMerges.consumeTopDocsStats();
         final List<TopDocs> topDocsList = pendingMerges.consumeTopDocs();
         final List<InternalAggregations> aggsList = pendingMerges.consumeAggs();
@@ -144,7 +144,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
         }
         // ensure consistent ordering
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
-        
+
         for (QuerySearchResult result : toConsume) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
         }
@@ -230,6 +230,12 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
 
         public synchronized boolean hasPendingMerges() {
             return queue.isEmpty() == false || runningTask.get() != null;
+        }
+
+        public synchronized void sortBuffer() {
+            if (index > 0) {
+                Arrays.sort(buffer, 0, index, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+            }
         }
 
         public void consume(QuerySearchResult result, Runnable next) {

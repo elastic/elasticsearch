@@ -49,12 +49,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.Netty4NioSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -143,31 +143,30 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.group(sharedGroup.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configured allocator
+        assert Netty4NioSocketChannel.class.isAssignableFrom(NettyAllocator.getChannelType());
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
-            // Netty logs a warning if it can't set the option, so try this only on supported platforms
-            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
-                if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
-                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                    if (keepIdleOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepIdleOption), TransportSettings.TCP_KEEP_IDLE.get(settings));
-                    }
+            // Note that Netty logs a warning if it can't set the option
+            if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
+                final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                if (keepIdleOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepIdleOption), TransportSettings.TCP_KEEP_IDLE.get(settings));
                 }
-                if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                    if (keepIntervalOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepIntervalOption), TransportSettings.TCP_KEEP_INTERVAL.get(settings));
-                    }
+            }
+            if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
+                final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                if (keepIntervalOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepIntervalOption), TransportSettings.TCP_KEEP_INTERVAL.get(settings));
                 }
-                if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
-                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                    if (keepCountOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepCountOption), TransportSettings.TCP_KEEP_COUNT.get(settings));
-                    }
+            }
+            if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
+                final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                if (keepCountOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepCountOption), TransportSettings.TCP_KEEP_COUNT.get(settings));
                 }
             }
         }
@@ -215,26 +214,24 @@ public class Netty4Transport extends TcpTransport {
         serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
         if (profileSettings.tcpKeepAlive) {
-            // Netty logs a warning if it can't set the option, so try this only on supported platforms
-            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
-                if (profileSettings.tcpKeepIdle >= 0) {
-                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                    if (keepIdleOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), profileSettings.tcpKeepIdle);
-                    }
+            // Note that Netty logs a warning if it can't set the option
+            if (profileSettings.tcpKeepIdle >= 0) {
+                final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                if (keepIdleOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), profileSettings.tcpKeepIdle);
                 }
-                if (profileSettings.tcpKeepInterval >= 0) {
-                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                    if (keepIntervalOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption), profileSettings.tcpKeepInterval);
-                    }
+            }
+            if (profileSettings.tcpKeepInterval >= 0) {
+                final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                if (keepIntervalOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption), profileSettings.tcpKeepInterval);
+                }
 
-                }
-                if (profileSettings.tcpKeepCount >= 0) {
-                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                    if (keepCountOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepCountOption), profileSettings.tcpKeepCount);
-                    }
+            }
+            if (profileSettings.tcpKeepCount >= 0) {
+                final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                if (keepCountOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepCountOption), profileSettings.tcpKeepCount);
                 }
             }
         }
@@ -281,7 +278,6 @@ public class Netty4Transport extends TcpTransport {
             ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
             throw new IOException(connectFuture.cause());
         }
-        addClosedExceptionLogger(channel);
 
         Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
@@ -311,6 +307,9 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            addClosedExceptionLogger(ch);
+            assert ch instanceof Netty4NioSocketChannel;
+            NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
@@ -334,6 +333,8 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
+            assert ch instanceof Netty4NioSocketChannel;
+            NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());

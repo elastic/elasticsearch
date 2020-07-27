@@ -68,7 +68,7 @@ public class IndexingPressure {
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "operation_bytes=" + bytes + ", " +
+                "coordinating_operation_bytes=" + bytes + ", " +
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentCoordinatingBytes.getAndAdd(bytes);
@@ -99,7 +99,7 @@ public class IndexingPressure {
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "operation_bytes=" + bytes + ", " +
+                "primary_operation_bytes=" + bytes + ", " +
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentPrimaryBytes.getAndAdd(bytes);

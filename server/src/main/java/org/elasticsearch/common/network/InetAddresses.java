@@ -64,6 +64,9 @@ public class InetAddresses {
                     return null;
                 }
             }
+            if (percentIndex == ipString.length() - 1) {
+                return null;
+            }
             if (percentIndex != -1) {
                ipString = ipString.substring(0, percentIndex);
             }

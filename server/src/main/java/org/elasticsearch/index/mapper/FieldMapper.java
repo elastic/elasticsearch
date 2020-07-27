@@ -284,9 +284,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * In addition to pulling out the values, mappers can parse them into a standard form. This
      * method delegates parsing to {@link #parseSourceValue} for parsing. Most mappers will choose
      * to override {@link #parseSourceValue} -- for example numeric field mappers make sure to
-     * parse the  source value into a number of the right type.
+     * parse the source value into a number of the right type. Some mappers may need more
+     * flexibility and can override this entire method instead.
      *
-     * Some mappers may need more flexibility and can override this entire method instead.
+     * Note that for array values, the order in which values are returned is undefined and should
+     * not be relied on.
      *
      * @param lookup a lookup structure over the document's source.
      * @param format an optional format string used when formatting values, for example a date format.

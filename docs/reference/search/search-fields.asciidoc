@@ -151,6 +151,15 @@ the `_source`. Other mapping options are also respected, including
 <<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
 <<null-value, `null_value`>>.
 
+NOTE: The `fields` response always returns an array of values for each field,
+even when there is a single value in the `_source`. This is because {es} has
+no dedicated array type, and any field could contain multiple values. The
+`fields` parameter also does not guarantee that array values are returned in
+a specific order. See the mapping documentation on <<array, arrays>> for more
+background.
+
+
+
 [discrete]
 [[docvalue-fields]]
 === Doc value fields

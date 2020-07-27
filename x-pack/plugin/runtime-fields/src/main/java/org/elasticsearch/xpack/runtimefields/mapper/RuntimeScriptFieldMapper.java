@@ -10,7 +10,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -28,6 +27,13 @@ import java.util.function.BiFunction;
 public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "runtime_script";
+
+    public static final TypeParser PARSER = new TypeParser((name, parserContext) -> new Builder(name, new ScriptCompiler() {
+        @Override
+        public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            return parserContext.queryShardContextSupplier().get().compile(script, context);
+        }
+    }));
 
     private final String runtimeType;
     private final Script script;
@@ -176,23 +182,6 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             return script;
-        }
-    }
-
-    public static class TypeParser implements Mapper.TypeParser {
-
-        @Override
-        public RuntimeScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-
-            RuntimeScriptFieldMapper.Builder builder = new RuntimeScriptFieldMapper.Builder(name, new ScriptCompiler() {
-                @Override
-                public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-                    return parserContext.queryShardContextSupplier().get().compile(script, context);
-                }
-            });
-            builder.parse(name, parserContext, node);
-            return builder;
         }
     }
 

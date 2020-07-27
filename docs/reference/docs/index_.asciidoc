@@ -185,6 +185,7 @@ the index operation fails if a document with the specified ID
 already exists in the index.
 
 [discrete]
+[[create-document-ids-automatically]]
 ===== Create document IDs automatically
 
 If you don't specify a document ID when using POST, the `op_type` is

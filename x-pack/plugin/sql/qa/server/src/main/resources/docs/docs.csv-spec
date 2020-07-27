@@ -247,6 +247,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -2905,6 +2906,31 @@ schema::time:time
 ------------------------------------
 10:20:30.000+02:00
 // end::timeParse3
+;
+
+dateParse1
+schema::date:date
+// tag::dateParse1
+SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS "date";
+
+   date
+-----------
+2020-04-07
+// end::dateParse1
+;
+
+dateParse2-Ignore
+schema::date:date
+// tag::dateParse2
+{
+    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS \"date\"",
+    "time_zone" : "Europe/Athens"
+}
+
+   date
+------------
+2020-04-07T00:00:00.000+03:00
+// end::dateParse2
 ;
 
 datePartDateTimeYears

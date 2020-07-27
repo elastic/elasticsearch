@@ -24,8 +24,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -34,19 +32,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexFieldData<FD extends LeafFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
+public abstract class AbstractIndexFieldData<FD extends LeafFieldData> implements IndexFieldData<FD> {
 
     private final String fieldName;
     private ValuesSourceType valuesSourceType;
     protected final IndexFieldDataCache cache;
 
     public AbstractIndexFieldData(
-        IndexSettings indexSettings,
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache
     ) {
-        super(indexSettings);
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.cache = cache;

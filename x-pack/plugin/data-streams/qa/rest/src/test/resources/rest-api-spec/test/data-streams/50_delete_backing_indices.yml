@@ -8,13 +8,7 @@ setup:
         name: my-template
         body:
           index_patterns: [simple-*]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
 ---
 "Delete backing index on data stream":
@@ -72,7 +66,7 @@ setup:
 "Attempt to delete write index on data stream is rejected":
   - skip:
       version: " - 7.8.99"
-      reason:  "mute bwc until backported"
+      reason:  "data streams available in 7.9+"
 
   - do:
       indices.create_data_stream:

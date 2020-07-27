@@ -25,18 +25,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -114,14 +110,8 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
         boolean indexed,
         QueryShardContext context
     ) {
-        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(),
-            new ContentPath()
-        );
-        MappedFieldType ft = new DateFieldMapper.Builder(fieldName).index(indexed)
-            .withResolution(resolution)
-            .build(builderContext)
-            .fieldType();
+        MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 

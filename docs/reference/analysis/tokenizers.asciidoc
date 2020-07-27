@@ -18,7 +18,7 @@ represents (used for highlighting search snippets).
 Elasticsearch has a number of built in tokenizers which can be used to build
 <<analysis-custom-analyzer,custom analyzers>>.
 
-[float]
+[discrete]
 === Word Oriented Tokenizers
 
 The following tokenizers are usually used for tokenizing full text into
@@ -59,7 +59,7 @@ The `classic` tokenizer is a grammar based tokenizer for the English Language.
 
 The `thai` tokenizer segments Thai text into words.
 
-[float]
+[discrete]
 === Partial Word Tokenizers
 
 These tokenizers break up text or words into small fragments, for partial word
@@ -80,7 +80,7 @@ n-grams of each word which are anchored to the start of the word, e.g. `quick` -
 `[q, qu, qui, quic, quick]`.
 
 
-[float]
+[discrete]
 === Structured Text Tokenizers
 
 The following tokenizers are usually used with structured text like

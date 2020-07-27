@@ -113,7 +113,11 @@ public class ExtractedFieldsDetectorFactory {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
-            for (FieldCapabilities fieldCaps : fieldCapabilitiesResponse.getField(constraint.getField()).values()) {
+            Map<String, FieldCapabilities> fieldCapsPerType = fieldCapabilitiesResponse.getField(constraint.getField());
+            if (fieldCapsPerType == null) {
+                throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", constraint.getField());
+            }
+            for (FieldCapabilities fieldCaps : fieldCapsPerType.values()) {
                 if (fieldCaps.isAggregatable() == false) {
                     throw ExceptionsHelper.badRequestException("field [{}] of type [{}] is non-aggregatable",
                         fieldCaps.getName(), fieldCaps.getType());

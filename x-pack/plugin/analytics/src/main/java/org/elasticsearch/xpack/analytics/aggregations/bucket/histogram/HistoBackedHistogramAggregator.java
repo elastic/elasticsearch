@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
@@ -37,12 +38,13 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         long minDocCount,
         double minBound,
         double maxBound,
+        DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata) throws IOException {
-        super(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        super(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, hardBounds,
             valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
 
         // TODO: Stop using null here

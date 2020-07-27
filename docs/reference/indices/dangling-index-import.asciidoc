@@ -60,6 +60,6 @@ The API returns following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true
+  "acknowledged" : true
 }
 --------------------------------------------------

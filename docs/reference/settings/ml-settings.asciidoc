@@ -24,7 +24,7 @@ file.
 
 // end::ml-settings-description-tag[]
 
-[float]
+[discrete]
 [[general-ml-settings]]
 ==== General machine learning settings
 
@@ -110,7 +110,7 @@ each node. Typically, jobs spend a small amount of time in this state before
 they move to `open` state. Jobs that must restore large models when they are
 opening spend more time in the `opening` state. Defaults to `2`.
 
-[float]
+[discrete]
 [[advanced-ml-settings]]
 ==== Advanced machine learning settings
 
@@ -147,7 +147,7 @@ JVM. If such a process does not connect within the time period specified by this
 setting then the process is assumed to have failed. Defaults to `10s`. The minimum
 value for this setting is `5s`.
 
-[float]
+[discrete]
 [[model-inference-circuit-breaker]]
 ==== {ml-cap} circuit breaker settings
 

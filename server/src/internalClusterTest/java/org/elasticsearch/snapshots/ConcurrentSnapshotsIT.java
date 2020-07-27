@@ -929,7 +929,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("index-test");
         createNSnapshots(repoName, randomIntBetween(1, 5));
 
-        blockMasterFromDeletingIndexNFile(repoName);
+        blockNodeOnAnyFiles(repoName, masterName);
         final int deletes = randomIntBetween(2, 10);
         final List<ActionFuture<AcknowledgedResponse>> deleteResponses = new ArrayList<>(deletes);
         for (int i = 0; i < deletes; ++i) {

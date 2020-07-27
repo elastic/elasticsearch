@@ -74,14 +74,14 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> docValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  true);
-        private final Parameter<Boolean> indexed = Parameter.boolParam("index", false, m -> toType(m).indexed, true);
-        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
-        private final Parameter<Boolean> nullValue
-            = new Parameter<>("null_value", false, null, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
+        private final Parameter<Boolean> nullValue = new Parameter<>("null_value", false, () -> null,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
 
-        private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
+        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -101,15 +101,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -178,7 +170,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.BOOLEAN);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN);
         }
 
         @Override

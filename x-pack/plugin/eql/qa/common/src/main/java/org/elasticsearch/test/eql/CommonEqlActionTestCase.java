@@ -18,6 +18,7 @@ import org.elasticsearch.client.eql.EqlSearchResponse;
 import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -30,7 +31,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.eql.DataLoader.testIndexName;
@@ -91,44 +91,43 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     private static List<Object[]> asArray(List<EqlSpec> specs) {
-        AtomicInteger counter = new AtomicInteger();
-        return specs.stream().map(spec -> {
+        int counter = 0;
+        List<Object[]> results = new ArrayList<>();
+
+        for (EqlSpec spec : specs) {
             String name = spec.name();
             if (Strings.isNullOrEmpty(name)) {
                 name = spec.note();
             }
             if (Strings.isNullOrEmpty(name)) {
-                name = "" + (counter.get() + 1);
+                name = "" + (counter);
             }
 
-            return new Object[] { counter.incrementAndGet(), name, spec };
-        }).collect(toList());
+            boolean[] values = spec.caseSensitive() == null ? new boolean[] { true, false } : new boolean[] { spec.caseSensitive() };
+            
+            for (boolean sensitive : values) {
+                String prefixed = name + (sensitive ? "-sensitive" : "-insensitive");
+                results.add(new Object[] { spec.query(), prefixed, spec.expectedEventIds(), sensitive });
+            }
+        }
+
+        return results;
     }
 
-    private final int num;
+    private final String query;
     private final String name;
-    private final EqlSpec spec;
+    private final long[] eventIds;
+    private final boolean caseSensitive;
 
-    public CommonEqlActionTestCase(int num, String name, EqlSpec spec) {
-        this.num = num;
+    public CommonEqlActionTestCase(String query, String name, long[] eventIds, boolean caseSensitive) {
+        this.query = query;
         this.name = name;
-        this.spec = spec;
+        this.eventIds = eventIds;
+        this.caseSensitive = caseSensitive;
     }
 
     public void test() throws Exception {
-        // run both tests if case sensitivity doesn't matter
-        if (spec.caseSensitive() == null) {
-            assertResponse(runQuery(testIndexName, spec.query(), true));
-            assertResponse(runQuery(testIndexName, spec.query(), false));
-        }
-        // run only the case sensitive test
-        else if (spec.caseSensitive()) {
-            assertResponse(runQuery(testIndexName, spec.query(), true));
-        }
-        // run only the case insensitive test
-        else {
-            assertResponse(runQuery(testIndexName, spec.query(), false));
-        }
+        assertResponse(runQuery(testIndexName, query, caseSensitive));
     }
 
     protected void assertResponse(EqlSearchResponse response) {
@@ -145,7 +144,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
+        EqlSearchRequest request = new EqlSearchRequest(index, query);
         request.isCaseSensitive(isCaseSensitive);
         request.tiebreakerField("event.sequence");
         // some queries return more than 10 results
@@ -172,10 +171,11 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected void assertSearchHits(List<SearchHit> events) {
         assertNotNull(events);
-        long[] expected = spec.expectedEventIds();
+        long[] expected = eventIds;
         long[] actual = extractIds(events);
-        assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]" + Arrays.toString(expected) + " vs " + Arrays.toString(
-                actual), expected, actual);
+        assertArrayEquals(LoggerMessageFormat.format(null, "unexpected result for spec[{}] [{}] -> {} vs {}", name, query, Arrays.toString(
+                expected), Arrays.toString(actual)),
+                expected, actual);
     }
 
     private static long[] extractIds(List<SearchHit> events) {

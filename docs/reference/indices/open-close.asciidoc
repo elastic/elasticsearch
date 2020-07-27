@@ -101,9 +101,9 @@ A closed index can be re-opened like this:
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
 
 The API returns the following response:
 

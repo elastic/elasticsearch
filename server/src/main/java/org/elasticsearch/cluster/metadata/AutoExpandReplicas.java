@@ -140,7 +140,7 @@ public final class AutoExpandReplicas {
     }
 
     /**
-     * Check if index with the auto-expand-replicas feature then replicas need to be adapted.
+     * Checks if there are replicas with the auto-expand feature that need to be adapted.
      * Returns a map of updates, which maps the indices to be updated to the desired number of replicas.
      * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.

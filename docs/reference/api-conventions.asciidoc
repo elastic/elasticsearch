@@ -160,7 +160,7 @@ include::rest-api/cron-expressions.asciidoc[]
 
 The following options can be applied to all of the REST APIs.
 
-[float]
+[discrete]
 ==== Pretty Results
 
 When appending `?pretty=true` to any request made, the JSON returned
@@ -169,7 +169,7 @@ to set `?format=yaml` which will cause the result to be returned in the
 (sometimes) more readable yaml format.
 
 
-[float]
+[discrete]
 ==== Human readable output
 
 Statistics are returned in a format suitable for humans
@@ -182,7 +182,7 @@ consumption.  The default for the `human` flag is
 `false`.
 
 [[date-math]]
-[float]
+[discrete]
 ==== Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`
@@ -219,7 +219,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 `now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00`
  `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
-[float]
+[discrete]
 [[common-options-response-filtering]]
 ==== Response Filtering
 
@@ -376,7 +376,7 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ==== Flat Settings
 
 The `flat_settings` flag affects rendering of the lists of settings. When the
@@ -445,27 +445,27 @@ Returns:
 
 By default `flat_settings` is set to `false`.
 
-[float]
+[discrete]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
-[float]
+[discrete]
 ==== Boolean Values
 
 All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
-[float]
+[discrete]
 ==== Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
 [[time-units]]
-[float]
+[discrete]
 ==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
@@ -481,7 +481,7 @@ the unit, like `2d` for 2 days.  The supported units are:
 `nanos`::   Nanoseconds
 
 [[byte-units]]
-[float]
+[discrete]
 ==== Byte size units
 
 Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
@@ -497,7 +497,7 @@ these units use powers of 1024, so `1kb` means 1024 bytes. The supported units a
 `pb`::  Petabytes
 
 [[size-units]]
-[float]
+[discrete]
 ==== Unit-less quantities
 
 Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
@@ -513,7 +513,7 @@ when we mean 87 though. These are the supported multipliers:
 `p`::  Peta
 
 [[distance-units]]
-[float]
+[discrete]
 ==== Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
@@ -535,7 +535,7 @@ Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
 [[fuzziness]]
-[float]
+[discrete]
 ==== Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
@@ -567,7 +567,7 @@ the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 `AUTO` should generally be the preferred value for `fuzziness`.
 --
 
-[float]
+[discrete]
 [[common-options-error-options]]
 ==== Enabling stack traces
 
@@ -643,7 +643,7 @@ The response looks like:
 // TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
 // TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
-[float]
+[discrete]
 ==== Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,
@@ -652,7 +652,7 @@ instead. When using this method, the `source_content_type` parameter
 should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
-[float]
+[discrete]
 ==== Content-Type Requirements
 
 The type of the content sent in a request body must be specified using

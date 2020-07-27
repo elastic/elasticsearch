@@ -104,7 +104,7 @@ filter to configure a new <<analysis-custom-analyzer,custom analyzer>>.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -181,7 +181,7 @@ words list:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -208,7 +208,7 @@ words `and`, `is`, and `the`:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

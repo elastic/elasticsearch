@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_logging_changes]]
 === Logging changes
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[new-json-format-log-directory]]
 ==== New JSON format log files in `log` directory
 
@@ -28,7 +28,7 @@ Following files should be expected now in log directory:
 
 Note: You can configure which of these files are written by editing `log4j2.properties`.
 
-[float]
+[discrete]
 [[log-files-ending-log-deprecated]]
 ==== Log files ending with `*.log` deprecated
 Log files with the `.log` file extension using the old pattern layout format
@@ -36,12 +36,12 @@ are now considered deprecated and the newly added JSON log file format with
 the `.json` file extension should be used instead.
 Note: GC logs which are written to the file `gc.log` will not be changed.
 
-[float]
+[discrete]
 ==== Docker output in JSON format
 
 All Docker console logs are now in JSON format. You can distinguish logs streams with the `type` field.
 
-[float]
+[discrete]
 ==== Audit plaintext log file removed, JSON file renamed
 
 Elasticsearch no longer produces the `${cluster_name}_access.log` plaintext

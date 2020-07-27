@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.IntSet;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -1273,6 +1274,35 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
                 .setPartial(true).setWaitForCompletion(true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    /**
+     * Tests for the legacy snapshot path that is normally executed if the cluster contains any nodes older than
+     * {@link SnapshotsService#NO_REPO_INITIALIZE_VERSION}.
+     * Makes sure that blocking as well as non-blocking snapshot create paths execute cleanly as well as that error handling works out
+     * correctly by testing a snapshot name collision.
+     */
+    public void testCreateSnapshotLegacyPath() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createIndex("some-index");
+
+        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final Snapshot snapshot1 =
+                PlainActionFuture.get(f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f));
+        awaitNoMoreRunningOperations(masterNode);
+
+        final InvalidSnapshotNameException sne = expectThrows(InvalidSnapshotNameException.class,
+                () -> PlainActionFuture.<SnapshotInfo, Exception>get(
+                        f -> snapshotsService.executeSnapshotLegacy(
+                                new CreateSnapshotRequest(repoName, snapshot1.getSnapshotId().getName()), f)));
+
+        assertThat(sne.getMessage(), containsString("snapshot with the same name already exists"));
+        final SnapshotInfo snapshot2 =
+                PlainActionFuture.get(f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-2"), f));
+        assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

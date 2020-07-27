@@ -88,7 +88,9 @@ public abstract class InnerHitContextBuilder {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
         }
         if (innerHitBuilder.getDocValueFields() != null) {
-            innerHitsContext.docValuesContext(new FetchDocValuesContext(innerHitBuilder.getDocValueFields()));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
+                queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
+            innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {

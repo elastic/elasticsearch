@@ -1137,7 +1137,10 @@ public class Node implements Closeable {
     /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
-        return new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
+        clusterService.addListener(service);
+        return service;
     }
 
     /** Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests. */

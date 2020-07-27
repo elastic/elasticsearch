@@ -27,6 +27,12 @@ same cluster name. Each cluster has a single master node which is
 chosen automatically by the cluster and which can be replaced if the
 current master node fails.
 
+[[glossary-component-template]] component template ::
+// tag::component-template-def[]
+A building block for constructing <<indices-templates,index templates>> that specifies index
+<<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>. 
+// end::component-template-def[]
+
 [[glossary-ccr]] {ccr} (CCR)::
 
 The {ccr} feature enables you to replicate indices in remote clusters to your

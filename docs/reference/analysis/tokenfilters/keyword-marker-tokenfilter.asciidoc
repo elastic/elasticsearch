@@ -363,7 +363,7 @@ not stem these tokens.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

@@ -16,7 +16,7 @@ Term-level queries still normalize search terms for `keyword` fields with the
 `normalizer` property. For more details, see <<normalizer, `normalizer`>>.
 ====
 
-[float]
+[discrete]
 [[term-level-query-types]]
 === Types of term-level queries
 

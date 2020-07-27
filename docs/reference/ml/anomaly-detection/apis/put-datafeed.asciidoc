@@ -20,8 +20,8 @@ Instantiates a {dfeed}.
 
 * You must create an {anomaly-job} before you create a {dfeed}.  
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See
-<<security-privileges>>.
+cluster privileges to use this API. See <<security-privileges>> and
+{ml-docs-setup-privileges}.
 
 [[ml-put-datafeed-desc]]
 == {api-description-title}

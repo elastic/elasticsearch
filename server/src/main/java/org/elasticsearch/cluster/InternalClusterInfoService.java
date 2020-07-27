@@ -111,9 +111,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
                                                   this::setEnabled);
-
-        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
-        clusterService.addListener(this);
     }
 
     private void setEnabled(boolean enabled) {

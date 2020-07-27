@@ -99,8 +99,8 @@ If the document `index/_doc/1` already exists, we will have after this operation
 [source,js]
 --------------------------------------------------
 {
-    "name"  : "Joe Dalton",        <1>
-    "gender": "male"
+  "name"  : "Joe Dalton",        <1>
+  "gender": "male"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -111,8 +111,8 @@ If it does not exist, we will have a new document:
 [source,js]
 --------------------------------------------------
 {
-    "name" : "Joe Smith",
-    "gender": "male"
+  "name" : "Joe Smith",
+  "gender": "male"
 }
 --------------------------------------------------
 // NOTCONSOLE

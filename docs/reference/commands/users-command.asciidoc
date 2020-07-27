@@ -6,7 +6,7 @@
 If you use file-based user authentication, the `elasticsearch-users` command
 enables you to add and remove users, assign user roles, and manage passwords.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -19,7 +19,7 @@ bin/elasticsearch-users
 ([userdel <username>])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 If you use the built-in `file` internal realm, users are defined in local files
@@ -40,7 +40,7 @@ TIP: To ensure that {es} can read the user and role information at startup, run
 command as root or some other user updates the permissions for the `users` and
 `users_roles` files and prevents {es} from accessing them.
 
-[float]
+[discrete]
 === Parameters
 
 `-a <roles>`:: If used with the `roles` parameter, adds a comma-separated list
@@ -81,10 +81,10 @@ removing roles within the same command to change a user's roles.
 
 //`-v, --verbose`:: Shows verbose output.
 
-//[float]
+//[discrete]
 //=== Authorization
 
-[float]
+[discrete]
 === Examples
 
 The following example adds a new user named `jacknich` to the `file` realm. The

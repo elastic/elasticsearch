@@ -28,11 +28,11 @@ experimental[]
 == {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
+built-in roles or equivalent privileges:
 
 * `machine_learning_admin`
 
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
 
 
 [[ml-put-inference-desc]]

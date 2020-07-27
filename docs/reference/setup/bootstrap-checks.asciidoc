@@ -20,7 +20,7 @@ There are some bootstrap checks that are always enforced to prevent
 Elasticsearch from running with incompatible settings. These checks are
 documented individually.
 
-[float]
+[discrete]
 [[dev-vs-prod-mode]]
 === Development vs. production mode
 
@@ -41,7 +41,7 @@ can be useful for configuring a single node to be reachable via HTTP for testing
 purposes without triggering production mode.
 
 [[single-node-discovery]]
-[float]
+[discrete]
 === Single-node discovery
 We recognize that some users need to bind transport to an external interface for
 testing their usage of the transport client. For this situation, we provide the
@@ -50,7 +50,7 @@ discovery type `single-node` (configure it by setting `discovery.type` to
 join a cluster with any other node.
 
 
-[float]
+[discrete]
 === Forcing the bootstrap checks
 If you are running a single node in production, it is possible to evade the
 bootstrap checks (either by not binding transport to an external interface, or

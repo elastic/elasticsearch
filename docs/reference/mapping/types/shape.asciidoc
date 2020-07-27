@@ -15,7 +15,7 @@ You can query documents using this type using
 <<query-dsl-shape-query,shape Query>>.
 
 [[shape-mapping-options]]
-[float]
+[discrete]
 ==== Mapping Options
 
 Like the <<geo-shape, geo_shape>> field type, the `shape` field mapping maps
@@ -56,7 +56,7 @@ and reject the whole document.
 |=======================================================================
 
 [[shape-indexing-approach]]
-[float]
+[discrete]
 ==== Indexing approach
 Like `geo_shape`, the `shape` field type is indexed by decomposing geometries into
 a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree.
@@ -70,7 +70,7 @@ depends on the number of vertices that define the geometry.
 `CONTAINS` relation query - `shape` queries with `relation` defined as `contains` are supported
 for indices created with ElasticSearch 7.5.0 or higher.
 
-[float]
+[discrete]
 ===== Example
 
 [source,console]
@@ -93,7 +93,7 @@ precision floats for the vertex values so accuracy is guaranteed to the same pre
 `float` values provided by the java virtual machine approximately (typically 1E-38).
 
 [[shape-input-structure]]
-[float]
+[discrete]
 ==== Input Structure
 
 Shapes can be represented using either the http://www.geojson.org[GeoJSON]
@@ -130,7 +130,7 @@ typically use the colloquial latitude, longitude (Y, X) ordering.
 =============================================
 
 [[point-shape]]
-[float]
+[discrete]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
 A point is a single coordinate in cartesian `x, y` space. It may represent the
@@ -158,7 +158,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
@@ -188,7 +188,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
@@ -275,7 +275,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
@@ -304,7 +304,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
@@ -335,7 +335,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
@@ -366,7 +366,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
@@ -402,7 +402,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Envelope
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
@@ -432,7 +432,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Sorting and Retrieving index Shapes
 
 Due to the complex input structure and index representation of shapes,

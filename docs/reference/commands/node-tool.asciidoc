@@ -7,7 +7,7 @@ allows you to adjust the <<modules-node,role>> of a node, unsafely edit cluster
 settings and may be able to recover some data after a disaster or start a node
 even if it is incompatible with the data on disk.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -17,7 +17,7 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-versio
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 This tool has a number of modes:
@@ -51,7 +51,7 @@ This tool has a number of modes:
   {es}.
 
 [[node-tool-repurpose]]
-[float]
+[discrete]
 ==== Changing the role of a node
 
 There may be situations where you want to repurpose a node without following
@@ -83,7 +83,7 @@ The tool provides a summary of the data to be deleted and asks for confirmation
 before making any changes. You can get detailed information about the affected
 indices and shards by passing the verbose (`-v`) option.
 
-[float]
+[discrete]
 ==== Removing persistent cluster settings
 
 There may be situations where a node contains persistent cluster
@@ -103,7 +103,7 @@ The intended use is:
 * Repeat for all other master-eligible nodes
 * Start the nodes
 
-[float]
+[discrete]
 ==== Removing custom metadata from the cluster state
 
 There may be situations where a node contains custom metadata, typically
@@ -121,7 +121,7 @@ The intended use is:
 * Repeat for all other master-eligible nodes
 * Start the nodes
 
-[float]
+[discrete]
 ==== Recovering data after a disaster
 
 Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
@@ -161,7 +161,7 @@ way forward that does not risk data loss, but it may be possible to use the
 data from the failed cluster.
 
 [[node-tool-override-version]]
-[float]
+[discrete]
 ==== Bypassing version checks
 
 The data that {es} writes to disk is designed to be read by the current version
@@ -181,7 +181,7 @@ tool to overwrite the version number stored in the data path with the current
 version, causing {es} to believe that it is compatible with the on-disk data.
 
 [[node-tool-unsafe-bootstrap]]
-[float]
+[discrete]
 ===== Unsafe cluster bootstrapping
 
 If there is at least one remaining master-eligible node, but it is not possible
@@ -256,7 +256,7 @@ there has been no data loss, it just means that tool was able to complete its
 job.
 
 [[node-tool-detach-cluster]]
-[float]
+[discrete]
 ===== Detaching nodes from their cluster
 
 It is unsafe for nodes to move between clusters, because different clusters
@@ -321,7 +321,7 @@ that there has been no data loss, it just means that tool was able to complete
 its job.
 
 
-[float]
+[discrete]
 === Parameters
 
 `repurpose`:: Delete excess data when a node's roles are changed.
@@ -346,10 +346,10 @@ from the on-disk cluster state.
 
 `-v, --verbose`:: Shows verbose output.
 
-[float]
+[discrete]
 === Examples
 
-[float]
+[discrete]
 ==== Repurposing a node as a dedicated master node
 
 In this example, a former data node is repurposed as a dedicated master node.
@@ -371,7 +371,7 @@ Confirm [y/N] y
 Node successfully repurposed to master and no-data.
 ----
 
-[float]
+[discrete]
 ==== Repurposing a node as a coordinating-only node
 
 In this example, a node that previously held data is repurposed as a
@@ -394,7 +394,7 @@ Confirm [y/N] y
 Node successfully repurposed to no-master and no-data.
 ----
 
-[float]
+[discrete]
 ==== Removing persistent cluster settings
 
 If your nodes contain persistent cluster settings that prevent the cluster
@@ -428,7 +428,7 @@ You can also use wildcards to remove multiple settings, for example using
 node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
 ----
 
-[float]
+[discrete]
 ==== Removing custom metadata from the cluster state
 
 If the on-disk cluster state contains custom metadata that prevents the node
@@ -455,7 +455,7 @@ Confirm [y/N] y
 Customs were successfully removed from the cluster state
 ----
 
-[float]
+[discrete]
 ==== Unsafe cluster bootstrapping
 
 Suppose your cluster had five master-eligible nodes and you have permanently
@@ -531,7 +531,7 @@ Confirm [y/N] y
 Master node was successfully bootstrapped
 ----
 
-[float]
+[discrete]
 ==== Detaching nodes from their cluster
 
 After unsafely bootstrapping a new cluster, run the `elasticsearch-node
@@ -557,7 +557,7 @@ Confirm [y/N] y
 Node was successfully detached from the cluster
 ----
 
-[float]
+[discrete]
 ==== Bypassing version checks
 
 Run the `elasticsearch-node override-version` command to overwrite the version

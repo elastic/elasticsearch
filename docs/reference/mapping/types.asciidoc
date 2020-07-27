@@ -4,7 +4,7 @@
 Elasticsearch supports a number of different data types for the fields in a
 document:
 
-[float]
+[discrete]
 [[_core_datatypes]]
 === Core data types
 
@@ -16,12 +16,12 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 <<binary>>::     `binary`
 <<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`, `ip_range`
 
-[float]
+[discrete]
 === Complex data types
 <<object>>::    `object` for single JSON objects
 <<nested>>::    `nested` for arrays of JSON objects
 
-[float]
+[discrete]
 === Spatial data types
 
 <<geo-point>>::     `geo_point` for lat/lon points
@@ -29,7 +29,7 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 <<point>>::         `point` for arbitrary cartesian points.
 <<shape>>::         `shape` for arbitrary cartesian geometries.
 
-[float]
+[discrete]
 === Specialised data types
 
 <<ip>>::            `ip` for IPv4 and IPv6 addresses
@@ -60,14 +60,14 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 
 <<constant-keyword>>:: Specialization of `keyword` for the case when all documents have the same value.
 
-[float]
+[discrete]
 [[types-array-handling]]
 === Arrays
 In {es}, arrays do not require a dedicated field data type. Any field can contain
 zero or more values by default, however, all values in the array must be of the
 same data type. See <<array>>.
 
-[float]
+[discrete]
 === Multi-fields
 
 It is often useful to index the same field in different ways for different

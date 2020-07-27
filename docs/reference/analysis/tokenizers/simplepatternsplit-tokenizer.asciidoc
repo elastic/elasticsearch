@@ -21,7 +21,7 @@ The default pattern is the empty string, which produces one term containing the
 full input. This tokenizer should always be configured with a non-default
 pattern.
 
-[float]
+[discrete]
 === Configuration
 
 The `simple_pattern_split` tokenizer accepts the following parameters:
@@ -30,7 +30,7 @@ The `simple_pattern_split` tokenizer accepts the following parameters:
 `pattern`::
     A {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
 
-[float]
+[discrete]
 === Example configuration
 
 This example configures the `simple_pattern_split` tokenizer to split the input

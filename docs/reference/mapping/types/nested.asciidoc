@@ -211,7 +211,7 @@ as standard (flat) fields. Defaults to `false`.
 If `true`, all fields in the nested object are also added to the root
 document as standard (flat) fields. Defaults to `false`.
 
-[float]
+[discrete]
 === Limits on `nested` mappings and objects
 
 As described earlier, each nested object is indexed as a separate Lucene document.

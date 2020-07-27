@@ -7,7 +7,7 @@ filter and analyze log data stored on clusters in different data centers.
 
 IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
-[float]
+[discrete]
 [[ccs-supported-apis]]
 === Supported APIs
 
@@ -18,11 +18,11 @@ The following APIs support {ccs}:
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
 
-[float]
+[discrete]
 [[ccs-example]]
 === {ccs-cap} examples
 
-[float]
+[discrete]
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
 
@@ -61,7 +61,7 @@ PUT _cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:930\d+/\${transport_host}/]
 
-[float]
+[discrete]
 [[ccs-search-remote-cluster]]
 ==== Search a single remote cluster
 
@@ -129,7 +129,7 @@ The API returns the following response:
 <1> The search response body includes the name of the remote cluster in the
 `_index` parameter.
 
-[float]
+[discrete]
 [[ccs-search-multi-remote-cluster]]
 ==== Search multiple remote clusters
 
@@ -225,7 +225,7 @@ means the document came from the local cluster.
 <2> This document came from `cluster_one`.
 <3> This document came from `cluster_two`.
 
-[float]
+[discrete]
 [[skip-unavailable-clusters]]
 === Skip unavailable clusters
 

@@ -10,7 +10,7 @@ Segmentation algorithm, as specified in
 http://unicode.org/reports/tr29/[Unicode Standard Annex #29]) and works well
 for most languages.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -119,7 +119,7 @@ The above sentence would produce the following terms:
 [ the, 2, quick, brown, foxes, jumped, over, the, lazy, dog's, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `standard` analyzer accepts the following parameters:
@@ -143,7 +143,7 @@ See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.
 
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `standard` analyzer to have a
@@ -263,7 +263,7 @@ The above example produces the following terms:
 [ 2, quick, brown, foxes, jumpe, d, over, lazy, dog's, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Definition
 
 The `standard` analyzer consists of:

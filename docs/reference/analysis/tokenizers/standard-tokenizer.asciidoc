@@ -9,7 +9,7 @@ Unicode Text Segmentation algorithm, as specified in
 http://unicode.org/reports/tr29/[Unicode Standard Annex #29]) and works well
 for most languages.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -118,7 +118,7 @@ The above sentence would produce the following terms:
 [ The, 2, QUICK, Brown, Foxes, jumped, over, the, lazy, dog's, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `standard` tokenizer accepts the following parameters:
@@ -129,7 +129,7 @@ The `standard` tokenizer accepts the following parameters:
     The maximum token length. If a token is seen that exceeds this length then
     it is split at `max_token_length` intervals. Defaults to `255`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `standard` tokenizer to have a

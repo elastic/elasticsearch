@@ -54,9 +54,6 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             }
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();

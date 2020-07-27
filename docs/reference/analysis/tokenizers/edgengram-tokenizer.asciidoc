@@ -17,7 +17,7 @@ order, such as movie or song titles, the
 choice than edge N-grams.  Edge N-grams have the advantage when trying to
 autocomplete words that can appear in any order.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `edge_ngram` tokenizer treats the initial text as a
@@ -70,7 +70,7 @@ The above sentence would produce the following terms:
 NOTE: These default gram lengths are almost entirely useless.  You need to
 configure the `edge_ngram` before using it.
 
-[float]
+[discrete]
 === Configuration
 
 The `edge_ngram` tokenizer accepts the following parameters:
@@ -108,7 +108,7 @@ Character classes may be any of the following:
     setting this to `+-_` will make the tokenizer treat the plus, minus and
     underscore sign  as part of a token.
 
-[float]
+[discrete]
 [[max-gram-limits]]
 === Limitations of the `max_gram` parameter
 
@@ -133,7 +133,7 @@ and `apple`.
 We recommend testing both approaches to see which best fits your
 use case and desired search experience.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `edge_ngram` tokenizer to treat letters and

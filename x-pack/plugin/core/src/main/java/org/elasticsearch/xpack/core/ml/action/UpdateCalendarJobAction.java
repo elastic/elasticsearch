@@ -30,9 +30,6 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
         private String jobIdsToAddExpression;
         private String jobIdsToRemoveExpression;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();

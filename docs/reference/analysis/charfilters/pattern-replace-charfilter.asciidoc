@@ -22,7 +22,7 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 
 ========================================
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern_replace` character filter accepts the following parameters:
@@ -43,7 +43,7 @@ The `pattern_replace` character filter accepts the following parameters:
     Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
     Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern_replace` character filter to

@@ -104,9 +104,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
         private XContentType xContentType;
         private BytesReference content;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             resetStart = in.readOptionalString();

@@ -513,6 +513,13 @@ Comma-separated list or wildcard expression of index template names
 used to limit the request.
 end::index-template[]
 
+tag::component-template[]
+`<component-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of component template names
+used to limit the request.
+end::component-template[]
+
 tag::lenient[]
 `lenient`::
 (Optional, boolean) If `true`, format-based query failures (such as

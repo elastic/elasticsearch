@@ -25,9 +25,6 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
 
     public static class Request extends JobTaskRequest<PersistJobAction.Request> {
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             // isBackground for fwc

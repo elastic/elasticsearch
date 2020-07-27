@@ -20,7 +20,7 @@ For an explanation of the supported features and syntax, see <<regexp-syntax,Reg
 The default pattern is the empty string, which produces no terms. This
 tokenizer should always be configured with a non-default pattern.
 
-[float]
+[discrete]
 === Configuration
 
 The `simple_pattern` tokenizer accepts the following parameters:
@@ -29,7 +29,7 @@ The `simple_pattern` tokenizer accepts the following parameters:
 `pattern`::
     {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
 
-[float]
+[discrete]
 === Example configuration
 
 This example configures the `simple_pattern` tokenizer to produce terms that are

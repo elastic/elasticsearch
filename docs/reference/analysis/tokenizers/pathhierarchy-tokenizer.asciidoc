@@ -8,7 +8,7 @@ The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem
 path, splits on the path separator, and emits a term for each component in the
 tree.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -62,7 +62,7 @@ The above text would produce the following terms:
 [ /one, /one/two, /one/two/three ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `path_hierarchy` tokenizer accepts the following parameters:
@@ -86,7 +86,7 @@ The `path_hierarchy` tokenizer accepts the following parameters:
 `skip`::
     The number of initial tokens to skip.  Defaults to `0`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `path_hierarchy` tokenizer to split on `-`

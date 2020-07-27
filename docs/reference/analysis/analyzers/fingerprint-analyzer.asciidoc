@@ -12,7 +12,7 @@ Input text is lowercased, normalized to remove extended characters, sorted,
 deduplicated and concatenated into a single token.  If a stopword list is
 configured, stop words will also be removed.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -51,7 +51,7 @@ The above sentence would produce the following single term:
 [ and consistent godel is said sentence this yes ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `fingerprint` analyzer accepts the following parameters:
@@ -79,7 +79,7 @@ See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.
 
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `fingerprint` analyzer to use the
@@ -135,7 +135,7 @@ The above example produces the following term:
 [ consistent godel said sentence yes ]
 ---------------------------
 
-[float]
+[discrete]
 === Definition
 
 The `fingerprint` tokenizer consists of:

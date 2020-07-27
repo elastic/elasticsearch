@@ -7,7 +7,7 @@ NOTE: This is a low-level setting. Some store implementations have poor
 concurrency or disable optimizations for heap memory usage. We recommend
 sticking to the defaults.
 
-[float]
+[discrete]
 [[file-system]]
 === File system storage types
 

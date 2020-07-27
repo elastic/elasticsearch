@@ -25,7 +25,7 @@ The `rewrite` parameter determines:
 query or bit set
 * If changed to a `bool` query, which `term` query clauses are included
 
-[float]
+[discrete]
 [[rewrite-param-valid-values]]
 === Valid values
 
@@ -99,7 +99,7 @@ You can use this method to avoid exceeding the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
 setting.
 
-[float]
+[discrete]
 [[rewrite-param-perf-considerations]]
 === Performance considerations for the `rewrite` parameter
 For most uses, we recommend using the `constant_score`,

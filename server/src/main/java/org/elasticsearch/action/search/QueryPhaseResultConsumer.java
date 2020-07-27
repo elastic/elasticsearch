@@ -38,6 +38,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -120,6 +121,8 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
         }
 
         logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, aggsMaxBufferSize);
+        // ensure consistent ordering
+        Arrays.sort(pendingMerges.buffer, Comparator.comparingInt(QuerySearchResult::getShardIndex));
         final TopDocsStats topDocsStats = pendingMerges.consumeTopDocsStats();
         final List<TopDocs> topDocsList = pendingMerges.consumeTopDocs();
         final List<InternalAggregations> aggsList = pendingMerges.consumeAggs();
@@ -139,7 +142,9 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
             // the task is cancelled
             return null;
         }
-
+        // ensure consistent ordering
+        Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+        
         for (QuerySearchResult result : toConsume) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
         }

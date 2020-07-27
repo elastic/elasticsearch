@@ -17,8 +17,9 @@ as search in Elasticsearch.
 [[transport-settings]]
 ==== Transport settings
 
-The internal transport communicates over TCP. You can configure it with the
-following settings:
+The following settings can be configured for the internal transport that
+communicates over TCP. These settings also use the common
+<<modules-network,network settings>>.
 
 `transport.port`::
 A bind port range. Defaults to `9300-9400`.
@@ -56,9 +57,6 @@ to ensure that transport connections between nodes are kept alive. Defaults to
 to correctly configure TCP keep-alives instead of using this feature, because
 TCP keep-alives apply to all kinds of long-lived connections and not just to
 transport connections.
-
-It also uses the common
-<<modules-network,network settings>>.
 
 `transport.tcp.no_delay`::
 Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
@@ -102,7 +100,6 @@ Defaults to `network.tcp.send_buffer_size`.
 `transport.tcp.receive_buffer_size`::
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 Defaults to `network.tcp.receive_buffer_size`.
-
 
 [[transport-profiles]]
 ===== Transport profiles

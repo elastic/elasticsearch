@@ -94,6 +94,50 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(replicaRejections);
     }
 
+    public long getTotalCombinedCoordinatingAndPrimaryBytes() {
+        return totalCombinedCoordinatingAndPrimaryBytes;
+    }
+
+    public long getTotalCoordinatingBytes() {
+        return totalCoordinatingBytes;
+    }
+
+    public long getTotalPrimaryBytes() {
+        return totalPrimaryBytes;
+    }
+
+    public long getTotalReplicaBytes() {
+        return totalReplicaBytes;
+    }
+
+    public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
+        return currentCombinedCoordinatingAndPrimaryBytes;
+    }
+
+    public long getCurrentCoordinatingBytes() {
+        return currentCoordinatingBytes;
+    }
+
+    public long getCurrentPrimaryBytes() {
+        return currentPrimaryBytes;
+    }
+
+    public long getCurrentReplicaBytes() {
+        return currentReplicaBytes;
+    }
+
+    public long getCoordinatingRejections() {
+        return coordinatingRejections;
+    }
+
+    public long getPrimaryRejections() {
+        return primaryRejections;
+    }
+
+    public long getReplicaRejections() {
+        return replicaRejections;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";

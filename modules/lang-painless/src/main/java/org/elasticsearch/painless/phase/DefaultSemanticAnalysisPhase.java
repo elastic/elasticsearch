@@ -153,8 +153,16 @@ import java.util.regex.PatternSyntaxException;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
 
+/**
+ * Semantically validates a user tree visiting all user tree nodes to check for
+ * valid control flow, valid types, valid variable resolution, valid method resolution,
+ * valid field resolution, and other specialized validation.
+ */
 public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticScope> {
 
+    /**
+     * Decorates a user expression node with a PainlessCast.
+     */
     public void decorateWithCast(AExpression userExpressionNode, SemanticScope semanticScope) {
         Location location = userExpressionNode.getLocation();
         Class<?> valueType = semanticScope.getDecoration(userExpressionNode, ValueType.class).getValueType();
@@ -169,12 +177,20 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Shortcut to visit a user tree node with a null check.
+     */
     public void visit(ANode userNode, SemanticScope semanticScope) {
         if (userNode != null) {
             userNode.visit(this, semanticScope);
         }
     }
 
+    /**
+     * Shortcut to visit a user expression node with additional checks common to most expression nodes. These
+     * additional checks include looking for an escaped partial canonical type, an unexpected static type, and an
+     * unexpected value type.
+     */
     public void checkedVisit(AExpression userExpressionNode, SemanticScope semanticScope) {
         if (userExpressionNode != null) {
             userExpressionNode.visit(this, semanticScope);
@@ -196,12 +212,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a class.
+     */
     public void visitClass(SClass userClassNode, ScriptScope scriptScope) {
         for (SFunction userFunctionNode : userClassNode.getFunctionNodes()) {
             visitFunction(userFunctionNode, scriptScope);
         }
     }
 
+    /**
+     * Visits a function and defines variables for each parameter.
+     * Checks: control flow, type validation
+     */
     public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
         String functionName = userFunctionNode.getFunctionName();
         LocalFunction localFunction =
@@ -247,6 +270,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         // TODO: end
     }
 
+    /**
+     * Visits a block and which contains one-to-many statements.
+     * Checks: control flow
+     */
     @Override
     public void visitBlock(SBlock userBlockNode, SemanticScope semanticScope) {
         List<AStatement> userStatementNodes = userBlockNode.getStatementNodes();
@@ -310,6 +337,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits an if statement with error checking for an extraneous if.
+     * Checks: control flow
+     */
     @Override
     public void visitIf(SIf userIfNode, SemanticScope semanticScope) {
         AExpression userConditionNode = userIfNode.getConditionNode();
@@ -332,6 +363,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.replicateCondition(userIfBlockNode, userIfNode, AnyBreak.class);
     }
 
+    /**
+     * Visits an if/else statement with error checking for an extraneous if/else.
+     * Checks: control flow
+     */
     @Override
     public void visitIfElse(SIfElse userIfElseNode, SemanticScope semanticScope) {
         AExpression userConditionNode = userIfElseNode.getConditionNode();
@@ -388,6 +423,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a while statement with error checking for an extraneous loop.
+     * Checks: control flow
+     */
     @Override
     public void visitWhile(SWhile userWhileNode, SemanticScope semanticScope) {
         semanticScope = semanticScope.newLocalScope();
@@ -432,6 +471,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a do-while statement with error checking for an extraneous loop.
+     * Checks: control flow
+     */
     @Override
     public void visitDo(SDo userDoNode, SemanticScope semanticScope) {
         semanticScope = semanticScope.newLocalScope();
@@ -476,6 +519,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a for statement with error checking for an extraneous loop.
+     * Checks: control flow
+     */
     @Override
     public void visitFor(SFor userForNode, SemanticScope semanticScope) {
         semanticScope = semanticScope.newLocalScope();
@@ -540,6 +587,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a for-each statement which and adds an internal variable for a generated iterator.
+     * Checks: control flow
+     */
     @Override
     public void visitEach(SEach userEachNode, SemanticScope semanticScope) {
         AExpression userIterableNode = userEachNode.getIterableNode();
@@ -609,6 +660,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a declaration block which contains one-to-many declarations.
+     */
     @Override
     public void visitDeclBlock(SDeclBlock userDeclBlockNode, SemanticScope semanticScope) {
         for (SDeclaration userDeclarationNode : userDeclBlockNode.getDeclarationNodes()) {
@@ -616,6 +670,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a declaration and defines a variable with a type and optionally a value.
+     * Checks: type validation
+     */
     @Override
     public void visitDeclaration(SDeclaration userDeclarationNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -648,6 +706,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userDeclarationNode, new SemanticVariable(variable));
     }
 
+    /**
+     * Visits a return statement and casts the value to the return type if possible.
+     * Checks: type validation
+     */
     @Override
     public void visitReturn(SReturn userReturnNode, SemanticScope semanticScope) {
         AExpression userValueNode = userReturnNode.getValueNode();
@@ -671,6 +733,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userReturnNode, AllEscape.class);
     }
 
+    /**
+     * Visits an expression that is also considered a statement.
+     * Checks: control flow, type validation
+     */
     @Override
     public void visitExpression(SExpression userExpressionNode, SemanticScope semanticScope) {
         Class<?> rtnType = semanticScope.getReturnType();
@@ -697,6 +763,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a try statement.
+     * Checks: control flow
+     */
     @Override
     public void visitTry(STry userTryNode, SemanticScope semanticScope) {
         SBlock userBlockNode = userTryNode.getBlockNode();
@@ -750,6 +820,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a catch statement and defines a variable for the caught exception.
+     * Checks: control flow, type validation
+     */
     @Override
     public void visitCatch(SCatch userCatchNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -795,6 +869,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a throw statement.
+     * Checks: type validation
+     */
     @Override
     public void visitThrow(SThrow userThrowNode, SemanticScope semanticScope) {
         AExpression userExpressionNode = userThrowNode.getExpressionNode();
@@ -809,6 +887,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userThrowNode, AllEscape.class);
     }
 
+    /**
+     * Visits a continue statement.
+     * Checks: control flow
+     */
     @Override
     public void visitContinue(SContinue userContinueNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userContinueNode, InLoop.class) == false) {
@@ -823,6 +905,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userContinueNode, AnyContinue.class);
     }
 
+    /**
+     * Visits a break statement.
+     * Checks: control flow
+     */
     @Override
     public void visitBreak(SBreak userBreakNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userBreakNode, InLoop.class) == false) {
@@ -834,6 +920,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBreakNode, AnyBreak.class);
     }
 
+    /**
+     * Visits an assignment expression which handles both assignment and compound assignment.
+     * Checks: type validation
+     */
     @Override
     public void visitAssignment(EAssignment userAssignmentNode, SemanticScope semanticScope) {
         AExpression userLeftNode = userAssignmentNode.getLeftNode();
@@ -955,6 +1045,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 new ValueType(semanticScope.getCondition(userAssignmentNode, Read.class) ? leftValueType : void.class));
     }
 
+    /**
+     * Visits a unary expression which special-cases a negative operator when the child
+     * is a constant expression to handle the maximum negative values appropriately.
+     * Checks: type validation
+     */
     @Override
     public void visitUnary(EUnary userUnaryNode, SemanticScope semanticScope) {
         Operation operation = userUnaryNode.getOperation();
@@ -1029,6 +1124,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a binary expression which covers all the mathematical operators.
+     * Checks: type validation
+     */
     @Override
     public void visitBinary(EBinary userBinaryNode, SemanticScope semanticScope) {
         Operation operation = userBinaryNode.getOperation();
@@ -1138,6 +1237,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a boolean comp expression which covers boolean comparision operators.
+     * Checks: type validation
+     */
     @Override
     public void visitBooleanComp(EBooleanComp userBooleanCompNode, SemanticScope semanticScope) {
         Operation operation = userBooleanCompNode.getOperation();
@@ -1167,6 +1270,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userBooleanCompNode, new ValueType(boolean.class));
     }
 
+    /**
+     * Visits a comp expression which covers mathematical comparision operators.
+     * Checks: type validation
+     */
     @Override
     public void visitComp(EComp userCompNode, SemanticScope semanticScope) {
         Operation operation = userCompNode.getOperation();
@@ -1224,6 +1331,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userCompNode, new ComparisonType(promotedType));
     }
 
+    /**
+     * Visits an explicit expression which handles an explicit cast.
+     * Checks: type validation
+     */
     @Override
     public void visitExplicit(EExplicit userExplicitNode, SemanticScope semanticScope) {
         String canonicalTypeName = userExplicitNode.getCanonicalTypeName();
@@ -1254,6 +1365,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userExplicitNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits an instanceof expression which handles both primitive and non-primitive types.
+     * Checks: type validation
+     */
     @Override
     public void visitInstanceof(EInstanceof userInstanceofNode, SemanticScope semanticScope) {
         String canonicalTypeName = userInstanceofNode.getCanonicalTypeName();
@@ -1282,6 +1397,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userInstanceofNode, new InstanceType(instanceType));
     }
 
+    /**
+     * Visits a conditional expression.
+     * Checks: type validation
+     */
     @Override
     public void visitConditional(EConditional userConditionalNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userConditionalNode, Write.class)) {
@@ -1341,6 +1460,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userConditionalNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a elvis expression which is a shortcut for a null check on a conditional expression.
+     * Checks: type validation
+     */
     @Override
     public void visitElvis(EElvis userElvisNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userElvisNode, Write.class)) {
@@ -1409,6 +1532,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userElvisNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a list init expression which is a shortcut for initializing a list with pre-defined values.
+     * Checks: type validation
+     */
     @Override
     public void visitListInit(EListInit userListInitNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userListInitNode, Write.class)) {
@@ -1451,6 +1578,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userListInitNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a map init expression which is a shortcut for initializing a map with pre-defined keys and values.
+     * Checks: type validation
+     */
     @Override
     public void visitMapInit(EMapInit userMapInitNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userMapInitNode, Write.class)) {
@@ -1508,6 +1639,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userMapInitNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a list init expression which either defines a standard array or initializes
+     * a single-dimensional with pre-defined values.
+     * Checks: type validation
+     */
     @Override
     public void visitNewArray(ENewArray userNewArrayNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userNewArrayNode, Write.class)) {
@@ -1537,6 +1673,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNewArrayNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a new obj expression which creates a new object and calls its constructor.
+     * Checks: type validation
+     */
     @Override
     public void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
         String canonicalTypeName =  userNewObjNode.getCanonicalTypeName();
@@ -1588,6 +1728,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNewObjNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a call local expression which is a method call with no qualifier (prefix).
+     * Checks: type validation, method resolution
+     */
     @Override
     public void visitCallLocal(ECallLocal userCallLocalNode, SemanticScope semanticScope) {
         String methodName = userCallLocalNode.getMethodName();
@@ -1702,6 +1846,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userCallLocalNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a boolean constant expression.
+     * Checks: type validation
+     */
     @Override
     public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, SemanticScope semanticScope) {
         boolean bool = userBooleanConstantNode.getBool();
@@ -1720,6 +1868,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userBooleanConstantNode, new StandardConstant(bool));
     }
 
+    /**
+     * Visits a numeric constant expression which includes int and long.
+     * Checks: type validation
+     */
     @Override
     public void visitNumeric(ENumeric userNumericNode, SemanticScope semanticScope) {
         String numeric = userNumericNode.getNumeric();
@@ -1807,6 +1959,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNumericNode, new StandardConstant(constant));
     }
 
+    /**
+     * Visits a decimal constant expression which includes float and double.
+     * Checks: type validation
+     */
     @Override
     public void visitDecimal(EDecimal userDecimalNode, SemanticScope semanticScope) {
         String decimal = userDecimalNode.getDecimal();
@@ -1851,6 +2007,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userDecimalNode, new StandardConstant(constant));
     }
 
+    /**
+     * Visits a string constant expression.
+     * Checks: type validation
+     */
     @Override
     public void visitString(EString userStringNode, SemanticScope semanticScope) {
         String string = userStringNode.getString();
@@ -1868,6 +2028,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userStringNode, new StandardConstant(string));
     }
 
+    /**
+     * Visits a null constant expression.
+     * Checks: type validation
+     */
     @Override
     public void visitNull(ENull userNullNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userNullNode, Write.class)) {
@@ -1895,6 +2059,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNullNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a regex constant expression which does additional work to initialize a regex using pre-defined flags.
+     * Checks: type validation
+     */
     @Override
     public void visitRegex(ERegex userRegexNode, SemanticScope semanticScope) {
         String pattern = userRegexNode.getPattern();
@@ -1965,6 +2133,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userRegexNode, new StandardConstant(constant));
     }
 
+    /**
+     * Visits a lambda expression which adds a new internal method to the class as defined by the lambda.
+     * Checks: control flow, type validation
+     */
     @Override
     public void visitLambda(ELambda userLambdaNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userLambdaNode, Write.class)) {
@@ -2098,6 +2270,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userLambdaNode, new CapturesDecoration(capturedVariables));
     }
 
+    /**
+     * Visits a function ref expression which covers class function references,
+     * constructor function references, and local function references.
+     * Checks: type validation
+     */
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -2170,6 +2347,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userFunctionRefNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a new array function ref expression which covers only a new array function reference
+     * and generates an internal method to define the new array.
+     * Checks: type validation
+     */
     @Override
     public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, SemanticScope semanticScope) {
         String canonicalTypeName = userNewArrayFunctionRefNode.getCanonicalTypeName();
@@ -2213,6 +2395,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNewArrayFunctionRefNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a symbol expression which covers static types, partial canonical types,
+     * and variables.
+     * Checks: type checking, type resolution, variable resolution
+     */
     @Override
     public void visitSymbol(ESymbol userSymbolNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userSymbolNode, Read.class);
@@ -2251,6 +2438,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a dot expression which is a field index with a qualifier (prefix) and
+     * may resolve to a static type, a partial canonical type, a field, a shortcut to a
+     * getter/setter method on a type, or a getter/setter for a Map or List.
+     * Checks: type validation, method resolution, field resolution
+     */
     @Override
     public void visitDot(EDot userDotNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userDotNode, Read.class);
@@ -2504,6 +2697,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    /**
+     * Visits a brace expression which is an array index with a qualifier (prefix) and
+     * may resolve to an array index, or a getter/setter for a Map or List.
+     * Checks: type validation, method resolution, field resolution
+     */
     @Override
     public void visitBrace(EBrace userBraceNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userBraceNode, Read.class);
@@ -2631,6 +2829,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userBraceNode, new ValueType(valueType));
     }
 
+    /**
+     * Visits a call expression which is a method call with a qualifier (prefix).
+     * Checks: type validation, method resolution
+     */
     @Override
     public void visitCall(ECall userCallNode, SemanticScope semanticScope) {
         String methodName = userCallNode.getMethodName();

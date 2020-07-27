@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
@@ -146,6 +147,9 @@ public class IndexingStateProcessor implements StateProcessor {
                     jobId,
                     () -> true,
                     (msg) -> auditor.warning(jobId, "Bulk indexing of state failed " + msg));
+            } catch (NodeClosedException e) {
+                // Let this be handled higher up
+                throw e;
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
                 LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
@@ -158,11 +162,11 @@ public class IndexingStateProcessor implements StateProcessor {
         return bytesRef.indexOf((byte)0, Math.max(searchFrom, splitFrom));
     }
 
-    @SuppressWarnings("unchecked")
     /**
      * Extracts document id from the given {@code bytesRef}.
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
+    @SuppressWarnings("unchecked")
     static String extractDocId(String firstNonBlankLine) throws IOException {
         try (XContentParser parser =
                  JsonXContent.jsonXContent.createParser(

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -48,6 +49,8 @@ public class StatsPersister {
                 errorMsg -> auditor.error(jobId,
                     "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)
             );
+        } catch (NodeClosedException e) {
+            LOGGER.warn("[{}] some stats not indexed due to the node being closed", jobId);
         } catch (IOException ioe) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);
         } catch (Exception e) {

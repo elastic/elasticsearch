@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -68,6 +69,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
         try {
             addResultAndJoinIfEndOfBatch(rowResults);
+        } catch (NodeClosedException e) {
+            LOGGER.warn("[{}] joining results interrupted by node closing", analyticsId);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to join results ", analyticsId), e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
@@ -128,8 +131,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     @Override
     public void close() {
+        boolean isNodeClosing = false;
         try {
             joinCurrentResults();
+        } catch (NodeClosedException e) {
+            isNodeClosing = true;
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to join results", analyticsId), e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
@@ -137,7 +143,9 @@ class DataFrameRowsJoiner implements AutoCloseable {
             try {
                 consumeDataExtractor();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                if (isNodeClosing == false) {
+                    LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                }
             }
         }
     }

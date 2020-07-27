@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
@@ -144,6 +145,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 if (processKilled == false) {
                     LOGGER.info("[{}] State output finished", jobId);
                 }
+            } catch (NodeClosedException e) {
+                LOGGER.warn("[{}] some state not indexed due to the node being closed", jobId);
             } catch (IOException e) {
                 if (processKilled == false) {
                     LOGGER.error(new ParameterizedMessage("[{}] Error reading {} state output", jobId, getName()), e);

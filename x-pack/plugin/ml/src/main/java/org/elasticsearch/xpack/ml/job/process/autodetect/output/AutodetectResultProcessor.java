@@ -17,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -145,6 +146,8 @@ public class AutodetectResultProcessor {
 
     public void process() {
 
+        boolean isNodeClosing = false;
+
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
@@ -162,6 +165,9 @@ public class AutodetectResultProcessor {
             }
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
+        } catch (NodeClosedException e) {
+            LOGGER.warn("[{}] some results not processed due to the node being closed", jobId);
+            isNodeClosing = true;
         } catch (Exception e) {
             failed = true;
 
@@ -181,7 +187,9 @@ public class AutodetectResultProcessor {
             }
         } finally {
             flushListener.clear();
-            handleOpenForecasts();
+            if (isNodeClosing == false) {
+                handleOpenForecasts();
+            }
             completionLatch.countDown();
         }
     }

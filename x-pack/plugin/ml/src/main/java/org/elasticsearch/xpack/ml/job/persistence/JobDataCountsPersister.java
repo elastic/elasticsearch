@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -67,6 +68,8 @@ public class JobDataCountsPersister {
                 DataCounts.documentId(jobId),
                 () -> true,
                 (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
+        } catch (NodeClosedException e) {
+            logger.warn("[{}] some data_counts not indexed due to the node being closed", jobId);
         } catch (IOException ioe) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {

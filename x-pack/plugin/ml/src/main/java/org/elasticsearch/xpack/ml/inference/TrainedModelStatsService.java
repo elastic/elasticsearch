@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
@@ -183,10 +184,15 @@ public class TrainedModelStatsService {
         if (stopped) {
             return;
         }
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest,
-            stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
-            () -> stopped == false,
-            (msg) -> {});
+        try {
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+                stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
+                () -> stopped == false,
+                (msg) -> {});
+        } catch (NodeClosedException e) {
+            // Effectively this is just a race on testing "stopped", and we just return when stopped
+            return;
+        }
     }
 
     static boolean verifyIndicesExistAndPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {

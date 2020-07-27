@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -83,6 +84,8 @@ public class InferenceRunner {
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
                 inferTestDocs(localModel, testDocsIterator);
             }
+        } catch (NodeClosedException e) {
+            LOGGER.warn("[{}] inference interrupted by node closing", config.getId());
         } catch (Exception e) {
             throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
         }

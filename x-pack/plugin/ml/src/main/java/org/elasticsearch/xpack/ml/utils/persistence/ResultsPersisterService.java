@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 
@@ -145,8 +146,10 @@ public class ResultsPersisterService {
             }
             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                 if (itemResponse.isFailed()) {
-                    if (isIrrecoverable(itemResponse.getFailure().getCause())) {
-                        Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                    Exception itemException = itemResponse.getFailure().getCause();
+                    detectNodeClosed(itemException);
+                    if (isIrrecoverable(itemException)) {
+                        Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemException);
                         LOGGER.warn(new ParameterizedMessage(
                             "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
                                 jobId,
@@ -181,6 +184,7 @@ public class ResultsPersisterService {
             } catch (ElasticsearchException e) {
                 LOGGER.warn("[" + jobId + "] Exception while executing search action", e);
                 failureMessage = e.getDetailedMessage();
+                detectNodeClosed(e);
                 if (isIrrecoverable(e)) {
                     LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
                     throw new ElasticsearchException("{} experienced failure that cannot be automatically retried", e, jobId);
@@ -188,6 +192,19 @@ public class ResultsPersisterService {
             }
 
             retryContext.nextIteration("search", failureMessage);
+        }
+    }
+
+    /**
+     * Propagate {@link NodeClosedException} unaltered.  These exceptions are problematic because:
+     * - We can't retry
+     * - The calling code shouldn't treat this as a failure of some ML process, because we want it to pick up on a different node
+     * @param ex The exception to check
+     */
+    private static void detectNodeClosed(Exception ex) {
+        Throwable t = ExceptionsHelper.unwrapCause(ex);
+        if (t instanceof NodeClosedException) {
+            throw (NodeClosedException) t;
         }
     }
 

@@ -58,7 +58,7 @@ import static org.elasticsearch.gradle.util.Util.capitalize;
  */
 public class DistributionDownloadPlugin implements Plugin<Project> {
 
-    static final String RESOLUTION_CONTAINER_NAME = "elasticsearch_distributions-resolutions";
+    static final String RESOLUTION_CONTAINER_NAME = "elasticsearch_distributions_resolutions";
     private static final String CONTAINER_NAME = "elasticsearch_distributions";
     private static final String FAKE_IVY_GROUP = "elasticsearch-distribution";
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";

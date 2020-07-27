@@ -103,6 +103,34 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         assertExtractedDistroIsCreated(distroVersion,'bwc-marker.txt')
     }
 
+    def "fails on resolving bwc versions with no bundled jdk"() {
+        given:
+        internalBuild()
+        bwcMinorProjectSetup()
+        def distroVersion = "8.1.0"
+        buildFile << """
+            apply plugin: 'elasticsearch.internal-distribution-download'
+
+            elasticsearch_distributions {
+              test_distro {
+                  version = "8.1.0"
+                  type = "archive"
+                  platform = "linux"
+                  architecture = Architecture.current();
+                  bundledJdk = false
+              }
+            }
+            tasks.register("createExtractedTestDistro") {
+                dependsOn elasticsearch_distributions.test_distro.extracted
+            }
+        """
+        when:
+        def result = gradleRunner("createExtractedTestDistro").buildAndFail()
+        then:
+        assertOutputContains(result.output, "Configuring a snapshot bwc distribution ('test_distro') " +
+                "without a bundled JDK is not supported.")
+    }
+
     private File internalBuild() {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'

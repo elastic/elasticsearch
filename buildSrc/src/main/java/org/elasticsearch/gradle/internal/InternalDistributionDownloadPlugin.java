@@ -77,10 +77,17 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             return null;
         }));
 
-        resolutions.register("bwb", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+        resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                assert distribution.getBundledJdk();
+                if (!distribution.getBundledJdk()) {
+                    throw new GradleException(
+                        "Configuring a snapshot bwc distribution ('"
+                            + distribution.getName()
+                            + "') "
+                            + "without a bundled JDK is not supported."
+                    );
+                }
                 return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
             }
             return null;

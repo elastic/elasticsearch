@@ -42,25 +42,26 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         FORMAT,
         DATE_TIME_FORMAT;
 
-        public String getJavaPattern(final Object pattern) {
-            String javaDateFormat = (String) pattern;
+        private String getJavaPattern(String pattern) {
             if (this == FORMAT) {
                 for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
-                    javaDateFormat = javaDateFormat.replace(replacement[0], replacement[1]);
+                    pattern = pattern.replace(replacement[0], replacement[1]);
                 }
             }
-            return javaDateFormat;
-
+            return pattern;
         }
 
         public Object format(Object timestamp, Object pattern, ZoneId zoneId) {
             if (timestamp == null || pattern == null) {
                 return null;
             }
-            if (pattern instanceof String == false) {
+            String patternString;
+            if (pattern instanceof String) {
+                patternString = (String) pattern;
+            } else {
                 throw new SqlIllegalArgumentException("A string is required; received [{}]", pattern);
             }
-            if (((String) pattern).isEmpty()) {
+            if (patternString.isEmpty()) {
                 return null;
             }
 
@@ -75,7 +76,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 ta = asTimeAtZone((OffsetTime) timestamp, zoneId);
             }
             try {
-                return DateTimeFormatter.ofPattern(getJavaPattern(pattern), Locale.ROOT).format(ta);
+                return DateTimeFormatter.ofPattern(getJavaPattern(patternString), Locale.ROOT).format(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
                 throw new SqlIllegalArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",

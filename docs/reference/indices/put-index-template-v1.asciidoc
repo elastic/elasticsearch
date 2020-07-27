@@ -227,7 +227,7 @@ replace the template without specifying	one.
 --------------------------------------------------
 PUT /_template/template_1
 {
-  "index_patterns" : ["myindex-*"],
+  "index_patterns" : ["my-index-*"],
   "order" : 0,
   "settings" : {
     "number_of_shards" : 1

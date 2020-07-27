@@ -16,7 +16,7 @@ Create an index with two fields:
 
 [source,console]
 --------------------------------------------------
-PUT /my-index
+PUT /my-index-00001
 {
   "mappings": {
     "properties": {
@@ -44,7 +44,7 @@ Register a query in the percolator:
 
 [source,console]
 --------------------------------------------------
-PUT /my-index/_doc/1?refresh
+PUT /my-index-00001/_doc/1?refresh
 {
   "query": {
     "match": {
@@ -59,7 +59,7 @@ Match a document to the registered percolator queries:
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "percolate": {
@@ -94,7 +94,7 @@ The above request will yield the following response:
     "max_score": 0.26152915,
     "hits": [
       { <1>
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,
@@ -119,7 +119,7 @@ The above request will yield the following response:
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
 
-TIP: To provide a simple example, this documentation uses one index `my-index` for both the percolate queries and documents.
+TIP: To provide a simple example, this documentation uses one index `my-index-00001` for both the percolate queries and documents.
 This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
 to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
@@ -157,7 +157,7 @@ the percolator query in a `bool` query's filter clause or in a `constant_score` 
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "constant_score": {
@@ -197,7 +197,7 @@ correlate with the slot in the `documents` array specified in the `percolate` qu
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "percolate": {
@@ -243,7 +243,7 @@ GET /my-index/_search
     "max_score": 0.7093853,
     "hits": [
       {
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
@@ -283,7 +283,7 @@ Index the document we want to percolate:
 
 [source,console]
 --------------------------------------------------
-PUT /my-index/_doc/2
+PUT /my-index-00001/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -294,7 +294,7 @@ Index response:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "my-index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "2",
   "_version": 1,
@@ -313,12 +313,12 @@ Percolating an existing document, using the index response as basis to build to 
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "percolate": {
       "field": "query",
-      "index": "my-index",
+      "index": "my-index-00001",
       "id": "2",
       "version": 1 <1>
     }
@@ -349,7 +349,7 @@ Save a query:
 
 [source,console]
 --------------------------------------------------
-PUT /my-index/_doc/3?refresh
+PUT /my-index-00001/_doc/3?refresh
 {
   "query": {
     "match": {
@@ -364,7 +364,7 @@ Save another query:
 
 [source,console]
 --------------------------------------------------
-PUT /my-index/_doc/4?refresh
+PUT /my-index-00001/_doc/4?refresh
 {
   "query": {
     "match": {
@@ -379,7 +379,7 @@ Execute a search request with the `percolate` query and highlighting enabled:
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "percolate": {
@@ -419,7 +419,7 @@ This will yield the following response.
     "max_score": 0.26152915,
     "hits": [
       {
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "3",
         "_score": 0.26152915,
@@ -440,7 +440,7 @@ This will yield the following response.
         }
       },
       {
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "4",
         "_score": 0.26152915,
@@ -475,7 +475,7 @@ When percolating multiple documents at the same time like the request below then
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "percolate": {
@@ -526,7 +526,7 @@ The slightly different response:
     "max_score": 0.7093853,
     "hits": [
       {
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "1",
         "_score": 0.7093853,
@@ -568,7 +568,7 @@ It is possible to specify multiple `percolate` queries in a single search reques
 
 [source,console]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index-00001/_search
 {
   "query": {
     "bool": {
@@ -624,7 +624,7 @@ The above search request returns a response similar to this:
     "max_score": 0.26152915,
     "hits": [
       {
-        "_index": "my-index",
+        "_index": "my-index-00001",
         "_type": "_doc",
         "_id": "1",
         "_score": 0.26152915,

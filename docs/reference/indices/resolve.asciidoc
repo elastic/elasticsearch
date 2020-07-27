@@ -21,11 +21,11 @@ PUT /freeze-index
 
 POST /freeze-index/_freeze
 
-PUT /my-index
+PUT /my-index-000001
 
 PUT /freeze-index/_alias/f-alias
 
-PUT /my-index/_alias/f-alias
+PUT /my-index-000001/_alias/f-alias
 
 PUT /_index_template/foo_data_stream
 {
@@ -120,7 +120,7 @@ The API returns the following response:
       "name": "f-alias",
       "indices": [
         "freeze-index",
-        "my-index"
+        "my-index-000001"
       ]
     }
   ],

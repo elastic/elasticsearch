@@ -88,58 +88,12 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
-
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
 
-        final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
-
-        if (storedFieldsContext == null) {
-            // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
-                context.fetchSourceContext(new FetchSourceContext(true));
-            }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
-            fieldsVisitor = new FieldsVisitor(loadSource);
-        } else if (storedFieldsContext.fetchFields() == false) {
-            // disable stored fields entirely
-            fieldsVisitor = null;
-        } else {
-            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
-                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
-                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
-                        : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
-                    continue;
-                }
-
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
-                for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = context.fieldType(fieldName);
-                    if (fieldType == null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        if (context.getObjectMapper(fieldName) != null) {
-                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
-                        }
-                    } else {
-                        String storedField = fieldType.name();
-                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
-                            storedField, key -> new HashSet<>());
-                        requestedFields.add(fieldName);
-                    }
-                }
-            }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
-            if (storedToRequestedFields.isEmpty()) {
-                // empty list specified, default to disable _source if no explicit indication
-                fieldsVisitor = new FieldsVisitor(loadSource);
-            } else {
-                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
-            }
-        }
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
 
         try {
             DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
@@ -206,6 +160,54 @@ public class FetchPhase implements SearchPhase {
         @Override
         public int compareTo(DocIdToIndex o) {
             return Integer.compare(docId, o.docId);
+        }
+    }
+
+    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+        StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
+
+        if (storedFieldsContext == null) {
+            // no fields specified, default to return source if no explicit indication
+            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+                context.fetchSourceContext(new FetchSourceContext(true));
+            }
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            return new FieldsVisitor(loadSource);
+        } else if (storedFieldsContext.fetchFields() == false) {
+            // disable stored fields entirely
+            return null;
+        } else {
+            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
+                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
+                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
+                        : FetchSourceContext.FETCH_SOURCE;
+                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+                    continue;
+                }
+
+                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
+                for (String fieldName : fieldNames) {
+                    MappedFieldType fieldType = context.fieldType(fieldName);
+                    if (fieldType == null) {
+                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        if (context.getObjectMapper(fieldName) != null) {
+                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                        }
+                    } else {
+                        String storedField = fieldType.name();
+                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
+                            storedField, key -> new HashSet<>());
+                        requestedFields.add(fieldName);
+                    }
+                }
+            }
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            if (storedToRequestedFields.isEmpty()) {
+                // empty list specified, default to disable _source if no explicit indication
+                return new FieldsVisitor(loadSource);
+            } else {
+                return new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+            }
         }
     }
 

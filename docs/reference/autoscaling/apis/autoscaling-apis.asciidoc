@@ -5,7 +5,7 @@
 
 You can use the following APIs to perform autoscaling operations.
 
-[float]
+[discrete]
 [[autoscaling-api-top-level]]
 === Top-Level
 

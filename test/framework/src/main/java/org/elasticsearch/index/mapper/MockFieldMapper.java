@@ -49,16 +49,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, Collections.emptyMap());
-        }
-
-        protected FakeFieldType(FakeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
+            super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

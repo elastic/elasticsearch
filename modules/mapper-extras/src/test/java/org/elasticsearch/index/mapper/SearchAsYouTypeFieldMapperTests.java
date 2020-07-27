@@ -32,6 +32,8 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -56,6 +58,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -87,6 +90,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
         addModifier("max_shingle_size", false, (a, b) -> {
             a.maxShingleSize(3);
             b.maxShingleSize(2);
+        });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
+            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
         });
     }
 
@@ -662,21 +669,6 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             assertThat(actual, equalTo(expected));
         }
 
-        // todo are these queries generated for the prefix field right?
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two")
-                .toQuery(queryShardContext);
-            final Query expected = new MatchNoDocsQuery("Matching no documents because no terms present");
-            assertThat(actual, equalTo(expected));
-        }
-
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three")
-                .toQuery(queryShardContext);
-            final Query expected = new TermQuery(new Term("a_field._index_prefix", "one two three"));
-            assertThat(actual, equalTo(expected));
-        }
-
         {
             expectThrows(IllegalArgumentException.class,
                 () -> new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three four").toQuery(queryShardContext));
@@ -810,7 +802,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize-1));
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
@@ -828,7 +820,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
 
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -842,12 +834,13 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     }
 
     private static void assertPrefixFieldType(PrefixFieldType fieldType, int shingleSize, String analyzerName) {
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
-        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
+            = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));
         }

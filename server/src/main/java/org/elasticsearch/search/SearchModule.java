@@ -114,9 +114,11 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.VariableWidthHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
@@ -432,6 +434,11 @@ public class SearchModule {
                 AutoDateHistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalAutoDateHistogram::new)
                     .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
+        registerAggregation(new AggregationSpec(VariableWidthHistogramAggregationBuilder.NAME,
+                VariableWidthHistogramAggregationBuilder::new,
+                VariableWidthHistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalVariableWidthHistogram::new)
+                    .setAggregatorRegistrar(VariableWidthHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse)
                     .addResultReader(InternalGeoDistance::new)

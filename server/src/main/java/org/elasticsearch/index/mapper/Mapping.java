@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -86,21 +88,44 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping) */
-    public Mapping merge(Mapping mergeWith) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root);
+    /**
+     * Merges a new mapping into the existing one.
+     *
+     * @param mergeWith the new mapping to merge into this one.
+     * @param reason the reason this merge was initiated.
+     * @return the resulting merged mapping.
+     */
+    public Mapping merge(Mapping mergeWith, MergeReason reason) {
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason);
+
+        // When merging metadata fields as part of applying an index template, new field definitions
+        // completely overwrite existing ones instead of being merged. This behavior matches how we
+        // merge leaf fields in the 'properties' section of the mapping.
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetadataMappers = new HashMap<>(metadataMappersMap);
         for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
             MetadataFieldMapper mergeInto = mergedMetadataMappers.get(metaMergeWith.getClass());
             MetadataFieldMapper merged;
-            if (mergeInto == null) {
+            if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
                 merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith);
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }
-        Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
+
+        // If we are merging the _meta object as part of applying an index template, then the new object
+        // is deep-merged into the existing one to allow individual keys to be added or overwritten. For
+        // standard mapping updates, the new _meta object completely replaces the old one.
+        Map<String, Object> mergedMeta;
+        if (mergeWith.meta == null) {
+            mergedMeta = meta;
+        } else if (meta == null || reason != MergeReason.INDEX_TEMPLATE) {
+            mergedMeta = mergeWith.meta;
+        } else {
+            mergedMeta = new HashMap<>(mergeWith.meta);
+            XContentHelper.mergeDefaults(mergedMeta, meta);
+        }
+
         return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 

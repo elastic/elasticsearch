@@ -5,14 +5,17 @@
 ++++
 
 The `shards` command is the detailed view of what nodes contain which
-shards.  It will tell you if it's a primary or replica, the number of
+shards. It will tell you if it's a primary or replica, the number of
 docs, the bytes it takes on disk, and the node where it's located.
+
+For data streams, the API returns information about the stream's backing
+indices.
 
 
 [[cat-shards-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/shards/<index>`
+`GET /_cat/shards/<target>`
 
 `GET /_cat/shards`
 
@@ -20,8 +23,13 @@ docs, the bytes it takes on disk, and the node where it's located.
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[cat-shards-query-params]]
 ==== {api-query-parms-title}
@@ -280,7 +288,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[cat-shards-api-example-single]]
-===== Example with a single index
+===== Example with a single data stream or index
 
 [source,console]
 ---------------------------------------------------------------------------
@@ -300,13 +308,13 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 [[cat-shards-api-example-wildcard]]
-===== Example with a index wildcard pattern
+===== Example with a wildcard pattern
 
-If your cluster has many shards, you can use a wildcard pattern in the `{index}`
-path parameter to limit the API request.
+If your cluster has many shards, you can use a wildcard pattern in the
+`<target>` path parameter to limit the API request.
 
-The following request returns information for any indices beginning with
-`twitt`.
+The following request returns information for any data streams or indices
+beginning with `twitt`.
 
 [source,console]
 ---------------------------------------------------------------------------

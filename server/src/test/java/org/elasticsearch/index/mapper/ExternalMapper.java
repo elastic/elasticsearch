@@ -123,16 +123,7 @@ public class ExternalMapper extends FieldMapper {
     static class ExternalFieldType extends TermBasedFieldType {
 
         ExternalFieldType(String name, boolean indexed, boolean hasDocValues) {
-            super(name, indexed, hasDocValues, Collections.emptyMap());
-        }
-
-        protected ExternalFieldType(ExternalFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ExternalFieldType(this);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

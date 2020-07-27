@@ -3,7 +3,7 @@
 
 The ingest plugins extend Elasticsearch by providing additional ingest node capabilities.
 
-[float]
+[discrete]
 === Core Ingest Plugins
 
 The core ingest plugins are:
@@ -29,7 +29,7 @@ A processor that extracts details from the User-Agent header value. The
 distributed by default with Elasticsearch. See
 {ref}/user-agent-processor.html[User Agent processor] for more details.
 
-[float]
+[discrete]
 === Community contributed ingest plugins
 
 The following plugin has been contributed by our community:

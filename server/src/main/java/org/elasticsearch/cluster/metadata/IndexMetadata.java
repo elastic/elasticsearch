@@ -42,6 +42,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -96,7 +97,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         new ClusterBlock(9, "index metadata (api)", false, false, false,
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
-        new ClusterBlock(12, "index read-only / allow delete (api)", false, false,
+        new ClusterBlock(12, "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block", false, false,
             true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {
@@ -188,25 +189,80 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
-    public static final String SETTING_READ_ONLY = "index.blocks.read_only";
-    public static final Setting<Boolean> INDEX_READ_ONLY_SETTING =
-        Setting.boolSetting(SETTING_READ_ONLY, false, Property.Dynamic, Property.IndexScope);
 
-    public static final String SETTING_BLOCKS_READ = "index.blocks.read";
-    public static final Setting<Boolean> INDEX_BLOCKS_READ_SETTING =
-        Setting.boolSetting(SETTING_BLOCKS_READ, false, Property.Dynamic, Property.IndexScope);
+    public enum APIBlock implements Writeable {
+        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
+        READ("read", INDEX_READ_BLOCK),
+        WRITE("write", INDEX_WRITE_BLOCK),
+        METADATA("metadata", INDEX_METADATA_BLOCK),
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
 
-    public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
-    public static final Setting<Boolean> INDEX_BLOCKS_WRITE_SETTING =
-        Setting.boolSetting(SETTING_BLOCKS_WRITE, false, Property.Dynamic, Property.IndexScope);
+        final String name;
+        final String settingName;
+        final Setting<Boolean> setting;
+        final ClusterBlock block;
 
-    public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
-    public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING =
-        Setting.boolSetting(SETTING_BLOCKS_METADATA, false, Property.Dynamic, Property.IndexScope);
+        APIBlock(String name, ClusterBlock block) {
+            this.name = name;
+            this.settingName = "index.blocks." + name;
+            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope);
+            this.block = block;
+        }
 
-    public static final String SETTING_READ_ONLY_ALLOW_DELETE = "index.blocks.read_only_allow_delete";
-    public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING =
-        Setting.boolSetting(SETTING_READ_ONLY_ALLOW_DELETE, false, Property.Dynamic, Property.IndexScope);
+        public String settingName() {
+            return settingName;
+        }
+
+        public Setting<Boolean> setting() {
+            return setting;
+        }
+
+        public ClusterBlock getBlock() {
+            return block;
+        }
+
+        public static APIBlock fromName(String name) {
+            for (APIBlock block : APIBlock.values()) {
+                if (block.name.equals(name)) {
+                    return block;
+                }
+            }
+            throw new IllegalArgumentException("No block found with name " + name);
+        }
+
+        public static APIBlock fromSetting(String settingName) {
+            for (APIBlock block : APIBlock.values()) {
+                if (block.settingName.equals(settingName)) {
+                    return block;
+                }
+            }
+            throw new IllegalArgumentException("No block found with setting name " + settingName);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(ordinal());
+        }
+
+        public static APIBlock readFrom(StreamInput input) throws IOException {
+            return APIBlock.values()[input.readVInt()];
+        }
+    }
+
+    public static final String SETTING_READ_ONLY = APIBlock.READ_ONLY.settingName();
+    public static final Setting<Boolean> INDEX_READ_ONLY_SETTING = APIBlock.READ_ONLY.setting();
+
+    public static final String SETTING_BLOCKS_READ = APIBlock.READ.settingName();
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_SETTING = APIBlock.READ.setting();
+
+    public static final String SETTING_BLOCKS_WRITE = APIBlock.WRITE.settingName();
+    public static final Setting<Boolean> INDEX_BLOCKS_WRITE_SETTING = APIBlock.WRITE.setting();
+
+    public static final String SETTING_BLOCKS_METADATA = APIBlock.METADATA.settingName();
+    public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING = APIBlock.METADATA.setting();
+
+    public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 

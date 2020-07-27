@@ -95,6 +95,86 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
+    public void testSimpleDataStreamPivot() throws Exception {
+        String indexName = "reviews_data_stream";
+        createReviewsIndex(indexName,  1000, "date", true);
+        String transformId = "simple_data_stream_pivot";
+        String transformIndex = "pivot_reviews_data_stream";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        createPivotReviewsTransform(transformId,
+            transformIndex,
+            null,
+            null,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            indexName);
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+        client().performRequest(new Request("DELETE", "/_data_stream/" + indexName));
+    }
+
+    public void testSimpleBooleanPivot() throws Exception {
+        String transformId = "simple-boolean-pivot";
+        String sourceIndex = "boolean_value";
+        String transformIndex = "pivot_boolean_value";
+
+        Request doc1 = new Request("POST", sourceIndex + "/_doc");
+        doc1.setJsonEntity("{\"bool\": true, \"val\": 1.0}");
+        client().performRequest(doc1);
+        Request doc2 = new Request("POST", sourceIndex + "/_doc");
+        doc2.setJsonEntity("{\"bool\": true, \"val\": 0.0}");
+        client().performRequest(doc2);
+        Request doc3 = new Request("POST", sourceIndex + "/_doc");
+        doc3.setJsonEntity("{\"bool\": false, \"val\": 2.0}");
+        client().performRequest(doc3);
+        refreshIndex(sourceIndex);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = ""
+            + "{"
+            + "\"source\":{\"index\": \"boolean_value\"},"
+            + "\"dest\" :{\"index\": \"pivot_boolean_value\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"bool\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"bool\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"val\""
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        assertOnePivotValue(transformIndex + "/_search?q=bool:true", 0.5);
+        assertOnePivotValue(transformIndex + "/_search?q=bool:false", 2.0);
+
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(2, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+    }
+
     public void testSimplePivotWithQuery() throws Exception {
         String transformId = "simple_pivot_with_query";
         String transformIndex = "pivot_reviews_user_id_above_20";
@@ -418,6 +498,115 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(transformIndex + "/_search?q=every_2:0.0", 1.0);
+    }
+
+    public void testContinuousPivotHistogram() throws Exception {
+        String indexName = "continuous_reviews_histogram";
+        createReviewsIndex(indexName);
+        String transformId = "simple_continuous_pivot";
+        String transformIndex = "pivot_reviews_continuous_histogram";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + indexName
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"every_2\": {"
+            + "       \"histogram\": {"
+            + "         \"interval\": 2,\"field\":\"stars\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"user_dc\": {"
+            + "       \"cardinality\": {"
+            + "         \"field\": \"user_id\""
+            + " } } } }"
+            + "}";
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+
+        final StringBuilder bulk = new StringBuilder();
+
+        long dateStamp = Instant.now().toEpochMilli() - 1_000;
+
+        // add 5 data points with 3 new users: 27, 28, 29
+        for (int i = 25; i < 30; i++) {
+            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
+            String location = (i + 10) + "," + (i + 15);
+
+            bulk.append("{\"user_id\":\"")
+                .append("user_")
+                .append(i)
+                .append("\",\"business_id\":\"")
+                .append("business_")
+                .append(i)
+                .append("\",\"stars\":")
+                .append(3)
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":")
+                .append(dateStamp)
+                .append("}\n");
+        }
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+
+        waitForTransformCheckpoint(transformId, 2);
+
+        stopTransform(transformId, false);
+        refreshIndex(transformIndex);
+
+        // assert after changes
+        // still 3 documents
+        indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30.0));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+
     }
 
     public void testBiggerPivot() throws Exception {

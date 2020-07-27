@@ -16,14 +16,19 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -91,7 +96,9 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
-        ANALYTICS(OperationMode.MISSING, true);
+        ANALYTICS(OperationMode.MISSING, true),
+
+        SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
@@ -101,6 +108,14 @@ public class XPackLicenseState {
             this.needsActive = needsActive;
         }
     }
+
+    // temporarily non tracked feeatures which need rework in how they are checked
+    // so they are not tracked as always used
+    private static final Set<Feature> NON_TRACKED_FEATURES = Set.of(
+        Feature.SECURITY_IP_FILTERING,
+        Feature.SECURITY_ALL_REALMS,
+        Feature.SECURITY_STANDARD_REALMS
+    );
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -394,6 +409,8 @@ public class XPackLicenseState {
     private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
+    private final Map<Feature, LongAccumulator> lastUsed;
+    private final LongSupplier epochMillisProvider;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
@@ -401,19 +418,31 @@ public class XPackLicenseState {
     // is only read once.
     private volatile Status status = new Status(OperationMode.TRIAL, true);
 
-    public XPackLicenseState(Settings settings) {
+    public XPackLicenseState(Settings settings, LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
+
+        // prepopulate feature last used map with entries for non basic features, which are the ones we
+        // care to actually keep track of
+        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
+        for (Feature feature : Feature.values()) {
+            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && NON_TRACKED_FEATURES.contains(feature) == false) {
+                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
+            }
+        }
+        this.lastUsed = lastUsed;
+        this.epochMillisProvider = epochMillisProvider;
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status) {
-
+                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
         this.status = status;
+        this.lastUsed = lastUsed;
+        this.epochMillisProvider = epochMillisProvider;
     }
 
     private static boolean isSecurityExplicitlyEnabled(Settings settings) {
@@ -473,8 +502,36 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    /**
+     * Checks whether the given feature is allowed, tracking the last usage time.
+     */
+    public boolean checkFeature(Feature feature) {
+        boolean allowed = isAllowed(feature);
+        LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
+        if (maxEpochAccumulator != null) {
+            maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
+        }
+        return allowed;
+    }
+
+    /**
+     * Checks whether the given feature is allowed by the current license.
+     * <p>
+     * This method should only be used when serializing whether a feature is allowed for telemetry.
+     */
     public boolean isAllowed(Feature feature) {
         return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
+    }
+
+    /**
+     * Returns a mapping of gold+ features to the last time that feature was used.
+     *
+     * Note that if a feature has not been used, it will not appear in the map.
+     */
+    public Map<Feature, Long> getLastUsed() {
+        return lastUsed.entrySet().stream()
+            .filter(e -> e.getValue().get() != 0) // feature was never used
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
@@ -549,7 +606,8 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
+        return executeAgainstStatus(status ->
+            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider));
     }
 
     /**

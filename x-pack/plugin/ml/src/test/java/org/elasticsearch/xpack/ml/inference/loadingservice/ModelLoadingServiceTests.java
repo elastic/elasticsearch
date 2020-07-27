@@ -58,6 +58,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
@@ -130,7 +131,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String[] modelIds = new String[]{model1, model2, model3};
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -147,7 +148,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -199,7 +200,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i%2];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -222,7 +223,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future3 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future3 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
@@ -243,7 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future1 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future1 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
@@ -257,7 +258,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future2 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future2 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
@@ -268,7 +269,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -295,7 +296,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
 
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model1, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -319,7 +320,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
-        PlainActionFuture<Model> future = new PlainActionFuture<>();
+        PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(model, future);
 
         try {
@@ -347,7 +348,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             "test-node",
             circuitBreaker);
 
-        PlainActionFuture<Model> future = new PlainActionFuture<>();
+        PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(model, future);
         try {
             future.get();
@@ -372,7 +373,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
 
         for(int i = 0; i < 3; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -396,7 +397,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
 
         for(int i = 0; i < 3; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForSearch(modelId, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -449,6 +450,89 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(circuitBreaker.getUsed(), equalTo(5L));
         });
+    }
+
+    public void testReferenceCounting() throws Exception {
+        String modelId = "test-reference-counting";
+        withTrainedModel(modelId, 1L);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker);
+
+        modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
+
+        PlainActionFuture<LocalModel> forPipeline = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, forPipeline);
+        final LocalModel model = forPipeline.get();
+        assertBusy(() -> assertEquals(2, model.getReferenceCount()));
+
+        PlainActionFuture<LocalModel> forSearch = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, forSearch);
+        forSearch.get();
+        assertBusy(() -> assertEquals(3, model.getReferenceCount()));
+
+        model.release();
+        assertBusy(() -> assertEquals(2, model.getReferenceCount()));
+
+        PlainActionFuture<LocalModel> forSearch2 = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, forSearch2);
+        forSearch2.get();
+        assertBusy(() -> assertEquals(3, model.getReferenceCount()));
+    }
+
+    public void testReferenceCountingForPipeline() throws Exception {
+        String modelId = "test-reference-counting-for-pipeline";
+        withTrainedModel(modelId, 1L);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker);
+
+        modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
+
+        PlainActionFuture<LocalModel> forPipeline = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, forPipeline);
+        final LocalModel model = forPipeline.get();
+        assertBusy(() -> assertEquals(2, model.getReferenceCount()));
+
+        PlainActionFuture<LocalModel> forPipeline2 = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, forPipeline2);
+        forPipeline2.get();
+        assertBusy(() -> assertEquals(3, model.getReferenceCount()));
+
+        // will cause the model to be evicted
+        modelLoadingService.clusterChanged(ingestChangedEvent());
+        assertBusy(() -> assertEquals(2, model.getReferenceCount()));
+    }
+
+    public void testReferenceCounting_ModelIsNotCached() throws ExecutionException, InterruptedException {
+        String modelId = "test-reference-counting-not-cached";
+        withTrainedModel(modelId, 1L);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker);
+
+        PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
+        modelLoadingService.getModelForPipeline(modelId, future);
+        LocalModel model = future.get();
+        assertEquals(1, model.getReferenceCount());
     }
 
     @SuppressWarnings("unchecked")
@@ -636,7 +720,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             return expectedModelIds.isEmpty();
         }
 
-        private synchronized void onModelLoaded(Model model) {
+        private synchronized void onModelLoaded(LocalModel model) {
             expectedModelIds.remove(model.getModelId());
         }
 
@@ -644,7 +728,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             fail(e.getMessage());
         }
 
-        ActionListener<Model> actionListener() {
+        ActionListener<LocalModel> actionListener() {
             return ActionListener.wrap(this::onModelLoaded, this::onFailure);
         }
     }

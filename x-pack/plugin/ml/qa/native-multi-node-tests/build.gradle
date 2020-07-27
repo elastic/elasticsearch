@@ -5,9 +5,10 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ml'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('ml'))
   testImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')
   testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: xpackModule('data-streams'))
 }
 
 // location for keys and certificates

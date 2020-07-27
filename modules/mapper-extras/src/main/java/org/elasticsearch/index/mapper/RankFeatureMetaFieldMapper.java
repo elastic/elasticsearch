@@ -82,16 +82,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
-        }
-
-        protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public RankFeatureMetaFieldType clone() {
-            return new RankFeatureMetaFieldType(this);
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

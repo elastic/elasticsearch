@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[wildcard]]
-=== Wildcard datatype
+=== Wildcard data type
 ++++
 <titleabbrev>Wildcard</titleabbrev>
 ++++

@@ -1,0 +1,267 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-complex-regression-model
+        body: >
+          {
+            "description": "super complex model for tests",
+            "input": {"field_names": ["avg_cost", "item"]},
+            "inference_config": {
+              "regression": {
+                "results_field": "regression-value",
+                "num_top_feature_importance_values": 2
+              }
+            },
+            "definition": {
+              "preprocessors" : [{
+                "one_hot_encoding": {
+                  "field": "product_type",
+                  "hot_map": {
+                    "TV": "type_tv",
+                    "VCR": "type_vcr",
+                    "Laptop": "type_laptop"
+                  }
+                }
+              }],
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "target_type": "regression",
+                  "trained_models": [
+                  {
+                    "tree": {
+                      "feature_names": [
+                        "avg_cost", "type_tv", "type_vcr", "type_laptop"
+                      ],
+                      "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12,
+                        "threshold": 38,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "leaf_value": 5.0
+                      },
+                      {
+                        "node_index": 2,
+                        "leaf_value": 2.0
+                      }
+                      ],
+                      "target_type": "regression"
+                    }
+                  }
+                  ]
+                }
+              }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              product:
+                type: keyword
+              cost:
+                type: integer
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "product": "TV", "cost": 300, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "TV", "cost": 400, "time": 1587501233000}
+          { "index": {} }
+          { "product": "VCR", "cost": 150, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "VCR", "cost": 180, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 15000, "time": 1587501233000 }
+
+---
+"Test pipeline regression simple":
+
+  - do:
+      search:
+        index: store
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "avg_cost_agg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  },
+                  "regression_agg": {
+                    "inference": {
+                      "model_id": "a-complex-regression-model",
+                      "inference_config": {
+                        "regression": {
+                          "results_field": "value"
+                        }
+                      },
+                      "buckets_path": {
+                        "avg_cost": "avg_cost_agg"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { aggregations.good.buckets.0.regression_agg.value: 2.0 }
+
+---
+"Test pipeline agg referencing a single bucket":
+
+  - do:
+      search:
+        index: store
+        body: |
+            {
+              "size": 0,
+              "query": {
+                "match_all": {}
+              },
+              "aggs": {
+                "date_histo": {
+                  "date_histogram": {
+                    "field": "time",
+                    "fixed_interval": "1d"
+                  },
+                  "aggs": {
+                    "good": {
+                      "terms": {
+                        "field": "product",
+                        "size": 10
+                      },
+                      "aggs": {
+                        "avg_cost_agg": {
+                          "avg": {
+                            "field": "cost"
+                          }
+                        }
+                      }
+                    },
+                    "regression_agg": {
+                      "inference": {
+                        "model_id": "a-complex-regression-model",
+                        "buckets_path": {
+                          "avg_cost": "good['TV']>avg_cost_agg",
+                          "product_type": "good['TV']"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+  - match: { aggregations.date_histo.buckets.0.regression_agg.value: 2.0 }
+
+---
+"Test all fields missing warning":
+
+  - do:
+      search:
+        index: store
+        body: |
+          {
+            "size": 0,
+            "query": { "match_all" : { } },
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "avg_cost_agg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  },
+                  "regression_agg" : {
+                    "inference": {
+                      "model_id": "a-complex-regression-model",
+                      "buckets_path": {
+                        "cost" : "avg_cost_agg"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { aggregations.good.buckets.0.regression_agg.warning: "Model [a-complex-regression-model] could not be inferred as all fields were missing" }
+
+---
+"Test setting results field is invalid":
+
+  - do:
+      catch: /action_request_validation_exception/
+      search:
+        index: store
+        body: |
+          {
+            "size": 0,
+            "query": { "match_all" : { } },
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "avg_cost_agg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  },
+                  "regression_agg" : {
+                    "inference": {
+                      "model_id": "a-complex-regression-model",
+                      "inference_config": {
+                        "regression": {
+                          "results_field": "banana"
+                        }
+                      },
+                      "buckets_path": {
+                        "cost" : "avg_cost_agg"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: setting option [results_field] to [banana] is not valid for inference aggregations;" }

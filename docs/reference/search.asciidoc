@@ -1,10 +1,10 @@
 [[search]]
 == Search APIs
 
-Most search APIs are <<search-multi-index,multi-index>>, with the
+Most search APIs support <<search-multi-index,multi-target syntax>>, with the
 exception of the <<search-explain>> endpoints.
 
-[float]
+[discrete]
 [[search-routing]]
 === Routing
 
@@ -18,9 +18,9 @@ the user name:
 --------------------------------------------------
 POST /twitter/_doc?routing=kimchy
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -32,18 +32,18 @@ only the relevant shard:
 --------------------------------------------------
 POST /twitter/_search?routing=kimchy
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "query_string" : {
-                    "query" : "some query string here"
-                }
-            },
-            "filter" : {
-                "term" : { "user" : "kimchy" }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "query_string": {
+          "query": "some query string here"
         }
+      },
+      "filter": {
+        "term": { "user": "kimchy" }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -52,7 +52,7 @@ The routing parameter can be multi valued represented as a comma
 separated string. This will result in hitting the relevant shards where
 the routing values match to.
 
-[float]
+[discrete]
 [[search-adaptive-replica]]
 === Adaptive Replica Selection
 
@@ -72,9 +72,9 @@ This can be turned off by changing the dynamic cluster setting
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient": {
-        "cluster.routing.use_adaptive_replica_selection": false
-    }
+  "transient": {
+    "cluster.routing.use_adaptive_replica_selection": false
+  }
 }
 --------------------------------------------------
 
@@ -82,7 +82,7 @@ If adaptive replica selection is turned off, searches are sent to the
 index/indices shards in a round robin fashion between all copies of the data
 (primaries and replicas).
 
-[float]
+[discrete]
 [[stats-groups]]
 === Stats Groups
 
@@ -96,15 +96,15 @@ the request with two different groups:
 --------------------------------------------------
 POST /_search
 {
-    "query" : {
-        "match_all" : {}
-    },
-    "stats" : ["group1", "group2"]
+  "query" : {
+    "match_all" : {}
+  },
+  "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[global-search-timeout]]
 === Global Search Timeout
 
@@ -121,7 +121,7 @@ The setting key is `search.default_search_timeout` and can be set using the
 <<cluster-update-settings>> endpoints. The default value is no global timeout.
 Setting this value to `-1` resets the global search timeout to no timeout.
 
-[float]
+[discrete]
 [[global-search-cancellation]]
 === Search Cancellation
 
@@ -131,7 +131,7 @@ perform the request is closed by the client. It is fundamental that the http
 client sending requests closes connections whenever requests time out or are
 aborted.
 
-[float]
+[discrete]
 [[search-concurrency-and-parallelism]]
 === Search concurrency and parallelism
 
@@ -168,15 +168,11 @@ include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
 
-ifdef::permanently-unreleased-branch[]
-
 include::eql/eql-search-api.asciidoc[]
 
 include::eql/get-async-eql-search-api.asciidoc[]
 
 include::eql/delete-async-eql-search-api.asciidoc[]
-
-endif::[]
 
 include::search/count.asciidoc[]
 

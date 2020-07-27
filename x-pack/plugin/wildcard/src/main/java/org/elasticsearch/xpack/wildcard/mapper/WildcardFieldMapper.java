@@ -46,7 +46,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -55,14 +54,15 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -145,11 +145,6 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder similarity(SimilarityProvider similarity) {
-            throw new MapperParsingException("The field [" + name + "] cannot have custom similarities");
-        }
-
-        @Override
         public Builder index(boolean index) {
             if (index == false) {
                 throw new MapperParsingException("The field [" + name + "] cannot have index = false");
@@ -175,7 +170,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
             return new WildcardFieldMapper(
-                    name, fieldType, new WildcardFieldType(buildFullName(context), meta), ignoreAbove,
+                    name, fieldType, new WildcardFieldType(buildFullName(context), fieldType, meta), ignoreAbove,
                     multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
@@ -215,21 +210,11 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, meta);
+        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, true,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
-
-        protected WildcardFieldType(WildcardFieldType ref) {
-            super(ref);
-        }
-
-        public WildcardFieldType clone() {
-            WildcardFieldType result = new WildcardFieldType(this);
-            return result;
-        }
-
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
@@ -855,6 +840,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new DocValuesFieldExistsQuery(name());
         }
@@ -882,12 +873,15 @@ public class WildcardFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
-
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new StringBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name(), CoreValuesSourceType.BYTES);
-                }};
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
+                    return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
+                }
+            };
         }
 
      }

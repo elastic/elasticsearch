@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -35,7 +34,6 @@ public class HighlighterContext {
     public final SearchContextHighlight highlight;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
-    public final FieldType luceneFieldType;
 
     public HighlighterContext(String fieldName,
                               SearchContextHighlight.Field field,
@@ -44,7 +42,7 @@ public class HighlighterContext {
                               QueryShardContext context,
                               SearchContextHighlight highlight,
                               FetchSubPhase.HitContext hitContext,
-                              Query query, FieldType luceneFieldType) {
+                              Query query) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
@@ -53,6 +51,5 @@ public class HighlighterContext {
         this.highlight = highlight;
         this.hitContext = hitContext;
         this.query = query;
-        this.luceneFieldType = luceneFieldType;
     }
 }

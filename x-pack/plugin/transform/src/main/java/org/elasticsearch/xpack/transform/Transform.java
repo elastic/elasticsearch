@@ -151,17 +151,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     /**
      * Setting whether transform (the coordinator task) can run on this node.
      */
-    public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
+    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
         settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
+        Property.Deprecated,
         Property.NodeScope
     );
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return TRANSFORM_ENABLED_NODE;
+        }
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return super.isEnabledByDefault(settings) && DiscoveryNode.isDataNode(settings);
         }
 
     };
@@ -335,7 +341,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         Settings.Builder additionalSettings = Settings.builder();
 
-        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
+        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
 
         return additionalSettings.build();
     }

@@ -21,16 +21,16 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 --------------------------------------------------
 PUT /reports
 {
-    "mappings": {
-        "properties": {
-            "force": {
-                "type": "keyword"
-            },
-            "crime_type": {
-                "type": "keyword"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "force": {
+        "type": "keyword"
+      },
+      "crime_type": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
 POST /reports/_bulk?refresh
@@ -67,14 +67,14 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "terms" : {"force" : [ "British Transport Police" ]}
-    },
-    "aggregations" : {
-        "significant_crime_types" : {
-            "significant_terms" : { "field" : "crime_type" }
-        }
+  "query": {
+    "terms": { "force": [ "British Transport Police" ] }
+  },
+  "aggregations": {
+    "significant_crime_types": {
+      "significant_terms": { "field": "crime_type" }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -84,22 +84,22 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "significant_crime_types" : {
-            "doc_count": 47347,
-            "bg_count": 5064554,
-            "buckets" : [
-                {
-                    "key": "Bicycle theft",
-                    "doc_count": 3640,
-                    "score": 0.371235374214817,
-                    "bg_count": 66799
-                }
-                ...
-            ]
+  ...
+  "aggregations": {
+    "significant_crime_types": {
+      "doc_count": 47347,
+      "bg_count": 5064554,
+      "buckets": [
+        {
+          "key": "Bicycle theft",
+          "doc_count": 3640,
+          "score": 0.371235374214817,
+          "bg_count": 66799
         }
+              ...
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -127,16 +127,16 @@ Example using a parent aggregation for segmentation:
 --------------------------------------------------
 GET /_search
 {
-    "aggregations": {
-        "forces": {
-            "terms": {"field": "force"},
-            "aggregations": {
-                "significant_crime_types": {
-                    "significant_terms": {"field": "crime_type"}
-                }
-            }
+  "aggregations": {
+    "forces": {
+      "terms": { "field": "force" },
+      "aggregations": {
+        "significant_crime_types": {
+          "significant_terms": { "field": "crime_type" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -204,19 +204,19 @@ area to identify unusual hot-spots of a particular crime type:
 --------------------------------------------------
 GET /_search
 {
-    "aggs": {
-        "hotspots": {
-            "geohash_grid": {
-                "field": "location",
-                "precision": 5
-            },
-            "aggs": {
-                "significant_crime_types": {
-                    "significant_terms": {"field": "crime_type"}
-                }
-            }
+  "aggs": {
+    "hotspots": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 5
+      },
+      "aggs": {
+        "significant_crime_types": {
+          "significant_terms": { "field": "crime_type" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -464,14 +464,14 @@ It is possible to only return terms that match more than a configured number of 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "significant_terms" : {
-                "field" : "tag",
-                "min_doc_count": 10
-            }
-        }
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tag",
+        "min_doc_count": 10
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -507,21 +507,21 @@ context:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match" : {
-            "city" : "madrid"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_terms" : {
-                "field" : "tag",
-                "background_filter": {
-                	"term" : { "text" : "spain"}
-                }
-            }
-        }
+  "query": {
+    "match": {
+      "city": "madrid"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tag",
+        "background_filter": {
+          "term": { "text": "spain" }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -565,14 +565,14 @@ ordinals.
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "significant_terms" : {
-                 "field" : "tags",
-                 "execution_hint": "map" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tags",
+        "execution_hint": "map" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 

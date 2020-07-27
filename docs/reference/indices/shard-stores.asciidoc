@@ -4,8 +4,10 @@
 <titleabbrev>Index shard stores</titleabbrev>
 ++++
 
-Returns store information
+Retrieves store information
 about replica shards in one or more indices.
+For data streams, the API retrieves store
+information for the stream's backing indices.
 
 [source,console]
 ----
@@ -17,7 +19,7 @@ GET /twitter/_shard_stores
 [[index-shard-stores-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_shard_stores`
+`GET /<target>/_shard_stores`
 
 `GET /_shard_stores`
 
@@ -25,10 +27,7 @@ GET /twitter/_shard_stores
 [[index-shard-stores-api-desc]]
 ==== {api-description-title}
 
-Use the index shard stores API to return store information
-about replica shards in one or more indices.
-
-Returned information includes:
+The index shard stores API returns the following information:
 
 * The node on which each replica shard exists
 * Allocation ID for each replica shard
@@ -45,11 +44,13 @@ or have one or more unassigned replica shards.
 [[index-shard-stores-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
-To retrieve information for all indices in the cluster,
-use a value of `_all` or `*`
-or omit this parameter.
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[index-shard-stores-api-query-params]]
@@ -95,7 +96,7 @@ Defaults to `yellow,red`.
 
 
 [[index-shard-stores-api-single-ex]]
-===== Get shard store information for a specific index
+===== Get shard store information for a specific data stream or index
 
 [source,console]
 ----
@@ -105,7 +106,7 @@ GET /test/_shard_stores
 
 
 [[index-shard-stores-api-multi-ex]]
-===== Get shard store information for several indices
+===== Get shard store information for several data streams and indices
 
 [source,console]
 ----
@@ -115,7 +116,7 @@ GET /test1,test2/_shard_stores
 
 
 [[index-shard-stores-api-all-ex]]
-===== Get shard store information for all indices
+===== Get shard store information for all data streams and indices
 
 [source,console]
 ----

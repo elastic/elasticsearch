@@ -179,9 +179,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     public void testCcrAndIlmWithRollover() throws Exception {
-        String alias = "metrics";
-        String indexName = "metrics-000001";
-        String nextIndexName = "metrics-000002";
+        String alias = "mymetrics";
+        String indexName = "mymetrics-000001";
+        String nextIndexName = "mymetrics-000002";
         String policyName = "rollover-test";
 
         if ("leader".equals(targetCluster)) {
@@ -194,7 +194,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 .put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
-            templateRequest.setJsonEntity("{\"index_patterns\":  [\"metrics-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}");
+            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"settings\":  " +
+                Strings.toString(indexSettings) + "}");
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
@@ -202,7 +203,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set up an auto-follow pattern
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
-            createAutoFollowRequest.setJsonEntity("{\"leader_index_patterns\": [\"metrics-*\"], " +
+            createAutoFollowRequest.setJsonEntity("{\"leader_index_patterns\": [\"mymetrics-*\"], " +
                 "\"remote_cluster\": \"leader_cluster\", \"read_poll_timeout\": \"1000ms\"}");
             assertOK(client().performRequest(createAutoFollowRequest));
 

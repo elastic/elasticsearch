@@ -7,9 +7,9 @@ Specifies search criteria as request body parameters.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -36,8 +36,8 @@ The search request can be executed with a search DSL, which includes the
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices,
-and index aliases used to limit the request.
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
 +
 To search all data streams and indices in a cluster, omit this parameter or use
 `_all` or `*`.
@@ -112,7 +112,10 @@ include::request/docvalue-fields.asciidoc[]
 
 include::request/collapse.asciidoc[]
 
-include::request/highlighting.asciidoc[]
+[[request-body-search-highlighting]]
+==== Highlighting
+
+See <<highlighting>>.
 
 include::request/index-boost.asciidoc[]
 
@@ -136,7 +139,10 @@ include::request/search-after.asciidoc[]
 
 include::request/search-type.asciidoc[]
 
-include::request/sort.asciidoc[]
+[[request-body-search-sort]]
+==== Sort
+
+See <<sort-search-results>>.
 
 include::request/source-filtering.asciidoc[]
 

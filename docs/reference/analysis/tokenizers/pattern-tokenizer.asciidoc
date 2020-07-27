@@ -1,5 +1,8 @@
 [[analysis-pattern-tokenizer]]
-=== Pattern Tokenizer
+=== Pattern tokenizer
+++++
+<titleabbrev>Pattern</titleabbrev>
+++++
 
 The `pattern` tokenizer uses a regular expression to either split text into
 terms whenever it matches a word separator, or to capture matching text as
@@ -22,7 +25,7 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 
 ========================================
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -96,7 +99,7 @@ The above sentence would produce the following terms:
 [ The, foo_bar_size, s, default, is, 5 ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern` tokenizer accepts the following parameters:
@@ -115,7 +118,7 @@ The `pattern` tokenizer accepts the following parameters:
 
     Which capture group to extract as tokens.  Defaults to `-1` (split).
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern` tokenizer to break text into

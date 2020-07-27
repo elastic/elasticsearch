@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[dense-vector]]
-=== Dense vector datatype
+=== Dense vector data type
 ++++
 <titleabbrev>Dense vector</titleabbrev>
 ++++

@@ -9,13 +9,13 @@ Example:
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_point"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -34,35 +34,35 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "centroid" : {
-            "geo_centroid" : {
-                "field" : "location" <1>
-            }
-        }
+  "aggs": {
+    "centroid": {
+      "geo_centroid": {
+        "field": "location" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 
 <1> The `geo_centroid` aggregation specifies the field to use for computing the centroid. (NOTE: field must be a <<geo-point>> type)
 
-The above aggregation demonstrates how one would compute the centroid of the location field for all documents with a crime type of burglary
+The above aggregation demonstrates how one would compute the centroid of the location field for all documents with a crime type of burglary.
 
 The response for the above aggregation:
 
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "centroid": {
-            "location": {
-                "lat": 51.00982965203002,
-                "lon": 3.9662131341174245
-            },
-            "count": 6
-        }
+  ...
+  "aggregations": {
+    "centroid": {
+      "location": {
+        "lat": 51.00982965203002,
+        "lon": 3.9662131341174245
+      },
+      "count": 6
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -75,16 +75,16 @@ Example:
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "cities" : {
-            "terms" : { "field" : "city.keyword" },
-            "aggs" : {
-                "centroid" : {
-                    "geo_centroid" : { "field" : "location" }
-                }
-            }
+  "aggs": {
+    "cities": {
+      "terms": { "field": "city.keyword" },
+      "aggs": {
+        "centroid": {
+          "geo_centroid": { "field": "location" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -98,48 +98,48 @@ The response for the above aggregation:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "cities": {
-            "sum_other_doc_count": 0,
-            "doc_count_error_upper_bound": 0,
-            "buckets": [
-               {
-                   "key": "Amsterdam",
-                   "doc_count": 3,
-                   "centroid": {
-                      "location": {
-                         "lat": 52.371655656024814,
-                         "lon": 4.909563297405839
-                      },
-                      "count": 3
-                   }
-               },
-               {
-                   "key": "Paris",
-                   "doc_count": 2,
-                   "centroid": {
-                      "location": {
-                         "lat": 48.86055548675358,
-                         "lon": 2.3316944623366
-                      },
-                      "count": 2
-                   }
-                },
-                {
-                    "key": "Antwerp",
-                    "doc_count": 1,
-                    "centroid": {
-                       "location": {
-                          "lat": 51.22289997059852,
-                          "lon": 4.40519998781383
-                       },
-                       "count": 1
-                    }
-                 }
-            ]
+  ...
+  "aggregations": {
+    "cities": {
+      "sum_other_doc_count": 0,
+      "doc_count_error_upper_bound": 0,
+      "buckets": [
+        {
+          "key": "Amsterdam",
+          "doc_count": 3,
+          "centroid": {
+            "location": {
+              "lat": 52.371655656024814,
+              "lon": 4.909563297405839
+            },
+            "count": 3
+          }
+        },
+        {
+          "key": "Paris",
+          "doc_count": 2,
+          "centroid": {
+            "location": {
+              "lat": 48.86055548675358,
+              "lon": 2.3316944623366
+            },
+            "count": 2
+          }
+        },
+        {
+          "key": "Antwerp",
+          "doc_count": 1,
+          "centroid": {
+            "location": {
+              "lat": 51.22289997059852,
+              "lon": 4.40519998781383
+            },
+            "count": 1
+          }
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -179,13 +179,13 @@ Example:
 --------------------------------------------------
 PUT /places
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "geo_shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 POST /places/_bulk?refresh
@@ -196,13 +196,13 @@ POST /places/_bulk?refresh
 
 POST /places/_search?size=0
 {
-    "aggs" : {
-        "centroid" : {
-            "geo_centroid" : {
-                "field" : "geometry"
-            }
-        }
+  "aggs": {
+    "centroid": {
+      "geo_centroid": {
+        "field": "geometry"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST
@@ -210,16 +210,16 @@ POST /places/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "centroid": {
-            "location": {
-                "lat": 52.39296147599816,
-                "lon": 4.967404240742326
-            },
-            "count": 2
-        }
+  ...
+  "aggregations": {
+    "centroid": {
+      "location": {
+        "lat": 52.39296147599816,
+        "lon": 4.967404240742326
+      },
+      "count": 2
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

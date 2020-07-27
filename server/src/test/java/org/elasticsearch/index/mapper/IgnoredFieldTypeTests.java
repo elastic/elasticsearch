@@ -26,22 +26,8 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Map;
-
-public class IgnoredFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    public void testEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(IgnoredFieldMapper.IgnoredFieldType.INSTANCE,
-            IgnoredFieldMapper.IgnoredFieldType::clone);
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
-    }
+public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;

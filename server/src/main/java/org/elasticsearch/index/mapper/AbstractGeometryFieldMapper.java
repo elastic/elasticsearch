@@ -172,7 +172,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        @SuppressWarnings("rawtypes")
         public T parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
@@ -186,11 +185,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
-        }
-
-        protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
-            super(ref);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
@@ -271,8 +266,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType)mappedFieldType;
+    @SuppressWarnings("unchecked")
+    public AbstractGeometryFieldType<Parsed, Processed> fieldType() {
+        return (AbstractGeometryFieldType<Parsed, Processed>) mappedFieldType;
     }
 
     @Override
@@ -284,18 +280,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
     protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
 
-    @Override
-    public final boolean parsesArrayValue() {
-        return true;
-    }
-
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
-        AbstractGeometryFieldMapper.AbstractGeometryFieldType mappedFieldType = fieldType();
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
 
-        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
-        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
+        Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
+        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {

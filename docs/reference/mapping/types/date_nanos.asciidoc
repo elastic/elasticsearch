@@ -1,11 +1,11 @@
 [[date_nanos]]
-=== Date nanoseconds datatype
+=== Date nanoseconds data type
 ++++
 <titleabbrev>Date nanoseconds</titleabbrev>
 ++++
 
-This datatype is an addition to the `date` datatype. However there is an
-important distinction between the two. The existing `date` datatype stores
+This data type is an addition to the `date` data type. However there is an
+important distinction between the two. The existing `date` data type stores
 dates in millisecond resolution. The `date_nanos` data type stores dates
 in nanosecond resolution, which limits its range of dates from roughly
 1970 to 2262, as dates are still stored as a long representing nanoseconds
@@ -24,7 +24,9 @@ This means that it will accept dates with optional timestamps, which conform
 to the formats supported by
 <<strict-date-time,`strict_date_optional_time`>> including up to nine second
 fractionals or milliseconds-since-the-epoch (thus losing precision on the
-nano second part).
+nano second part). Using <<strict-date-time,`strict_date_optional_time`>> will 
+format the result up to only three second fractionals. To
+print and parse up to nine digits of resolution, use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>>.
 
 For instance:
 
@@ -96,4 +98,3 @@ same mapping parameters than with the `date` field can be used.
 
 Aggregations are still on millisecond resolution, even when using a `date_nanos`
 field. This limitation also affects <<transforms,{transforms}>>.
-

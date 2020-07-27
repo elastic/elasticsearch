@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.junit.Before;
@@ -297,7 +297,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         Job harry = putJob(createJob("harry", Collections.singletonList("harry-group")));
         Job harryJnr = putJob(createJob("harry-jnr", Collections.singletonList("harry-group")));
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         // Job Ids
         SortedSet<String> expandedIds = blockingCall(actionListener ->
@@ -369,7 +369,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         Job bar2 = putJob(createJob("bar-2", Collections.singletonList("bar")));
         Job nbar = putJob(createJob("nbar", Collections.singletonList("bar")));
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         // Test job IDs only
         SortedSet<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*",
@@ -417,7 +417,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         Boolean marked = blockingCall(actionListener -> jobConfigProvider.markJobAsDeleting("foo-deleting", actionListener));
         assertTrue(marked);
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         SortedSet<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*",
             true,
@@ -448,7 +448,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         putJob(createJob("foo-1", null));
         putJob(createJob("bar", null));
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(MlTasks.jobTaskId("foo-2"),
@@ -480,7 +480,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         putJob(createJob("tomato", Arrays.asList("fruit", "veg")));
         putJob(createJob("unrelated", Collections.emptyList()));
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         SortedSet<String> expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandGroupIds(Collections.singletonList("fruit"), actionListener));
@@ -517,7 +517,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         jobWithRules2 = addCustomRule(jobWithRules2, rule);
         putJob(jobWithRules2);
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         List<Job> foundJobs = blockingCall(listener -> jobConfigProvider.findJobsWithCustomRules(listener));
 
@@ -568,7 +568,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         String jobId = "mark-as-deleting-job";
         putJob(createJob(jobId, Collections.emptyList()));
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         exceptionHolder.set(null);
         blockingCall(listener -> jobConfigProvider.markJobAsDeleting(jobId, listener), responseHolder, exceptionHolder);

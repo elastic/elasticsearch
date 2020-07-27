@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -205,17 +206,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final class JoinFieldType extends StringFieldType {
         public JoinFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, meta);
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected JoinFieldType(JoinFieldType ref) {
-            super(ref);
-        }
-
-        public JoinFieldType clone() {
-            return new JoinFieldType(this);
         }
 
         @Override
@@ -226,7 +218,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

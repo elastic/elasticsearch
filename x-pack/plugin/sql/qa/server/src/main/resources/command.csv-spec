@@ -19,14 +19,16 @@ MAX              |AGGREGATE
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
 KURTOSIS         |AGGREGATE
-MAD              |AGGREGATE      
-PERCENTILE       |AGGREGATE      
-PERCENTILE_RANK  |AGGREGATE      
-SKEWNESS         |AGGREGATE      
-STDDEV_POP       |AGGREGATE      
-SUM_OF_SQUARES   |AGGREGATE      
-VAR_POP          |AGGREGATE      
-HISTOGRAM        |GROUPING        
+MAD              |AGGREGATE
+PERCENTILE       |AGGREGATE
+PERCENTILE_RANK  |AGGREGATE
+SKEWNESS         |AGGREGATE
+STDDEV_POP       |AGGREGATE
+STDDEV_SAMP      |AGGREGATE
+SUM_OF_SQUARES   |AGGREGATE
+VAR_POP          |AGGREGATE
+VAR_SAMP         |AGGREGATE
+HISTOGRAM        |GROUPING
 CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
@@ -49,6 +51,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -281,7 +284,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |constant_keyword
+extra_gender        |VARCHAR        |keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword
@@ -290,7 +293,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
-null_constant       |VARCHAR        |constant_keyword
+null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
 ;
 
@@ -310,7 +313,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |constant_keyword
+extra_gender        |VARCHAR        |keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword
@@ -319,7 +322,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
-null_constant       |VARCHAR        |constant_keyword
+null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
 ;
 

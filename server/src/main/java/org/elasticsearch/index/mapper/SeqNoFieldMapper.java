@@ -121,16 +121,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
-            super(NAME, true, true, Collections.emptyMap());
-        }
-
-        protected SeqNoFieldType(SeqNoFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new SeqNoFieldType(this);
+            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -204,7 +195,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
 
     }

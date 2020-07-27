@@ -189,13 +189,22 @@ process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
-stringContains
+stringContains-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
-"params":{"v0":"process_name","v1":"foo"}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":true}
 ;
+
+stringContains-caseInsensitive
+process where stringContains(process_name, "foo")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":false}
+;
+
 
 stringFunction
 process where string(pid) == "123"
@@ -524,4 +533,28 @@ process where subtract(43, serial_event_id) == 41
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
 "params":{"v0":43,"v1":"serial_event_id","v2":41}
+;
+
+eventQueryDefaultLimit
+process where true
+;
+"size":10,
+;
+
+eventQueryWithHead
+process where true | head 5
+;
+"size":5,
+;
+
+eventQueryWithTail
+process where true | tail 5
+;
+"size":5,
+;
+
+eventQueryWithHeadAndTail
+process where true | tail 10 | head 7
+;
+"size":7,
 ;

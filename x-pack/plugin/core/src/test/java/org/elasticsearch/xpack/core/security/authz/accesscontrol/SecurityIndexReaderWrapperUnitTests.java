@@ -66,7 +66,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
@@ -115,7 +115,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     }
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         securityIndexReaderWrapper =
                 new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);

@@ -36,12 +36,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class EndsWith extends CaseSensitiveScalarFunction {
 
-    private final Expression source;
+    private final Expression input;
     private final Expression pattern;
 
-    public EndsWith(Source source, Expression src, Expression pattern, Configuration configuration) {
-        super(source, Arrays.asList(src, pattern), configuration);
-        this.source = src;
+    public EndsWith(Source source, Expression input, Expression pattern, Configuration configuration) {
+        super(source, Arrays.asList(input, pattern), configuration);
+        this.input = input;
         this.pattern = pattern;
     }
 
@@ -56,7 +56,7 @@ public class EndsWith extends CaseSensitiveScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -66,43 +66,43 @@ public class EndsWith extends CaseSensitiveScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new EndsWithFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(pattern), isCaseSensitive());
+        return new EndsWithFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern), isCaseSensitive());
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && pattern.foldable();
+        return input.foldable() && pattern.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), pattern.fold(), isCaseSensitive());
+        return doProcess(input.fold(), pattern.fold(), isCaseSensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, EndsWith::new, source, pattern, configuration());
+        return NodeInfo.create(this, EndsWith::new, input, pattern, configuration());
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate patternScript = asScript(pattern);
 
-        return asScriptFrom(sourceScript, patternScript);
+        return asScriptFrom(inputScript, patternScript);
     }
     
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate patternScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "endsWith",
-                sourceScript.template(),
+                inputScript.template(),
                 patternScript.template(),
                 "{}"),
                 paramsBuilder()
-                        .script(sourceScript.params())
-                        .script(patternScript.params())
-                        .variable(isCaseSensitive())
-                        .build(), dataType());
+                    .script(inputScript.params())
+                    .script(patternScript.params())
+                    .variable(isCaseSensitive())
+                    .build(), dataType());
     }
 
     @Override

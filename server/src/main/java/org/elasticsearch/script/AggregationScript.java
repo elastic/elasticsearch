@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
@@ -40,8 +39,7 @@ public abstract class AggregationScript implements ScorerAware {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate("aggregation-script_doc",

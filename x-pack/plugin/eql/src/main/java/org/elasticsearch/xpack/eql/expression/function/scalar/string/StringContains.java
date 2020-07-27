@@ -6,13 +6,15 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -32,12 +34,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * stringContains(a, b)
  * Returns true if b is a substring of a
  */
-public class StringContains extends ScalarFunction {
+public class StringContains extends CaseSensitiveScalarFunction {
 
     private final Expression string, substring;
 
-    public StringContains(Source source, Expression string, Expression substring) {
-        super(source, Arrays.asList(string, substring));
+    public StringContains(Source source, Expression string, Expression substring, Configuration configuration) {
+        super(source, Arrays.asList(string, substring), configuration);
         this.string = string;
         this.substring = substring;
     }
@@ -59,7 +61,7 @@ public class StringContains extends ScalarFunction {
     @Override
     protected Pipe makePipe() {
         return new StringContainsFunctionPipe(source(), this,
-                Expressions.pipe(string), Expressions.pipe(substring));
+                Expressions.pipe(string), Expressions.pipe(substring), isCaseSensitive());
     }
 
     @Override
@@ -69,12 +71,12 @@ public class StringContains extends ScalarFunction {
 
     @Override
     public Object fold() {
-        return doProcess(string.fold(), substring.fold());
+        return doProcess(string.fold(), substring.fold(), isCaseSensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StringContains::new, string, substring);
+        return NodeInfo.create(this, StringContains::new, string, substring, eqlConfiguration());
     }
 
     @Override
@@ -83,14 +85,16 @@ public class StringContains extends ScalarFunction {
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate stringScript, ScriptTemplate substringScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s)"),
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "stringContains",
                 stringScript.template(),
-                substringScript.template()),
+                substringScript.template(),
+                "{}"),
                 paramsBuilder()
-                        .script(stringScript.params())
-                        .script(substringScript.params())
-                        .build(), dataType());
+                    .script(stringScript.params())
+                    .script(substringScript.params())
+                    .variable(isCaseSensitive())
+                    .build(), dataType());
     }
 
     @Override
@@ -111,6 +115,15 @@ public class StringContains extends ScalarFunction {
             throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
 
-        return new StringContains(source(), newChildren.get(0), newChildren.get(1));
+        return new StringContains(source(), newChildren.get(0), newChildren.get(1), eqlConfiguration());
+    }
+
+    public EqlConfiguration eqlConfiguration() {
+        return (EqlConfiguration) configuration();
+    }
+
+    @Override
+    public boolean isCaseSensitive() {
+        return eqlConfiguration().isCaseSensitive();
     }
 }

@@ -231,6 +231,17 @@ Total size of all shards assigned to selected nodes.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
+
+`reserved`::
+(<<byte-units,byte value>>)
+A prediction of how much larger the shard stores will eventually grow due to
+ongoing peer recoveries, restoring snapshots, and similar activities.
+
+`reserved_in_bytes`::
+(integer)
+A prediction, in bytes, of how much larger the shard stores will eventually
+grow due to ongoing peer recoveries, restoring snapshots, and similar
+activities.
 =====
 
 `fielddata`::
@@ -456,7 +467,7 @@ Contains statistics about <<mapping,field mappings>> in selected nodes.
 =====
 `field_types`::
 (array of objects)
-Contains statistics about <<mapping-types,field datatypes>> used in selected
+Contains statistics about <<mapping-types,field data types>> used in selected
 nodes.
 +
 .Properties of `field_types` objects
@@ -464,15 +475,15 @@ nodes.
 ======
 `name`::
 (string)
-Field datatype used in selected nodes.
+Field data type used in selected nodes.
 
 `count`::
 (integer)
-Number of fields mapped to the field datatype in selected nodes.
+Number of fields mapped to the field data type in selected nodes.
 
 `index_count`::
 (integer)
-Number of indices containing a mapping of the field datatype in selected nodes.
+Number of indices containing a mapping of the field data type in selected nodes.
 ======
 =====
 
@@ -1135,7 +1146,9 @@ The API returns the following response:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684
+         "size_in_bytes": 16684,
+         "reserved": "0b",
+         "reserved_in_bytes": 0
       },
       "fielddata": {
          "memory_size": "0b",

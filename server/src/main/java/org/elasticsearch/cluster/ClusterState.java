@@ -214,6 +214,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return (T) customs.get(type);
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Custom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
+
     public ClusterName getClusterName() {
         return this.clusterName;
     }

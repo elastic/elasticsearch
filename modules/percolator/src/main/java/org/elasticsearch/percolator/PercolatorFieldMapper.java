@@ -66,6 +66,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -154,10 +155,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
-            builder.docValues(true);
-            builder.indexOptions(IndexOptions.NONE);
-            builder.store(false);
+            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
             return builder.build(context);
         }
 
@@ -198,22 +196,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText;
 
         PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, meta);
-        }
-
-        PercolatorFieldType(PercolatorFieldType ref) {
-            super(ref);
-            queryTermsField = ref.queryTermsField;
-            extractionResultField = ref.extractionResultField;
-            queryBuilderField = ref.queryBuilderField;
-            rangeField = ref.rangeField;
-            minimumShouldMatchField = ref.minimumShouldMatchField;
-            mapUnmappedFieldsAsText = ref.mapUnmappedFieldsAsText;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new PercolatorFieldType(this);
+            super(name, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -399,6 +382,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     private static final FieldType INDEXED_KEYWORD = new FieldType();
     static {
         INDEXED_KEYWORD.setTokenized(false);
+        INDEXED_KEYWORD.setOmitNorms(true);
         INDEXED_KEYWORD.setIndexOptions(IndexOptions.DOCS);
         INDEXED_KEYWORD.freeze();
     }

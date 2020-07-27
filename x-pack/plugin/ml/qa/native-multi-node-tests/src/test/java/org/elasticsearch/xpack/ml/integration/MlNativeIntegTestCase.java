@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -36,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -64,6 +70,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 
@@ -84,6 +91,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -112,7 +120,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             // This is to reduce log spam
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            DataStreamsPlugin.class);
     }
 
     @Override
@@ -168,6 +177,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected void cleanUp() {
         setUpgradeModeTo(false);
+        deleteAllDataStreams();
         cleanUpResources();
         waitForPendingTasks();
     }
@@ -176,7 +186,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     protected Set<String> excludeTemplates() {
         return new HashSet<>(Arrays.asList(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlMetaIndex.INDEX_NAME,
+            MlMetaIndex.indexName(),
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobResultsIndexPrefix(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
@@ -292,6 +302,28 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 }
             }
         }
+    }
+
+    protected static void createDataStreamAndTemplate(String dataStreamName, String mapping) throws IOException {
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
+                .indexTemplate(new ComposableIndexTemplate(Collections.singletonList(dataStreamName),
+                    new Template(null, new CompressedXContent(mapping), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
+            .actionGet();
+        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+    }
+
+    protected static void deleteAllDataStreams() {
+        AcknowledgedResponse response = client().execute(
+            DeleteDataStreamAction.INSTANCE,
+            new DeleteDataStreamAction.Request(new String[]{"*"})
+        ).actionGet();
+        assertAcked(response);
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

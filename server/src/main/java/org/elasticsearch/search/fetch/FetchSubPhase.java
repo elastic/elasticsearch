@@ -81,6 +81,8 @@ public interface FetchSubPhase {
      */
     default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
 
-
+    /**
+     * Executes the hits level phase (note, hits are sorted by doc ids).
+     */
     default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
 }

@@ -157,6 +157,11 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return null;
         }
 
+        @Override
+        public boolean includeDataStreams() {
+            return false;
+        }
+
     }
 
 }

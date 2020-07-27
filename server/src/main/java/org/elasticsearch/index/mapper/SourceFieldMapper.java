@@ -149,16 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public static final SourceFieldType INSTANCE = new SourceFieldType();
 
         private SourceFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
-        }
-
-        protected SourceFieldType(SourceFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new SourceFieldType(this);
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

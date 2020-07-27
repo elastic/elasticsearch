@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -77,17 +78,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
         private final String joinField;
 
         MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
-        }
-
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-            this.joinField = ref.joinField;
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
         }
 
         @Override
@@ -98,7 +90,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

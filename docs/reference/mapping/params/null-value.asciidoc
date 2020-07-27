@@ -46,7 +46,7 @@ GET my_index/_search
 <2> An empty array does not contain an explicit `null`, and so won't be replaced with the `null_value`.
 <3> A query for `NULL` returns document 1, but not document 2.
 
-IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
+IMPORTANT: The `null_value` needs to be the same data type as the field.  For
 instance, a `long` field cannot have a string `null_value`.
 
 NOTE: The `null_value` only influences how data is indexed, it doesn't modify

@@ -19,9 +19,6 @@ teardown:
 
 ---
 "Test that remote indices are maintained when we aggregate on _index":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
 
   - do:
       bulk:

@@ -178,16 +178,9 @@ public class MetadataUpdateSettingsService {
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_BLOCK,
-                    IndexMetadata.INDEX_READ_ONLY_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_METADATA_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_METADATA_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_WRITE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_SETTING, openSettings);
+                for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
+                    maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                }
 
                 if (!openIndices.isEmpty()) {
                     for (Index index : openIndices) {

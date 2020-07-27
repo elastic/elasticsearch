@@ -146,7 +146,7 @@ The following <<indices-create-index,create index API>> request uses the
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -357,7 +357,7 @@ filter that uses the following rules:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

@@ -46,19 +46,19 @@ relevance `_score` of each document:
 
 [source,console]
 -------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "function_score": {
@@ -90,12 +90,12 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,console]
 -------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "cost_price": 100
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "sales_price": {
@@ -167,7 +167,7 @@ For instance:
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -181,13 +181,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "first_name": "Barry",
   "last_name": "White"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "full_name": {
@@ -210,7 +210,7 @@ _Stored fields_ -- fields explicitly marked as
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -226,13 +226,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "full_name": "Alice Ball",
   "title": "Professor"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "name_with_title": {

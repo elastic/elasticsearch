@@ -18,7 +18,7 @@ If the following mapping configures the `percolator` field type for the
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -38,7 +38,7 @@ Then you can index a query:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/match_value
+PUT my-index-000001/_doc/match_value
 {
   "query": {
     "match": {

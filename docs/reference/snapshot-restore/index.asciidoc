@@ -47,7 +47,7 @@ cluster is by using the snapshot and restore functionality.
 
 // end::backup-warning[]
 
-[float]
+[discrete]
 [[snapshot-restore-version-compatibility]]
 === Version compatibility
 

@@ -118,7 +118,7 @@ The enrich processor works best with reference data
 that doesn't change frequently.
 ====
 
-[float]
+[discrete]
 [[enrich-prereqs]]
 ==== Prerequisites
 

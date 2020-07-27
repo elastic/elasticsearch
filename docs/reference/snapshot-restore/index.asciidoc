@@ -55,26 +55,25 @@ IMPORTANT: Version compatibility refers to the underlying Lucene index
 compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
 when migrating between versions.
 
-A snapshot contains a copy of the on-disk data structures that make up an
+A snapshot contains a copy of the on-disk data structures that comprise an
 index or a data stream's backing indices. This means that snapshots can only be restored to versions of
 {es} that can read the indices.
 
-The following table indicates snapshot compatibility between versions.
+The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.
 
 // tag::snapshot-compatibility-matrix[]
 [cols="6*^"]
 |===
-| Compatibility | 2.x | 5.x | 6.x | 7.x | 8.x
-| 1.x |{yes-icon} |{no-icon}  |{no-icon}  |{no-icon}  |{no-icon}
-| 2.x |{no-icon}  |{yes-icon} |{no-icon}  |{no-icon}  |{no-icon}
-| 5.x |{no-icon}  |{no-icon}  |{yes-icon} |{no-icon}  |{no-icon}
-| 6.x |{no-icon}  |{no-icon}  |{no-icon}  |{yes-icon} |{no-icon}
-| 7.x |{no-icon}  |{no-icon}  |{no-icon}  |{no-icon}  |{yes-icon}
+| *Version* | 2.x | 5.x | 6.x | 7.x | 8.x
+| *1.x* -> |{yes-icon} |{no-icon}  |{no-icon}  |{no-icon}  |{no-icon}
+| *2.x* -> |{no-icon}  |{yes-icon} |{no-icon}  |{no-icon}  |{no-icon}
+| *5.x* -> |{no-icon}  |{no-icon}  |{yes-icon} |{no-icon}  |{no-icon}
+| *6.x* -> |{no-icon}  |{no-icon}  |{no-icon}  |{yes-icon} |{no-icon}
+| *7.x* -> |{no-icon}  |{no-icon}  |{no-icon}  |{no-icon}  |{yes-icon}
 |===
 // end::snapshot-compatibility-matrix[]
 
-We do not recommend restoring snapshots from later {es} versions in earlier
-versions. In some cases, the snapshots cannot be restored. For example, a
+NOTE: We do not recommend restoring snapshots from later {es} versions in earlier versions. For example, a
 snapshot taken in 7.6.0 cannot be restored to 7.5.0.
 
 Each snapshot can contain indices created in various versions of {es}. This

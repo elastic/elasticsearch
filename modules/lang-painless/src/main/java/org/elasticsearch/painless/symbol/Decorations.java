@@ -583,4 +583,8 @@ public class Decorations {
             return irNode;
         }
     }
+
+    public interface IsDocument extends Condition {
+
+    }
 }

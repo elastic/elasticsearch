@@ -14,16 +14,16 @@ then converts the follower index into a regular index with the
 
 For a managed index to be rolled over: 
 
-* The index name must match the pattern '^.*-\\d+$', for example (`my_index-000001`).
+* The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
 * The index must be the <<indices-rollover-is-write-index, write index>> for the alias.
 
-For example, if `my_index-000001` has the alias `my_data`, 
+For example, if `my-index-000001` has the alias `my_data`, 
 the following settings must be configured. 
 
 [source,console]
 --------------------------------------------------
-PUT my_index-000001
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",

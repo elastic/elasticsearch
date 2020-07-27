@@ -111,17 +111,25 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     @Override
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         ValuesSourceConfig config;
+
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
-        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
-        if (parentIdFieldMapper != null) {
-            parentFilter = parentIdFieldMapper.getParentFilter();
-            childFilter = parentIdFieldMapper.getChildFilter(childType);
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
-        } else {
+        if (parentJoinFieldMapper == null) {
             // Unmapped field case
             config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
+            return config;
         }
+
+        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
+        if (parentIdFieldMapper == null) {
+            // Unmapped field case
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
+            return config;
+        }
+
+        parentFilter = parentIdFieldMapper.getParentFilter();
+        childFilter = parentIdFieldMapper.getChildFilter(childType);
+        MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+        config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
         return config;
     }
 

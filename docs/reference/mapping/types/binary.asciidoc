@@ -1,5 +1,5 @@
 [[binary]]
-=== Binary datatype
+=== Binary data type
 ++++
 <titleabbrev>Binary</titleabbrev>
 ++++

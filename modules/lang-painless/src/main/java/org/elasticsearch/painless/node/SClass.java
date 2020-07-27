@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.ScriptScope;
 
@@ -46,28 +45,20 @@ public class SClass extends ANode {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitClass(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitClass(this, scope);
     }
 
-    public void buildClassScope(ScriptScope scriptScope) {
-        for (SFunction function : functionNodes) {
-            function.buildClassScope(scriptScope);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SFunction functionNode : functionNodes) {
+            functionNode.visit(userTreeVisitor, scope);
         }
     }
 
-    public ClassNode analyze(ScriptScope scriptScope) {
-        buildClassScope(scriptScope);
-
-        ClassNode classNode = new ClassNode();
-
+    public void analyze(ScriptScope scriptScope) {
         for (SFunction function : functionNodes) {
-            classNode.addFunctionNode(function.analyze(classNode, scriptScope));
+            function.analyze(scriptScope);
         }
-
-        classNode.setLocation(getLocation());
-        classNode.setScriptScope(scriptScope);
-
-        return classNode;
     }
 }

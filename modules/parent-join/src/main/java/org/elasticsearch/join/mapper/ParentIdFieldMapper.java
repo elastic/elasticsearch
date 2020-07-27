@@ -100,14 +100,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -116,7 +108,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

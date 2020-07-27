@@ -20,8 +20,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
@@ -53,17 +51,12 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
-        createRepository("test-repo", "mock", Settings.builder()
-            .put("location", randomRepoPath()).put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
+        createRepository("test-repo", "mock");
 
         final int shards = between(1, 10);
-        assertAcked(prepareCreate("test-index", 0, Settings.builder().put("number_of_shards", shards).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test-index", 0, indexSettingsNoReplicas(shards)));
         ensureGreen();
-        final int numDocs = scaledRandomIntBetween(50, 100);
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc("test-index", Integer.toString(i));
-        }
+        indexRandomDocs("test-index", scaledRandomIntBetween(50, 100));
 
         logger.info("--> blocking repository");
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");

@@ -23,12 +23,15 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -37,7 +40,12 @@ import java.util.Objects;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregationBuilder implements NamedWriteable, BaseAggregationBuilder, ToXContentFragment {
+public abstract class PipelineAggregationBuilder
+    implements
+        NamedWriteable,
+        BaseAggregationBuilder,
+        ToXContentFragment,
+        Rewriteable<PipelineAggregationBuilder> {
 
     protected final String name;
     protected final String[] bucketsPaths;
@@ -244,5 +252,17 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * The default implementation return the same instance. It should be
+     * overridden by aggregations that must load data before they can be run,
+     * particularly if that load must by asynchronous.
+     */
+    @Override
+    public PipelineAggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
+        return this;
     }
 }

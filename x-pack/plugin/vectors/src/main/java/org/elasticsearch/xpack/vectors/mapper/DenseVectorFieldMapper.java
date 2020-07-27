@@ -104,15 +104,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.dims = dims;
         }
 
-        protected DenseVectorFieldType(DenseVectorFieldType ref) {
-            super(ref);
-            this.dims = ref.dims;
-        }
-
-        public DenseVectorFieldType clone() {
-            return new DenseVectorFieldType(this);
-        }
-
         int dims() {
             return dims;
         }
@@ -135,7 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

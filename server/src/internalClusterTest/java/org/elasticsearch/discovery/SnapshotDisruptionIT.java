@@ -24,15 +24,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
@@ -78,15 +75,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     public void testDisruptionAfterFinalization() throws Exception {
         final String idxName = "test";
         internalCluster().startMasterOnlyNodes(3);
-        internalCluster().startDataOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
 
         createRandomIndex(idxName);
 
-        createRepository("test-repo", "fs", Settings.builder()
-            .put("location", randomRepoPath())
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
+        createRepository("test-repo", "fs");
 
         final String masterNode1 = internalCluster().getMasterName();
 
@@ -126,7 +120,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        assertAllSnapshotsCompleted();
+        awaitNoMoreRunningOperations(dataNode);
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
@@ -154,7 +148,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 
-        assertAllSnapshotsCompleted();
+        awaitNoMoreRunningOperations(dataNode);
     }
 
     public void testDisruptionAfterShardFinalization() throws Exception {
@@ -166,7 +160,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String masterNode = internalCluster().getMasterName();
 
@@ -222,7 +216,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String indexName = "index-one";
         createIndex(indexName);
@@ -243,31 +237,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, dataNode);
 
         networkDisruption.stopDisrupting();
-        assertAllSnapshotsCompleted();
+        awaitNoMoreRunningOperations(dataNode);
 
         logger.info("--> make sure isolated master responds to snapshot request");
         final SnapshotException sne =
                 expectThrows(SnapshotException.class, () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L)));
         assertThat(sne.getMessage(), endsWith("no longer master"));
-    }
-
-    private void assertAllSnapshotsCompleted() throws Exception {
-        logger.info("--> wait until the snapshot is done");
-        assertBusy(() -> {
-            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
-            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress =
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
-            if (snapshots.entries().isEmpty() == false) {
-                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                fail("Snapshot is still running");
-            } else if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
-                fail("Snapshot deletion is still running");
-            } else {
-                logger.info("Snapshot is no longer in the cluster state");
-            }
-        }, 1L, TimeUnit.MINUTES);
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {
@@ -281,8 +256,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRandomIndex(String idxName) throws InterruptedException {
-        assertAcked(prepareCreate(idxName, 0, Settings.builder().put("number_of_shards", between(1, 20))
-            .put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(idxName, 0, indexSettingsNoReplicas(between(1, 5))));
         logger.info("--> indexing some data");
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];

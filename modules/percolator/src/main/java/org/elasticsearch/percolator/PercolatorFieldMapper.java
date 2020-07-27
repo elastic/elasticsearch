@@ -155,10 +155,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
-            builder.docValues(true);
-            builder.indexOptions(IndexOptions.NONE);
-            builder.store(false);
+            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
             return builder.build(context);
         }
 
@@ -200,21 +197,6 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         PercolatorFieldType(String name, Map<String, String> meta) {
             super(name, false, false, TextSearchInfo.NONE, meta);
-        }
-
-        PercolatorFieldType(PercolatorFieldType ref) {
-            super(ref);
-            queryTermsField = ref.queryTermsField;
-            extractionResultField = ref.extractionResultField;
-            queryBuilderField = ref.queryBuilderField;
-            rangeField = ref.rangeField;
-            minimumShouldMatchField = ref.minimumShouldMatchField;
-            mapUnmappedFieldsAsText = ref.mapUnmappedFieldsAsText;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new PercolatorFieldType(this);
         }
 
         @Override

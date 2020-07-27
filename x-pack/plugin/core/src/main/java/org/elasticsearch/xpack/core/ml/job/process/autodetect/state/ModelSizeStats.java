@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -167,11 +166,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public ModelSizeStats(StreamInput in) throws IOException {
         jobId = in.readString();
         modelBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            peakModelBytes = in.readOptionalLong();
-        } else {
-            peakModelBytes = null;
-        }
+        peakModelBytes = in.readOptionalLong();
         modelBytesExceeded = in.readOptionalLong();
         modelBytesMemoryLimit = in.readOptionalLong();
         totalByFieldCount = in.readVLong();
@@ -202,9 +197,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalLong(peakModelBytes);
-        }
+        out.writeOptionalLong(peakModelBytes);
         out.writeOptionalLong(modelBytesExceeded);
         out.writeOptionalLong(modelBytesMemoryLimit);
         out.writeVLong(totalByFieldCount);

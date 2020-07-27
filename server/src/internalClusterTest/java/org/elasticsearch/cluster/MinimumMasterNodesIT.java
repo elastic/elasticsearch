@@ -295,6 +295,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         final String master = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+        otherNodes.remove(master);
         NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 

@@ -155,7 +155,18 @@ cluster to enable <<cross-cluster-configuring,{ccs}>>.
 
 [horizontal]
 `all`::
-Any action on an index
+Any action on an index or data stream.
+
+`auto_configure`::
+Permits auto-creation of indices and data streams. An auto-create action is the
+result of an <<docs-index_,index>> or <<docs-bulk,bulk>> request that targets a
+non-existent index or data stream rather than an explicit
+<<indices-create-index,create index>> or
+<<indices-create-data-stream,create data stream>> request. Also permits
+auto-update of mappings on indices and data streams if they do not contradict
+existing mappings. An auto-update mapping action is the result of an index or
+bulk request on an index or data stream that contains new fields that may
+be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
 
 `create`::
 Privilege to index documents. Also grants access to the update mapping
@@ -190,15 +201,16 @@ privilege (and no higher privilege such as `index` or `write`), you must ensure 
 --
 
 `create_index`::
-Privilege to create an index. A create index request may contain aliases to be
-added to the index once created. In that case the request requires the `manage`
-privilege as well, on both the index and the aliases names.
+Privilege to create an index or data stream. A create index request may contain
+aliases to be added to the index once created. In that case the request
+requires the `manage` privilege as well, on both the index and the aliases
+names.
 
 `delete`::
 Privilege to delete documents.
 
 `delete_index`::
-Privilege to delete an index.
+Privilege to delete an index or data stream.
 
 `index`::
 Privilege to index and update documents. Also grants access to the update
@@ -209,9 +221,9 @@ Permits refresh, flush, synced flush and force merge index administration operat
 No privilege to read or write index data or otherwise manage the index.
 
 `manage`::
-All `monitor` privileges plus index administration (aliases, analyze, cache clear,
-close, delete, exists, flush, mapping, open, force merge, refresh, settings,
-search shards, templates, validate).
+All `monitor` privileges plus index and data stream administration (aliases,
+analyze, cache clear, close, delete, exists, flush, mapping, open, force merge,
+refresh, settings, search shards, templates, validate).
 
 `manage_follow_index`::
 All actions that are required to manage the lifecycle of a follower index, which
@@ -220,8 +232,8 @@ index. This privilege is necessary only on clusters that contain follower indice
 
 `manage_ilm`::
 All {Ilm} operations relating to managing the execution of policies of an index
-This includes operations like retrying policies, and removing a policy
-from an index.
+or data stream. This includes operations such as retrying policies and removing
+a policy from an index or data stream.
 
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which
@@ -241,9 +253,10 @@ clear_scroll, search, suggest, tv).
 Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
 
 `view_index_metadata`::
-Read-only access to index metadata (aliases, aliases exists, get index, exists, field mappings,
-mappings, search shards, type exists, validate, warmers, settings, ilm). This
-privilege is primarily available for use by {kib} users.
+Read-only access to index and data stream metadata (aliases, aliases exists,
+get index, get data stream, exists, field mappings, mappings, search shards,
+type exists, validate, warmers, settings, ilm). This privilege is available
+for use primarily by {kib} users.
 
 `write`::
 Privilege to perform all write operations to documents, which includes the

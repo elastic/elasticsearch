@@ -10,7 +10,7 @@ deletes.
 The merge process uses auto-throttling to balance the use of hardware
 resources between merging and other activities like search.
 
-[float]
+[discrete]
 [[merge-scheduling]]
 === Merge scheduling
 

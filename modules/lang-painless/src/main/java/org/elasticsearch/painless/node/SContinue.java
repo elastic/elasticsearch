@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ContinueNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
@@ -39,14 +37,17 @@ public class SContinue extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitContinue(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitContinue(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
+    }
 
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, InLoop.class) == false) {
             throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
         }
@@ -57,12 +58,5 @@ public class SContinue extends AStatement {
 
         semanticScope.setCondition(this, AllEscape.class);
         semanticScope.setCondition(this, AnyContinue.class);
-
-        ContinueNode continueNode = new ContinueNode();
-        continueNode.setLocation(getLocation());
-
-        output.statementNode = continueNode;
-
-        return output;
     }
 }

@@ -87,15 +87,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected IgnoredFieldType(IgnoredFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public IgnoredFieldType clone() {
-            return new IgnoredFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -34,7 +32,6 @@ import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -57,28 +54,31 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitBlock(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitBlock(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AStatement statementNode: statementNodes) {
+            statementNode.visit(userTreeVisitor, scope);
+        }
+    }
 
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (statementNodes.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
         AStatement last = statementNodes.get(statementNodes.size() - 1);
 
-        List<Output> statementOutputs = new ArrayList<>(statementNodes.size());
-
         boolean lastSource = semanticScope.getCondition(this, LastSource.class);
         boolean beginLoop = semanticScope.getCondition(this, BeginLoop.class);
         boolean inLoop = semanticScope.getCondition(this, InLoop.class);
         boolean lastLoop = semanticScope.getCondition(this, LastLoop.class);
 
-        boolean allEscape = false;
+        boolean allEscape;
         boolean anyContinue = false;
         boolean anyBreak = false;
 
@@ -97,7 +97,7 @@ public class SBlock extends AStatement {
                 }
             }
 
-            Output statementOutput = statement.analyze(classNode, semanticScope);
+            statement.analyze(semanticScope);
             allEscape = semanticScope.getCondition(statement, AllEscape.class);
 
             if (statement == last) {
@@ -117,8 +117,6 @@ public class SBlock extends AStatement {
 
             anyContinue |= semanticScope.getCondition(statement, AnyContinue.class);
             anyBreak |= semanticScope.getCondition(statement, AnyBreak.class);;
-
-            statementOutputs.add(statementOutput);
         }
 
         if (anyContinue) {
@@ -128,18 +126,5 @@ public class SBlock extends AStatement {
         if (anyBreak) {
             semanticScope.setCondition(this, AnyBreak.class);
         }
-
-        BlockNode blockNode = new BlockNode();
-
-        for (Output statementOutput : statementOutputs) {
-            blockNode.addStatementNode(statementOutput.statementNode);
-        }
-
-        blockNode.setLocation(getLocation());
-        blockNode.setAllEscape(allEscape);
-
-        output.statementNode = blockNode;
-
-        return output;
     }
 }

@@ -20,9 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ReturnNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -51,17 +48,19 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitReturn(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitReturn(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(userTreeVisitor, scope);
+        }
+    }
 
-        AExpression.Output expressionOutput = null;
-        PainlessCast expressionCast = null;
-
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (expressionNode == null) {
             if (semanticScope.getReturnType() != void.class) {
                 throw getLocation().createError(new ClassCastException("Cannot cast from " +
@@ -72,20 +71,12 @@ public class SReturn extends AStatement {
             semanticScope.setCondition(expressionNode, Read.class);
             semanticScope.putDecoration(expressionNode, new TargetType(semanticScope.getReturnType()));
             semanticScope.setCondition(expressionNode, Internal.class);
-            expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
-            expressionCast = expressionNode.cast(semanticScope);
+            AExpression.analyze(expressionNode, semanticScope);
+            expressionNode.cast(semanticScope);
         }
 
         semanticScope.setCondition(this, MethodEscape.class);
         semanticScope.setCondition(this, LoopEscape.class);
         semanticScope.setCondition(this, AllEscape.class);
-
-        ReturnNode returnNode = new ReturnNode();
-        returnNode.setExpressionNode(expressionNode == null ? null : AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        returnNode.setLocation(getLocation());
-
-        output.statementNode = returnNode;
-
-        return output;
     }
 }

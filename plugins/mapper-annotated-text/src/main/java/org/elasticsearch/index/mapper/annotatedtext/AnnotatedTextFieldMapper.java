@@ -521,10 +521,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             super(name, true, meta);
         }
 
-        protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {
-            super(ref);
-        }
-
         public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
             if(delegate.analyzer() instanceof AnnotationAnalyzerWrapper){
                 // Already wrapped the Analyzer with an AnnotationAnalyzer
@@ -534,10 +530,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 super.setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
                     new AnnotationAnalyzerWrapper(delegate.analyzer()), positionIncrementGap));
             }
-        }
-
-        public AnnotatedTextFieldType clone() {
-            return new AnnotatedTextFieldType(this);
         }
 
         @Override

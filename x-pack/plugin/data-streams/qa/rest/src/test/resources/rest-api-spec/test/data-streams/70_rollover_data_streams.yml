@@ -1,0 +1,52 @@
+---
+"Roll over a data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-rollover
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+
+  - match: { old_index: .ds-data-stream-for-rollover-000001 }
+  - match: { new_index: .ds-data-stream-for-rollover-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: .ds-data-stream-for-rollover-000002
+
+  - is_true: ''
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 2 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-data-stream-for-rollover-000001' }
+  - match: { data_streams.0.indices.1.index_name: '.ds-data-stream-for-rollover-000002' }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-rollover
+  - is_true: acknowledged

@@ -410,14 +410,18 @@ public final class RepositoryData {
     /**
      * Resolve the given index names to index ids, creating new index ids for
      * new indices in the repository.
+     *
+     * @param indicesToResolve names of indices to resolve
+     * @param inFlightIds      name to index mapping for currently in-flight snapshots not yet in the repository data to fall back to
      */
-    public List<IndexId> resolveNewIndices(final List<String> indicesToResolve) {
+    public List<IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
         List<IndexId> snapshotIndices = new ArrayList<>();
         for (String index : indicesToResolve) {
-            final IndexId indexId;
-            if (indices.containsKey(index)) {
-                indexId = indices.get(index);
-            } else {
+            IndexId indexId = indices.get(index);
+            if (indexId == null) {
+                indexId = inFlightIds.get(index);
+            }
+            if (indexId == null) {
                 indexId = new IndexId(index, UUIDs.randomBase64UUID());
             }
             snapshotIndices.add(indexId);

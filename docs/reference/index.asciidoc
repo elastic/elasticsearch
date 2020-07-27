@@ -8,6 +8,7 @@
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
 include::../Versions.asciidoc[]
+include::links.asciidoc[]
 
 include::intro.asciidoc[]
 
@@ -19,15 +20,15 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
+include::indices/index-templates.asciidoc[]
+
 include::data-streams/data-streams.asciidoc[]
 
 include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-ifdef::permanently-unreleased-branch[]
 include::eql/index.asciidoc[]
-endif::[]
 
 include::sql/index.asciidoc[]
 

@@ -95,8 +95,10 @@ public class TransportSimulateTemplateAction
         // First, if a template body was requested, we need to "fake add" that template to the
         // cluster state, so it can be used when we resolved settings/etc
         if (request.getIndexTemplateRequest() != null) {
-            // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
-            simulateTemplateToAdd = "simulate_template_" + uuid;
+            // we'll "locally" add the template defined by the user in the cluster state (as if it
+            // existed in the system), either with a temporary name, or with the given name if
+            // specified, to simulate replacing the existing template
+            simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate());

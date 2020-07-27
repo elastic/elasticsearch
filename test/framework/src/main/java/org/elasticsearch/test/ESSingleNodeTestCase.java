@@ -78,6 +78,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
+    private final Path nodeDir = createTempDir();
 
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
@@ -186,19 +187,22 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    protected Path getNodeDir() {
+        return this.nodeDir;
+    }
+
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
     protected boolean addMockHttpTransport() {
         return true;
     }
 
     private Node newNode() {
-        final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
 
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
+            .put(Environment.PATH_HOME_SETTING.getKey(), nodeDir)
+            .put(Environment.PATH_REPO_SETTING.getKey(), nodeDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())

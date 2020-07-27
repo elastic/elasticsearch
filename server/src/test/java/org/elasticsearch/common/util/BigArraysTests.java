@@ -39,6 +39,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BigArraysTests extends ESTestCase {
 
@@ -387,6 +388,13 @@ public class BigArraysTests extends ESTestCase {
             final BigArray bigArray = bigArraysHelper.arrayAllocator.apply(size);
             assertEquals(bigArraysHelper.ramEstimator.apply(size).longValue(), bigArray.ramBytesUsed());
         }
+    }
+
+    public void testOverSizeUsesMinPageCount() {
+        final int pageSize = 1 << (randomIntBetween(2, 16));
+        final int minSize = randomIntBetween(1, pageSize) * randomIntBetween(1, 100);
+        final long size = BigArrays.overSize(minSize, pageSize, 1);
+        assertThat(size - minSize, lessThan((long) pageSize));
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {

@@ -310,7 +310,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             if (ch instanceof Netty4NioSocketChannel) {
-                NetUtils.setSaneDefaultKeepAliveOptions(((Netty4NioSocketChannel) ch).javaChannel());
+                NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             }
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
@@ -337,7 +337,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             if (ch instanceof Netty4NioSocketChannel) {
-                NetUtils.setSaneDefaultKeepAliveOptions(((Netty4NioSocketChannel) ch).javaChannel());
+                NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             }
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);

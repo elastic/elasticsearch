@@ -350,7 +350,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
                     }
                 }
             }
-            NetUtils.setSaneDefaultKeepAliveOptions(socket.getChannel());
+            NetUtils.tryEnsureReasonableKeepAliveConfig(socket.getChannel());
             socket.setTcpNoDelay(socketConfig.tcpNoDelay());
             int tcpSendBufferSize = socketConfig.tcpSendBufferSize();
             if (tcpSendBufferSize > 0) {

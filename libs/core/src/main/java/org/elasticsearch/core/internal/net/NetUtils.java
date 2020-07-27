@@ -70,7 +70,7 @@ public class NetUtils {
      * Such a high value can result in firewalls eagerly closing these connections. To tell any intermediate devices that
      * the connection remains alive, we explicitly set these options to 5 minutes if the defaults are higher than that.
      */
-    public static void setSaneDefaultKeepAliveOptions(NetworkChannel socketChannel) {
+    public static void tryEnsureReasonableKeepAliveConfig(NetworkChannel socketChannel) {
         assert socketChannel != null;
         try {
             if (socketChannel.supportedOptions().contains(StandardSocketOptions.SO_KEEPALIVE)) {

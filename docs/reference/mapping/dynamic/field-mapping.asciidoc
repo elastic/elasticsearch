@@ -48,12 +48,12 @@ For example:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "create_date": "2015/09/02"
 }
 
-GET my_index/_mapping <1>
+GET my-index-000001/_mapping <1>
 --------------------------------------------------
 
 <1> The `create_date` field has been added as a <<date,`date`>>
@@ -66,14 +66,14 @@ Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "date_detection": false
   }
 }
 
-PUT my_index/_doc/1 <1>
+PUT my-index-000001/_doc/1 <1>
 {
   "create": "2015/09/02"
 }
@@ -88,14 +88,14 @@ own <<mapping-date-format,date formats>>:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_date_formats": ["MM/dd/yyyy"]
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "create_date": "09/25/2015"
 }
@@ -113,14 +113,14 @@ correct solution is to map these fields explicitly, but numeric detection
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "numeric_detection": true
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_float":   "1.0", <1>
   "my_integer": "1" <2>

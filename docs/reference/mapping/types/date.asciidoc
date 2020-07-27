@@ -33,7 +33,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -44,16 +44,16 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "date": "2015-01-01" } <2>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "date": "2015-01-01T12:10:30Z" } <3>
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 { "date": 1420070400001 } <4>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "sort": { "date": "asc"} <5>
 }
@@ -75,7 +75,7 @@ into a string.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

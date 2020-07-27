@@ -571,7 +571,7 @@ include the `field` specified in your enrich processor.
 
 [source,console]
 ----
-PUT /my_index/_doc/my_id?pipeline=user_lookup
+PUT /my-index-00001/_doc/my_id?pipeline=user_lookup
 {
   "email": "mardy.brown@asciidocsmith.com"
 }
@@ -583,7 +583,7 @@ use the <<docs-get,get API>> to view the indexed document.
 
 [source,console]
 ----
-GET /my_index/_doc/my_id
+GET /my-index-00001/_doc/my_id
 ----
 // TEST[continued]
 
@@ -593,7 +593,7 @@ The API returns the following response:
 ----
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,

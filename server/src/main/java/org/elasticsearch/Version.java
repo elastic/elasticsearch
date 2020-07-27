@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.plugins.spi.CompatibleApiVersionProvider;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -38,6 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.ServiceLoader;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -85,7 +88,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
-
+    private static final Version minimumRestCompatibilityVersion;
     static {
         final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
 
@@ -120,6 +123,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
         idToVersion = builder.build();
+        ServiceLoader<CompatibleApiVersionProvider> load = ServiceLoader.load(CompatibleApiVersionProvider.class);
+        Optional<CompatibleApiVersionProvider> first = load.findFirst();
+        CompatibleApiVersionProvider compatibleApiVersionProvider = first.orElseGet(() -> () -> Version.CURRENT);
+        // TODO should we fetch that dynamically when calling minimumRestCompatibilityVersion() ?
+        minimumRestCompatibilityVersion = compatibleApiVersionProvider.minimumRestCompatibilityVersion();
+        System.out.println(minimumRestCompatibilityVersion);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -343,6 +352,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
+    }
+
+    public static Version minimumRestCompatibilityVersion(){
+        return minimumRestCompatibilityVersion;
     }
 
     @SuppressForbidden(reason = "System.out.*")

@@ -371,6 +371,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         processQuery(query, context);
     }
 
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
+    }
+
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
         if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {

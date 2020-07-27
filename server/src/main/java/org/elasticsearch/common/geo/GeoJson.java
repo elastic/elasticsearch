@@ -609,5 +609,4 @@ public final class GeoJson {
             return builder;
         }
     }
-
 }

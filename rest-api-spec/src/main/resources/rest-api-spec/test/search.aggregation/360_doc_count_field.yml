@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
   - do:
       indices.create:
         index: test_1

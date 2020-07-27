@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'

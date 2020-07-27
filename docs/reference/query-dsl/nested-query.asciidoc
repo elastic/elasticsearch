@@ -23,13 +23,13 @@ mapping. For example:
 ----
 PUT /my_index
 {
-    "mappings" : {
-        "properties" : {
-            "obj1" : {
-                "type" : "nested"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "obj1": {
+        "type": "nested"
+      }
     }
+  }
 }
 
 ----
@@ -41,20 +41,20 @@ PUT /my_index
 ----
 GET /my_index/_search
 {
-    "query":  {
-        "nested" : {
-            "path" : "obj1",
-            "query" : {
-                "bool" : {
-                    "must" : [
-                    { "match" : {"obj1.name" : "blue"} },
-                    { "range" : {"obj1.count" : {"gt" : 5}} }
-                    ]
-                }
-            },
-            "score_mode" : "avg"
+  "query": {
+    "nested": {
+      "path": "obj1",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "obj1.name": "blue" } },
+            { "range": { "obj1.count": { "gt": 5 } } }
+          ]
         }
+      },
+      "score_mode": "avg"
     }
+  }
 }
 ----
 // TEST[continued]
@@ -133,29 +133,29 @@ with nested `make` and `model` fields.
 ----
 PUT /drivers
 {
-    "mappings" : {
-        "properties" : {
-            "driver" : {
-                "type" : "nested",
-                "properties" : {
-                    "last_name" : {
-                        "type" : "text"
-                    },
-                    "vehicle" : {
-                        "type" : "nested",
-                        "properties" : {
-                            "make" : {
-                                "type" : "text"
-                            },
-                            "model" : {
-                                "type" : "text"
-                            }
-                        }
-                    }
-                }
+  "mappings": {
+    "properties": {
+      "driver": {
+        "type": "nested",
+        "properties": {
+          "last_name": {
+            "type": "text"
+          },
+          "vehicle": {
+            "type": "nested",
+            "properties": {
+              "make": {
+                "type": "text"
+              },
+              "model": {
+                "type": "text"
+              }
             }
+          }
         }
+      }
     }
+  }
 }
 ----
 
@@ -206,24 +206,24 @@ to match documents based on the `make` and `model` fields.
 ----
 GET /drivers/_search
 {
-    "query" : {
-        "nested" : {
-            "path" : "driver",
-            "query" : {
-                "nested" : {
-                    "path" :  "driver.vehicle",
-                    "query" :  {
-                        "bool" : {
-                            "must" : [
-                                { "match" : { "driver.vehicle.make" : "Powell Motors" } },
-                                { "match" : { "driver.vehicle.model" : "Canyonero" } }
-                            ]
-                        }
-                    }
-                }
+  "query": {
+    "nested": {
+      "path": "driver",
+      "query": {
+        "nested": {
+          "path": "driver.vehicle",
+          "query": {
+            "bool": {
+              "must": [
+                { "match": { "driver.vehicle.make": "Powell Motors" } },
+                { "match": { "driver.vehicle.model": "Canyonero" } }
+              ]
             }
+          }
         }
+      }
     }
+  }
 }
 ----
 // TEST[continued]

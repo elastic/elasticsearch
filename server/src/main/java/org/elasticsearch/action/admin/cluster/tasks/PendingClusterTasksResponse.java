@@ -27,21 +27,16 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContentObject {
 
-    private List<PendingClusterTask> pendingTasks;
+    private final List<PendingClusterTask> pendingTasks;
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        pendingTasks = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            pendingTasks.add(new PendingClusterTask(in));
-        }
+        pendingTasks = in.readList(PendingClusterTask::new);
     }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
@@ -108,10 +103,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(pendingTasks.size());
-        for (PendingClusterTask task : pendingTasks) {
-            task.writeTo(out);
-        }
+        out.writeList(pendingTasks);
     }
 
 }

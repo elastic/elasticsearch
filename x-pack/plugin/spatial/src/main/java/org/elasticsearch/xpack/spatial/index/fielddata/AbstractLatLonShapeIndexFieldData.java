@@ -13,10 +13,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -95,16 +93,18 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final String name;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this.name = name;
             this.valuesSourceType = valuesSourceType;
         }
+
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonShapeIndexFieldData(fieldType.name(), valuesSourceType);
+            return new LatLonShapeIndexFieldData(name, valuesSourceType);
         }
     }
 }

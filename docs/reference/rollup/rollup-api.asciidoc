@@ -3,7 +3,7 @@
 [[rollup-apis]]
 == Rollup APIs
 
-[float]
+[discrete]
 [[rollup-jobs-endpoint]]
 === Jobs
 
@@ -11,14 +11,14 @@
 * <<rollup-start-job,Start>> or <<rollup-stop-job,stop {rollup-jobs}>>
 * <<rollup-get-job,Get {rollup-jobs}>>
 
-[float]
+[discrete]
 [[rollup-data-endpoint]]
 === Data
 
 * <<rollup-get-rollup-caps,Get Rollup Capabilities>>
 * <<rollup-get-rollup-index-caps,Get Rollup Index Capabilities>>
 
-[float]
+[discrete]
 [[rollup-search-endpoint]]
 === Search
 

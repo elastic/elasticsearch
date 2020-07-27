@@ -18,18 +18,18 @@ WARNING: Using scripts can result in slower search speeds. See
 ----
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source": "doc['num1'].value > 1",
-                        "lang": "painless"
-                     }
-                }
-            }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['num1'].value > 1",
+            "lang": "painless"
+          }
         }
+      }
     }
+  }
 }
 ----
 
@@ -55,21 +55,21 @@ in the script's `params` parameter. For example:
 ----
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source" : "doc['num1'].value > params.param1",
-                        "lang"   : "painless",
-                        "params" : {
-                            "param1" : 5
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['num1'].value > params.param1",
+            "lang": "painless",
+            "params": {
+              "param1": 5
             }
+          }
         }
+      }
     }
+  }
 }
 ----
 

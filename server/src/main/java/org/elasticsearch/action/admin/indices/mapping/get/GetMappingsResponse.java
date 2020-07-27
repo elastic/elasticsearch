@@ -46,26 +46,17 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                int mappingCount = in.readVInt();
-                assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
-                if (mappingCount == 1) {
-                    String type = in.readString();
-                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
-                    indexMapBuilder.put(index, new MappingMetadata(in));
-                } else {
-                    indexMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
-                }
+        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+            int mappingCount = i.readVInt();
+            assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
+            if (mappingCount == 1) {
+                String type = i.readString();
+                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
+                return new MappingMetadata(i);
             } else {
-                boolean hasMapping = in.readBoolean();
-                indexMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
+                return MappingMetadata.EMPTY_MAPPINGS;
             }
-        }
-        mappings = indexMapBuilder.build();
+        } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
     }
 
     public ImmutableOpenMap<String, MappingMetadata> mappings() {
@@ -78,22 +69,19 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
-            out.writeString(indexEntry.key);
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                    indexEntry.value.writeTo(out);
+        out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
+                    o.writeVInt(v == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                    if (v != MappingMetadata.EMPTY_MAPPINGS) {
+                        o.writeString(MapperService.SINGLE_MAPPING_NAME);
+                        v.writeTo(o);
+                    }
+                } : (o, v) -> {
+                    o.writeBoolean(v != MappingMetadata.EMPTY_MAPPINGS);
+                    if (v != MappingMetadata.EMPTY_MAPPINGS) {
+                        v.writeTo(o);
+                    }
                 }
-            } else {
-                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    indexEntry.value.writeTo(out);
-                }
-            }
-        }
+        );
     }
 
     @Override

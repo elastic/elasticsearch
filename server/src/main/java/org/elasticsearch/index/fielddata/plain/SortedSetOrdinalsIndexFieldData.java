@@ -31,7 +31,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -56,28 +54,27 @@ import java.util.function.Function;
 public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
+        private final String name;
         private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(ValuesSourceType valuesSourceType) {
-            this(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, valuesSourceType);
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this(name, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, valuesSourceType);
         }
 
-        public Builder(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction, ValuesSourceType valuesSourceType) {
+        public Builder(String name, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction, ValuesSourceType valuesSourceType) {
+            this.name = name;
             this.scriptFunction = scriptFunction;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public SortedSetOrdinalsIndexFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
             IndexFieldDataCache cache,
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            final String fieldName = fieldType.name();
-            return new SortedSetOrdinalsIndexFieldData(cache, fieldName, valuesSourceType, breakerService, scriptFunction);
+            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, scriptFunction);
         }
     }
 

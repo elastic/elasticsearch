@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_search_changes]]
 === Search Changes
 

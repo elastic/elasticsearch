@@ -13,7 +13,7 @@ NOTE: Elasticsearch installations are not designed to be publicly accessible
       over the Internet. IP Filtering and the other capabilities of the
       {es} {security-features} do not change this condition.
 
-[float]
+[discrete]
 === Enabling IP filtering
 
 The {es} {security-features} contain an access control feature that allows or
@@ -54,7 +54,7 @@ xpack.security.transport.filter.allow: localhost
 xpack.security.transport.filter.deny: '*.google.com'
 --------------------------------------------------
 
-[float]
+[discrete]
 === Disabling IP Filtering
 
 Disabling IP filtering can slightly improve performance under some conditions.
@@ -75,7 +75,7 @@ xpack.security.transport.filter.enabled: false
 xpack.security.http.filter.enabled: true
 --------------------------------------------------
 
-[float]
+[discrete]
 === Specifying TCP transport profiles
 
 <<modules-transport,TCP transport profiles>>
@@ -92,7 +92,7 @@ transport.profiles.client.xpack.security.filter.deny: _all
 
 NOTE: When you do not specify a profile, `default` is used automatically.
 
-[float]
+[discrete]
 === HTTP filtering
 
 You may want to have different IP filtering for the transport and HTTP protocols.
@@ -105,7 +105,7 @@ xpack.security.http.filter.allow: 172.16.0.0/16
 xpack.security.http.filter.deny: _all
 --------------------------------------------------
 
-[float]
+[discrete]
 [[dynamic-ip-filtering]]
 ==== Dynamically updating IP filter settings
 

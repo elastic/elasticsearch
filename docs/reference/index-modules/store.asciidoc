@@ -28,7 +28,7 @@ creation time:
 
 [source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.store.type": "hybridfs"
@@ -118,7 +118,7 @@ or in the index settings at index creation time:
 
 [source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.store.preload": ["nvd", "dvd"]

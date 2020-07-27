@@ -409,7 +409,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 // TEST[setup:twitter]
 
 
-[float]
+[discrete]
 [[docs-update-by-query-fetch-tasks]]
 ===== Get the status of update by query operations
 
@@ -488,7 +488,7 @@ and `wait_for_completion=false` was set on it, then it'll come back with a
 you to delete that document.
 
 
-[float]
+[discrete]
 [[docs-update-by-query-cancel-task-api]]
 ===== Cancel an update by query operation
 
@@ -506,7 +506,7 @@ API above will continue to list the update by query task until this task checks
 that it has been cancelled and terminates itself.
 
 
-[float]
+[discrete]
 [[docs-update-by-query-rethrottle]]
 ===== Change throttling for a request
 
@@ -527,7 +527,7 @@ query takes effect immediately, but rethrotting that slows down the query will
 take effect after completing the current batch. This prevents scroll
 timeouts.
 
-[float]
+[discrete]
 [[docs-update-by-query-manual-slice]]
 ===== Slice manually
 Slice an update by query manually by providing a slice id and total number of
@@ -581,7 +581,7 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[docs-update-by-query-automatic-slice]]
 ===== Use automatic slicing
 
@@ -651,7 +651,7 @@ being updated.
 * Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
-[float]
+[discrete]
 [[picking-up-a-new-property]]
 ===== Pick up a new property
 

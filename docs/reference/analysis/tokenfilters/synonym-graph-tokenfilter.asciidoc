@@ -94,7 +94,7 @@ set to `false` no mapping would get added as when `expand=false` the target mapp
 `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the
 stop word.
 
-[float]
+[discrete]
 [[synonym-graph-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
@@ -104,7 +104,7 @@ The `ignore_case` parameter works with `tokenizer` parameter only.
 
 Two synonym formats are supported: Solr, WordNet.
 
-[float]
+[discrete]
 ==== Solr synonyms
 
 The following is a sample format of the file:
@@ -142,7 +142,7 @@ PUT /test_index
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
 
-[float]
+[discrete]
 ==== WordNet synonyms
 
 Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
@@ -175,7 +175,7 @@ PUT /test_index
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
-[float]
+[discrete]
 ==== Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter

@@ -21,7 +21,7 @@ use. In particular, do not use the `elastic` superuser unless full access to
 the cluster is required. Instead, create users that have the minimum necessary
 roles or privileges for their activities.
 
-[float]
+[discrete]
 [[built-in-user-explanation]]
 ==== How the built-in users work
 These built-in users are stored in a special `.security` index, which is managed
@@ -36,7 +36,7 @@ realm will not have any effect on the built-in users. The built-in users can
 be disabled individually, using the
 <<security-api-disable-user,disable users API>>.
 
-[float]
+[discrete]
 [[bootstrap-elastic-passwords]]
 ==== The Elastic bootstrap password
 
@@ -55,7 +55,7 @@ NOTE: After you <<set-built-in-user-passwords,set passwords for the built-in use
 in particular for the `elastic` user, there is no further use for the bootstrap
 password.
 
-[float]
+[discrete]
 [[set-built-in-user-passwords]]
 ==== Setting built-in user passwords
 
@@ -103,7 +103,7 @@ since at that point the bootstrap password is no longer required.
 
 [[add-built-in-user-passwords]]
 
-[float]
+[discrete]
 [[add-built-in-user-kibana]]
 ==== Adding built-in user passwords to {kib}
 
@@ -118,7 +118,7 @@ elasticsearch.password: kibanapassword
 
 See {kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
 
-[float]
+[discrete]
 [[add-built-in-user-logstash]]
 ==== Adding built-in user passwords to {ls}
 
@@ -145,7 +145,7 @@ PUT _security/user/logstash_system/_enable
 
 See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring].
 
-[float]
+[discrete]
 [[add-built-in-user-beats]]
 ==== Adding built-in user passwords to Beats
 
@@ -172,7 +172,7 @@ the case, then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[add-built-in-user-apm]]
 ==== Adding built-in user passwords to APM
 
@@ -196,7 +196,7 @@ then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[disabling-default-password]]
 ==== Disabling default password functionality
 [IMPORTANT]

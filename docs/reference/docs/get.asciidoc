@@ -30,7 +30,7 @@ particular index. Use HEAD to verify that a document exists. You can
 use the `_source` resource retrieve just the document source or verify
 that it exists.
 
-[float]
+[discrete]
 [[realtime]]
 ===== Realtime
 
@@ -41,7 +41,7 @@ has been updated but is not yet refreshed, the get API will have to parse
 and analyze the source to extract the stored fields. In order to disable
 realtime GET, the `realtime` parameter can be set to `false`.
 
-[float]
+[discrete]
 [[get-source-filtering]]
 ===== Source filtering
 
@@ -75,7 +75,7 @@ GET twitter/_doc/0?_source=*.id,retweeted
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[get-routing]]
 ===== Routing
 
@@ -91,7 +91,7 @@ GET twitter/_doc/2?routing=user1
 This request gets the tweet with id `2`, but it is routed based on the
 user. The document is not fetched if the correct routing is not specified.
 
-[float]
+[discrete]
 [[preference]]
 ===== Preference
 
@@ -112,7 +112,7 @@ Custom (string) value::
 	states. A sample value can be something like the web session id, or the
 	user name.
 
-[float]
+[discrete]
 [[get-refresh]]
 ===== Refresh
 
@@ -122,7 +122,7 @@ it to `true` should be done after careful thought and verification that
 this does not cause a heavy load on the system (and slows down
 indexing).
 
-[float]
+[discrete]
 [[get-distributed]]
 ===== Distributed
 
@@ -132,7 +132,7 @@ result. The replicas are the primary shard and its replicas within that
 shard id group. This means that the more replicas we have, the
 better GET scaling we will have.
 
-[float]
+[discrete]
 [[get-versioning]]
 ===== Versioning support
 
@@ -258,7 +258,7 @@ HEAD twitter/_doc/0
 {es} returns a status code of `200 - OK` if the document exists, or
 `404 - Not Found` if it doesn't.
 
-[float]
+[discrete]
 [[_source]]
 ===== Get the source field only
 
@@ -290,7 +290,7 @@ HEAD twitter/_source/1
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[get-stored-fields]]
 ===== Get stored fields
 

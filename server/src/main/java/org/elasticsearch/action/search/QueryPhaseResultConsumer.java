@@ -187,7 +187,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
         } else {
             newAggs = null;
         }
-        List<SearchShard> processedShards = new ArrayList<>();
+        List<SearchShard> processedShards = new ArrayList<>(task.emptyResults);
         if (lastMerge != null) {
             processedShards.addAll(lastMerge.processedShards);
         }
@@ -208,6 +208,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
 
         private int index;
         private final QuerySearchResult[] buffer;
+        private final List<SearchShard> emptyResults = new ArrayList<>();
 
         private final TopDocsStats topDocsStats;
         private MergeResult mergeResult;
@@ -243,6 +244,10 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
             synchronized (this) {
                 if (hasFailure() || result.isNull()) {
                     result.consumeAll();
+                    if (result.isNull()) {
+                        SearchShardTarget target = result.getSearchShardTarget();
+                        emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
+                    }
                 } else {
                     // add one if a partial merge is pending
                     int size = index + (hasPartialReduce ? 1 : 0);
@@ -251,8 +256,9 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
                         executeNextImmediately = false;
                         QuerySearchResult[] clone = new QuerySearchResult[index];
                         System.arraycopy(buffer, 0, clone, 0, index);
-                        MergeTask task = new MergeTask(clone, next);
+                        MergeTask task = new MergeTask(clone, new ArrayList<>(emptyResults), next);
                         Arrays.fill(buffer, null);
+                        emptyResults.clear();
                         index = 0;
                         queue.add(task);
                         tryExecuteNext();
@@ -382,11 +388,13 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
     }
 
     private static class MergeTask {
+        private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;
         private Runnable next;
 
-        private MergeTask(QuerySearchResult[] buffer, Runnable next) {
+        private MergeTask(QuerySearchResult[] buffer, List<SearchShard> emptyResults, Runnable next) {
             this.buffer = buffer;
+            this.emptyResults = emptyResults;
             this.next = next;
         }
 

@@ -75,7 +75,8 @@ public class NetUtils {
         try {
             if (socketChannel.supportedOptions().contains(StandardSocketOptions.SO_KEEPALIVE)) {
                 final Boolean keepalive = socketChannel.getOption(StandardSocketOptions.SO_KEEPALIVE);
-                if (keepalive != null && keepalive.booleanValue()) {
+                assert keepalive != null;
+                if (keepalive.booleanValue()) {
                     for (SocketOption<Integer> option : Arrays.asList(
                         NetUtils.getTcpKeepIdleSocketOptionOrNull(),
                         NetUtils.getTcpKeepIntervalSocketOptionOrNull())) {
@@ -94,7 +95,8 @@ public class NetUtils {
         if (option != null && socketChannel.supportedOptions().contains(option)) {
             try {
                 final Integer currentIdleVal = socketChannel.getOption(option);
-                if (currentIdleVal != null && currentIdleVal.intValue() > minValue) {
+                assert currentIdleVal != null;
+                if (currentIdleVal.intValue() > minValue) {
                     socketChannel.setOption(option, minValue);
                 }
             } catch (Exception e) {

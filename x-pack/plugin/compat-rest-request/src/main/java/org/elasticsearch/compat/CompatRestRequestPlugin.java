@@ -5,9 +5,14 @@
  */
 package org.elasticsearch.compat;
 
-import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.Version;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
 
-public class CompatRestRequestPlugin extends Plugin implements ActionPlugin {
+public class CompatRestRequestPlugin extends Plugin implements RestCompatibilityPlugin {
 
+    @Override
+    public Version minimumRestCompatibilityVersion() {
+        return Version.fromString(Version.CURRENT.major-1+".0.0");
+    }
 }

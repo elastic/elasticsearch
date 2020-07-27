@@ -9,6 +9,8 @@ package org.elasticsearch.compat;
 import org.elasticsearch.Version;
 import org.elasticsearch.plugins.spi.CompatibleApiVersionProvider;
 
+//TODO I don't think we want SPI approach. to load spi with ServiceLoader we need to fetch a plugin with the same classloader
+// that means we can get the minimumRestCompatibilityVersion from the plugin itself
 public class PreviousVersionCompatibleApiProvider implements CompatibleApiVersionProvider {
 
     @Override

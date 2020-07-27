@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -58,7 +59,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+        new NoneCircuitBreakerService(), usageService, Version.CURRENT);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

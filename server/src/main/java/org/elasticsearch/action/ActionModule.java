@@ -21,6 +21,7 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -257,6 +258,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -424,7 +426,8 @@ public class ActionModule extends AbstractModule {
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService,
+                        List<RestCompatibilityPlugin> restCompatPlugins) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -456,9 +459,16 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        Version minimumRestCompatibilityVersion = getMinimumRestCompatibilityVersion(restCompatPlugins);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService,minimumRestCompatibilityVersion);
     }
 
+    private Version getMinimumRestCompatibilityVersion(List<RestCompatibilityPlugin> restCompatPlugins) {
+        return restCompatPlugins.stream()
+            .map(RestCompatibilityPlugin::minimumRestCompatibilityVersion)
+            .max(Version::compareTo)
+            .orElse(Version.CURRENT);
+    }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;

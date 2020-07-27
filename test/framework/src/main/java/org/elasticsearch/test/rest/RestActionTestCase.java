@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,7 +48,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller = new RestController(Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService());
+            new UsageService(), Version.CURRENT);
     }
 
     /**

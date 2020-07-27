@@ -4,7 +4,7 @@
 Analysis plugins extend Elasticsearch by adding new analyzers, tokenizers,
 token filters, or character filters to Elasticsearch.
 
-[float]
+[discrete]
 ==== Core analysis plugins
 
 The core analysis plugins are:
@@ -44,7 +44,7 @@ Provides high quality stemming for Polish.
 
 Provides stemming for Ukrainian.
 
-[float]
+[discrete]
 ==== Community contributed analysis plugins
 
 A number of analysis plugins have been contributed by our community:

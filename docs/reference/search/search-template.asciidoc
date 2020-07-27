@@ -68,7 +68,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `ignore_throttled`::
   (Optional, boolean) If `true`, specified concrete, expanded or aliased indices 
-  are not included in the response when throttled. Defaults to `false`. 
+  are not included in the response when throttled. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

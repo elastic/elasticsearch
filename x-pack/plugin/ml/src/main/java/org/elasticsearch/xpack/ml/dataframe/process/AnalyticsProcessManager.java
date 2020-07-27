@@ -323,8 +323,8 @@ public class AnalyticsProcessManager {
 
     private void runInference(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsTask task, ProcessContext processContext,
                               ExtractedFields extractedFields) {
-        if (processContext.failureReason.get() != null) {
-            // If there has been an error thus far let's not run inference at all
+        if (task.isStopping() || processContext.failureReason.get() != null) {
+            // If the task is stopping or there has been an error thus far let's not run inference at all
             return;
         }
 

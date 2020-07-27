@@ -1,7 +1,7 @@
 [[tune-for-search-speed]]
 == Tune for search speed
 
-[float]
+[discrete]
 === Give memory to the filesystem cache
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
@@ -9,7 +9,7 @@ fast. In general, you should make sure that at least half the available memory
 goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
-[float]
+[discrete]
 === Use faster hardware
 
 If your search is I/O bound, you should investigate giving more memory to the
@@ -25,7 +25,7 @@ throttled.
 
 If your search is CPU-bound, you should investigate buying faster CPUs.
 
-[float]
+[discrete]
 === Document modeling
 
 Documents should be modeled so that search-time operations are as cheap as possible.
@@ -35,7 +35,7 @@ several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
-[float]
+[discrete]
 === Search as few fields as possible
 
 The more fields a <<query-dsl-query-string-query,`query_string`>> or
@@ -70,7 +70,7 @@ PUT movies
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.
@@ -155,13 +155,13 @@ GET index/_search
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
 include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 
-[float]
+[discrete]
 === Avoid scripts
 
 If possible, avoid using <<modules-scripting,scripts>> or
@@ -169,7 +169,7 @@ If possible, avoid using <<modules-scripting,scripts>> or
 <<scripts-and-search-speed>>.
 
 
-[float]
+[discrete]
 === Search rounded dates
 
 Queries on date fields that use `now` are typically not cacheable since the
@@ -284,7 +284,7 @@ However such practice might make the query run slower in some cases since the
 overhead introduced by the `bool` query may defeat the savings from better
 leveraging the query cache.
 
-[float]
+[discrete]
 === Force-merge read-only indices
 
 Indices that are read-only may benefit from being <<indices-forcemerge,merged
@@ -299,7 +299,7 @@ background merge process to perform merges as needed to keep the index running
 smoothly. If you continue to write to a force-merged index then its performance
 may become much worse.
 
-[float]
+[discrete]
 === Warm up global ordinals
 
 Global ordinals are a data-structure that is used in order to run
@@ -325,7 +325,7 @@ PUT index
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 === Warm up the filesystem cache
 
 If the machine running Elasticsearch is restarted, the filesystem cache will be
@@ -339,14 +339,14 @@ WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
 
-[float]
+[discrete]
 === Use index sorting to speed up conjunctions
 
 <<index-modules-index-sorting,Index sorting>> can be useful in order to make
 conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
-[float]
+[discrete]
 [[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
@@ -364,7 +364,7 @@ one after another, for instance in order to analyze a narrower subset of the
 index, using a preference value that identifies the current user or session
 could help optimize usage of the caches.
 
-[float]
+[discrete]
 === Replicas might help with throughput, but not always
 
 In addition to improving resiliency, replicas can help improve throughput. For

@@ -107,8 +107,8 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
     void consumeResult(SearchPhaseResult result, Runnable next) {
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
-        pendingMerges.consume(querySearchResult, next);
         progressListener.notifyQueryResult(querySearchResult.getShardIndex());
+        pendingMerges.consume(querySearchResult, next);
     }
 
     @Override

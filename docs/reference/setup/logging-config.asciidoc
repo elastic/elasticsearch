@@ -120,7 +120,7 @@ appenders can be found on the
 http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
 documentation].
 
-[float]
+[discrete]
 [[configuring-logging-levels]]
 === Configuring logging levels
 
@@ -187,7 +187,7 @@ example, you want to send the logger to another file, or manage the logger
 differently; this is a rare use-case).
 --
 
-[float]
+[discrete]
 [[deprecation-logging]]
 === Deprecation logging
 
@@ -239,7 +239,7 @@ The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
 ---------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[json-logging]]
 === JSON log format
 

@@ -74,12 +74,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
                 in.readString(); // type
             }
-            int fieldSize = in.readVInt();
-            Map<String, FieldMappingMetadata> fieldMapBuilder = new HashMap<>(fieldSize);
-            for (int k = 0; k < fieldSize; k++) {
-                fieldMapBuilder.put(in.readString(), new FieldMappingMetadata(in.readString(), in.readBytesReference()));
-            }
-            indexMapBuilder.put(index, unmodifiableMap(fieldMapBuilder));
+            indexMapBuilder.put(index, unmodifiableMap(
+                    in.readMap(StreamInput::readString, inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))));
         }
         mappings = unmodifiableMap(indexMapBuilder);
     }
@@ -141,8 +137,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
             );
 
-        private String fullName;
-        private BytesReference source;
+        private final String fullName;
+        private final BytesReference source;
 
         public FieldMappingMetadata(String fullName, BytesReference source) {
             this.fullName = fullName;
@@ -198,21 +194,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, Map<String, FieldMappingMetadata>> indexEntry : mappings.entrySet()) {
-            out.writeString(indexEntry.getKey());
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        out.writeMap(mappings, StreamOutput::writeString, (outpt, map) -> {
+            if (outpt.getVersion().before(Version.V_8_0_0)) {
+                outpt.writeVInt(1);
+                outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
-            out.writeVInt(indexEntry.getValue().size());
-            for (Map.Entry<String, FieldMappingMetadata> fieldEntry : indexEntry.getValue().entrySet()) {
-                out.writeString(fieldEntry.getKey());
-                FieldMappingMetadata fieldMapping = fieldEntry.getValue();
-                out.writeString(fieldMapping.fullName());
-                out.writeBytesReference(fieldMapping.source);
-            }
-        }
+            outpt.writeMap(map, StreamOutput::writeString, (o, v) -> {
+                o.writeString(v.fullName());
+                o.writeBytesReference(v.source);
+            });
+        });
     }
 
     @Override

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-limitations]]
-=== {transform-cap} limitations
+= {transform-cap} limitations
 [subs="attributes"]
 ++++
 <titleabbrev>Limitations</titleabbrev>
@@ -9,77 +9,73 @@
 The following limitations and known problems apply to the {version} release of 
 the Elastic {transform} feature:
 
-
-[float]
+[discrete]
 [[transform-ui-limitation]]
-==== {transforms-cap} UI will not work during a rolling upgrade from 7.2
+== {transforms-cap} UI will not work during a rolling upgrade from 7.2
 
 If your cluster contains mixed version nodes, for example during a rolling 
 upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
 the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
 nodes have been upgraded to the newer version before using the {transforms} UI.
 
-[float]
+[discrete]
 [[transform-rolling-upgrade-limitation]]
-==== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
+== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling
 upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
 not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
 resume automatically; no action is required.
 
-[float]
+[discrete]
 [[transform-datatype-limitations]]
-==== {dataframe-cap} data type limitation
+== {dataframe-cap} data type limitation
 
 {dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
 the API. If you try to create one, the UI will fail to show the source index 
 table.
 
-
-[float]
+[discrete]
 [[transform-kibana-limitations]]
-==== Up to 1,000 {transforms} are supported
+== Up to 1,000 {transforms} are supported
 
 A single cluster will support up to 1,000 {transforms}. When using the 
-{ref}/get-transform.html[GET {transforms} API] a total `count` of {transforms} 
+<<get-transform,GET {transforms} API>> a total `count` of {transforms} 
 is returned. Use the `size` and `from` parameters to enumerate through the full 
 list.
 
-[float]
+[discrete]
 [[transform-aggresponse-limitations]]
-==== Aggregation responses may be incompatible with destination index mappings
+== Aggregation responses may be incompatible with destination index mappings
 
 When a {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
 the source index and the aggregations used. If the fields are derived from 
-{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[`scripted_metrics`] 
-or {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[`bucket_scripts`], 
-{ref}/dynamic-mapping.html[dynamic mappings] will be used. In some instances the 
+<<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
+or <<search-aggregations-pipeline-bucket-script-aggregation,`bucket_scripts`>>, 
+<<dynamic-mapping,dynamic mappings>> will be used. In some instances the 
 deduced mappings may be incompatible with the actual data. For example, numeric 
 overflows might occur or dynamically mapped fields might contain both numbers 
 and strings. Please check {es} logs if you think this may have occurred. As a 
 workaround, you may define custom mappings prior to starting the 
 {transform}. For example, 
-{ref}/indices-create-index.html[create a custom destination index] or 
-{ref}/indices-templates.html[define an index template].
+<<indices-create-index,create a custom destination index>> or 
+<<indices-templates,define an index template>>.
 
-
-[float]
+[discrete]
 [[transform-batch-limitations]]
-==== Batch {transforms} may not account for changed documents
+== Batch {transforms} may not account for changed documents
 
 A batch {transform} uses a 
-{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregation]
+<<search-aggregations-bucket-composite-aggregation,composite aggregation>>
 which allows efficient pagination through all buckets. Composite aggregations 
 do not yet support a search context, therefore if the source data is changed 
 (deleted, updated, added) while the batch {dataframe} is in progress, then the 
 results may not include these changes.
 
-
-[float]
+[discrete]
 [[transform-consistency-limitations]]
-==== {ctransform-cap} consistency does not account for deleted or updated documents
+== {ctransform-cap} consistency does not account for deleted or updated documents
 
 While the process for {transforms} allows the continual recalculation of the 
 {transform} as new data is being ingested, it does also have some limitations.
@@ -101,19 +97,17 @@ archiving, you may wish to include a max ingest timestamp in your aggregation.
 This will allow you to exclude results that have not been recently updated when 
 viewing the destination index.
 
-
-[float]
+[discrete]
 [[transform-deletion-limitations]]
-==== Deleting a {transform} does not delete the destination index or {kib} index pattern
+== Deleting a {transform} does not delete the destination index or {kib} index pattern
 
 When deleting a {transform} using `DELETE _transform/index` 
 neither the destination index nor the {kib} index pattern, should one have been 
 created, are deleted. These objects must be deleted separately.
 
-
-[float]
+[discrete]
 [[transform-aggregation-page-limitations]]
-==== Handling dynamic adjustment of aggregation page size
+== Handling dynamic adjustment of aggregation page size
 
 During the development of {transforms}, control was favoured over performance. 
 In the design considerations, it is preferred for the {transform} to take longer 
@@ -121,9 +115,9 @@ to complete quietly in the background rather than to finish quickly and take
 precedence in resource consumption.
 
 Composite aggregations are well suited for high cardinality data enabling 
-pagination through results. If a {ref}/circuit-breaker.html[circuit breaker] 
-memory exception occurs when performing the composite aggregated search then we 
-try again reducing the number of buckets requested. This circuit breaker is 
+pagination through results. If a <<circuit-breaker,circuit breaker>> memory
+exception occurs when performing the composite aggregated search then we try
+again reducing the number of buckets requested. This circuit breaker is
 calculated based upon all activity within the cluster, not just activity from 
 {transforms}, so it therefore may only be a temporary resource 
 availability issue.
@@ -140,23 +134,21 @@ default can be changed using `max_page_search_size` and the minimum value is 10.
 If failures still occur once the number of buckets requested has been reduced to 
 its minimum, then the {transform} will be set to a failed state.
 
-
-[float]
+[discrete]
 [[transform-dynamic-adjustments-limitations]]
-==== Handling dynamic adjustments for many terms
+== Handling dynamic adjustments for many terms
 
 For each checkpoint, entities are identified that have changed since the last 
 time the check was performed. This list of changed entities is supplied as a 
-{ref}/query-dsl-terms-query.html[terms query] to the {transform} composite 
-aggregation, one page at a time. Then updates are applied to the destination 
-index for each page of entities.
+<<query-dsl-terms-query,terms query>> to the {transform} composite aggregation,
+one page at a time. Then updates are applied to the destination index for each
+page of entities.
 
 The page `size` is defined by `max_page_search_size` which is also used to 
 define the number of buckets returned by the composite aggregation search. The 
 default value is 500, the minimum is 10.
 
-The index setting 
-{ref}/index-modules.html#dynamic-index-settings[`index.max_terms_count`] defines 
+The index setting <<dynamic-index-settings,`index.max_terms_count`>> defines 
 the maximum number of terms that can be used in a terms query. The default value 
 is 65536. If `max_page_search_size` exceeds `index.max_terms_count` the 
 {transform} will fail. 
@@ -164,10 +156,9 @@ is 65536. If `max_page_search_size` exceeds `index.max_terms_count` the
 Using smaller values for `max_page_search_size` may result in a longer duration 
 for the {transform} checkpoint to complete.
 
-
-[float]
+[discrete]
 [[transform-scheduling-limitations]]
-==== {ctransform-cap} scheduling limitations
+== {ctransform-cap} scheduling limitations
 
 A {ctransform} periodically checks for changes to source data. The functionality
 of the scheduler is currently limited to a basic periodic timer which can be 
@@ -177,10 +168,9 @@ your ingest rate along with the impact that the {transform}
 search/index operations has other users in your cluster. Also note that retries 
 occur at `frequency` interval.
 
-
-[float]
+[discrete]
 [[transform-failed-limitations]]
-==== Handling of failed {transforms}
+== Handling of failed {transforms}
 
 Failed {transforms} remain as a persistent task and should be handled 
 appropriately, either by deleting it or by resolving the root cause of the 
@@ -189,10 +179,9 @@ failure and re-starting.
 When using the API to delete a failed {transform}, first stop it using 
 `_stop?force=true`, then delete it.
 
-
-[float]
+[discrete]
 [[transform-availability-limitations]]
-==== {ctransforms-cap} may give incorrect results if documents are not yet available to search
+== {ctransforms-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.
@@ -207,8 +196,9 @@ If using a `sync.time.field` that represents the data ingest time and using a
 zero second or very small `sync.time.delay`, then it is more likely that this 
 issue will occur.
 
+[discrete]
 [[transform-date-nanos]]
-==== Support for date nanoseconds data type
+== Support for date nanoseconds data type
 
 If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
 are nonetheless on millisecond resolution. This limitation also affects the

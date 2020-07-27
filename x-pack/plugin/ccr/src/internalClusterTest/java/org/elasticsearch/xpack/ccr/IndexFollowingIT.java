@@ -239,7 +239,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59273")
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));
@@ -279,7 +278,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                         leaderClient().admin().indices().prepareFlush("index1").setForce(true).get();
                     }
                 }
-                leaderClient().admin().indices().prepareFlush("index1").setForce(true).setWaitIfOngoing(true).get();
+                if (between(0, 100) < 20) {
+                    leaderClient().admin().indices().prepareFlush("index1").setForce(false).setWaitIfOngoing(false).get();
+                }
             }
         });
         thread.start();
@@ -290,7 +291,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ensureFollowerGreen("index2");
 
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            assertBusy(assertExpectedDocumentRunnable(i));
+            assertBusy(assertExpectedDocumentRunnable(i), 1, TimeUnit.MINUTES);
         }
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
@@ -301,7 +302,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            assertBusy(assertExpectedDocumentRunnable(i));
+            assertBusy(assertExpectedDocumentRunnable(i), 1, TimeUnit.MINUTES);
         }
 
         isRunning.set(false);

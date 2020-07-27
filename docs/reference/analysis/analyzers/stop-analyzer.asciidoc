@@ -8,7 +8,7 @@ The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analy
 but adds support for removing stop words.  It defaults to using the
 `_english_` stop words.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -103,7 +103,7 @@ The above sentence would produce the following terms:
 [ quick, brown, foxes, jumped, over, lazy, dog, s, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `stop` analyzer accepts the following parameters:
@@ -123,7 +123,7 @@ The `stop` analyzer accepts the following parameters:
 See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `stop` analyzer to use a specified list of
@@ -228,7 +228,7 @@ The above example produces the following terms:
 [ quick, brown, foxes, jumped, lazy, dog, s, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Definition
 
 It consists of:

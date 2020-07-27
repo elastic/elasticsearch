@@ -176,11 +176,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
-        }
         final Path file = path.resolve(blobName);
-        writeToPath(inputStream, file, blobSize);
+        try {
+            writeToPath(inputStream, file, blobSize);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(inputStream, file, blobSize);
+        }
         IOUtils.fsync(path, true);
     }
 

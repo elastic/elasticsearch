@@ -147,77 +147,50 @@ public final class SearchPhaseController {
      *
      * @param ignoreFrom Whether to ignore the from and sort all hits in each shard result.
      *                   Enabled only for scroll search, because that only retrieves hits of length 'size' in the query phase.
-     * @param results the search phase results to obtain the sort docs from
-     * @param bufferedTopDocs the pre-consumed buffered top docs
-     * @param topDocsStats the top docs stats to fill
+     * @param topDocs the buffered top docs
      * @param from the offset into the search results top docs
      * @param size the number of hits to return from the merged top docs
      */
-    static SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
-                                  final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size,
+    static SortedTopDocs sortDocs(boolean ignoreFrom, final Collection<TopDocs> topDocs, int from, int size,
                                   List<CompletionSuggestion> reducedCompletionSuggestions) {
-        if (results.isEmpty()) {
+        if (topDocs.isEmpty() && reducedCompletionSuggestions.isEmpty()) {
             return SortedTopDocs.EMPTY;
         }
-        final Collection<TopDocs> topDocs = bufferedTopDocs == null ? new ArrayList<>() : bufferedTopDocs;
-        for (SearchPhaseResult sortedResult : results) { // TODO we can move this loop into the reduce call to only loop over this once
-            /* We loop over all results once, group together the completion suggestions if there are any and collect relevant
-             * top docs results. Each top docs gets it's shard index set on all top docs to simplify top docs merging down the road
-             * this allowed to remove a single shared optimization code here since now we don't materialized a dense array of
-             * top docs anymore but instead only pass relevant results / top docs to the merge method*/
-            QuerySearchResult queryResult = sortedResult.queryResult();
-            if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
-                final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
-                assert td != null;
-                topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
-                // make sure we set the shard index before we add it - the consumer didn't do that yet
-                if (td.topDocs.scoreDocs.length > 0) {
-                    setShardIndex(td.topDocs, queryResult.getShardIndex());
-                    topDocs.add(td.topDocs);
+        final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
+        final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
+        ScoreDoc[] scoreDocs = mergedScoreDocs;
+        if (reducedCompletionSuggestions.isEmpty() == false) {
+            int numSuggestDocs = 0;
+            for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
+                assert completionSuggestion != null;
+                numSuggestDocs += completionSuggestion.getOptions().size();
+            }
+            scoreDocs = new ScoreDoc[mergedScoreDocs.length + numSuggestDocs];
+            System.arraycopy(mergedScoreDocs, 0, scoreDocs, 0, mergedScoreDocs.length);
+            int offset = mergedScoreDocs.length;
+            for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    scoreDocs[offset++] = option.getDoc();
                 }
             }
         }
-        final boolean hasHits = (reducedCompletionSuggestions.isEmpty() && topDocs.isEmpty()) == false;
-        if (hasHits) {
-            final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
-            final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
-            ScoreDoc[] scoreDocs = mergedScoreDocs;
-            if (reducedCompletionSuggestions.isEmpty() == false) {
-                int numSuggestDocs = 0;
-                for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
-                    assert completionSuggestion != null;
-                    numSuggestDocs += completionSuggestion.getOptions().size();
-                }
-                scoreDocs = new ScoreDoc[mergedScoreDocs.length + numSuggestDocs];
-                System.arraycopy(mergedScoreDocs, 0, scoreDocs, 0, mergedScoreDocs.length);
-                int offset = mergedScoreDocs.length;
-                for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
-                    for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
-                        scoreDocs[offset++] = option.getDoc();
-                    }
-                }
+        boolean isSortedByField = false;
+        SortField[] sortFields = null;
+        String collapseField = null;
+        Object[] collapseValues = null;
+        if (mergedTopDocs instanceof TopFieldDocs) {
+            TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
+            sortFields = fieldDocs.fields;
+            if (fieldDocs instanceof CollapseTopFieldDocs) {
+                isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
+                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
+                collapseField = collapseTopFieldDocs.field;
+                collapseValues = collapseTopFieldDocs.collapseValues;
+            } else {
+                isSortedByField = true;
             }
-            boolean isSortedByField = false;
-            SortField[] sortFields = null;
-            String collapseField = null;
-            Object[] collapseValues = null;
-            if (mergedTopDocs instanceof TopFieldDocs) {
-                TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
-                sortFields = fieldDocs.fields;
-                if (fieldDocs instanceof CollapseTopFieldDocs) {
-                    isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                    CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
-                    collapseField = collapseTopFieldDocs.field;
-                    collapseValues = collapseTopFieldDocs.collapseValues;
-                } else {
-                    isSortedByField = true;
-                }
-            }
-            return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues);
-        } else {
-            // no relevant docs
-            return SortedTopDocs.EMPTY;
         }
+        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues);
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
@@ -405,28 +378,28 @@ public final class SearchPhaseController {
                 throw new UnsupportedOperationException("Scroll requests don't have aggs");
             }
         };
-        return reducedQueryPhase(queryResults, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE, aggReduceContextBuilder, true);
+        final TopDocsStats topDocsStats = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        final List<TopDocs> topDocs = new ArrayList<>();
+        for (SearchPhaseResult sortedResult : queryResults) {
+            QuerySearchResult queryResult = sortedResult.queryResult();
+            final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
+            assert td != null;
+            topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
+            // make sure we set the shard index before we add it - the consumer didn't do that yet
+            if (td.topDocs.scoreDocs.length > 0) {
+                setShardIndex(td.topDocs, queryResult.getShardIndex());
+                topDocs.add(td.topDocs);
+            }
+        }
+        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats,
+            0, true, aggReduceContextBuilder, true);
     }
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
-     */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                               boolean isScrollRequest, int trackTotalHitsUpTo,
-                                               InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
-                                               boolean performFinalReduce) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo),
-            0, isScrollRequest, aggReduceContextBuilder, performFinalReduce);
-    }
-
-    /**
-     * Reduces the given query results and consumes all aggregations and profile results.
-     * @param queryResults a list of non-null query shard results
-     * @param bufferedAggs a list of pre-collected / buffered aggregations. if this list is non-null all aggregations have been consumed
-     *                    from all non-null query results.
-     * @param bufferedTopDocs a list of pre-collected / buffered top docs. if this list is non-null all top docs have been consumed
-     *                    from all non-null query results.
+     * @param bufferedAggs a list of pre-collected aggregations.
+     * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
@@ -456,22 +429,6 @@ public final class SearchPhaseController {
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
-        final boolean consumeAggs;
-        final List<InternalAggregations> aggregationsList;
-        if (bufferedAggs != null) {
-            consumeAggs = false;
-            // we already have results from intermediate reduces and just need to perform the final reduce
-            assert firstResult.hasAggs() : "firstResult has no aggs but we got non null buffered aggs?";
-            aggregationsList = bufferedAggs;
-        } else if (firstResult.hasAggs()) {
-            // the number of shards was less than the buffer size so we reduce agg results directly
-            aggregationsList = new ArrayList<>(queryResults.size());
-            consumeAggs = true;
-        } else {
-            // no aggregations
-            aggregationsList = Collections.emptyList();
-            consumeAggs = false;
-        }
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
@@ -495,8 +452,8 @@ public final class SearchPhaseController {
                     }
                 }
             }
-            if (consumeAggs) {
-                aggregationsList.add(result.consumeAggs().expand());
+            if (bufferedTopDocs.isEmpty() == false) {
+                assert result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             }
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
@@ -512,21 +469,18 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, aggregationsList);
+        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
-        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
-            reducedCompletionSuggestions);
+        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
-    private static InternalAggregations reduceAggs(
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<InternalAggregations> toReduce
-    ) {
+    private static InternalAggregations reduceAggs(InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+                                                   boolean performFinalReduce,
+                                                   List<InternalAggregations> toReduce) {
         return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
             performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
     }

@@ -79,7 +79,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -165,9 +164,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
             int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
             accumulatedLength += suggestionSize;
         }
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, results.asList(), null,
-            new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE), from, size,
-            reducedCompletionSuggestions).scoreDocs;
+        List<TopDocs> topDocsList = new ArrayList<>();
+        for (SearchPhaseResult result : results.asList()) {
+            QuerySearchResult queryResult = result.queryResult();
+            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+            topDocsList.add(topDocs);
+        }
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList,
+            from, size, reducedCompletionSuggestions).scoreDocs;
         assertThat(sortedDocs.length, equalTo(accumulatedLength));
     }
 
@@ -185,14 +190,26 @@ public class SearchPhaseControllerTests extends ESTestCase {
             from = first.get().queryResult().from();
             size = first.get().queryResult().size();
         }
-        SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats, from, size,
+        List<TopDocs> topDocsList = new ArrayList<>();
+        for (SearchPhaseResult result : results.asList()) {
+            QuerySearchResult queryResult = result.queryResult();
+            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            topDocsList.add(topDocs);
+            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+        }
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size,
             Collections.emptyList()).scoreDocs;
 
         results = generateSeededQueryResults(randomSeed, nShards, Collections.emptyList(), queryResultSize,
             useConstantScore);
-        SearchPhaseController.TopDocsStats topDocsStats2 = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats2, from, size,
+        topDocsList = new ArrayList<>();
+        for (SearchPhaseResult result : results.asList()) {
+            QuerySearchResult queryResult = result.queryResult();
+            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            topDocsList.add(topDocs);
+            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+        }
+        ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size,
             Collections.emptyList()).scoreDocs;
         assertEquals(sortedDocs.length, sortedDocs2.length);
         for (int i = 0; i < sortedDocs.length; i++) {
@@ -200,10 +217,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(sortedDocs[i].shardIndex, sortedDocs2[i].shardIndex);
             assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
         }
-        assertEquals(topDocsStats.getMaxScore(), topDocsStats2.getMaxScore(), 0.0f);
-        assertEquals(topDocsStats.getTotalHits().value, topDocsStats2.getTotalHits().value);
-        assertEquals(topDocsStats.getTotalHits().relation, topDocsStats2.getTotalHits().relation);
-        assertEquals(topDocsStats.fetchHits, topDocsStats2.fetchHits);
     }
 
     private AtomicArray<SearchPhaseResult> generateSeededQueryResults(long seed, int nShards,
@@ -224,9 +237,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        for (int trackTotalHits : new int[] {SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE}) {
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
-                    queryResults.asList(), false, trackTotalHits, InternalAggregationTestCase.emptyReduceContextBuilder(), true);
+        for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(),
+                new ArrayList<>(), new ArrayList<>(), new SearchPhaseController.TopDocsStats(trackTotalHits),
+                0, true, InternalAggregationTestCase.emptyReduceContextBuilder(), true);
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(nShards,
                 reducedQueryPhase.sortedTopDocs.scoreDocs, reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
@@ -270,9 +284,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
      * Generate random query results received from the provided number of shards, including the provided
      * number of search hits and randomly generated completion suggestions based on the name and size of the provided ones.
      * Note that <code>shardIndex</code> is already set to the generated completion suggestions to simulate what
-     * {@link SearchPhaseController#reducedQueryPhase(Collection, boolean, int, InternalAggregation.ReduceContextBuilder, boolean)} does,
-     * meaning that the returned query results can be fed directly to
-     * {@link SearchPhaseController#sortDocs(boolean, Collection, Collection, SearchPhaseController.TopDocsStats, int, int, List)}
+     * {@link SearchPhaseController#reducedQueryPhase} does,
+     * meaning that the returned query results can be fed directly to {@link SearchPhaseController#sortDocs}
      */
     private static AtomicArray<SearchPhaseResult> generateQueryResults(int nShards, List<CompletionSuggestion> suggestions,
                                                                        int searchHitsSize, boolean useConstantScore) {
@@ -455,7 +468,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         }
         latch.await();
-
         final int numTotalReducePhases;
         if (numShards > bufferSize) {
             if (bufferSize == 2) {
@@ -563,6 +575,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
+
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertAggReduction(request);
         InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);

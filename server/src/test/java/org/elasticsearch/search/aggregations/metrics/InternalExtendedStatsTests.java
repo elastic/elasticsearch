@@ -53,9 +53,8 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     }
 
     protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double m2, double sigma, DocValueFormat formatter, Map<String, Object> metadata) {
+            double sigma, double m2, DocValueFormat formatter, Map<String, Object> metadata) {
         return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, m2, formatter, metadata);
-
     }
 
     @Override

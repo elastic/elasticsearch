@@ -53,8 +53,12 @@ public class RestClusterHealthActionTests extends ESTestCase {
         params.put("master_timeout", masterTimeout);
         params.put("timeout", timeout);
         params.put("wait_for_status", waitForStatus.name());
-        params.put("wait_for_no_relocating_shards", String.valueOf(waitForNoRelocatingShards));
-        params.put("wait_for_no_initializing_shards", String.valueOf(waitForNoInitializingShards));
+        if (waitForNoRelocatingShards || randomBoolean()) {
+            params.put("wait_for_no_relocating_shards", String.valueOf(waitForNoRelocatingShards));
+        }
+        if (waitForNoInitializingShards || randomBoolean()) {
+            params.put("wait_for_no_initializing_shards", String.valueOf(waitForNoInitializingShards));
+        }
         params.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
         params.put("wait_for_nodes", waitForNodes);
         params.put("wait_for_events", waitForEvents.name());

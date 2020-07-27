@@ -6,6 +6,8 @@ have indices created in 5.x or before, you must reindex or delete them
 before upgrading to {version}. {es} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster.
+Any index created in 6.x is compatible with 7.x and does not require a reindex.
+
 
 This restriction also applies to the internal indices that are used by
 {kib} and the {xpack} features. Therefore, before you can use {kib} and

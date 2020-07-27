@@ -47,7 +47,7 @@ results to the time period two hours before and after the anomaly.
 You can also specify these custom URL settings when you create or update
 {anomaly-jobs} by using the APIs.
 
-[float]
+[discrete]
 [[ml-configuring-url-strings]]
 == String substitution in custom URLs
 

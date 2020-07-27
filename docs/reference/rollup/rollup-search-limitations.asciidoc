@@ -10,7 +10,7 @@ live data is thrown away, you will always lose some flexibility.
 
 This page highlights the major limitations so that you are aware of them.
 
-[float]
+[discrete]
 ==== Only one {rollup} index per search
 
 When using the <<rollup-search>> endpoint, the `index` parameter accepts one or more indices.  These can be a mix of regular, non-rollup
@@ -31,7 +31,7 @@ Needless to say, this is a technically challenging piece of code.
 To help simplify the problem, we have limited search to just one rollup index at a time (which may contain multiple jobs).  In the future we
 may be able to open this up to multiple rollup jobs.
 
-[float]
+[discrete]
 [[aggregate-stored-only]]
 ==== Can only aggregate what's been stored
 
@@ -80,7 +80,7 @@ The response will tell you that the field and aggregation were not possible, bec
 ----
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
 
-[float]
+[discrete]
 ==== Interval granularity
 
 Rollups are stored at a certain granularity, as defined by the `date_histogram` group in the configuration.  This means you
@@ -110,7 +110,7 @@ as needed.
 That said, if multiple jobs are present in a single rollup index with varying intervals, the search endpoint will identify and use the job(s)
 with the largest interval to satisfy the search request.
 
-[float]
+[discrete]
 ==== Limited querying components
 
 The Rollup functionality allows `query`'s in the search request, but with a limited subset of components.  The queries currently allowed are:
@@ -127,7 +127,7 @@ If you wish to filter on a keyword `hostname` field, that field must have been c
 If you attempt to use an unsupported query, or the query references a field that wasn't configured in the rollup job, an exception will be
 thrown.  We expect the list of support queries to grow over time as more are implemented.
 
-[float]
+[discrete]
 ==== Timezones
 
 Rollup documents are stored in the timezone of the `date_histogram` group configuration in the job.  If no timezone is specified, the default

@@ -89,7 +89,7 @@ Experiment with different settings to find the optimal size for your particular 
 When using the HTTP API, make sure that the client does not send HTTP chunks, 
 as this will slow things down.
 
-[float]
+[discrete]
 [[bulk-clients]]
 ===== Client support for bulk requests
 
@@ -116,7 +116,7 @@ JavaScript::
 .NET::
     See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
-[float]
+[discrete]
 [[bulk-curl]]
 ===== Submitting bulk requests with cURL
 
@@ -135,7 +135,7 @@ $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --
 // NOTCONSOLE
 // Not converting to console because this shows how curl works
 
-[float]
+[discrete]
 [[bulk-optimistic-concurrency-control]]
 ===== Optimistic Concurrency Control
 
@@ -146,7 +146,7 @@ how operations are executed, based on the last modification to existing
 documents. See <<optimistic-concurrency-control>> for more details.
 
 
-[float]
+[discrete]
 [[bulk-versioning]]
 ===== Versioning
 
@@ -155,7 +155,7 @@ Each bulk item can include the version value using the
 index / delete operation based on the `_version` mapping. It also
 support the `version_type` (see <<index-versioning, versioning>>).
 
-[float]
+[discrete]
 [[bulk-routing]]
 ===== Routing
 
@@ -166,7 +166,7 @@ index / delete operation based on the `_routing` mapping.
 NOTE: Data streams do not support custom routing. Instead, target the
 appropriate backing index for the stream.
 
-[float]
+[discrete]
 [[bulk-wait-for-active-shards]]
 ===== Wait For Active Shards
 
@@ -176,7 +176,7 @@ before starting to process the bulk request. See
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 
-[float]
+[discrete]
 [[bulk-refresh]]
 ===== Refresh
 
@@ -190,7 +190,7 @@ with five shards. The request will only wait for those three shards to
 refresh. The other two shards that make up the index do not
 participate in the `_bulk` request at all.
 
-[float]
+[discrete]
 [[bulk-security]]
 ===== Security
 
@@ -528,7 +528,7 @@ The API returns the following result:
 // TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 // TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
 
-[float]
+[discrete]
 [[bulk-update]]
 ===== Bulk update example
 

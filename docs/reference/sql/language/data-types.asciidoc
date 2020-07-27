@@ -90,7 +90,7 @@ s|SQL precision
 
 
 [[sql-multi-field]]
-[float]
+[discrete]
 ==== SQL and multi-fields
 
 A core concept in {es} is that of an `analyzed` field, that is a full-text value that is interpreted in order

@@ -43,7 +43,7 @@ GET my_index/_search
 }
 -------------------------------------
 
-[float]
+[discrete]
 === Script parameters
 
 `lang`::
@@ -106,7 +106,7 @@ for ingest contexts. You can change these settings dynamically by setting
 
 ========================================
 
-[float]
+[discrete]
 [[modules-scripting-short-script-form]]
 === Short script form
 A short script form can be used for brevity. In the short form, `script` is represented
@@ -130,7 +130,7 @@ The same script in the normal form:
 ----------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[modules-scripting-stored-scripts]]
 === Stored scripts
 
@@ -145,7 +145,7 @@ privileges to create, retrieve, and delete stored scripts:
 For more information, see <<security-privileges>>.
 
 
-[float]
+[discrete]
 ==== Request examples
 
 The following are examples of using a stored script that lives at
@@ -222,7 +222,7 @@ DELETE _scripts/calculate-score
 -----------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[modules-scripting-search-templates]]
 === Search templates
 You can also use the `_scripts` API to store **search templates**. Search
@@ -237,7 +237,7 @@ mistakes.
 Search templates use the http://mustache.github.io/mustache.5.html[mustache
 templating language]. See <<search-template>> for more information and examples.
 
-[float]
+[discrete]
 [[modules-scripting-using-caching]]
 === Script caching
 
@@ -412,7 +412,7 @@ DELETE /_ingest/pipeline/my_test_scores_pipeline
 We recommend testing and benchmarking any indexing changes before deploying them
 in production.
 
-[float]
+[discrete]
 [[modules-scripting-errors]]
 === Script errors
 Elasticsearch returns error details when there is a compliation or runtime

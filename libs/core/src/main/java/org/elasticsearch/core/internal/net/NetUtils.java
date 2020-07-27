@@ -84,8 +84,9 @@ public class NetUtils {
                 }
             }
         } catch (Exception e) {
-            assert e instanceof IOException :
-                "unexpected exception when setting channel option: " + e.getClass() + ": " + e.getMessage();
+            // Getting an exception here should be ok when concurrently closing the channel
+            // An UnsupportedOperationException or IllegalArgumentException, however, should not happen
+            assert e instanceof IOException : e;
         }
     }
 
@@ -99,8 +100,7 @@ public class NetUtils {
             } catch (Exception e) {
                 // Getting an exception here should be ok when concurrently closing the channel
                 // An UnsupportedOperationException or IllegalArgumentException, however, should not happen
-                assert e instanceof IOException :
-                    "unexpected exception when setting channel option: " + e.getClass() + ": " + e.getMessage();
+                assert e instanceof IOException : e;
             }
         }
     }

@@ -568,7 +568,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         assertEquals(mapping, disabledMapper.mappingSource().toString());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
-            fieldMapper.fieldType().fielddataBuilder("test");
+            fieldMapper.fieldType().fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            });
         });
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
@@ -584,7 +586,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         assertEquals(mapping, enabledMapper.mappingSource().toString());
 
         FieldMapper enabledFieldMapper = (FieldMapper) enabledMapper.mappers().getMapper("field");
-        enabledFieldMapper.fieldType().fielddataBuilder("test"); // no exception this time
+        enabledFieldMapper.fieldType().fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }); // no exception this time
 
         String illegalMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")

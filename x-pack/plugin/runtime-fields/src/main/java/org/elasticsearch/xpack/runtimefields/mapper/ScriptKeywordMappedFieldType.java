@@ -16,6 +16,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldExistsQuery;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -62,19 +64,18 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
-    public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptBinaryFieldData.Builder(name(), script, scriptFactory);
+    public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new ScriptBinaryFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private StringScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
-        return scriptFactory.newFactory(script.getParams(), context.lookup());
+    private StringScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+        return scriptFactory.newFactory(script.getParams(), searchLookup);
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new StringScriptFieldExistsQuery(script, leafFactory(context.lookup()), name());
     }
 
     @Override
@@ -89,7 +90,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
         checkAllowExpensiveQueries(context);
         return StringScriptFieldFuzzyQuery.build(
             script,
-            leafFactory(context),
+            leafFactory(context.lookup()),
             name(),
             BytesRefs.toString(Objects.requireNonNull(value)),
             fuzziness.asDistance(BytesRefs.toString(value)),
@@ -101,7 +102,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     @Override
     public Query prefixQuery(String value, RewriteMethod method, org.elasticsearch.index.query.QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value);
+        return new StringScriptFieldPrefixQuery(script, leafFactory(context.lookup()), name(), value);
     }
 
     @Override
@@ -118,7 +119,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldRangeQuery(
             script,
-            leafFactory(context),
+            leafFactory(context.lookup()),
             name(),
             BytesRefs.toString(Objects.requireNonNull(lowerTerm)),
             BytesRefs.toString(Objects.requireNonNull(upperTerm)),
@@ -130,25 +131,30 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, flags, maxDeterminizedStates);
+        return new StringScriptFieldRegexpQuery(script, leafFactory(context.lookup()), name(), value, flags, maxDeterminizedStates);
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)));
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context.lookup()),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value))
+        );
     }
 
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
-        return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        return new StringScriptFieldTermsQuery(script, leafFactory(context.lookup()), name(), terms);
     }
 
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(context.lookup()), name(), value);
     }
 }

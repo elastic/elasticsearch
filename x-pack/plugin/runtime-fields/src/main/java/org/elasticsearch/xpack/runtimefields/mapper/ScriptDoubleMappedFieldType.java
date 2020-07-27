@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldExistsQuery;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
     private final DoubleScriptFieldScript.Factory scriptFactory;
@@ -46,19 +47,18 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     @Override
-    public ScriptDoubleFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptDoubleFieldData.Builder(name(), script, scriptFactory);
+    public ScriptDoubleFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new ScriptDoubleFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private DoubleScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
-        return scriptFactory.newFactory(script.getParams(), context.lookup());
+    private DoubleScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+        return scriptFactory.newFactory(script.getParams(), searchLookup);
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new DoubleScriptFieldExistsQuery(script, leafFactory(context.lookup()), name());
     }
 
     @Override
@@ -78,14 +78,14 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
+            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context.lookup()), name(), l, u)
         );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
+        return new DoubleScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), NumberType.objectToDouble(value));
     }
 
     @Override
@@ -98,6 +98,6 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        return new DoubleScriptFieldTermsQuery(script, leafFactory(context.lookup()), name(), terms);
     }
 }

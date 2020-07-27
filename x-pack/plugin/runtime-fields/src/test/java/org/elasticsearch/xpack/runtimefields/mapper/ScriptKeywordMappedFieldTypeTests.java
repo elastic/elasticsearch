@@ -66,8 +66,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptKeywordMappedFieldType ft = build("append_param", Map.of("param", "-suffix"));
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -105,8 +104,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptBinaryFieldData ifd = simpleMappedFieldType().fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptBinaryFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"a\"]}"));
@@ -132,7 +130,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                    public ScoreScript newInstance(LeafReaderContext ctx) {
                         return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {

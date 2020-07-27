@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -26,26 +24,37 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
 
     protected abstract String runtimeType();
 
+    @SuppressWarnings("unused")
     public abstract void testDocValues() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testSort() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testUsedInScript() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testExistsQuery() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testExistsQueryIsExpensive() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testRangeQuery() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testRangeQueryIsExpensive() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testTermQuery() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testTermQueryIsExpensive() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testTermsQuery() throws IOException;
 
+    @SuppressWarnings("unused")
     public abstract void testTermsQueryIsExpensive() throws IOException;
 
     protected static QueryShardContext mockContext() {
@@ -66,30 +75,27 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        SearchLookup lookup = new SearchLookup(mapperService, mft -> {
-            IndexFieldData<?> ifd = mft.fielddataBuilder("test").build(null, null, mapperService);
-            if (ifd instanceof SearchLookupAware) {
-                ((SearchLookupAware) ifd).setSearchLookup(context.lookup());
-            }
-            return ifd;
-        });
+        SearchLookup lookup = new SearchLookup(
+            mapperService,
+            mft -> mft.fielddataBuilder("test", context::lookup).build(null, null, mapperService)
+        );
         when(context.lookup()).thenReturn(lookup);
         return context;
     }
 
-    public void testPhraseQueryIsError() throws IOException {
+    public void testPhraseQueryIsError() {
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false));
     }
 
-    public void testPhrasePrefixQueryIsError() throws IOException {
+    public void testPhrasePrefixQueryIsError() {
         assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1));
     }
 
-    public void testMultiPhraseQueryIsError() throws IOException {
+    public void testMultiPhraseQueryIsError() {
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false));
     }
 
-    public void testSpanPrefixQueryIsError() throws IOException {
+    public void testSpanPrefixQueryIsError() {
         assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
     }
 
@@ -106,5 +112,4 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             )
         );
     }
-
 }

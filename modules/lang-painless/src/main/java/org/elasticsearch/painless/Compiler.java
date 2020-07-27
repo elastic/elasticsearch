@@ -24,6 +24,7 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.SemanticHeaderPhase;
 import org.elasticsearch.painless.phase.UserTreeToIRTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -216,6 +217,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new SemanticHeaderPhase().visitClass(root, scriptScope);
         root.analyze(scriptScope);
+        // TODO(stu): Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
         new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         DefBootstrapInjectionPhase.phase(classNode);
@@ -249,6 +252,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new SemanticHeaderPhase().visitClass(root, scriptScope);
         root.analyze(scriptScope);
+        // TODO(stu): Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
         new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         classNode.setDebugStream(debugStream);

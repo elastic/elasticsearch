@@ -161,11 +161,11 @@ public class FetchPhase implements SearchPhase {
                 int subDocId = docId - subReaderContext.docBase;
 
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
-                if (rootDocId != -1) {
-                    prepareNestedHitContext(hitContext, context, docId, subDocId, rootDocId,
+                if (rootDocId == -1) {
+                    prepareHitContext(hitContext, context, fieldsVisitor, docId, subDocId,
                         storedToRequestedFields, subReaderContext);
                 } else {
-                    prepareHitContext(hitContext, context, fieldsVisitor, docId, subDocId,
+                    prepareNestedHitContext(hitContext, context, docId, subDocId, rootDocId,
                         storedToRequestedFields, subReaderContext);
                 }
 

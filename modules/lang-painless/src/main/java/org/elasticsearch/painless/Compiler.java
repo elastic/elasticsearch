@@ -218,11 +218,10 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new DefaultSemanticHeaderPhase().visitClass(root, scriptScope);
         new DefaultSemanticAnalysisPhase().visitClass(root, scriptScope);
-        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         // TODO(stu): Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
+        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
-        DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);
         byte[] bytes = classNode.write();
 
@@ -253,12 +252,11 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new DefaultSemanticHeaderPhase().visitClass(root, scriptScope);
         new DefaultSemanticAnalysisPhase().visitClass(root, scriptScope);
-        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         // TODO(stu): Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
+        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         classNode.setDebugStream(debugStream);
-        DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);
 
         return classNode.write();

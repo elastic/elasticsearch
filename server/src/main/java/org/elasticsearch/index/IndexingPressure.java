@@ -112,7 +112,7 @@ public class IndexingPressure {
     }
 
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
-        long replicaWriteBytes = this.currentReplicaBytes.getAndAdd(bytes);
+        long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);

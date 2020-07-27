@@ -137,7 +137,12 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), BytesRefs.toString(Objects.requireNonNull(value)));
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context.lookup()),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value))
+        );
     }
 
     @Override

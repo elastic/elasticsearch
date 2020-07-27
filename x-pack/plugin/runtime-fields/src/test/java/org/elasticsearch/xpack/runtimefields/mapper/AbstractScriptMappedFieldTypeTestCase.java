@@ -75,8 +75,10 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        SearchLookup lookup = new SearchLookup(mapperService,
-            mft -> mft.fielddataBuilder("test", context::lookup).build(null, null, mapperService));
+        SearchLookup lookup = new SearchLookup(
+            mapperService,
+            mft -> mft.fielddataBuilder("test", context::lookup).build(null, null, mapperService)
+        );
         when(context.lookup()).thenReturn(lookup);
         return context;
     }

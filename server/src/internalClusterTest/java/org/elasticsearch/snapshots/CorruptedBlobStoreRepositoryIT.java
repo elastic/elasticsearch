@@ -157,6 +157,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify index-N blob is found at the new location");
         assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 1));
 
+        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+        logger.info("--> wait for all listeners on snapshots service to be resolved to avoid snapshot task batching causing a conflict");
+        assertBusy(() -> assertTrue(snapshotsService.assertAllListenersResolved()));
+
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
 

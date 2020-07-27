@@ -39,7 +39,8 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.search.aggregations.AggregationInfo;
+import org.elasticsearch.search.aggregations.support.AggregationInfo;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,14 +49,10 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -175,12 +172,25 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
         AggregationInfo aggregationInfo = null;
         if (randomBoolean()) {
+            AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
             int numOfAggs = randomIntBetween(0, 10);
-            Map<String, Set<String>> aggs = new TreeMap<>();
-            for (int i=0; i<numOfAggs; i++) {
-                aggs.put(randomAlphaOfLength(10), new TreeSet<>(Arrays.asList(generateRandomStringArray(10,10, false))));
+            for (int i = 0; i < numOfAggs; i++) {
+                String aggName = randomAlphaOfLength(10);
+
+                try {
+                    if (randomBoolean()) {
+                        builder.registerAggregationUsage(aggName);
+                    } else {
+                        int numOfTypes = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOfTypes; j++) {
+                            builder.registerAggregationUsage(aggName, randomAlphaOfLength(10));
+                        }
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // Ignore duplicate strings
+                }
             }
-            aggregationInfo = new AggregationInfo(aggs);
+            aggregationInfo = builder.build().info();
         }
 
         ByteSizeValue indexingBuffer = null;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,18 +25,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
 
 public class AggregationInfo implements ReportingService.Info {
 
     private final Map<String, Set<String>> aggs;
 
-    public AggregationInfo(Map<String, Set<String>> aggs) {
-        this.aggs = aggs;
+    AggregationInfo(Map<String, Map<String, LongAdder>> aggs) {
+        // we use a treemap/treeset here to have a test-able / predictable order
+        Map<String, Set<String>> aggsMap = new TreeMap<>();
+        aggs.forEach((s, m) -> aggsMap.put(s, Collections.unmodifiableSet(new TreeSet<>(m.keySet()))));
+        this.aggs = Collections.unmodifiableMap(aggsMap);
     }
 
     /**

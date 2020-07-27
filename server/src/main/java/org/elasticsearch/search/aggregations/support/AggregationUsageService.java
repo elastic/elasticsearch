@@ -20,13 +20,9 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.search.aggregations.AggregationInfo;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
@@ -61,10 +57,7 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
 
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
-        // we use a treemap/treeset here to have a test-able / predictable order
-        Map<String, Set<String>> aggsInfo = new TreeMap<>();
-        aggs.forEach((s, m) -> aggsInfo.put(s, new TreeSet<>(m.keySet())));
-        info = new AggregationInfo(aggsInfo);
+        info = new AggregationInfo(aggs);
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {

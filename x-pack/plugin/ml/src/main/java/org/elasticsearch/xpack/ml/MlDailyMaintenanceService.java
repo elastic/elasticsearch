@@ -102,7 +102,11 @@ public class MlDailyMaintenanceService implements Releasable {
         int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
 
         ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
-        ZonedDateTime next = now.plusSeconds(10);
+        ZonedDateTime next = now.plusDays(1)
+            .toLocalDate()
+            .atStartOfDay(now.getZone())
+            .plusMinutes(30)
+            .plusMinutes(minutesOffset);
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 

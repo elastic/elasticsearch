@@ -433,8 +433,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 leaderIndexMetadata.getMappings().size() + "]";
             MappingMetaData mappingMetaData = leaderIndexMetadata.getMappings().iterator().next().value;
             if (mappingMetaData != null) {
-                final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData)
-                    .masterNodeTimeout(TimeValue.timeValueMinutes(30));
+                final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
                 followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
             }
         }

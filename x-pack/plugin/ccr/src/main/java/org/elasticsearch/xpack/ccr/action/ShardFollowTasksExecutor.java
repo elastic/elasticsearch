@@ -218,10 +218,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                               Settings updatedSettings,
                                                               Runnable handler,
                                                               Consumer<Exception> onFailure) {
-                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> {
                     updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
                 };
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 followerClient.admin().indices().close(closeRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
@@ -229,8 +229,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                     Settings updatedSettings,
                                                     Runnable handler,
                                                     Consumer<Exception> onFailure) {
-                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
-                updateSettingsRequest.settings(updatedSettings);
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex)
+                    .masterNodeTimeout(TimeValue.MAX_VALUE).settings(updatedSettings);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
             }
@@ -238,7 +238,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             private void openIndex(String followIndex,
                                    Runnable handler,
                                    Consumer<Exception> onFailure) {
-                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
             }

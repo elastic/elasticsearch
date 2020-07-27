@@ -82,6 +82,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
+    public static final String INGEST_ORIGIN = "ingest";
+
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
     private final ClusterService clusterService;

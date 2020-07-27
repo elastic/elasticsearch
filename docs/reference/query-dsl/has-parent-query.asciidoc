@@ -25,7 +25,7 @@ field mapping. For example:
 
 [source,console]
 ----
-PUT /my-index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -50,7 +50,7 @@ PUT /my-index
 
 [source,console]
 ----
-GET /my-index/_search
+GET /my-index-000001/_search
 {
   "query": {
     "has_parent": {

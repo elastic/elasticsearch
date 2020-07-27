@@ -145,7 +145,7 @@ with an explicit mapping.
 
 [source,console]
 ----
-PUT /my-index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -174,7 +174,7 @@ for the `employee-id` field are stored but not indexed or available for search.
 
 [source,console]
 ----
-PUT /my-index/_mapping
+PUT /my-index-000001/_mapping
 {
   "properties": {
     "employee-id": {
@@ -203,7 +203,7 @@ an existing index.
 
 [source,console]
 ----
-GET /my-index/_mapping
+GET /my-index-000001/_mapping
 ----
 // TEST[continued]
 
@@ -212,7 +212,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my-index" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
         "age" : {
@@ -249,7 +249,7 @@ The following request retrieves the mapping for the `employee-id` field.
 
 [source,console]
 ----
-GET /my-index/_mapping/field/employee-id
+GET /my-index-000001/_mapping/field/employee-id
 ----
 // TEST[continued]
 
@@ -258,7 +258,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my-index" : {
+  "my-index-000001" : {
     "mappings" : {
       "employee-id" : {
         "full_name" : "employee-id",

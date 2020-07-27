@@ -20,7 +20,7 @@ Below is an example of a mapping for a text field:
 
 [source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.SocketOption;
 import java.net.StandardSocketOptions;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.util.Arrays;
 
@@ -85,7 +84,7 @@ public class NetUtils {
                 }
             }
         } catch (Exception e) {
-            assert e instanceof IOException || e instanceof ClosedChannelException :
+            assert e instanceof IOException :
                 "unexpected exception when setting channel option: " + e.getClass() + ": " + e.getMessage();
         }
     }
@@ -100,7 +99,7 @@ public class NetUtils {
             } catch (Exception e) {
                 // Getting an exception here should be ok when concurrently closing the channel
                 // An UnsupportedOperationException or IllegalArgumentException, however, should not happen
-                assert e instanceof IOException || e instanceof ClosedChannelException :
+                assert e instanceof IOException :
                     "unexpected exception when setting channel option: " + e.getClass() + ": " + e.getMessage();
             }
         }

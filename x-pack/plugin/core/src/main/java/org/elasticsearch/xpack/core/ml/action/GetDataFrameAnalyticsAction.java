@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
@@ -64,13 +62,6 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
         @Override
         protected Reader<DataFrameAnalyticsConfig> getReader() {
             return DataFrameAnalyticsConfig::new;
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 }

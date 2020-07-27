@@ -17,7 +17,7 @@ The {ml-features} include the following sum functions:
 * xref:ml-sum[`sum`, `high_sum`, `low_sum`]
 * xref:ml-nonnull-sum[`non_null_sum`, `high_non_null_sum`, `low_non_null_sum`]
 
-[float]
+[discrete]
 [[ml-sum]]
 == Sum, high_sum, low_sum
 
@@ -73,7 +73,7 @@ transferred from a client to a server on the internet that are unusual compared
 to other clients. This scenario could be useful to detect data exfiltration or
 to find users that are abusing internet privileges.
 
-[float]
+[discrete]
 [[ml-nonnull-sum]]
 == Non_null_sum, high_non_null_sum, low_non_null_sum
 

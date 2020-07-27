@@ -6,7 +6,7 @@
 In this tutorial, you learn how to secure a cluster by configuring users and
 roles in {es}, {kib}, {ls}, and {metricbeat}.
 
-[float]
+[discrete]
 [[get-started-security-prerequisites]]
 === Before you begin
 
@@ -345,7 +345,7 @@ These roles enable the user to see the system metrics in {kib} (for example, on
 the *Discover* page or in the
 http://localhost:5601/app/kibana#/dashboard/Metricbeat-system-overview[{metricbeat} system overview dashboard]).
 
-[float]
+[discrete]
 [[gs-security-nextsteps]]
 === What's next?
 

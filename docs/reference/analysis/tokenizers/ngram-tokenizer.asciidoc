@@ -13,7 +13,7 @@ N-grams are like a sliding window that moves across the word - a continuous
 sequence of characters of the specified length. They are useful for querying
 languages that don't use spaces or that have long compound words, like German.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `ngram` tokenizer treats the initial text as a
@@ -168,7 +168,7 @@ The above sentence would produce the following terms:
 [ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `ngram` tokenizer accepts the following parameters:
@@ -210,7 +210,7 @@ matches.  A tri-gram (length `3`) is a good place to start.
 The index level setting `index.max_ngram_diff` controls the maximum allowed
 difference between `max_gram` and `min_gram`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `ngram` tokenizer to treat letters and

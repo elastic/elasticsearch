@@ -7,7 +7,7 @@ Functions for computing a _single_ result from a set of input values.
 {es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
 
 [[sql-functions-aggs-general]]
-[float]
+[discrete]
 === General Purpose
 
 [[sql-functions-aggs-avg]]
@@ -404,7 +404,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumScalars]
 --------------------------------------------------
 
 [[sql-functions-aggs-statistics]]
-[float]
+[discrete]
 === Statistics
 
 [[sql-functions-aggs-kurtosis]]

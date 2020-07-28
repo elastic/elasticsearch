@@ -19,74 +19,89 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.gradle.api.Action;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Project;
+import org.elasticsearch.gradle.testclusters.TestClustersAware;
+import org.elasticsearch.gradle.testclusters.TestClustersThrottle;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.services.internal.BuildServiceRegistryInternal;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.internal.resources.ResourceLock;
+import org.gradle.internal.resources.SharedResource;
 
-public class RestIntegTestTask extends DefaultTask {
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 
-    protected RestTestRunnerTask runner;
-    private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
-    private static final String TESTS_CLUSTER = "tests.cluster";
-    private static final String TESTS_CLUSTER_NAME = "tests.clustername";
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_SERVICE_NAME;
 
-    // TODO: refactor this so that work is not done in constructor and find usages and register them, not create them
-    // See: https://docs.gradle.org/current/userguide/task_configuration_avoidance.html
-    // See: https://github.com/elastic/elasticsearch/issues/47804
+/**
+ * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
+ * as a custom task type because the current {@link org.gradle.api.tasks.TaskInputs} runtime API does not have a way to register
+ * {@link Nested} inputs.
+ */
+@CacheableTask
+public class RestIntegTestTask extends Test implements TestClustersAware {
+
+    private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+
     public RestIntegTestTask() {
-        Project project = getProject();
-        String name = getName();
-        runner = project.getTasks().create(name + "Runner", RestTestRunnerTask.class);
-        super.dependsOn(runner);
-        @SuppressWarnings("unchecked")
-        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
-        ElasticsearchCluster cluster = testClusters.create(name);
-        runner.useCluster(cluster);
-        runner.include("**/*IT.class");
-        runner.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
-        if (System.getProperty(TESTS_REST_CLUSTER) == null) {
-            if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
-                throw new IllegalArgumentException(
-                    String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
-                );
-            }
-            SystemPropertyCommandLineArgumentProvider runnerNonInputProperties = (SystemPropertyCommandLineArgumentProvider) runner
-                .getExtensions()
-                .getByName("nonInputProperties");
-            runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
-            runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
-            runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
-        } else {
-            if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
-                throw new IllegalArgumentException(
-                    String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
-                );
-            }
+        this.getOutputs()
+            .doNotCacheIf(
+                "Caching disabled for this task since it uses a cluster shared by other tasks",
+                /*
+                 * Look for any other tasks which use the same cluster as this task. Since tests often have side
+                 * effects for the cluster they execute against, this state can cause issues when trying to cache
+                 * tests results of tasks that share a cluster. To  avoid any undesired behavior we simply disable
+                 * the cache if we detect that this task uses a cluster shared between multiple tasks.
+                 */
+                t -> getProject().getTasks()
+                    .withType(RestIntegTestTask.class)
+                    .stream()
+                    .filter(task -> task != this)
+                    .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
+            );
+    }
+
+    @Override
+    public int getMaxParallelForks() {
+        return 1;
+    }
+
+    @Nested
+    @Override
+    public Collection<ElasticsearchCluster> getClusters() {
+        return clusters;
+    }
+
+    @Override
+    @Internal
+    public List<ResourceLock> getSharedResources() {
+        List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
+        BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
+        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
+        SharedResource resource = serviceRegistry.forService(throttleProvider);
+
+        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
+        if (nodeCount > 0) {
+            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
         }
-        // this must run after all projects have been configured, so we know any project
-        // references can be accessed as a fully configured
-        project.getGradle().projectsEvaluated(x -> {
-            if (isEnabled() == false) {
-                runner.setEnabled(false);
-            }
-        });
+
+        return Collections.unmodifiableList(locks);
     }
 
     @Override
     public Task dependsOn(Object... dependencies) {
-        runner.dependsOn(dependencies);
+        super.dependsOn(dependencies);
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture) dependency).getStopTask());
+                finalizedBy(((Fixture) dependency).getStopTask());
             }
         }
         return this;
@@ -94,20 +109,25 @@ public class RestIntegTestTask extends DefaultTask {
 
     @Override
     public void setDependsOn(Iterable<?> dependencies) {
-        runner.setDependsOn(dependencies);
+        super.setDependsOn(dependencies);
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture) dependency).getStopTask());
+                finalizedBy(((Fixture) dependency).getStopTask());
             }
         }
     }
 
-    public void runner(Action<? super RestTestRunnerTask> configure) {
-        configure.execute(runner);
-    }
+    // public void runner(Action<? super RestTestRunnerTask> configure) {
+    // runner.configure(configure);
+    // }
 
-    @Internal
-    public RestTestRunnerTask getRunner() {
-        return runner;
-    }
+    // @Internal
+    // public TaskProvider<RestTestRunnerTask> getRunner() {
+    // return runner;
+    // }
+    //
+    // public void setRunner(TaskProvider<RestTestRunnerTask> runner) {
+    // this.runner = runner;
+    // super.dependsOn(runner);
+    // }
 }

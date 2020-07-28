@@ -29,9 +29,7 @@ dependencies {
 
 task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.rest.suite', 'remote_cluster'
-  }
+  systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
 testClusters.'remote-cluster' {
@@ -40,11 +38,9 @@ testClusters.'remote-cluster' {
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  runner {
     useCluster testClusters.'remote-cluster'
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
-  }
 }
 
 testClusters.mixedClusterTest {

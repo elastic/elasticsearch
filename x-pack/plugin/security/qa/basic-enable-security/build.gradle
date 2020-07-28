@@ -12,9 +12,7 @@ dependencies {
 
 integTest {
   description = "Run tests against a cluster that doesn't have security"
-  runner {
-    systemProperty 'tests.has_security', 'false'
-  }
+  systemProperty 'tests.has_security', 'false'
 }
 
 testClusters.integTest {

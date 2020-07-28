@@ -39,7 +39,7 @@ task setupPorts {
 }
 
 
-integTest.runner.dependsOn setupPorts
+integTest.dependsOn setupPorts
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'

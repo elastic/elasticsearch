@@ -67,6 +67,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         ElasticsearchJavaPlugin.configureInputNormalization(project)
         ElasticsearchJavaPlugin.configureCompile(project)
 
+        project.pluginManager.apply(RestTestBasePlugin)
+
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
         project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
 

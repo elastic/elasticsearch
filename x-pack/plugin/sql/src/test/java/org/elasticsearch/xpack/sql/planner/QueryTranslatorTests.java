@@ -1596,6 +1596,21 @@ public class QueryTranslatorTests extends ESTestCase {
         );
     }
 
+    public void testGroupByCastScalarWithText() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(some.text AS LONG) AS \"cast\" FROM test GROUP BY \"cast\"");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("cast", p.output().get(0).qualifiedName());
+        assertEquals(LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"some.text.typical\",\"v1\":\"LONG\"}}," +
+                "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
     public void testGroupByCastScalarWithNumericRef() {
         PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) FROM test " +
             "GROUP BY 1 ORDER BY 1 NULLS FIRST");

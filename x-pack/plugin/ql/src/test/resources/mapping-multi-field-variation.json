@@ -27,6 +27,14 @@
                         }
                     }
                 },
+                "text": {
+                    "type": "text",
+                    "fields": {
+                        "typical": {
+                            "type": "keyword"
+                        }
+                    }
+                },
                 "ambiguous" : {
                     "type" : "text",
                     "fields" : {

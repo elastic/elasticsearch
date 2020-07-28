@@ -569,6 +569,10 @@ public class Decorations {
         }
     }
 
+    public interface Negate extends Condition {
+
+    }
+
     // standard output for user tree to ir tree phase
 
     public static class IRNodeDecoration implements Decoration {

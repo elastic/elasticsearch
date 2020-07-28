@@ -511,7 +511,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -567,7 +567,7 @@ public class Node implements Closeable {
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
-                searchTransportService, indexingLimits);
+                searchTransportService, indexingLimits, searchModule.getValuesSourceRegistry().getUsageService());
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptService, bigArrays, searchModule.getFetchPhase(),

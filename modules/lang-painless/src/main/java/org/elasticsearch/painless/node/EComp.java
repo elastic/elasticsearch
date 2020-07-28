@@ -19,18 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -72,58 +63,5 @@ public class EComp extends AExpression {
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         leftNode.visit(userTreeVisitor, scope);
         rightNode.visit(userTreeVisitor, scope);
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        semanticScope.setCondition(leftNode, Read.class);
-        analyze(leftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
-
-        semanticScope.setCondition(rightNode, Read.class);
-        analyze(rightNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
-
-        Class<?> promotedType;
-
-        if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
-            promotedType = AnalyzerCaster.promoteEquality(leftValueType, rightValueType);
-        } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
-            promotedType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
-        } else {
-            throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
-        }
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                    "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
-        }
-
-        if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && leftNode instanceof ENull && rightNode instanceof ENull) {
-            throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
-        }
-
-        if (operation == Operation.EQR || operation == Operation.NER || promotedType != def.class) {
-            semanticScope.putDecoration(leftNode, new TargetType(promotedType));
-            semanticScope.putDecoration(rightNode, new TargetType(promotedType));
-            leftNode.cast(semanticScope);
-            rightNode.cast(semanticScope);
-        }
-
-        semanticScope.putDecoration(this, new ValueType(boolean.class));
-        semanticScope.putDecoration(this, new ComparisonType(promotedType));
     }
 }

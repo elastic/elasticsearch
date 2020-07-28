@@ -135,7 +135,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertShardFolders(indexName, false);
 
-        final boolean deletedBeforeMount = false;
+        final boolean deletedBeforeMount = randomBoolean();
         if (deletedBeforeMount) {
             assertAcked(client().admin().indices().prepareDelete(indexName));
         } else {
@@ -295,10 +295,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     private void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
+        boolean shardFolderFound = false;
         for (String node : internalCluster().getNodeNames()) {
             final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
             final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
+                shardFolderFound = true;
                 assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
 
                 assertTrue(Files.exists(shardPath.resolveTranslog()));
@@ -313,6 +315,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 }
             }
         }
+        assertTrue("no shard folder found", shardFolderFound);
     }
 
     public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {

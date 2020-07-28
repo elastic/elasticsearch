@@ -351,13 +351,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (changeCollector.isOptimized() == false) {
                 logger.warn(
                     new ParameterizedMessage(
-                        "[{}] could not find any optimizations for continuous execution, this transform might run slow, please check your configuration.",
+                        "[{}] could not find any optimizations for continuous execution, "
+                            + "this transform might run slow, please check your configuration.",
                         getJobId()
                     )
                 );
                 auditor.warning(
                     getJobId(),
-                    "could not find any optimizations for continuous execution, this transform might run slow, please check your configuration."
+                    "could not find any optimizations for continuous execution, "
+                        + "this transform might run slow, please check your configuration."
                 );
             }
         }

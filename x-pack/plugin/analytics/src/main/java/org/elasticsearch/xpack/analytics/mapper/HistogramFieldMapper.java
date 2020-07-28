@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -164,6 +164,14 @@ public class HistogramFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
+    }
+
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
@@ -181,10 +189,13 @@ public class HistogramFieldMapper extends FieldMapper {
             return new IndexFieldData.Builder() {
 
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                               CircuitBreakerService breakerService, MapperService mapperService) {
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
 
-                    return new IndexHistogramFieldData(fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
+                    return new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                         @Override
                         public LeafHistogramFieldData load(LeafReaderContext context) {

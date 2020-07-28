@@ -7,9 +7,9 @@ Specifies search criteria as request body parameters.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -139,7 +139,10 @@ include::request/search-after.asciidoc[]
 
 include::request/search-type.asciidoc[]
 
-include::request/sort.asciidoc[]
+[[request-body-search-sort]]
+==== Sort
+
+See <<sort-search-results>>.
 
 include::request/source-filtering.asciidoc[]
 

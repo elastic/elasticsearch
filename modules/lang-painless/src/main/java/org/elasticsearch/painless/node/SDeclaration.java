@@ -21,12 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -60,32 +54,14 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitDeclaration(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclaration(this, scope);
     }
 
     @Override
-    void analyze(SemanticScope semanticScope) {
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-
-        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
-        }
-
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (type == null) {
-            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
-        }
-
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         if (valueNode != null) {
-            semanticScope.setCondition(valueNode, Read.class);
-            semanticScope.putDecoration(valueNode, new TargetType(type));
-            AExpression.analyze(valueNode, semanticScope);
-            valueNode.cast(semanticScope);
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
-        semanticScope.putDecoration(this, new SemanticVariable(variable));
     }
 }

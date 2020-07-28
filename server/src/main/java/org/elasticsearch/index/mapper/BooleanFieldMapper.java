@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -101,15 +102,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -178,7 +171,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.BOOLEAN);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN);
         }
 
         @Override
@@ -257,6 +250,20 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    public Boolean parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else {
+            String textValue = value.toString();
+            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+        }
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
@@ -266,4 +273,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    protected Object nullValue() {
+        return nullValue;
+    }
 }

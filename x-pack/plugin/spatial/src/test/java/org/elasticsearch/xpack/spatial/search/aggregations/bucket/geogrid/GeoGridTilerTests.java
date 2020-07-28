@@ -465,9 +465,9 @@ public class GeoGridTilerTests extends ESTestCase {
     }
 
     private void testCircuitBreaker(GeoGridTiler tiler) throws IOException {
-        Polygon polygon = GeometryTestUtils.randomPolygon(false);
-        int precision = randomIntBetween(0, 5);
-        TriangleTreeReader reader = triangleTreeReader(polygon, GeoShapeCoordinateEncoder.INSTANCE);
+        Geometry geometry = GeometryTestUtils.randomPolygon(false);
+        int precision = randomIntBetween(0, 3);
+        TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoShapeValues.GeoShapeValue value =  new MultiGeoShapeValues.GeoShapeValue(reader);
 
         List<Long> byteChangeHistory = new ArrayList<>();

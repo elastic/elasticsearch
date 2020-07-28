@@ -304,6 +304,27 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     */
+    public SearchRequestBuilder addFetchField(String name) {
+        sourceBuilder().fetchField(name, null);
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     * @param format TODO(jtibs): fill this in
+     */
+    public SearchRequestBuilder addFetchField(String name, String format) {
+        sourceBuilder().fetchField(name, format);
+        return this;
+    }
+
+    /**
      * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      */
     public SearchRequestBuilder addStoredField(String field) {

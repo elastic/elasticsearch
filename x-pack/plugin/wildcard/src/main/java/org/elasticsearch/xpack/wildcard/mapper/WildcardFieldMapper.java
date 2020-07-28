@@ -46,7 +46,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -874,12 +873,15 @@ public class WildcardFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
-
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new StringBinaryIndexFieldData(fieldType.name(), CoreValuesSourceType.BYTES);
-                }};
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
+                    return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
+                }
+            };
         }
 
      }
@@ -948,6 +950,19 @@ public class WildcardFieldMapper extends FieldMapper {
         parseDoc.addAll(fields);
     }
 
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
+    }
+
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
         if (value == null || value.length() > ignoreAbove) {
             return;
@@ -976,6 +991,11 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected String nullValue() {
+        return nullValue;
     }
 
     @Override

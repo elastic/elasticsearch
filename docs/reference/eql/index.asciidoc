@@ -15,7 +15,7 @@ You can use EQL in {es} to easily express relationships between events and
 quickly match events with shared properties. You can use EQL and query
 DSL together to better filter your searches.
 
-[float]
+[discrete]
 [[eql-advantages]]
 === Advantages of EQL
 
@@ -32,7 +32,7 @@ While you can use EQL for any event-based data, we created EQL for threat
 hunting. EQL not only supports indicator of compromise (IOC) searching but
 makes it easy to describe activity that goes beyond IOCs.
 
-[float]
+[discrete]
 [[when-to-use-eql]]
 === When to use EQL
 
@@ -42,7 +42,7 @@ Consider using EQL if you:
 * Search time-series data or logs, such as network or system logs
 * Want an easy way to explore relationships between events
 
-[float]
+[discrete]
 [[eql-toc]]
 === In this section
 

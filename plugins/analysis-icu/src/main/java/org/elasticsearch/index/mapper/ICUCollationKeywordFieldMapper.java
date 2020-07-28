@@ -580,6 +580,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
         if (!Objects.equals(collator, icuMergeWith.collator)) {
@@ -732,5 +737,18 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
     }
 }

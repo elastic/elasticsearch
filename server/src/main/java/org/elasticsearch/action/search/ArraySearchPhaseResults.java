@@ -39,9 +39,11 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
         return results.asList().stream();
     }
 
-    void consumeResult(Result result) {
+    @Override
+    void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
         results.set(result.getShardIndex(), result);
+        next.run();
     }
 
     boolean hasResult(int shardIndex) {

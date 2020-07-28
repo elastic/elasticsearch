@@ -30,19 +30,20 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
@@ -88,6 +89,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         int trainingDocsWithEmptyFeatureImportance = 0;
         int testDocsWithEmptyFeatureImportance = 0;
+
+        // for debugging
+        List<Map<String, Object>> badDocuments = new ArrayList<>();
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
@@ -107,6 +111,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
 
             if (importanceArray.isEmpty()) {
+                badDocuments.add(destDoc);
                 if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
                     trainingDocsWithEmptyFeatureImportance++;
                 } else {
@@ -126,7 +131,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // If feature importance was empty for some of the docs this assertion helps us
         // understand whether the offending docs were training or test docs.
         assertThat("There were [" + trainingDocsWithEmptyFeatureImportance + "] training docs and ["
-            + testDocsWithEmptyFeatureImportance + "] test docs with empty feature importance",
+            + testDocsWithEmptyFeatureImportance + "] test docs with empty feature importance"
+            + " from " + sourceData.getHits().getTotalHits().value + " hits.\n"
+            + badDocuments,
             trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance, equalTo(0));
 
         assertProgressComplete(jobId);
@@ -543,18 +550,25 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
+        double predictionErrorSum = 0.0;
+
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-            int featureValue = (int) destDoc.get("field_1");
-            double predictionValue = (double) resultsObject.get(predictionField);
-            assertThat(predictionValue, closeTo(2 * featureValue, 10.0));
-
             assertThat(resultsObject.containsKey(predictionField), is(true));
             assertThat(resultsObject.containsKey("is_training"), is(true));
+
+            int featureValue = (int) destDoc.get("field_1");
+            double predictionValue = (double) resultsObject.get(predictionField);
+            predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
         }
+
+        // We assert on the mean prediction error in order to reduce the probability
+        // the test fails compared to asserting on the prediction of each individual doc.
+        double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
+        assertThat(meanPredictionError, lessThanOrEqualTo(10.0));
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));

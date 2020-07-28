@@ -18,7 +18,7 @@ There are five ways that a geo-point may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -29,7 +29,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Geo-point as an object",
   "location": { <1>
@@ -38,31 +38,31 @@ PUT my_index/_doc/1
   }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text": "Geo-point as a string",
   "location": "41.12,-71.34" <2>
 }
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 {
   "text": "Geo-point as a geohash",
   "location": "drm3btev3e86" <3>
 }
 
-PUT my_index/_doc/4
+PUT my-index-000001/_doc/4
 {
   "text": "Geo-point as an array",
   "location": [ -71.34, 41.12 ] <4>
 }
 
-PUT my_index/_doc/5
+PUT my-index-000001/_doc/5
 {
   "text": "Geo-point as a WKT POINT primitive",
   "location" : "POINT (-71.34 41.12)" <5>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "geo_bounding_box": { <6>

@@ -48,6 +48,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -363,25 +364,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        final NamedAnalyzer normalizer = fieldType().normalizer();
+        NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
-            try (TokenStream ts = normalizer.tokenStream(name(), value)) {
-                final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
-                ts.reset();
-                if (ts.incrementToken() == false) {
-                  throw new IllegalStateException("The normalization token stream is "
-                      + "expected to produce exactly 1 token, but got 0 for analyzer "
-                      + normalizer + " and input \"" + value + "\"");
-                }
-                final String newValue = termAtt.toString();
-                if (ts.incrementToken()) {
-                  throw new IllegalStateException("The normalization token stream is "
-                      + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                      + normalizer + " and input \"" + value + "\"");
-                }
-                ts.end();
-                value = newValue;
-            }
+            value = normalizeValue(normalizer, value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -399,9 +384,58 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
+
+    private String normalizeValue(NamedAnalyzer normalizer, String value) throws IOException {
+        try (TokenStream ts = normalizer.tokenStream(name(), value)) {
+            final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            ts.reset();
+            if (ts.incrementToken() == false) {
+                throw new IllegalStateException("The normalization token stream is "
+                    + "expected to produce exactly 1 token, but got 0 for analyzer "
+                    + normalizer + " and input \"" + value + "\"");
+            }
+            final String newValue = termAtt.toString();
+            if (ts.incrementToken()) {
+                throw new IllegalStateException("The normalization token stream is "
+                    + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                    + normalizer + " and input \"" + value + "\"");
+            }
+            ts.end();
+            return newValue;
+        }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+
+        NamedAnalyzer normalizer = fieldType().normalizer();
+        if (normalizer == null) {
+            return keywordValue;
+        }
+
+        try {
+            return normalizeValue(normalizer, keywordValue);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected String nullValue() {
+        return nullValue;
     }
 
     @Override

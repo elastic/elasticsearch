@@ -350,6 +350,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();

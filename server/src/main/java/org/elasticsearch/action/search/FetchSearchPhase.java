@@ -36,7 +36,6 @@ import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -45,7 +44,7 @@ import java.util.function.BiFunction;
  * Then it reaches out to all relevant shards to fetch the topN hits.
  */
 final class FetchSearchPhase extends SearchPhase {
-    private final AtomicArray<FetchSearchResult> fetchResults;
+    private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
     private final BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory;
@@ -73,7 +72,7 @@ final class FetchSearchPhase extends SearchPhase {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
                 + context.getNumShards() + "!=" + resultConsumer.getNumShards());
         }
-        this.fetchResults = new AtomicArray<>(resultConsumer.getNumShards());
+        this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
         this.searchPhaseController = searchPhaseController;
         this.queryResults = resultConsumer.getAtomicArray();
         this.nextPhaseFactory =  nextPhaseFactory;
@@ -102,7 +101,7 @@ final class FetchSearchPhase extends SearchPhase {
         });
     }
 
-    private void innerRun() throws IOException {
+    private void innerRun() throws Exception {
         final int numShards = context.getNumShards();
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
@@ -117,7 +116,7 @@ final class FetchSearchPhase extends SearchPhase {
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = ()
             -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
-            queryResults : fetchResults);
+            queryResults : fetchResults.getAtomicArray());
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
                 + "], single result: " +  phaseResults.get(0).fetchResult();
@@ -137,7 +136,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
                     searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;
-                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(r -> fetchResults.set(r.getShardIndex(), r),
+                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
                     finishPhase, context);
                 for (int i = 0; i < docIdsToLoad.length; i++) {

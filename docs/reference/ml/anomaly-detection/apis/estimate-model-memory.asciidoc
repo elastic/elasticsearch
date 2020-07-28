@@ -19,12 +19,12 @@ fields it references.
 [[ml-estimate-model-memory-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-equivalent privileges:
+If the {es} {security-features} are enabled, you must have the following privileges:
 
 * `manage_ml` or cluster: `manage`
 
-For more information, see <<security-privileges>>.
+For more information, see <<security-privileges>> and
+{ml-docs-setup-privileges}.
 
 
 [[ml-estimate-model-memory-request-body]]

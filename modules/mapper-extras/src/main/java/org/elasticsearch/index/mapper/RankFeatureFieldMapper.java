@@ -152,11 +152,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         float value;
         if (context.externalValueSet()) {
             Object v = context.externalValue();
-            if (v instanceof Number) {
-                value = ((Number) v).floatValue();
-            } else {
-                value = Float.parseFloat(v.toString());
-            }
+            value = objectToFloat(v);
         } else if (context.parser().currentToken() == Token.VALUE_NULL) {
             // skip
             return;
@@ -174,6 +170,22 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
+    }
+
+    private Float objectToFloat(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        } else {
+            return Float.parseFloat(value.toString());
+        }
+    }
+
+    @Override
+    protected Float parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return objectToFloat(value);
     }
 
     @Override

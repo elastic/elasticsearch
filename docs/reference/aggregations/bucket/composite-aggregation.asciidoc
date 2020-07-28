@@ -293,17 +293,17 @@ include::datehistogram-aggregation.asciidoc[tag=offset-explanation]
 
 [source,console,id=composite-aggregation-datehistogram-offset-example]
 ----
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "my_buckets": {

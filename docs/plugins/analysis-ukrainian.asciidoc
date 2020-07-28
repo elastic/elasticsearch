@@ -9,7 +9,7 @@ It provides stemming for Ukrainian using the http://github.com/morfologik/morfol
 include::install_remove.asciidoc[]
 
 [[analysis-ukrainian-analyzer]]
-[float]
+[discrete]
 ==== `ukrainian` analyzer
 
 The plugin provides the `ukrainian` analyzer.

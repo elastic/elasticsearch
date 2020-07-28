@@ -12,7 +12,7 @@ Peer recovery automatically occurs when {es}:
 You can view a list of in-progress and completed recoveries using the
 <<cat-recovery, cat recovery API>>.
 
-[float]
+[discrete]
 ==== Recovery settings
 
 `indices.recovery.max_bytes_per_sec`::
@@ -37,7 +37,7 @@ you are using <<overview-index-lifecycle-management,Index Lifecycle Management>>
 then you may be able to give your hot nodes a higher recovery bandwidth limit
 than your warm nodes.
 
-[float]
+[discrete]
 ==== Expert peer recovery settings
 You can use the following _expert_ setting to manage resources for peer
 recoveries.

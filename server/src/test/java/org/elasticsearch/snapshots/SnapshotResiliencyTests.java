@@ -1590,7 +1590,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetadataIndexUpgradeService(
                         settings, namedXContentRegistry,
                         mapperRegistry,
-                        indexScopedSettings),
+                        indexScopedSettings,
+                        new SystemIndices(Map.of())),
                     clusterSettings,
                         shardLimitValidator
                 );

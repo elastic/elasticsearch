@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 
@@ -59,13 +60,15 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final SystemIndices systemIndices;
 
     public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings) {
+                                       IndexScopedSettings indexScopedSettings, SystemIndices systemIndices) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.systemIndices = systemIndices;
     }
 
     /**
@@ -87,12 +90,12 @@ public class MetadataIndexUpgradeService {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        final IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
+        final IndexMetadata metadataWithSystemMarked = maybeMarkAsSystemIndex(indexMetadata);
+        final IndexMetadata newMetadata = archiveBrokenIndexSettings(metadataWithSystemMarked);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetadata);
         return markAsUpgraded(newMetadata);
     }
-
 
     /**
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
@@ -212,5 +215,13 @@ public class MetadataIndexUpgradeService {
         } else {
             return indexMetadata;
         }
+    }
+
+    IndexMetadata maybeMarkAsSystemIndex(IndexMetadata indexMetadata) {
+        final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex());
+        if (isSystem != indexMetadata.isSystem()) {
+            return IndexMetadata.builder(indexMetadata).system(isSystem).build();
+        }
+        return indexMetadata;
     }
 }

@@ -150,7 +150,7 @@ follows:
   * plus `tie_breaker * _score` for all other matching fields
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, `zero_terms_query`,
 `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
 as explained in <<query-dsl-match-query, match query>>.
 
@@ -244,7 +244,7 @@ The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, and `zero_terms_query`.
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and `zero_terms_query`.
 
 [[type-phrase]]
 ==== `phrase` and `phrase_prefix`
@@ -537,7 +537,7 @@ GET /_search
 The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
 `zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as
 explained in <<query-dsl-match-query, match query>> are supported. The
-`fuzziness`, `prefix_length`, `max_expansions`, `rewrite`, and
+`fuzziness`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and
 `fuzzy_transpositions` parameters are supported for the terms that are used to
 construct term queries, but do not have an effect on the prefix query
 constructed from the final term.

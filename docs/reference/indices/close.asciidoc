@@ -64,9 +64,9 @@ The following example shows how to close an index:
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_close
+POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 The API returns following response:
 
@@ -76,7 +76,7 @@ The API returns following response:
   "acknowledged": true,
   "shards_acknowledged": true,
   "indices": {
-    "my_index": {
+    "my-index-000001": {
       "closed": true
     }
   }

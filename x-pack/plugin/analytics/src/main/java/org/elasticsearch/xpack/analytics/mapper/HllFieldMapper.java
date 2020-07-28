@@ -196,6 +196,14 @@ public class HllFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
+    }
+
     public static class HllFieldType extends MappedFieldType {
 
         private final int precision;

@@ -116,6 +116,11 @@ public class VersionStringFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @Override
+        public Builder indexOptions(IndexOptions indexOptions) {
+            throw new MapperParsingException("index_options not allowed in field [" + name + "] of type [version]");
+        }
+
         private VersionStringFieldType buildFieldType(BuilderContext context) {
             boolean validateVersion = storeMalformed == false;
             return new VersionStringFieldType(buildFullName(context), indexed, validateVersion, meta, boost, fieldType);
@@ -165,8 +170,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (propName.equals("store_malformed")) {
                     builder.storeMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".store_malformed"));
-                    iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }

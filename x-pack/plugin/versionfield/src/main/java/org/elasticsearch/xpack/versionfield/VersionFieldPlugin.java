@@ -11,8 +11,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class VersionFieldPlugin extends Plugin implements MapperPlugin {
@@ -21,8 +19,6 @@ public class VersionFieldPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(VersionStringFieldMapper.CONTENT_TYPE, new VersionStringFieldMapper.TypeParser());
-        return Collections.unmodifiableMap(mappers);
+        return Map.of(VersionStringFieldMapper.CONTENT_TYPE, new VersionStringFieldMapper.TypeParser());
     }
 }

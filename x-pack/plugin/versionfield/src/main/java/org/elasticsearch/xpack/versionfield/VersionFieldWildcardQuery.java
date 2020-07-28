@@ -52,13 +52,13 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
 
                 case '-':
                     // this should potentially match the first prerelease-dash, so we need an optional marker byte here
-                    automata.add(Operations.optional(Automata.makeChar(VersionEncoder.PRERELESE_SEPARATOR_BYTE)));
+                    automata.add(Operations.optional(Automata.makeChar(VersionEncoder.PRERELEASE_SEPARATOR_BYTE)));
                     containsPreReleaseSeparator = true;
                     automata.add(Automata.makeChar(c));
                     break;
                 case '+':
                     // this can potentially appear after major version, optionally match the no-prerelease marker
-                    automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELESE_SEPARATOR_BYTE)));
+                    automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)));
                     containsPreReleaseSeparator = true;
                     automata.add(Automata.makeChar(c));
                     break;
@@ -90,7 +90,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         }
         // when we only have main version part, we need to add an optional NO_PRERELESE_SEPARATOR_BYTE
         if (containsPreReleaseSeparator == false) {
-            automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELESE_SEPARATOR_BYTE)));
+            automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)));
         }
         return Operations.concatenate(automata);
     }

@@ -14,15 +14,14 @@ import java.util.regex.Pattern;
 
 /**
  * Encodes a version string to a {@link BytesRef} that correctly sorts according to software version precedence rules like
- * the ones described in Semantiv Versioning (https://semver.org/)
+ * the ones described in Semantic Versioning (https://semver.org/)
  *
  * Version strings are considered to consist of three parts:
  * <ul>
  *  <li> a numeric major.minor.patch part starting the version string (e.g. 1.2.3)
- *  <li> an optional "pre-release" part that starts with a `-` character and can consist of several alpha-numerical sections
+ *  <li> an optional "pre-release" part that starts with a `-` character and can consist of several alphanumerical sections
  *  separated by dots (e.g. "-alpha.2.3")
- *  <li> an optional "build" part that starts with a `+` character. This will simply be treated as a prefix with no guaranteed ordering,
- *  (although the ordering should be alphabetical in most cases).
+ *  <li> an optional "build" part that starts with a `+` character. This will simply be treated as a suffix with ASCII sort order.
  * </ul>
  *
  * The version string is encoded such that the ordering works like the following:
@@ -37,10 +36,10 @@ import java.util.regex.Pattern;
 class VersionEncoder {
 
     public static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
-    public static final byte PRERELESE_SEPARATOR_BYTE = (byte) 0x02;
-    public static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
+    public static final byte PRERELEASE_SEPARATOR_BYTE = (byte) 0x02;
+    public static final byte NO_PRERELEASE_SEPARATOR_BYTE = (byte) 0x03;
 
-    private static final char PRERELESE_SEPARATOR = '-';
+    private static final char PRERELEASE_SEPARATOR = '-';
     private static final char DOT_SEPARATOR = '.';
     private static final char BUILD_SEPARATOR = '+';
 
@@ -68,8 +67,8 @@ class VersionEncoder {
         Integer[] mainVersionParts = prefixDigitGroupsWithLength(versionParts.mainVersion, encodedBytes);
 
         if (versionParts.preRelease != null) {
-            encodedBytes.append(PRERELESE_SEPARATOR_BYTE);  // versions with pre-release part sort before ones without
-            encodedBytes.append((byte) PRERELESE_SEPARATOR);
+            encodedBytes.append(PRERELEASE_SEPARATOR_BYTE);  // versions with pre-release part sort before ones without
+            encodedBytes.append((byte) PRERELEASE_SEPARATOR);
             String[] preReleaseParts = versionParts.preRelease.substring(1).split("\\.");
             boolean first = true;
             for (String preReleasePart : preReleaseParts) {
@@ -85,7 +84,7 @@ class VersionEncoder {
                 first = false;
             }
         } else {
-            encodedBytes.append(NO_PRERELESE_SEPARATOR_BYTE);
+            encodedBytes.append(NO_PRERELEASE_SEPARATOR_BYTE);
         }
 
         if (versionParts.buildSuffix != null) {
@@ -146,7 +145,7 @@ class VersionEncoder {
                 inputPos++;
                 // this should always be a length encoding, which is skipped by increasing inputPos at the end of the loop
                 assert version.bytes[inputPos] < 0;
-            } else if (inputByte != PRERELESE_SEPARATOR_BYTE && inputByte != NO_PRERELESE_SEPARATOR_BYTE) {
+            } else if (inputByte != PRERELEASE_SEPARATOR_BYTE && inputByte != NO_PRERELEASE_SEPARATOR_BYTE) {
                 result[resultPos] = inputByte;
                 resultPos++;
             }
@@ -168,7 +167,7 @@ class VersionEncoder {
         return legalMainVersion && legalPreRelease && legalBuildSuffix;
     }
 
-    public static class EncodedVersion {
+    static class EncodedVersion {
 
         public final boolean isLegal;
         public final boolean isPreRelease;
@@ -177,7 +176,7 @@ class VersionEncoder {
         public final Integer minor;
         public final Integer patch;
 
-        EncodedVersion(BytesRef bytesRef, boolean isLegal, boolean isPreRelease, Integer major, Integer minor, Integer patch) {
+        private EncodedVersion(BytesRef bytesRef, boolean isLegal, boolean isPreRelease, Integer major, Integer minor, Integer patch) {
             super();
             this.bytesRef = bytesRef;
             this.isLegal = isLegal;
@@ -205,7 +204,7 @@ class VersionEncoder {
                 versionString = versionString.substring(0, versionString.length() - buildSuffix.length());
             }
 
-            String preRelease = extractSuffix(versionString, PRERELESE_SEPARATOR);
+            String preRelease = extractSuffix(versionString, PRERELEASE_SEPARATOR);
             if (preRelease != null) {
                 versionString = versionString.substring(0, versionString.length() - preRelease.length());
             }

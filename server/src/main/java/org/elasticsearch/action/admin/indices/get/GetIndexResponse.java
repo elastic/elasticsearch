@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -180,7 +179,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        GetMappingsResponse.writeMappingMetadata(out, mappings);
+        MappingMetadata.writeMappingMetadata(out, mappings);
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
         out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
         out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));

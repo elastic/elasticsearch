@@ -23,7 +23,7 @@ Here is an example:
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -55,7 +55,7 @@ You can also define the overrides rules inline:
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

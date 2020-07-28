@@ -51,9 +51,9 @@ public final class NetworkService {
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_IDLE =
-        Setting.intSetting("network.tcp.keep_idle", -1, -1, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_idle", -1, -1, 300, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        Setting.intSetting("network.tcp.keep_interval", -1, -1, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_interval", -1, -1, 300, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_COUNT =
         Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =

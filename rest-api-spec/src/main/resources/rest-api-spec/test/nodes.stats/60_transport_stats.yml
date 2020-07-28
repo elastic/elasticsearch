@@ -6,7 +6,7 @@
       features: [arbitrary_key]
 
   - do:
-      nodes.info:
+      nodes.info: {}
   - set:
       nodes._arbitrary_key_: node_id
 

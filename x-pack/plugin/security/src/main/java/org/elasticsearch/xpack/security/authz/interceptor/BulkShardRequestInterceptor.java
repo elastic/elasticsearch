@@ -42,26 +42,24 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        boolean shouldIntercept = licenseState.isSecurityEnabled();
-        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+        boolean shouldIntercept = licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_DLS_FLS);
         if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-
             final BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
             for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
-                IndicesAccessControl.IndexAccessControl indexAccessControl =
-                    indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
                 boolean found = false;
-                if (indexAccessControl != null) {
-                    boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                    boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                    if (fls || dls) {
-                        if (licenseChecker.get() && bulkItemRequest.request() instanceof UpdateRequest) {
+                if (bulkItemRequest.request() instanceof UpdateRequest) {
+                    IndicesAccessControl.IndexAccessControl indexAccessControl =
+                            indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
+                    if (indexAccessControl != null) {
+                        boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                        boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                        if (fls || dls) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkItemRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
-                                "item request with update requests embedded if field or document level security is enabled",
-                                RestStatus.BAD_REQUEST));
+                                    "item request with update requests embedded if field or document level security is enabled",
+                                    RestStatus.BAD_REQUEST));
                         }
                     }
                 }

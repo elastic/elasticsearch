@@ -91,6 +91,13 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          * Clear the field collector, e.g. the changes to free up memory.
          */
         void clear();
+
+        /**
+         * Whether the collector optimizes change detection by narrowing the required query.
+         *
+         * @return true if the collector optimizes change detection
+         */
+        boolean isOptimized();
     }
 
     static class TermsFieldCollector implements FieldCollector {
@@ -191,6 +198,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         public AggregationBuilder aggregateChanges() {
             return null;
         }
+
+        @Override
+        public boolean isOptimized() {
+            return true;
+        }
     }
 
     static class DateHistogramFieldCollector implements FieldCollector {
@@ -198,7 +210,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final String sourceFieldName;
         private final String targetFieldName;
         private final boolean missingBucket;
-        private final boolean isSynchronizationField;
+        private final boolean applyOptimizationForSyncField;
         private final Rounding.Prepared rounding;
 
         DateHistogramFieldCollector(
@@ -212,7 +224,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             this.targetFieldName = targetFieldName;
             this.missingBucket = missingBucket;
             this.rounding = rounding;
-            this.isSynchronizationField = isSynchronizationField;
+
+            // if missing_bucket is set to true, we can't apply the optimization, note: this combination
+            // is illogical, because the sync field should be steady
+            this.applyOptimizationForSyncField = isSynchronizationField && (missingBucket == false);
         }
 
         @Override
@@ -229,8 +244,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
 
-            if (isSynchronizationField && lastCheckpointTimestamp > 0) {
-                // missing bucket can't be enabled as it would be an illegal combination
+            if (applyOptimizationForSyncField && lastCheckpointTimestamp > 0) {
                 assert missingBucket == false;
                 return new RangeQueryBuilder(sourceFieldName).gte(rounding.round(lastCheckpointTimestamp)).format("epoch_millis");
             }
@@ -246,6 +260,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public AggregationBuilder aggregateChanges() {
             return null;
+        }
+
+        @Override
+        public boolean isOptimized() {
+            // we only have 1 optimization
+            return applyOptimizationForSyncField;
         }
     }
 
@@ -282,6 +302,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public AggregationBuilder aggregateChanges() {
             return null;
+        }
+
+        @Override
+        public boolean isOptimized() {
+            return false;
         }
     }
 
@@ -405,9 +430,14 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                     new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
                 );
         }
+
+        @Override
+        public boolean isOptimized() {
+            return true;
+        }
     }
 
-    public CompositeBucketsChangeCollector(
+    private CompositeBucketsChangeCollector(
         @Nullable CompositeAggregationBuilder compositeAggregation,
         Map<String, FieldCollector> fieldCollectors
     ) {
@@ -486,6 +516,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     @Override
     public Map<String, Object> getBucketPosition() {
         return afterKey;
+    }
+
+    @Override
+    public boolean isOptimized() {
+        return fieldCollectors.values().stream().anyMatch(FieldCollector::isOptimized);
     }
 
     public static ChangeCollector buildChangeCollector(

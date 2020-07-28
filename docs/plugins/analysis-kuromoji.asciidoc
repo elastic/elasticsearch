@@ -62,8 +62,10 @@ PUT index-00001
             "filter": [
               "kuromoji_baseform",
               "kuromoji_part_of_speech",
+              "cjk_width",
               "ja_stop",
-              "kuromoji_stemmer"
+              "kuromoji_stemmer",
+              "lowercase"
             ]
           }
         }

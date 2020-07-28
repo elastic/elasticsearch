@@ -50,11 +50,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
 
     public TransportStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            totalOutboundConnections = in.readVLong();
-        } else {
-            totalOutboundConnections = 0L;
-        }
+        totalOutboundConnections = in.readVLong();
         rxCount = in.readVLong();
         rxSize = in.readVLong();
         txCount = in.readVLong();
@@ -64,9 +60,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVLong(totalOutboundConnections);
-        }
+        out.writeVLong(totalOutboundConnections);
         out.writeVLong(rxCount);
         out.writeVLong(rxSize);
         out.writeVLong(txCount);

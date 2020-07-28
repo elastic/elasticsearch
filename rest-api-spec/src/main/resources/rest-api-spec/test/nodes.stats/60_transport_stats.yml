@@ -1,8 +1,6 @@
 ---
 "Transport stats":
   - skip:
-      version: " - 7.99.99"
-      reason: "total_outbound_connections field is not returned in prior versions"
       features: [arbitrary_key]
 
   - do:

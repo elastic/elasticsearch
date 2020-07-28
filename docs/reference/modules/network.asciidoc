@@ -146,8 +146,8 @@ Only applicable on Linux and macOS, and requires Java 11 or newer.
 
 `network.tcp.keep_count`:: Configures the `TCP_KEEPCNT` option for this socket, which
 determines the number of unacknowledged TCP keepalive probes that may be
-sent on a connection before it is dropped. Defaults to `-1` which means to
-use the system default. Only applicable on Linux and macOS, and requires
+sent on a connection before it is dropped. Defaults to `-1`,
+which uses the system default. Only applicable on Linux and macOS, and requires
 Java 11 or newer.
 
 `network.tcp.reuse_address`::

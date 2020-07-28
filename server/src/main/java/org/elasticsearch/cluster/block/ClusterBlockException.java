@@ -26,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -49,22 +48,14 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
-        int totalBlocks = in.readVInt();
-        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
-        for (int i = 0; i < totalBlocks;i++) {
-            blocks.add(new ClusterBlock(in));
-        }
-        this.blocks = unmodifiableSet(blocks);
+        this.blocks = unmodifiableSet(in.readSet(ClusterBlock::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (blocks != null) {
-            out.writeVInt(blocks.size());
-            for (ClusterBlock block : blocks) {
-                block.writeTo(out);
-            }
+            out.writeCollection(blocks);
         } else {
             out.writeVInt(0);
         }

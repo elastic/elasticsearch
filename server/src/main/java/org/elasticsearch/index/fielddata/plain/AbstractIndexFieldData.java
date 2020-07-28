@@ -59,11 +59,6 @@ public abstract class AbstractIndexFieldData<FD extends LeafFieldData> implement
     }
 
     @Override
-    public void clear() {
-        cache.clear(fieldName);
-    }
-
-    @Override
     public FD load(LeafReaderContext context) {
         if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
             // Some leaf readers may be wrapped and report different set of fields and use the same cache key.

@@ -25,7 +25,7 @@ So while the cost of storing a millisecond of sensor data from ten years ago is 
 reading often diminishes with time.  It's not useless -- it could easily contribute to a useful analysis -- but it's reduced
 value often leads to deletion rather than paying the fixed storage cost.
 
-[float]
+[discrete]
 ==== Rollup stores historical data at reduced granularity
 
 That's where Rollup comes into play.  The Rollup functionality summarizes old, high-granularity data into a reduced
@@ -41,7 +41,7 @@ automates this process of summarizing historical data.
 
 Details about setting up and configuring Rollup are covered in <<rollup-put-job,Create Job API>>
 
-[float]
+[discrete]
 ==== Rollup uses standard query DSL
 
 The Rollup feature exposes a new search endpoint (`/_rollup_search` vs the standard `/_search`) which knows how to search
@@ -55,7 +55,7 @@ are covered more in <<rollup-search-limitations, Rollup Search limitations>>.
 But if your queries, aggregations and dashboards only use the available functionality, redirecting them to historical
 data is trivial.
 
-[float]
+[discrete]
 ==== Rollup merges "live" and "rolled" data
 
 A useful feature of Rollup is the ability to query both "live", realtime data in addition to historical "rolled" data
@@ -69,7 +69,7 @@ would only see data older than a month.  The RollupSearch endpoint, however, sup
 It will take the results from both data sources and merge them together.  If there is overlap between the "live" and
 "rolled" data, live data is preferred to increase accuracy.
 
-[float]
+[discrete]
 ==== Rollup is multi-interval aware
 
 Finally, Rollup is capable of intelligently utilizing the best interval available.  If you've worked with summarizing

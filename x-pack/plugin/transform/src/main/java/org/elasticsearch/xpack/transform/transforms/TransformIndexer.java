@@ -345,7 +345,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // create the function
         function = FunctionFactory.create(getConfig());
 
-        if (isContinuous()) {
+        if (isContinuous() && function.supportsIncrementalBucketUpdate()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
         }
     }
@@ -370,7 +370,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // reset the page size, so we do not memorize a low page size forever
             pageSize = function.getInitialPageSize();
             // reset the changed bucket to free memory
-            if (isContinuous()) {
+            if (changeCollector != null) {
                 changeCollector.clear();
             }
 
@@ -749,7 +749,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
-        QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+        QueryBuilder filter = changeCollector != null
+            ? changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound())
+            : null;
 
         if (filter != null) {
             filteredQuery.filter(filter);

@@ -21,11 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.InstanceType;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -62,30 +57,5 @@ public class EInstanceof extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         expressionNode.visit(userTreeVisitor, scope);
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        Class<?> instanceType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (instanceType == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        semanticScope.setCondition(expressionNode, Read.class);
-        analyze(expressionNode, semanticScope);
-
-        semanticScope.putDecoration(this, new ValueType(boolean.class));
-        semanticScope.putDecoration(this, new InstanceType(instanceType));
     }
 }

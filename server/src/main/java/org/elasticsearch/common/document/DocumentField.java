@@ -105,10 +105,9 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(name);
         for (Object value : values) {
-            // this call doesn't really need to support writing any kind of object.
-            // Stored fields values are converted using MappedFieldType#valueForDisplay.
-            // As a result they can either be Strings, Numbers, or Booleans, that's
-            // all.
+            // This call doesn't really need to support writing any kind of object, since the values
+            // here are always serializable to xContent. Each value could be a leaf types like a string,
+            // number, or boolean, a list of such values, or a map of such values with string keys.
             builder.value(value);
         }
         builder.endArray();

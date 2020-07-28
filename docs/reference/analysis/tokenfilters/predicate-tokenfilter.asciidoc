@@ -100,7 +100,7 @@ The `my_script_filter` filter removes tokens with of any type other than
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

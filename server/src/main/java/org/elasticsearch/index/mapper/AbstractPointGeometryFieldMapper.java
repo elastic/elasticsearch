@@ -23,9 +23,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryFormat;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -158,6 +162,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         void validate(String fieldName);
         void normalize(String fieldName);
         void resetCoords(double x, double y);
+        Point asGeometry();
         default boolean isNormalizable(double coord) {
             return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
@@ -178,7 +183,15 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     /** A parser implementation that can parse the various point formats */
-    public static class PointParser<P extends ParsedPoint> implements Parser<List<P>> {
+    public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
+        /**
+         * Note that this parser is only used for formatting values.
+         */
+        private final GeometryParser geometryParser;
+
+        public PointParser() {
+            this.geometryParser = new GeometryParser(true, true, true);
+        }
 
         @Override
         public List<P> parse(XContentParser parser, AbstractGeometryFieldMapper geometryMapper) throws IOException, ParseException {
@@ -237,6 +250,17 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 points.add(point);
                 return points;
             }
+        }
+
+        @Override
+        public Object format(List<P> points, String format) {
+            List<Object> result = new ArrayList<>();
+            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
+            for (ParsedPoint point : points) {
+                Geometry geometry = point.asGeometry();
+                result.add(geometryFormat.toXContentAsObject(geometry));
+            }
+            return result;
         }
     }
 }

@@ -85,7 +85,7 @@ set to `false` no mapping would get added as when `expand=false` the target mapp
 stop word.
 
 
-[float]
+[discrete]
 [[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
@@ -95,7 +95,7 @@ The `ignore_case` parameter works with `tokenizer` parameter only.
 
 Two synonym formats are supported: Solr, WordNet.
 
-[float]
+[discrete]
 ==== Solr synonyms
 
 The following is a sample format of the file:
@@ -133,7 +133,7 @@ PUT /test_index
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
 
-[float]
+[discrete]
 ==== WordNet synonyms
 
 Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be

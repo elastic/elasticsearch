@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,13 +65,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             return TrainedModelConfig.MODEL_ID.getPreferredName();
         }
 
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetTrainedModelsStatsAction action) {
-            super(client, action, new Request());
-        }
     }
 
     public static class Response extends AbstractGetResourcesResponse<Response.TrainedModelStats> {

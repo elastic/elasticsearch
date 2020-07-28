@@ -151,7 +151,7 @@ The only required parameter is `like`, all other parameters have sensible
 defaults. There are three types of parameters: one to specify the document
 input, the other one for term selection and for query formation.
 
-[float]
+[discrete]
 ==== Document Input Parameters
 
 [horizontal]
@@ -177,7 +177,7 @@ is the same as `like`.
 `fields`::
 A list of fields to fetch and analyze the text from.
 
-[float]
+[discrete]
 [[mlt-query-term-selection]]
 ==== Term Selection Parameters
 
@@ -219,7 +219,7 @@ reasonable to assume that "a stop word is never interesting".
 The analyzer that is used to analyze the free form text. Defaults to the
 analyzer associated with the first field in `fields`.
 
-[float]
+[discrete]
 ==== Query Formation Parameters
 
 [horizontal]

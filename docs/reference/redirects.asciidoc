@@ -132,7 +132,7 @@ See <<request-body-search-search-type>>.
 
 [role="exclude",id="search-request-sort"]
 === Sort parameter for request body search API
-See <<request-body-search-sort>>.
+See <<sort-search-results>>.
 
 [role="exclude",id="search-request-source-filtering"]
 === Source filtering parameter for request body search API
@@ -914,6 +914,11 @@ See <<release-highlights>>.
 
 The `xpack.sql.enabled` setting has been deprecated. SQL access is always enabled.
 
+[role="exclude",id="indices-templates"]
+=== Index templates [[getting]]
+
+See <<index-templates>>. 
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -946,4 +951,8 @@ See <<highlighting>>.
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
 See <<how-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-sort"]
+==== Sort
+See <<sort-search-results>>.
 ////

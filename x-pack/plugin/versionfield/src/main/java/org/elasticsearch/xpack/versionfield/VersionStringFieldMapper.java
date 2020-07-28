@@ -522,6 +522,14 @@ public class VersionStringFieldMapper extends FieldMapper {
         return concat;
     }
 
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value.toString();
+    }
+
     private static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
         @Override

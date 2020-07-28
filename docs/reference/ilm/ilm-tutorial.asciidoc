@@ -55,9 +55,10 @@ reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
 * A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time. 
 
-You can create the policy through {kib} Management or with the 
+You can create the policy through {kib} or with the 
 <<ilm-put-lifecycle, put policy>> API. 
-To create the policy from {kib}, go to Management and click **Index Lifecycle Policies**.
+To create the policy from {kib}, open the menu and go to *Stack Management >
+Index Lifecycle Policies*. Click *Index Lifecycle Policies*.
 
 [role="screenshot"]
 image:images/ilm/create-policy.png[]
@@ -109,9 +110,14 @@ To enable the {ilm-init} to manage the data stream, the template configures one 
 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to the data stream.
 
-You can use the {kib} Create template wizard to add the template.
-This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
-with the options you specify.
+You can use the {kib} Create template wizard to add the template. From Kibana,
+open the menu and go to *Stack Management > Index Management*. In the *Index
+Templates* tab, click *Create template*.
+
+image::images/data-streams/create-index-template.png[Create template page]
+
+This wizard invokes the <<indices-put-template,put index template API>> to create
+the index template with the options you specify.
 
 .API example
 [%collapsible]
@@ -303,9 +309,9 @@ that match the index pattern.
 * `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
 when the rollover action is triggered for an index.
 
-You can use the {kib} Create template wizard to add the template. 
-To access the wizard, go to Management, click **Index Management**,
-and select the **Index Templates** view. 
+You can use the {kib} Create template wizard to add the template. To access the
+wizard, open the menu, go to *Stack Management > Index Management*, and click
+the *Index Templates* tab.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[]

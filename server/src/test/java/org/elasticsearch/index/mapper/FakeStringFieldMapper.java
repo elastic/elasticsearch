@@ -134,6 +134,11 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String parseSourceValue(Object value, String format) {
+        return value.toString();
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }

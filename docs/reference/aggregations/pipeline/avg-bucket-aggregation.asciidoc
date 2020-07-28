@@ -12,9 +12,9 @@ An `avg_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "avg_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "avg_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

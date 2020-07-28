@@ -34,6 +34,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
@@ -82,12 +83,15 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
+        }
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins,
-                    @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
+                    @Nullable IngestInfo ingest, @Nullable AggregationInfo aggsInfo, @Nullable ByteSizeValue totalIndexingBuffer) {
         super(node);
         this.version = version;
         this.build = build;
@@ -100,6 +104,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, http);
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
+        addInfoIfNonNull(AggregationInfo.class, aggsInfo);
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -187,5 +192,8 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        }
     }
 }

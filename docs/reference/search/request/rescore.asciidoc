@@ -15,7 +15,7 @@ Currently the rescore API has only one implementation: the query
 rescorer, which uses a query to tweak the scoring. In the future,
 alternative rescorers may be made available, for example, a pair-wise rescorer.
 
-NOTE: An error will be thrown if an explicit <<request-body-search-sort,`sort`>> 
+NOTE: An error will be thrown if an explicit <<sort-search-results,`sort`>>
 (other than `_score` in descending order) is provided with a `rescore` query.
 
 NOTE: when exposing pagination to your users, you should not change

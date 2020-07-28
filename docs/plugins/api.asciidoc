@@ -3,7 +3,7 @@
 
 API extension plugins add new functionality to Elasticsearch by adding new APIs or features, usually to do with search or mapping.
 
-[float]
+[discrete]
 === Community contributed API extension plugins
 
 A number of plugins have been contributed by our community:

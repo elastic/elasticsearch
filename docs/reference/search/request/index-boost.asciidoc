@@ -11,10 +11,10 @@ deprecated[5.2.0, This format is deprecated. Please use array format instead.]
 --------------------------------------------------
 GET /_search
 {
-    "indices_boost" : [
-        { "index1" : 1.4 },
-        { "index2" : 1.3 }
-    ]
+  "indices_boost" : [
+    { "index1" : 1.4 },
+    { "index2" : 1.3 }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:index_boost]
@@ -25,10 +25,10 @@ Index aliases and wildcard expressions can also be used:
 --------------------------------------------------
 GET /_search
 {
-    "indices_boost" : [
-        { "alias1" : 1.4 },
-        { "index*" : 1.3 }
-    ]
+  "indices_boost" : [
+    { "alias1" : 1.4 },
+    { "index*" : 1.3 }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]

@@ -221,17 +221,6 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         assertThat(Regression.extractJobIdFromStateDoc("noop"), is(nullValue()));
     }
 
-    public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
-        Regression regression = createRandom();
-        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
-
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            regression.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", "7.5.0")));
-            String json = Strings.toString(builder);
-            assertThat(json, not(containsString("randomize_seed")));
-        }
-    }
-
     public void testToXContent_GivenVersionAfterRandomizeSeedWasIntroduced() throws IOException {
         Regression regression = createRandom();
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.ParseField;
@@ -83,9 +82,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             super(in);
             this.duration = in.readOptionalTimeValue();
             this.expiresIn = in.readOptionalTimeValue();
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-                this.maxModelMemory = in.readOptionalVLong();
-            }
+            this.maxModelMemory = in.readOptionalVLong();
         }
 
         @Override
@@ -93,9 +90,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             super.writeTo(out);
             out.writeOptionalTimeValue(duration);
             out.writeOptionalTimeValue(expiresIn);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                out.writeOptionalVLong(maxModelMemory);
-            }
+            out.writeOptionalVLong(maxModelMemory);
         }
 
         public Request(String jobId) {

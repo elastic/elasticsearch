@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,11 +68,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictionFieldType = in.readEnum(PredictionFieldType.class);
-        } else {
-            this.predictionFieldType = PredictionFieldType.STRING;
-        }
+        this.predictionFieldType = in.readEnum(PredictionFieldType.class);
     }
 
     public String getClassificationLabel() {
@@ -95,9 +90,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);
         out.writeString(resultsField);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeEnum(predictionFieldType);
-        }
+        out.writeEnum(predictionFieldType);
     }
 
     @Override

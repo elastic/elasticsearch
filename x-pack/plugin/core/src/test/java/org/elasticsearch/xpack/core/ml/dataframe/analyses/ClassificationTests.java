@@ -299,16 +299,6 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
     }
 
-    public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
-        Classification classification = createRandom();
-        assertThat(classification.getRandomizeSeed(), is(notNullValue()));
-
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", "7.5.0")));
-            String json = Strings.toString(builder);
-            assertThat(json, not(containsString("randomize_seed")));
-        }
-    }
 
     public void testToXContent_GivenVersionAfterRandomizeSeedWasIntroduced() throws IOException {
         Classification classification = createRandom();

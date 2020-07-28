@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,11 +91,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         eta = in.readOptionalDouble();
         maxTrees = in.readOptionalVInt();
         featureBagFraction = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            numTopFeatureImportanceValues = in.readOptionalInt();
-        } else {
-            numTopFeatureImportanceValues = null;
-        }
+        numTopFeatureImportanceValues = in.readOptionalInt();
     }
 
     public Double getLambda() {
@@ -130,9 +125,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         out.writeOptionalDouble(eta);
         out.writeOptionalVInt(maxTrees);
         out.writeOptionalDouble(featureBagFraction);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalInt(numTopFeatureImportanceValues);
-        }
+        out.writeOptionalInt(numTopFeatureImportanceValues);
     }
 
     @Override

@@ -92,7 +92,7 @@ To see the difference in search results, try the following example.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -111,7 +111,7 @@ field.
 
 [source,console]
 ----
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "full_text":   "Quick Brown Foxes!"
 }
@@ -130,7 +130,7 @@ field. Include the `pretty` parameter so the response is more readable.
 
 [source,console]
 ----
-GET my_index/_search?pretty
+GET my-index-000001/_search?pretty
 {
   "query": {
     "term": {
@@ -155,7 +155,7 @@ field.
 
 [source,console]
 ----
-POST my_index/_refresh
+POST my-index-000001/_refresh
 ----
 // TEST[continued]
 
@@ -163,7 +163,7 @@ POST my_index/_refresh
 
 [source,console]
 ----
-GET my_index/_search?pretty
+GET my-index-000001/_search?pretty
 {
   "query": {
     "match": {
@@ -201,7 +201,7 @@ in the results.
     "max_score" : 0.8630463,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {

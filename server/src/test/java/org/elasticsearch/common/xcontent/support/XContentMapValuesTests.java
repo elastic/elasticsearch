@@ -164,6 +164,35 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
+    public void testExtractValueWithNullValue() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .nullField("other_field")
+            .array("array", "value1", null, "value2")
+            .startObject("object1")
+                .startObject("object2").nullField("field").endObject()
+            .endObject()
+            .startArray("object_array")
+                .startObject().nullField("field").endObject()
+                .startObject().field("field", "value").endObject()
+            .endArray()
+        .endObject();
+
+        Map<String, Object> map;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertEquals("value", XContentMapValues.extractValue("field", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("field.missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
+
+        assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
+        assertEquals(List.of("value1", "NULL", "value2"), XContentMapValues.extractValue("array", map, "NULL"));
+        assertEquals(List.of("NULL", "value"), XContentMapValues.extractValue("object_array.field", map, "NULL"));
+        assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
+    }
+
     public void testExtractRawValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")

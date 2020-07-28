@@ -153,7 +153,7 @@ and an inner `first` text field.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -175,7 +175,7 @@ to the `name` field.
 
 [source,console]
 ----
-PUT /my_index/_mapping
+PUT /my-index-000001/_mapping
 {
   "properties": {
     "name": {
@@ -195,7 +195,7 @@ to verify your changes.
 
 [source,console]
 ----
-GET /my_index/_mapping
+GET /my-index-000001/_mapping
 ----
 // TEST[continued]
 
@@ -204,7 +204,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my_index" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
         "name" : {
@@ -243,7 +243,7 @@ with the `city` <<text,text>> field.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -266,7 +266,7 @@ which can be used for sorting.
 
 [source,console]
 ----
-PUT /my_index/_mapping
+PUT /my-index-000001/_mapping
 {
   "properties": {
     "city": {
@@ -287,7 +287,7 @@ to verify your changes.
 
 [source,console]
 ----
-GET /my_index/_mapping
+GET /my-index-000001/_mapping
 ----
 // TEST[continued]
 
@@ -296,7 +296,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my_index" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
         "city" : {
@@ -336,7 +336,7 @@ of `20`.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -355,7 +355,7 @@ to `100`.
 
 [source,console]
 ----
-PUT /my_index/_mapping
+PUT /my-index-000001/_mapping
 {
   "properties": {
     "user_id": {
@@ -372,7 +372,7 @@ to verify your changes.
 
 [source,console]
 ----
-GET /my_index/_mapping
+GET /my-index-000001/_mapping
 ----
 // TEST[continued]
 
@@ -381,7 +381,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my_index" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
         "user_id" : {
@@ -531,7 +531,7 @@ with the `user_identifier` field.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -548,7 +548,7 @@ for the existing `user_identifier` field.
 
 [source,console]
 ----
-PUT /my_index/_mapping
+PUT /my-index-000001/_mapping
 {
   "properties": {
     "user_id": {
@@ -565,7 +565,7 @@ to verify your changes.
 
 [source,console]
 ----
-GET /my_index/_mapping
+GET /my-index-000001/_mapping
 ----
 // TEST[continued]
 
@@ -574,7 +574,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "my_index" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
         "user_id" : {

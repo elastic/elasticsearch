@@ -183,6 +183,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         HTTP("http"),
         PLUGINS("plugins"),
         INGEST("ingest"),
+        AGGREGATIONS("aggregations"),
         INDICES("indices");
 
         private String metricName;

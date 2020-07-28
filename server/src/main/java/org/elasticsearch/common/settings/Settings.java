@@ -544,12 +544,7 @@ public final class Settings implements ToXContentFragment {
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        out.writeVInt(entries.size());
-        for (Map.Entry<String, Object> entry : entries) {
-            out.writeString(entry.getKey());
-            out.writeGenericValue(entry.getValue());
-        }
+        out.writeMap(settings.settings, StreamOutput::writeString, StreamOutput::writeGenericValue);
     }
 
     /**

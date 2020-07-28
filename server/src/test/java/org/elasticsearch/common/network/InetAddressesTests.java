@@ -128,6 +128,7 @@ public class InetAddressesTests extends ESTestCase {
         assertTrue(InetAddresses.isInetAddress(ipStr));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60332")
     public void testForStringIPv6WithScopeIdInput() throws UnknownHostException {
         String ipStr = "0:0:0:0:0:0:0:1%lo";
         InetAddress ipv6Addr = InetAddress.getByName(ipStr);

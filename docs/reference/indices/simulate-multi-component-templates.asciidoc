@@ -33,7 +33,7 @@ DELETE /_index_template/template_1
 
 [source,console]
 --------------------------------------------------
-POST /_index_template/_simulate_index/myindex
+POST /_index_template/_simulate_index/my-index-000001
 --------------------------------------------------
 
 To simulate the settings that would be applied from an existing template:

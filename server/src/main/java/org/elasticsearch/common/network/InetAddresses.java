@@ -38,6 +38,7 @@ public class InetAddresses {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;
         boolean hasDot = false;
+        int percentIndex = -1;
         for (int i = 0; i < ipString.length(); i++) {
             char c = ipString.charAt(i);
             if (c == '.') {
@@ -47,6 +48,9 @@ public class InetAddresses {
                     return null;  // Colons must not appear after dots.
                 }
                 hasColon = true;
+            } else if (c == '%') {
+                percentIndex = i;
+                break; // Everything after a '%' is ignored (it's a Scope ID)
             } else if (Character.digit(c, 16) == -1) {
                 return null;  // Everything else must be a decimal or hex digit.
             }
@@ -59,6 +63,12 @@ public class InetAddresses {
                 if (ipString == null) {
                     return null;
                 }
+            }
+            if (percentIndex == ipString.length() - 1) {
+                return null;  // Filter out strings that end in % and have an empty scope ID.
+            }
+            if (percentIndex != -1) {
+               ipString = ipString.substring(0, percentIndex);
             }
             return textToNumericFormatV6(ipString);
         } else if (hasDot) {

@@ -229,6 +229,7 @@ the index operation fails if a document with the specified ID
 already exists in the index.
 
 [discrete]
+[[create-document-ids-automatically]]
 ===== Create document IDs automatically
 
 When using the `POST /<target>/_doc/` request format, the `op_type` is

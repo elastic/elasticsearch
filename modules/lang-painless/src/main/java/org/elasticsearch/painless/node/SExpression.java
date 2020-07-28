@@ -21,15 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -38,16 +29,16 @@ import java.util.Objects;
  */
 public class SExpression extends AStatement {
 
-    private final AExpression expressionNode;
+    private final AExpression statementNode;
 
-    public SExpression(int identifier, Location location, AExpression expressionNode) {
+    public SExpression(int identifier, Location location, AExpression statementNode) {
         super(identifier, location);
 
-        this.expressionNode = Objects.requireNonNull(expressionNode);
+        this.statementNode = Objects.requireNonNull(statementNode);
     }
 
-    public AExpression getExpressionNode() {
-        return expressionNode;
+    public AExpression getStatementNode() {
+        return statementNode;
     }
 
     @Override
@@ -57,35 +48,6 @@ public class SExpression extends AStatement {
 
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
-        expressionNode.visit(userTreeVisitor, scope);
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        Class<?> rtnType = semanticScope.getReturnType();
-        boolean isVoid = rtnType == void.class;
-        boolean lastSource = semanticScope.getCondition(this, LastSource.class);
-
-        if (lastSource && !isVoid) {
-            semanticScope.setCondition(expressionNode, Read.class);
-        }
-
-        AExpression.analyze(expressionNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
-
-        boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
-        semanticScope.putDecoration(expressionNode, new TargetType(rtn ? rtnType : expressionValueType));
-
-        if (rtn) {
-            semanticScope.setCondition(expressionNode, Internal.class);
-        }
-
-        expressionNode.cast(semanticScope);
-
-        if (rtn) {
-            semanticScope.setCondition(this, MethodEscape.class);
-            semanticScope.setCondition(this, LoopEscape.class);
-            semanticScope.setCondition(this, AllEscape.class);
-        }
+        statementNode.visit(userTreeVisitor, scope);
     }
 }

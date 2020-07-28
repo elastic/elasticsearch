@@ -104,11 +104,6 @@ public class TextFormatTests extends ESTestCase {
             text);
     }
 
-    public void testCsvFormatInvalidHeaderValue() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> CSV.format(reqWithParam("header", "invalid"), regularData()));
-        assertEquals("illegal value of [header] attribute: [invalid]; allowed values: [absent, present]", e.getMessage());
-    }
-
     public void testCsvFormatWithCustomDelimiterRegularData() {
         Set<Character> forbidden = Set.of('"', '\r', '\n', '\t');
         Character delim = randomValueOtherThanMany(forbidden::contains, () -> randomAlphaOfLength(1).charAt(0));
@@ -139,7 +134,7 @@ public class TextFormatTests extends ESTestCase {
         String text = CSV.format(req(), escapedData());
         assertEquals("first,\"\"\"special\"\"\"\r\n" +
                 "normal,\"\"\"quo\"\"ted\"\",\n\"\r\n" +
-                "commas,\"a,b,c,\n,d,e,\\t,\t\n\"\r\n"
+                "commas,\"a,b,c,\n,d,e,\t\n\"\r\n"
             , text);
     }
 
@@ -147,7 +142,7 @@ public class TextFormatTests extends ESTestCase {
         String text = CSV.format(reqWithParam("delimiter", "\\"), escapedData());
         assertEquals("first\\\"\"\"special\"\"\"\r\n" +
                 "normal\\\"\"\"quo\"\"ted\"\",\n\"\r\n" +
-                "commas\\\"a,b,c,\n,d,e,\\t,\t\n\"\r\n"
+                "commas\\\"a,b,c,\n,d,e,\t\n\"\r\n"
                 , text);
     }
 
@@ -155,7 +150,7 @@ public class TextFormatTests extends ESTestCase {
         String text = TSV.format(req(), escapedData());
         assertEquals("first\t\"special\"\n" +
                 "normal\t\"quo\"ted\",\\n\n" +
-                "commas\ta,b,c,\\n,d,e,\\\\t,\\t\\n\n"
+                "commas\ta,b,c,\\n,d,e,\\t\\n\n"
                 , text);
     }
 
@@ -205,7 +200,7 @@ public class TextFormatTests extends ESTestCase {
         // values
         List<List<Object>> values = new ArrayList<>();
         values.add(asList("normal", "\"quo\"ted\",\n"));
-        values.add(asList("commas", "a,b,c,\n,d,e,\\t,\t\n"));
+        values.add(asList("commas", "a,b,c,\n,d,e,\t\n"));
 
         return new SqlQueryResponse(null, Mode.JDBC, false, headers, values);
     }

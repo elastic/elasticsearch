@@ -63,7 +63,6 @@ public final class Protocol {
      * URL parameters
      */
     public static final String URL_PARAM_FORMAT = "format";
-    public static final String URL_PARAM_HEADER = "header";
     public static final String URL_PARAM_DELIMITER = "delimiter";
 
     /**

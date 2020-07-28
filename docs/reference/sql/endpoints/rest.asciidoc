@@ -106,20 +106,9 @@ s|Description
 
 |===
 
-The `CSV` format accepts the following additional formatting URL query attributes:
-
-* `header`
-+
-Controls if the CSV header should be included in the response or not. It can take one of the following values:
-+
-   - `present` (default): include the header;
-   - `absent`: exclude the header.
-+
-* `delimiter` (default: `,`)
-+
-Indicates which character should be used to separate the CSV values. The following values cannot be used for this attribute:
-double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used, the `tsv` format needs to be used
-instead.
+The `CSV` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV
+values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`).
+The tab (`\t`) can also not be used, the `tsv` format needs to be used instead.
 
 Here are some examples for the human readable formats:
 
@@ -152,7 +141,7 @@ or:
 
 [source,console]
 --------------------------------------------------
-POST /_sql?format=csv&header=absent&delimiter=%3b
+POST /_sql?format=csv&delimiter=%3b
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5
@@ -164,6 +153,7 @@ which returns:
 
 [source,text]
 --------------------------------------------------
+author;name;page_count;release_date
 Peter F. Hamilton;Pandora's Star;768;2004-03-02T00:00:00.000Z
 Vernor Vinge;A Fire Upon the Deep;613;1992-06-01T00:00:00.000Z
 Frank Herbert;Dune;604;1965-06-01T00:00:00.000Z

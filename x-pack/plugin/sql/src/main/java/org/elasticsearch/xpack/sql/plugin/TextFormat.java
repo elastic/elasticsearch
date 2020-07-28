@@ -28,7 +28,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_HEADER;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -137,7 +136,7 @@ enum TextFormat {
         @Override
         String contentType(RestRequest request) {
             return contentType() + "; charset=utf-8; " +
-                URL_PARAM_HEADER + "=" + (needsHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
+                URL_PARAM_HEADER + "=" + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
         }
 
         @Override
@@ -195,7 +194,7 @@ enum TextFormat {
         }
 
         @Override
-        boolean needsHeader(RestRequest request) {
+        boolean hasHeader(RestRequest request) {
             String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
                 List<String> values = request.getAllHeaderValues("Accept");
@@ -262,9 +261,6 @@ enum TextFormat {
                     case '\t' :
                         sb.append("\\t");
                         break;
-                    case '\\' :
-                        sb.append("\\\\");
-                        break;
                     default:
                         sb.append(c);
                 }
@@ -280,6 +276,7 @@ enum TextFormat {
     private static final String CONTENT_TYPE_TXT = "text/plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
@@ -287,7 +284,7 @@ enum TextFormat {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
-        if (needsHeader(request) && response.columns() != null) {
+        if (hasHeader(request) && response.columns() != null) {
             row(sb, response.columns(), ColumnInfo::name, delimiter(request));
         }
 
@@ -299,7 +296,7 @@ enum TextFormat {
         return sb.toString();
     }
 
-    boolean needsHeader(RestRequest request) {
+    boolean hasHeader(RestRequest request) {
         return true;
     }
 

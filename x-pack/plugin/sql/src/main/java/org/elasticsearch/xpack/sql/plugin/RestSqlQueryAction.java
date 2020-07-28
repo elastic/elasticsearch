@@ -32,7 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_HEADER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
@@ -133,7 +132,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return textFormat == TextFormat.CSV ? Set.of(URL_PARAM_DELIMITER, URL_PARAM_HEADER) : Collections.emptySet();
+        return textFormat == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
     }
 
     @Override

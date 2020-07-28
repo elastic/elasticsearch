@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,14 +22,16 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -38,13 +39,14 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
-import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,7 +54,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_ALIAS;
-import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -109,8 +110,8 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
-                    return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
+                if (action instanceof CreateDataStreamAction && request instanceof CreateDataStreamAction.Request) {
+                    return new AcknowledgedResponse(true);
                 }
                 calledTimes.incrementAndGet();
                 assertThat(action, instanceOf(BulkAction.class));
@@ -142,8 +143,8 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
-                    return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
+                if (action instanceof CreateDataStreamAction && request instanceof CreateDataStreamAction.Request) {
+                    return new AcknowledgedResponse(true);
                 }
                 calledTimes.incrementAndGet();
                 assertThat(action, instanceOf(BulkAction.class));
@@ -179,19 +180,15 @@ public class ILMHistoryStoreTests extends ESTestCase {
             .build();
 
         client.setVerifier((a, r, l) -> {
-            assertThat(a, instanceOf(CreateIndexAction.class));
-            assertThat(r, instanceOf(CreateIndexRequest.class));
-            CreateIndexRequest request = (CreateIndexRequest) r;
-            assertThat(request.aliases(), Matchers.hasSize(1));
-            request.aliases().forEach(alias -> {
-                assertThat(alias.name(), equalTo(ILM_HISTORY_ALIAS));
-                assertTrue(alias.writeIndex());
-            });
-            return new CreateIndexResponse(true, true, request.index());
+            assertThat(a, instanceOf(CreateDataStreamAction.class));
+            assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
+            CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
+            assertThat(request.getName(), equalTo(ILM_HISTORY_ALIAS));
+            return new AcknowledgedResponse(true);
         });
 
         CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
+        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
             Assert::assertTrue,
             ex -> {
                 logger.error(ex);
@@ -204,13 +201,9 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void testHistoryIndexProperlyExistsAlready() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
             .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(ILM_HISTORY_INDEX_PREFIX + "000001")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1,10))
-                    .numberOfReplicas(randomIntBetween(1,10))
-                    .putAlias(AliasMetadata.builder(ILM_HISTORY_ALIAS)
-                        .writeIndex(true)
-                        .build())))
+                .dataStreams(Collections.singletonMap(ILM_HISTORY_ALIAS,
+                    new DataStream(ILM_HISTORY_ALIAS, new TimestampField("@timestamp"),
+                        Collections.singletonList(new Index(DataStream.getDefaultBackingIndexName(ILM_HISTORY_ALIAS, 1), ""))))))
             .build();
 
         client.setVerifier((a, r, l) -> {
@@ -219,71 +212,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
         });
 
         CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
+        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
             Assert::assertFalse,
             ex -> {
                 logger.error(ex);
                 fail("should have called onResponse, not onFailure");
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    public void testHistoryIndexHasNoWriteIndex() throws InterruptedException {
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(ILM_HISTORY_INDEX_PREFIX + "000001")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1,10))
-                    .numberOfReplicas(randomIntBetween(1,10))
-                    .putAlias(AliasMetadata.builder(ILM_HISTORY_ALIAS)
-                        .build()))
-                .put(IndexMetadata.builder(randomAlphaOfLength(5))
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1,10))
-                    .numberOfReplicas(randomIntBetween(1,10))
-                    .putAlias(AliasMetadata.builder(ILM_HISTORY_ALIAS)
-                        .build())))
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("no client calls should have been made");
-            return null;
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            indexCreated -> fail("should have called onFailure, not onResponse"),
-            ex -> {
-                assertThat(ex, instanceOf(IllegalStateException.class));
-                assertThat(ex.getMessage(), Matchers.containsString("ILM history alias [" + ILM_HISTORY_ALIAS +
-                    "does not have a write index"));
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    public void testHistoryIndexNotAlias() throws InterruptedException {
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(ILM_HISTORY_ALIAS)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1,10))
-                    .numberOfReplicas(randomIntBetween(1,10))))
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("no client calls should have been made");
-            return null;
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            indexCreated -> fail("should have called onFailure, not onResponse"),
-            ex -> {
-                assertThat(ex, instanceOf(IllegalStateException.class));
-                assertThat(ex.getMessage(), Matchers.containsString("ILM history alias [" + ILM_HISTORY_ALIAS +
-                    "] already exists as concrete index"));
             }), latch));
 
         ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
@@ -295,19 +228,15 @@ public class ILMHistoryStoreTests extends ESTestCase {
             .build();
 
         client.setVerifier((a, r, l) -> {
-            assertThat(a, instanceOf(CreateIndexAction.class));
-            assertThat(r, instanceOf(CreateIndexRequest.class));
-            CreateIndexRequest request = (CreateIndexRequest) r;
-            assertThat(request.aliases(), Matchers.hasSize(1));
-            request.aliases().forEach(alias -> {
-                assertThat(alias.name(), equalTo(ILM_HISTORY_ALIAS));
-                assertTrue(alias.writeIndex());
-            });
-            throw new ResourceAlreadyExistsException("that index already exists");
+            assertThat(a, instanceOf(CreateDataStreamAction.class));
+            assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
+            CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
+            assertThat(request.getName(), equalTo(ILM_HISTORY_ALIAS));
+            throw new IllegalArgumentException("that data stream already exists");
         });
 
         CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
+        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
             Assert::assertFalse,
             ex -> {
                 logger.error(ex);
@@ -315,53 +244,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
             }), latch));
 
         ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    public void testHistoryAliasDoesntExistButIndexDoes() throws InterruptedException {
-        final String initialIndex = ILM_HISTORY_INDEX_PREFIX + "000001";
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(initialIndex)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1,10))
-                    .numberOfReplicas(randomIntBetween(1,10))))
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("no client calls should have been made");
-            return null;
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            response -> {
-                logger.error(response);
-                fail("should have called onFailure, not onResponse");
-            },
-            ex -> {
-                assertThat(ex, instanceOf(IllegalStateException.class));
-                assertThat(ex.getMessage(), Matchers.containsString("ILM history index [" + initialIndex +
-                    "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertContainsMap(String indexedDocument, Map<String, Object> map) {
-        map.forEach((k, v) -> {
-            assertThat(indexedDocument, Matchers.containsString(k));
-            if (v instanceof Map) {
-                assertContainsMap(indexedDocument, (Map<String, Object>) v);
-            }
-            if (v instanceof Iterable) {
-                ((Iterable) v).forEach(elem -> {
-                    assertThat(indexedDocument, Matchers.containsString(elem.toString()));
-                });
-            } else {
-                assertThat(indexedDocument, Matchers.containsString(v.toString()));
-            }
-        });
     }
 
     /**

@@ -10,22 +10,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,14 +31,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +45,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
-import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.TEMPLATE_ILM_HISTORY;
 
 /**
  * The {@link ILMHistoryStore} handles indexing {@link ILMHistoryItem} documents into the
@@ -59,7 +54,6 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.TEM
 public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
-    public static final String ILM_HISTORY_INDEX_PREFIX = "ilm-history-" + INDEX_TEMPLATE_VERSION + "-";
     public static final String ILM_HISTORY_ALIAS = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     private final boolean ilmHistoryEnabled;
@@ -80,7 +74,7 @@ public class ILMHistoryStore implements Closeable {
                     // attempt to index documents.
                     try {
                         final CompletableFuture<Boolean> indexCreated = new CompletableFuture<>();
-                        ensureHistoryIndex(client, clusterService.state(), ActionListener.wrap(indexCreated::complete,
+                        ensureHistoryDataStream(client, clusterService.state(), ActionListener.wrap(indexCreated::complete,
                             ex -> {
                                 logger.warn("failed to create ILM history store index prior to issuing bulk request", ex);
                                 indexCreated.completeExceptionally(ex);
@@ -120,10 +114,13 @@ public class ILMHistoryStore implements Closeable {
                                 .collect(Collectors.joining(",")));
                     }
                     if (response.hasFailures()) {
-                        Map<String, String> failures = Arrays.stream(response.getItems())
+                        IllegalStateException e = new IllegalStateException("failures during bulk request");
+                        Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
-                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                        logger.error("failures: [{}]", failures);
+                            .map(r->r.getFailure().getCause())
+                            .forEach(e::addSuppressed);
+
+                        logger.error("failures:", e);
                     }
                 }
 
@@ -153,7 +150,7 @@ public class ILMHistoryStore implements Closeable {
         logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_ALIAS, item);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder);
+            IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder).opType(OpType.CREATE);
             // TODO: remove the threadpool wrapping when the .add call is non-blocking
             //  (it can currently execute the bulk request occasionally)
             //  see: https://github.com/elastic/elasticsearch/issues/50440
@@ -172,71 +169,38 @@ public class ILMHistoryStore implements Closeable {
     }
 
     /**
-     * Checks if the ILM history index exists, and if not, creates it.
+     * Checks if the ILM history data stream exists, and if not, creates it.
      *
-     * @param client  The client to use to create the index if needed
+     * @param client  The client to use to create the data stream if needed
      * @param state   The current cluster state, to determine if the alias exists
-     * @param listener Called after the index has been created. `onResponse` called with `true` if the index was created,
+     * @param listener Called after the data stream has been created. `onResponse` called with `true` if the data stream was created,
      *                `false` if it already existed.
      */
-    @SuppressWarnings("unchecked")
-    static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
-        final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
-        final IndexAbstraction ilmHistory = state.metadata().getIndicesLookup().get(ILM_HISTORY_ALIAS);
-        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
-
-        if (ilmHistory == null && initialHistoryIndex == null) {
-            // No alias or index exists with the expected names, so create the index with appropriate alias
-            logger.debug("creating ILM history index [{}]", initialHistoryIndexName);
-
-            // Template below should be already defined as real index template but it can be deleted. To avoid race condition with its
-            // recreation we apply settings and mappings ourselves
-            byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
-            Map<String, Object> templateAsMap = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
-                false, XContentType.JSON).v2();
-
-            client.admin().indices().prepareCreate(initialHistoryIndexName)
-                .setSettings((Map<String, ?>) templateAsMap.get("settings"))
-                .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
-                .setWaitForActiveShards(1)
-                .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true).isHidden(true))
-                .execute(new ActionListener<>() {
+    static void ensureHistoryDataStream(Client client, ClusterState state, ActionListener<Boolean> listener) {
+        if (state.getMetadata().dataStreams().containsKey(ILM_HISTORY_ALIAS)) {
+            listener.onResponse(false);
+        } else {
+            logger.debug("creating ILM history data stream [{}]", ILM_HISTORY_ALIAS);
+            client.execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(ILM_HISTORY_ALIAS),
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(CreateIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         listener.onResponse(true);
+
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException) {
-                            // The index didn't exist before we made the call, there was probably a race - just ignore this
-                            logger.debug("index [{}] was created after checking for its existence, likely due to a concurrent call",
-                                initialHistoryIndexName);
+                        if(e instanceof IllegalArgumentException && e.getMessage().contains("exists")){
                             listener.onResponse(false);
+                            logger.debug(
+                                "data stream [{}] was created after checking for its existence, likely due to a concurrent call",
+                                ILM_HISTORY_ALIAS);
                         } else {
                             listener.onFailure(e);
                         }
                     }
                 });
-        } else if (ilmHistory == null) {
-            // alias does not exist but initial index does, something is broken
-            listener.onFailure(new IllegalStateException("ILM history index [" + initialHistoryIndexName +
-                "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-        } else if (ilmHistory.getType() == IndexAbstraction.Type.ALIAS) {
-            if (ilmHistory.getWriteIndex() != null) {
-                // The alias exists and has a write index, so we're good
-                listener.onResponse(false);
-            } else {
-                // The alias does not have a write index, so we can't index into it
-                listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS + "does not have a write index"));
-            }
-        } else if (ilmHistory.getType() != IndexAbstraction.Type.ALIAS) {
-            // This is not an alias, error out
-            listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
-                "] already exists as " + ilmHistory.getType().getDisplayName()));
-        } else {
-            logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
-            assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";
         }
     }
 

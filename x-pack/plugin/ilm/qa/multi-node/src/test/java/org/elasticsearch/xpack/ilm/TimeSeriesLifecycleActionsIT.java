@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
@@ -1360,7 +1361,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54093")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
@@ -1399,7 +1399,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithFailure() throws Exception {
         createIndexWithSettings(index + "-1", Settings.builder(), false);
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L));
@@ -1417,7 +1416,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53718")
     public void testHistoryIsWrittenWithDeletion() throws Exception {
         // Index should be created and then deleted by ILM
         createIndexWithSettings(index, Settings.builder(), false);
@@ -1797,7 +1795,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex(client(), "ilm-history-2-000001");
+        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName("ilm-history-3", 1));
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());

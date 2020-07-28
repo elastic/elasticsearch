@@ -352,7 +352,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 logger.warn(
                     new ParameterizedMessage(
                         "[{}] could not find any optimizations for continuous execution, "
-                            + "this transform might run slow, please check your configuration.",
+                            + "this transform might run slowly, please check your configuration.",
                         getJobId()
                     )
                 );

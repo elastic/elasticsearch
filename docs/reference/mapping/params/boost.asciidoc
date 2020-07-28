@@ -6,7 +6,7 @@ Individual fields can be _boosted_ automatically -- count more towards the relev
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

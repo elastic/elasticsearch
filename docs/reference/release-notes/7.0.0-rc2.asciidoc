@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.0,Breaking changes in 7.0.0>>.
 
 [[deprecation-7.0.0-rc2]]
-[float]
+[discrete]
 === Deprecations
 
 Analysis::
@@ -16,7 +16,7 @@ Graph::
 
 
 [[enhancement-7.0.0-rc2]]
-[float]
+[discrete]
 === Enhancements
 
 CCR::
@@ -79,7 +79,7 @@ Infra/Core::
 
 
 [[bug-7.0.0-rc2]]
-[float]
+[discrete]
 === Bug fixes
 
 Analysis::
@@ -207,7 +207,7 @@ Snapshot/Restore::
 
 
 [[upgrade-7.0.0-rc2]]
-[float]
+[discrete]
 === Upgrades
 
 Snapshot/Restore::

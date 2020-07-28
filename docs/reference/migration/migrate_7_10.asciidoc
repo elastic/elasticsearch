@@ -29,4 +29,15 @@ checked this limit when `docvalue_fields` appeared in the top-level search
 request body. Now we also enforce the limit when loading doc value fields in
 an `inner_hits` section or in a `top_hits` aggregation.
 
+[discrete]
+[[breaking_710_networking_changes]]
+=== Networking Changes
+
+[discrete]
+==== *.tcp.keep_idle and *.tcp.keep_interval now bounded
+The settings `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` are now limited to a maximum
+value of 300, which amounts to 5 minutes. This helps ensure that, if
+explicitly configured, only reasonable values are set.
+
 //end::notable-breaking-changes[]

@@ -10,7 +10,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security', 'async_search'
+    includeXpack 'security', 'async_search', 'indices'
   }
 }
 

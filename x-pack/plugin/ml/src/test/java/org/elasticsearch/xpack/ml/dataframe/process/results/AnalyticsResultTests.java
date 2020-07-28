@@ -11,19 +11,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
@@ -42,41 +37,34 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     }
 
     protected AnalyticsResult createTestInstance() {
-        RowResults rowResults = null;
-        PhaseProgress phaseProgress = null;
-        MemoryUsage memoryUsage = null;
-        OutlierDetectionStats outlierDetectionStats = null;
-        ClassificationStats classificationStats = null;
-        RegressionStats regressionStats = null;
-        ModelSizeInfo modelSizeInfo = null;
-        TrainedModelDefinitionChunk trainedModelDefinitionChunk = null;
+        AnalyticsResult.Builder builder = AnalyticsResult.builder();
+
         if (randomBoolean()) {
-            rowResults = RowResultsTests.createRandom();
+            builder.setRowResults(RowResultsTests.createRandom());
         }
         if (randomBoolean()) {
-            phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
+            builder.setPhaseProgress(new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100)));
         }
         if (randomBoolean()) {
-            memoryUsage = MemoryUsageTests.createRandom();
+            builder.setMemoryUsage(MemoryUsageTests.createRandom());
         }
         if (randomBoolean()) {
-            outlierDetectionStats = OutlierDetectionStatsTests.createRandom();
+            builder.setOutlierDetectionStats(OutlierDetectionStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            classificationStats = ClassificationStatsTests.createRandom();
+            builder.setClassificationStats(ClassificationStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            regressionStats = RegressionStatsTests.createRandom();
+            builder.setRegressionStats(RegressionStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            modelSizeInfo = ModelSizeInfoTests.createRandom();
+            builder.setModelSizeInfo(ModelSizeInfoTests.createRandom());
         }
         if (randomBoolean()) {
             String def = randomAlphaOfLengthBetween(100, 1000);
-            trainedModelDefinitionChunk = new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean());
+            builder.setTrainedModelDefinitionChunk(new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean()));
         }
-        return new AnalyticsResult(rowResults, phaseProgress, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats, modelSizeInfo, trainedModelDefinitionChunk);
+        return builder.build();
     }
 
     @Override

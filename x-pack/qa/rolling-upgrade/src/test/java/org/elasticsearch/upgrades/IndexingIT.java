@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
  * oss rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58807")
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {

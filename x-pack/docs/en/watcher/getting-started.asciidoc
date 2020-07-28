@@ -16,7 +16,7 @@ needs to be sent.
 * <<log-take-action, Configure an action>> to send an alert when the
 condition is met.
 
-[float]
+[discrete]
 [[log-add-input]]
 === Schedule the watch and define an input
 
@@ -73,7 +73,7 @@ GET .watcher-history*/_search?pretty
 ------------------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[log-add-condition]]
 === Add a condition
 
@@ -148,7 +148,7 @@ GET .watcher-history*/_search?pretty
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[log-take-action]]
 === Configure an action
 
@@ -192,7 +192,7 @@ PUT _watcher/watch/log_error_watch
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[log-delete]]
 === Delete the Watch
 
@@ -209,7 +209,7 @@ DELETE _watcher/watch/log_error_watch
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[required-security-privileges]]
 === Required security privileges
 To enable users to create and manipulate watches, assign them the `watcher_admin`
@@ -220,7 +220,7 @@ To allow users to view watches and the watch history, assign them the `watcher_u
 security role. Watcher users cannot create or manipulate watches; they are only
 allowed to execute read-only watch operations.
 
-[float]
+[discrete]
 [[next-steps]]
 === Where to go next
 

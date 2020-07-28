@@ -23,7 +23,7 @@ requirements that are not covered in this tutorial. See
 {ref}/bootstrap-checks.html#dev-vs-prod-mode[Development vs production mode] and
 {ref}/add-elasticsearch-nodes.html[Adding nodes to your cluster].
 
-[float]
+[discrete]
 [[encrypting-internode-prerequisites]]
 === Before you begin
 

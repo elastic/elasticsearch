@@ -35,7 +35,7 @@ measured against a UTC baseline) has changed. This situation is treated as a
 step change in behavior and the new times will be learned quickly.
 ====
 
-[float]
+[discrete]
 [[ml-time-of-day]]
 == Time_of_day
 
@@ -71,7 +71,7 @@ models when events occur throughout a day for each process. It detects when an
 event occurs for a process that is at an unusual time in the day compared to
 its past behavior.
 
-[float]
+[discrete]
 [[ml-time-of-week]]
 == Time_of_week
 

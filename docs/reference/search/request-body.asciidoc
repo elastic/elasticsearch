@@ -139,7 +139,10 @@ include::request/search-after.asciidoc[]
 
 include::request/search-type.asciidoc[]
 
-include::request/sort.asciidoc[]
+[[request-body-search-sort]]
+==== Sort
+
+See <<sort-search-results>>.
 
 include::request/source-filtering.asciidoc[]
 

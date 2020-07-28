@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -51,7 +52,8 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry());
+        configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
+            new DataFrameAnalyticsAuditor(client(), node().getNodeEnvironment().nodeId()));
         waitForMlTemplates();
     }
 

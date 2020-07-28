@@ -8,7 +8,7 @@
 Index Modules are modules created per index and control all aspects related to
 an index.
 
-[float]
+[discrete]
 [[index-modules-settings]]
 == Index Settings
 
@@ -31,7 +31,7 @@ WARNING: Changing static or dynamic index settings on a closed index could
 result in incorrect settings that are impossible to rectify without deleting
 and recreating the index.
 
-[float]
+[discrete]
 === Static index settings
 
 Below is a list of all _static_ index settings that are not associated with any
@@ -88,7 +88,7 @@ indices.
     per request through the use of the `expand_wildcards` parameter. Possible values are
     `true` and `false` (default).
 
-[float]
+[discrete]
 [[dynamic-index-settings]]
 === Dynamic index settings
 
@@ -238,7 +238,7 @@ specific index module:
     the default pipeline (if it exists). The special pipeline name `_none`
     indicates no ingest pipeline will run.
 
-[float]
+[discrete]
 === Settings in other index modules
 
 Other index settings are available in index modules:
@@ -285,7 +285,7 @@ Other index settings are available in index modules:
 
     Configure indexing back pressure limits.
 
-[float]
+[discrete]
 [[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
 

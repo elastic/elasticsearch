@@ -1818,7 +1818,15 @@ Contains transport statistics for the node.
 ======
 `server_open`::
 (integer)
-Number of open TCP connections used for internal communication between nodes.
+Current number of inbound TCP connections used for internal communication between nodes.
+
+`total_outbound_connections`::
+(integer)
+The cumulative number of outbound transport connections that this node has
+opened since it started. Each transport connection may comprise multiple TCP
+connections but is only counted once in this statistic. Transport connections
+are typically <<long-lived-connections,long-lived>> so this statistic should
+remain constant in a stable cluster.
 
 `rx_count`::
 (integer)

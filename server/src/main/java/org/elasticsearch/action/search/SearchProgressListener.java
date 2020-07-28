@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -174,7 +173,7 @@ abstract class SearchProgressListener {
     }
 
     static List<SearchShard> buildSearchShards(List<? extends SearchPhaseResult> results) {
-            List<SearchShard> lst = results.stream()
+        List<SearchShard> lst = results.stream()
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
@@ -182,16 +181,8 @@ abstract class SearchProgressListener {
         return Collections.unmodifiableList(lst);
     }
 
-    static List<SearchShard> buildSearchShards(SearchShardTarget[] results) {
-            List<SearchShard> lst = Arrays.stream(results)
-            .filter(Objects::nonNull)
-            .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toList());
-        return Collections.unmodifiableList(lst);
-    }
-
     static List<SearchShard> buildSearchShards(GroupShardsIterator<SearchShardIterator> its) {
-            List<SearchShard> lst = StreamSupport.stream(its.spliterator(), false)
+        List<SearchShard> lst = StreamSupport.stream(its.spliterator(), false)
             .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
             .collect(Collectors.toList());
         return Collections.unmodifiableList(lst);

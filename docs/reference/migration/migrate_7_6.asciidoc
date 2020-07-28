@@ -29,8 +29,8 @@ privileges for the API key. Previously, when you created a derived key, it had
 no privileges. This behavior disregarded any privileges that you specified in
 the {ref}/security-api-create-api-key.html[create API key API].
 
-As of 7.6.2, this behavior changes. To create derived keys with no privileges,
-you must explicitly specify an empty role descriptor. For example:
+As of 7.6.2, this behavior changes. To create a derived key, you must explicitly
+specify a role descriptor with no privileges:
 
 [source,js]
 ----

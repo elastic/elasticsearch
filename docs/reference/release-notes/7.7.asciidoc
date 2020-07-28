@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 
 [[enhancement-7.7.1]]
-[float]
+[discrete]
 === Enhancements
 
 Authorization::
@@ -17,7 +17,7 @@ SQL::
 * Change error message for comparison against fields in filtering {es-pull}57126[#57126] (issue: {es-issue}57005[#57005])
 
 [[bug-7.7.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Authentication::
@@ -118,7 +118,7 @@ Snapshot/Restore::
 * Fix Path Style Access Setting Priority {es-pull}55439[#55439] (issue: {es-issue}55407[#55407])
 
 [[upgrade-7.7.1]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Core::
@@ -136,7 +136,7 @@ SQL::
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 
 [[breaking-7.7.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Highlighting::
@@ -160,7 +160,7 @@ Search::
 
 
 [[breaking-java-7.7.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Infra/Core::
@@ -175,7 +175,7 @@ Transform::
 
 
 [[deprecation-7.7.0]]
-[float]
+[discrete]
 === Deprecations
 
 Allocation::
@@ -210,7 +210,7 @@ Search::
 
 
 [[feature-7.7.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -259,7 +259,7 @@ Search::
 
 
 [[enhancement-7.7.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -524,7 +524,7 @@ Transform::
 
 
 [[bug-7.7.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -744,7 +744,7 @@ Transform::
 
 
 [[upgrade-7.7.0]]
-[float]
+[discrete]
 === Upgrades
 
 Authentication::

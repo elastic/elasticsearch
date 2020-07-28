@@ -138,7 +138,7 @@ would be as follows:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 ==== Managing aliases
 
 Unlike creating indices, which requires the `create_index` privilege, adding,
@@ -185,7 +185,7 @@ The privileges required for such a request are the same as above. Both index and
 alias need the `manage` permission.
 
 
-[float]
+[discrete]
 ==== Filtered aliases
 
 Aliases can hold a filter, which allows to select a subset of documents that can

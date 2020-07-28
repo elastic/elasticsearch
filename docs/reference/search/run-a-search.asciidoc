@@ -273,3 +273,5 @@ include::request/from-size.asciidoc[]
 include::search-fields.asciidoc[]
 
 include::request/highlighting.asciidoc[]
+
+include::request/sort.asciidoc[]

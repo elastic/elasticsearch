@@ -12,7 +12,7 @@ match patterns in data using placeholder characters, called operators.
 {es} uses https://lucene.apache.org/core/[Apache Lucene]'s regular expression
 engine to parse these queries.
 
-[float]
+[discrete]
 [[regexp-reserved-characters]]
 === Reserved characters
 Lucene's regular expression engine supports all Unicode characters. However, the
@@ -39,7 +39,7 @@ backslash or surround it with double quotes. For example:
 ....
     
 
-[float]
+[discrete]
 [[regexp-standard-operators]]
 === Standard operators
 
@@ -152,7 +152,7 @@ example:
 ....
 --
 
-[float]
+[discrete]
 [[regexp-optional-operators]]
 === Optional operators
 
@@ -162,7 +162,7 @@ Lucene's regular expression engine.
 To enable multiple operators, use a `|` separator. For example, a `flags` value
 of `COMPLEMENT|INTERVAL` enables the `COMPLEMENT` and `INTERVAL` operators.
 
-[float]
+[discrete]
 ==== Valid values 
 
 `ALL` (Default)::
@@ -216,7 +216,7 @@ You can combine the `@` operator with `&` and `~` operators to create an
 ....
 --
 
-[float]
+[discrete]
 [[regexp-unsupported-operators]]
 === Unsupported operators
 Lucene's regular expression engine does not support anchor operators, such as

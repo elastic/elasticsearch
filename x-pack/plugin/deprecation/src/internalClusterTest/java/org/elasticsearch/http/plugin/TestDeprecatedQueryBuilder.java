@@ -1,4 +1,10 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -17,7 +23,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.http.plugin;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;

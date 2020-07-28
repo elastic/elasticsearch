@@ -1,6 +1,6 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
 esplugin {
   name 'x-pack-deprecation'
   description 'Elasticsearch Expanded Pack Plugin - Deprecation'
@@ -10,7 +10,9 @@ esplugin {
 archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
-  compileOnly project(":x-pack:plugin:core")
+  implementation project(":x-pack:plugin:core")
+  //internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+
 }
 
 integTest.enabled = false

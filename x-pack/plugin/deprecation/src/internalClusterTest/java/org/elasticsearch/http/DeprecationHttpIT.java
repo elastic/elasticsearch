@@ -1,4 +1,10 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -20,31 +26,54 @@ package org.elasticsearch.http;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.http.plugin.TestDeprecatedQueryBuilder;
+import org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction;
+import org.elasticsearch.http.plugin.TestDeprecationPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.hamcrest.Matcher;
+import org.junit.Assert;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -55,7 +84,9 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
-public class DeprecationHttpIT extends HttpSmokeTestCase {
+public class DeprecationHttpIT extends ESSingleNodeTestCase {
+
+    private static RestClient restClient;
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -63,46 +94,50 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // change values of deprecated settings so that accessing them is logged
-                .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
-                .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
-                // non-deprecated setting to ensure not everything is logged
-                .put(TEST_NOT_DEPRECATED_SETTING.getKey(), ! TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
-                .build();
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Arrays.asList(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, TestDeprecationPlugin.class);
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestDeprecationPlugin.class);
-        return plugins;
+    public void setUp() throws Exception {
+        super.setUp();
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            // change values of deprecated settings so that accessing them is logged
+            .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
+            .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
+            // non-deprecated setting to ensure not everything is logged
+            .put(TEST_NOT_DEPRECATED_SETTING.getKey(), ! TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
+            .build();
     }
 
     /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19222")
     public void testUniqueDeprecationResponsesMergedTogether() throws IOException {
-        final String[] indices = new String[randomIntBetween(2, 5)];
+        final String[] indices = new String[ESTestCase.randomIntBetween(2, 5)];
 
         // add at least one document for each index
         for (int i = 0; i < indices.length; ++i) {
             indices[i] = "test" + i;
 
             // create indices with a single shard to reduce noise; the query only deprecates uniquely by index anyway
-            assertTrue(prepareCreate(indices[i]).setSettings(Settings.builder().put("number_of_shards", 1)).get().isAcknowledged());
+            Assert.assertTrue(
+                client().admin().indices().prepareCreate(indices[i])
+                    .setSettings(Settings.builder().put("number_of_shards", 1)).get().isAcknowledged());
 
-            int randomDocCount = randomIntBetween(1, 2);
+            int randomDocCount = ESTestCase.randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                index(indices[i], Integer.toString(j), "{\"field\":" + j + "}");
+                client().prepareIndex(indices[i]).setId(Integer.toString(j))
+                    .setSource("{\"field\":" + j + "}", XContentType.JSON).execute().actionGet();
             }
         }
 
-        refresh(indices);
+        client().admin().indices().refresh(new RefreshRequest(indices));
 
         final String commaSeparatedIndices = Stream.of(indices).collect(Collectors.joining(","));
 
@@ -110,7 +145,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
         request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}");
         Response response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+        Assert.assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
         final List<Matcher<String>> headerMatchers = new ArrayList<>(indices.length);
@@ -119,9 +154,15 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object)index)));
         }
 
-        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+        ////////////////////// FIX ME - THE COUNT IS OFF !!///////////////////
+        deprecatedWarnings.forEach(s -> System.out.println("************** " + s));
+        headerMatchers.forEach(s -> System.out.println("@@@@@@@@@ " + s));
+        ////////////////////// FIX ME - THE COUNT IS OFF !!///////////////////
+
+
+        Assert.assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
         for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(deprecatedWarnings, hasItem(headerMatcher));
+            Assert.assertThat(deprecatedWarnings, hasItem(headerMatcher));
         }
     }
 
@@ -132,7 +173,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
     public void testDeprecationHeadersDoNotGetStuck() throws Exception {
         doTestDeprecationWarningsAppearInHeaders();
         doTestDeprecationWarningsAppearInHeaders();
-        if (rarely()) {
+        if (LuceneTestCase.rarely()) {
             doTestDeprecationWarningsAppearInHeaders();
         }
     }
@@ -143,14 +184,14 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
      * Re-running this back-to-back helps to ensure that warnings are not being maintained across requests.
      */
     private void doTestDeprecationWarningsAppearInHeaders() throws IOException {
-        final boolean useDeprecatedField = randomBoolean();
-        final boolean useNonDeprecatedSetting = randomBoolean();
+        final boolean useDeprecatedField = ESTestCase.randomBoolean();
+        final boolean useNonDeprecatedSetting = ESTestCase.randomBoolean();
 
         // deprecated settings should also trigger a deprecation warning
         final List<Setting<Boolean>> settings = new ArrayList<>(3);
         settings.add(TEST_DEPRECATED_SETTING_TRUE1);
 
-        if (randomBoolean()) {
+        if (ESTestCase.randomBoolean()) {
             settings.add(TEST_DEPRECATED_SETTING_TRUE2);
         }
 
@@ -158,13 +199,13 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             settings.add(TEST_NOT_DEPRECATED_SETTING);
         }
 
-        Collections.shuffle(settings, random());
+        Collections.shuffle(settings, LuceneTestCase.random());
 
         // trigger all deprecations
         Request request = new Request("GET", "/_test_cluster/deprecated_settings");
         request.setEntity(buildSettingsRequest(settings, useDeprecatedField));
         Response response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+        Assert.assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
         final List<Matcher<String>> headerMatchers = new ArrayList<>(4);
@@ -181,15 +222,15 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             }
         }
 
-        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+        Assert.assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
         for (final String deprecatedWarning : deprecatedWarnings) {
-            assertThat(deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
+            Assert.assertThat(deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
         }
         final List<String> actualWarningValues =
                 deprecatedWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
                     .collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(actualWarningValues, hasItem(headerMatcher));
+            Assert.assertThat(actualWarningValues, hasItem(headerMatcher));
         }
     }
 
@@ -219,4 +260,36 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
     }
 
+    protected RestClient getRestClient() {
+        return getRestClient(client());
+    }
+
+    private static synchronized RestClient getRestClient(Client client) {
+        if (restClient == null) {
+            restClient = buildRestClient(client);
+        }
+        return restClient;
+    }
+
+    private static RestClient buildRestClient(Client client ) {
+        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        assertEquals(nodesInfoResponse.getNodes().size(), 1);
+        NodeInfo node = nodesInfoResponse.getNodes().get(0);
+        assertNotNull(node.getInfo(HttpInfo.class));
+        TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
+        InetSocketAddress address = publishAddress.address();
+        final HttpHost host = new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http");
+        RestClientBuilder builder = RestClient.builder(host);
+        return builder.build();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        if (restClient != null) {
+            IOUtils.closeWhileHandlingException(restClient);
+            restClient = null;
+        }
+    }
 }

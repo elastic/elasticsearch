@@ -88,7 +88,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedMins.put(10d, 10d);
 
         testBothCases(DEFAULT_QUERY, dataset, true,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(4),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCount.size(), buckets.size());
@@ -489,6 +489,69 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         assertThat(e.getMessage(), containsString("cannot be nested"));
     }
 
+    public void testShardSizeTooSmall() throws Exception{
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            new VariableWidthHistogramAggregationBuilder("test").setShardSize(1));
+        assertThat(e.getMessage(), equalTo("shard_size must be greater than [1] for [test]"));
+    }
+
+    public void testSmallShardSize() throws Exception {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
+            DEFAULT_QUERY,
+            List.of(),
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
+            histogram -> {fail();}
+        ));
+        assertThat(e.getMessage(), equalTo("3/4 of shard_size must be at least buckets but was [1<2] for [_name]"));
+    }
+
+    public void testHugeShardSize() throws Exception {
+        final List<Number> dataset = Arrays.asList(1, 2, 3);
+        testBothCases(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.field(NUMERIC_FIELD).setShardSize(1000000000), histogram -> {
+            assertThat(
+                histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
+                equalTo(List.of(1.0, 2.0, 3.0))
+            );
+        });
+    }
+
+    public void testSmallInitialBuffer() throws Exception {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
+            DEFAULT_QUERY,
+            List.of(),
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
+            histogram -> {fail();}
+        ));
+        assertThat(e.getMessage(), equalTo("initial_buffer must be at least buckets but was [1<10] for [_name]"));
+    }
+
+    public void testOutOfOrderInitialBuffer() throws Exception {
+        final List<Number> dataset = Arrays.asList(1, 2, 3);
+        testBothCases(
+            DEFAULT_QUERY,
+            dataset,
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(3).setNumBuckets(3),
+            histogram -> {
+                assertThat(
+                    histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
+                    equalTo(List.of(1.0, 2.0, 3.0))
+                );
+            }
+        );
+    }
+
+    public void testDefaultShardSizeDependsOnNumBuckets() throws Exception {
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setNumBuckets(3).getShardSize(), equalTo(150));
+    }
+
+    public void testDefaultInitialBufferDependsOnNumBuckets() throws Exception {
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setShardSize(50).getInitialBuffer(), equalTo(500));
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setShardSize(10000).getInitialBuffer(), equalTo(50000));
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setNumBuckets(3).getInitialBuffer(), equalTo(1500));
+    }
 
     private void testSearchCase(final Query query, final List<Number> dataset, boolean multipleSegments,
                                 final Consumer<VariableWidthHistogramAggregationBuilder> configure,

@@ -19,9 +19,9 @@ A `cumulative_cardinality` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "cumulative_cardinality": {
-        "buckets_path": "my_cardinality_agg"
-    }
+  "cumulative_cardinality": {
+    "buckets_path": "my_cardinality_agg"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -42,27 +42,27 @@ The following snippet calculates the cumulative cardinality of the total daily `
 --------------------------------------------------
 GET /user_hits/_search
 {
-    "size": 0,
-    "aggs" : {
-        "users_per_day" : {
-            "date_histogram" : {
-                "field" : "timestamp",
-                "calendar_interval" : "day"
-            },
-            "aggs": {
-                "distinct_users": {
-                    "cardinality": {
-                        "field": "user_id"
-                    }
-                },
-                "total_new_users": {
-                    "cumulative_cardinality": {
-                        "buckets_path": "distinct_users" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "users_per_day": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "distinct_users": {
+          "cardinality": {
+            "field": "user_id"
+          }
+        },
+        "total_new_users": {
+          "cumulative_cardinality": {
+            "buckets_path": "distinct_users" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:user_hits]
@@ -141,32 +141,32 @@ This can be accomplished by adding a `derivative` aggregation to our query:
 --------------------------------------------------
 GET /user_hits/_search
 {
-    "size": 0,
-    "aggs" : {
-        "users_per_day" : {
-            "date_histogram" : {
-                "field" : "timestamp",
-                "calendar_interval" : "day"
-            },
-            "aggs": {
-                "distinct_users": {
-                    "cardinality": {
-                        "field": "user_id"
-                    }
-                },
-                "total_new_users": {
-                    "cumulative_cardinality": {
-                        "buckets_path": "distinct_users"
-                    }
-                },
-                "incremental_new_users": {
-                    "derivative": {
-                        "buckets_path": "total_new_users"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "users_per_day": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "distinct_users": {
+          "cardinality": {
+            "field": "user_id"
+          }
+        },
+        "total_new_users": {
+          "cumulative_cardinality": {
+            "buckets_path": "distinct_users"
+          }
+        },
+        "incremental_new_users": {
+          "derivative": {
+            "buckets_path": "total_new_users"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:user_hits]

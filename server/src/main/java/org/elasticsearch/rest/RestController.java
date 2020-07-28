@@ -301,8 +301,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
-        //once we have a version then we can find a handler registered for path, method and version
-        Version version = request.getRequestedCompatibility(restCompatibleFunction);
+        //TODO: now that we have a version we can implement a REST handler that accepts path, method AND version
+        //Version version = request.getRequestedCompatibility(restCompatibleFunction);
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

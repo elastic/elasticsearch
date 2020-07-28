@@ -40,7 +40,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -150,33 +149,46 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
-            triggerDeleteExpiredDataTask();
-            triggerDeleteJobsInStateDeletingWithoutDeletionTask(
-                ActionListener.wrap(
-                    response -> {},
-                    e -> LOGGER.error("An error occurred during maintenance tasks execution", e)
-                )
+
+            // Step 3: Log whether the tasks have finished
+            ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+                unused -> LOGGER.info("Completed [ML] maintenance tasks"),
+                e -> LOGGER.error("An error occurred during maintenance tasks execution", e)
             );
+
+            // Step 2: Delete jobs that are in deleting state
+            ActionListener<AcknowledgedResponse> deleteExpiredDataActionListener = ActionListener.wrap(
+                unused -> triggerDeleteJobsInStateDeletingWithoutDeletionTask(finalListener),
+                finalListener::onFailure
+            );
+
+            // Step 1: Delete expired data
+            triggerDeleteExpiredDataTask(deleteExpiredDataActionListener);
+
             auditUnassignedMlTasks();
         } finally {
             scheduleNext();
         }
     }
 
-    private void triggerDeleteExpiredDataTask() {
+    private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {
+        ActionListener<DeleteExpiredDataAction.Response> deleteExpiredDataActionListener = ActionListener.wrap(
+            deleteExpiredDataResponse -> {
+                if (deleteExpiredDataResponse.isDeleted()) {
+                    LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteExpiredDataTask");
+                } else {
+                    LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                }
+                finalListener.onResponse(new AcknowledgedResponse(true));
+            },
+            finalListener::onFailure
+        );
+
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             DeleteExpiredDataAction.INSTANCE,
             new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
-            ActionListener.wrap(
-                response -> {
-                    if (response.isDeleted()) {
-                        LOGGER.info("Successfully completed [ML] maintenance tasks");
-                    } else {
-                        LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
-                    }
-                },
-                e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
+            deleteExpiredDataActionListener);
     }
 
     // Visible for testing
@@ -185,8 +197,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
         ActionListener<List<AcknowledgedResponse>> deleteJobsActionListener = ActionListener.wrap(
             deleteJobsResponses -> {
-                if (deleteJobsResponses.stream().anyMatch(not(AcknowledgedResponse::isAcknowledged))) {
-                    LOGGER.warn("At least one of the ML jobs could not be deleted.");
+                if (deleteJobsResponses.stream().allMatch(AcknowledgedResponse::isAcknowledged)) {
+                    LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
+                } else {
+                    LOGGER.info("At least one of the ML jobs could not be deleted.");
                 }
                 finalListener.onResponse(new AcknowledgedResponse(true));
             },

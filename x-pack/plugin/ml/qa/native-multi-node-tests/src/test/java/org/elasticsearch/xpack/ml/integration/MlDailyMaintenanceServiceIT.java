@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -77,18 +78,22 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     }
 
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<T> listener = ActionListener.wrap(
             r -> {
                 latch.countDown();
             },
             e -> {
+                exceptionHolder.set(e);
                 latch.countDown();
-                fail(e.getMessage());
             }
         );
         function.accept(listener);
         latch.await();
+        if (exceptionHolder.get() != null) {
+            assertNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
+        }
     }
 
     private void putJob(String jobId) {

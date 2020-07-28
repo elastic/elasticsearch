@@ -21,6 +21,7 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
@@ -34,6 +35,7 @@ import org.elasticsearch.transport.TransportLogger;
 import java.io.IOException;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60321")
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;

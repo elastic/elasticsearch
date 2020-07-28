@@ -179,7 +179,7 @@ is within the query geometry.
 * `CONTAINS` - Return all documents whose `shape` field
 contains the query geometry.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

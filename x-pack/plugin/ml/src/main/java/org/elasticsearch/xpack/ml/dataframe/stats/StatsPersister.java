@@ -29,7 +29,6 @@ public class StatsPersister {
     private final String jobId;
     private final ResultsPersisterService resultsPersisterService;
     private final DataFrameAnalyticsAuditor auditor;
-    private volatile boolean isCancelled;
 
     public StatsPersister(String jobId, ResultsPersisterService resultsPersisterService, DataFrameAnalyticsAuditor auditor) {
         this.jobId = Objects.requireNonNull(jobId);
@@ -38,10 +37,6 @@ public class StatsPersister {
     }
 
     public void persistWithRetry(ToXContentObject result, Function<String, String> docIdSupplier) {
-        if (isCancelled) {
-            return;
-        }
-
         try {
             resultsPersisterService.indexWithRetry(jobId,
                 MlStatsIndex.writeAlias(),
@@ -49,7 +44,7 @@ public class StatsPersister {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 WriteRequest.RefreshPolicy.NONE,
                 docIdSupplier.apply(jobId),
-                () -> isCancelled == false,
+                () -> true,
                 errorMsg -> auditor.error(jobId,
                     "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)
             );
@@ -58,9 +53,5 @@ public class StatsPersister {
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", jobId), e);
         }
-    }
-
-    public void cancel() {
-        isCancelled = true;
     }
 }

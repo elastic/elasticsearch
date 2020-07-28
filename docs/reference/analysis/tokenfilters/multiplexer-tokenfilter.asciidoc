@@ -11,7 +11,7 @@ output tokens at the same position will be removed.
 WARNING: If the incoming token stream has duplicate tokens, then these will also be
 removed by the multiplexer
 
-[float]
+[discrete]
 === Options
 [horizontal]
 filters:: a list of token filters to apply to incoming tokens.  These can be any
@@ -27,7 +27,7 @@ preserve_original:: if `true` (the default) then emit the original token in
   addition to the filtered tokens
 
 
-[float]
+[discrete]
 === Settings example
 
 You can set it up like:

@@ -14,7 +14,7 @@ one field to the mappings for each of them.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -25,7 +25,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "topics": { <2>
     "politics": 20,
@@ -33,7 +33,7 @@ PUT my_index/_doc/1
   }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "topics": {
     "politics": 5.2,
@@ -41,7 +41,7 @@ PUT my_index/_doc/2
   }
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "rank_feature": {

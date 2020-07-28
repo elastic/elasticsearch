@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.CLASSIFICATION_DEFINITION;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.getClassificationDefinition;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -532,7 +532,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"description\": \"test model for classification\",\n" +
         "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
         "  \"inference_config\": {\"classification\": {}},\n" +
-        "  \"definition\": " + CLASSIFICATION_DEFINITION +
+        "  \"definition\": " + getClassificationDefinition(false) +
         "}";
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {

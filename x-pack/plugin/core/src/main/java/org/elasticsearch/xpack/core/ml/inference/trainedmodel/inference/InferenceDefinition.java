@@ -95,6 +95,7 @@ public class InferenceDefinition {
                 return decoderMap;
             }
             this.decoderMap = preProcessors.stream()
+                .filter(p -> p.isCustom() == false)
                 .map(PreProcessor::reverseLookup)
                 .collect(HashMap::new, Map::putAll, Map::putAll);
             return decoderMap;

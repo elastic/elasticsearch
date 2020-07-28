@@ -314,7 +314,7 @@ wizard, open the menu, go to *Stack Management > Index Management*, and click
 the *Index Templates* tab.
 
 [role="screenshot"]
-image:images/ilm/create-template-wizard.png[]
+image:images/ilm/create-template-wizard.png[Create template page]
 
 The create template request for the example template looks like this:
 

@@ -76,11 +76,12 @@ To use a policy that triggers the rollover action,
 you need to configure the policy in the index template used to create each new index.
 You specify the name of the policy and the alias used to reference the rolling indices.
 
-To use the Create template wizard to create a template from {kib} Management,
-go to Management, click **Index Management** and select the **Index Templates** view.
+You can use the {kib} Create template wizard to create an index template. In
+Kibana, open the menu and go to *Stack Management > Index Management*. In the
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
-image:images/ilm/create-template-wizard-my_template.png[]
+image:images/ilm/create-template-wizard-my_template.png[Create template page]
 
 The wizard invokes the <<indices-put-template,put template API>> to add templates to a cluster.
 

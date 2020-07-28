@@ -142,7 +142,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
         builder.registerComposite(
             TYPE,
-            List.of(CoreValuesSourceType.BYTES,  CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
                 return new CompositeValuesSourceConfig(
                     name,
@@ -159,9 +159,9 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         LongConsumer addRequestCircuitBreakerBytes,
                         CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
-
                         if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
-                            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
+                            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
+                                .valuesSource();
                             return new GlobalOrdinalValuesSource(
                                 bigArrays,
                                 compositeValuesSourceConfig.fieldType(),
@@ -184,9 +184,11 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 compositeValuesSourceConfig.reverseMul()
                             );
                         }
-                    });
+                    }
+                );
 
-                });
+            }
+        );
     }
 
     @Override

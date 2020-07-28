@@ -59,8 +59,15 @@ public class SubstringFunctionProcessor implements Processor {
         if (!(length instanceof Number)) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", length);
         }
-        if (((Number) length).intValue() < 0) {
-            throw new SqlIllegalArgumentException("A positive number is required for [length]; received [{}]", length);
+        
+        if ((((Number) length).longValue() > Integer.MAX_VALUE) || (((Number) length).longValue() < 0) ) {
+            throw new SqlIllegalArgumentException("[length] must be in the interval [0..2147483647], but was ["
+                    + ((Number) length).longValue() + "]");
+        }
+    
+        if ((((Number) start).longValue() > Integer.MAX_VALUE) || (((Number) start).longValue() - 1 < Integer.MIN_VALUE)) {
+            throw new SqlIllegalArgumentException("[start] must be in the interval [-2147483647..2147483647], but was ["
+                    + ((Number) start).longValue() + "]");
         }
 
         return StringFunctionUtils.substring(input instanceof Character ? input.toString() : (String) input,

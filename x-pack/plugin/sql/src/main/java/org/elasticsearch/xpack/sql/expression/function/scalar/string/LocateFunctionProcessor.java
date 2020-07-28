@@ -59,6 +59,11 @@ public class LocateFunctionProcessor implements Processor {
         if (start != null && !(start instanceof Number)) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
         }
+    
+        if (start != null && ((((Number) start).longValue() > Integer.MAX_VALUE) || (((Number) start).longValue() - 1 < Integer.MIN_VALUE))) {
+            throw new SqlIllegalArgumentException("[start] must be in the interval [-2147483647..2147483647], but was ["
+                    + ((Number) start).longValue() + "]");
+        }
         
         String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;

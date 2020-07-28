@@ -3,8 +3,6 @@
 
   - skip:
       features: headers
-      version: " - 7.99.99"
-      reason: "7.9.0 backport pending"
 
   - do:
       security.create_api_key:

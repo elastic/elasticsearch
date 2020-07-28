@@ -241,7 +241,11 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                addExcludedField(field, "field not in includes list", fieldSelection);
+                if (hasCompatibleType(field)) {
+                    addExcludedField(field, "field not in includes list", fieldSelection);
+                } else {
+                    addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                }
             }
         }
     }

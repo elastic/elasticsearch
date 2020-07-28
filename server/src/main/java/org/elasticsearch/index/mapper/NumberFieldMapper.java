@@ -66,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -962,9 +963,17 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return this::parsePoint;
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
         }
 
         @Override
@@ -1028,6 +1037,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Number nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
@@ -1074,6 +1088,19 @@ public class NumberFieldMapper extends FieldMapper {
         if (docValued == false && (stored || fieldType().isSearchable())) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value.equals("")) {
+            return nullValue;
+        }
+
+        return fieldType().type.parse(value, coerce.value());
     }
 
     @Override

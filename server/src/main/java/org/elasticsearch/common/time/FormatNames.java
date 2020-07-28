@@ -129,18 +129,22 @@ public enum FormatNames {
                 return name;
             }
         }
-        throw new IllegalArgumentException("Format name " + format + " is not defined");
+        return null;
     }
 
     public boolean matches(String format) {
-        if (format.equals(camelCaseName)) {
-            throw new IllegalArgumentException("Camel case format names are no longer supported. " +
-                "Use snake case name " + snakeCaseName + " instead.");
-        }
-        return format.equals(snakeCaseName);
+        return format.equals(camelCaseName) || format.equals(snakeCaseName);
+    }
+
+    public  boolean isCamelCase(String format) {
+        return format.equals(camelCaseName);
     }
 
     public String getSnakeCaseName() {
         return snakeCaseName;
+    }
+
+    public String getCamelCaseName() {
+        return camelCaseName;
     }
 }

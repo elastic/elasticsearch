@@ -11,9 +11,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -65,19 +66,28 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
-        DataStreamIT.putComposableIndexTemplate("t1", "@timestamp", List.of("ds", "other-ds"));
+        DataStreamIT.putComposableIndexTemplate("t1", List.of("ds", "other-ds"));
 
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
+        AcknowledgedResponse response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
         request = new CreateDataStreamAction.Request("other-ds");
-        response = client.admin().indices().createDataStream(request).get();
+        response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
         IndexResponse indexResponse = client.prepareIndex("ds").setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         id = indexResponse.getId();
+    }
+
+    @After
+    public void cleanup() {
+        AcknowledgedResponse response = client().execute(
+            DeleteDataStreamAction.INSTANCE,
+            new DeleteDataStreamAction.Request(new String[] { "*" })
+        ).actionGet();
+        assertAcked(response);
     }
 
     public void testSnapshotAndRestore() throws Exception {
@@ -98,7 +108,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
 
         assertTrue(
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "ds" })).get().isAcknowledged()
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
+                .get()
+                .isAcknowledged()
         );
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -115,10 +127,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
-        GetDataStreamAction.Response ds = client.admin()
-            .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { "ds" }))
-            .get();
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "ds" })
+        ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
         assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
@@ -141,7 +153,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, snap.size());
         assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
 
-        assertAcked(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -158,15 +170,15 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
-        GetDataStreamAction.Response ds = client.admin()
-            .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { "ds" }))
-            .get();
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "ds" })
+        ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
         assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
 
-        assertAcked(client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
     }
 
     public void testRename() throws Exception {
@@ -195,10 +207,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setRenameReplacement("ds2")
             .get();
 
-        GetDataStreamAction.Response ds = client.admin()
-            .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { "ds2" }))
-            .get();
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "ds2" })
+        ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
         assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
@@ -224,7 +236,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
 
         // delete data stream
-        client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "ds" })).actionGet();
+        client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).actionGet();
 
         // restore data stream attempting to rename the backing index
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -239,7 +251,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.status(), is(RestStatus.OK));
 
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
-        GetDataStreamAction.Response response = client.admin().indices().getDataStreams(getDSRequest).actionGet();
+        GetDataStreamAction.Response response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
         assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
     }
 
@@ -274,7 +286,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         // assert "ds" was restored as "test-ds" and the backing index has a valid name
         GetDataStreamAction.Request getRenamedDS = new GetDataStreamAction.Request(new String[] { "test-ds" });
-        GetDataStreamAction.Response response = client.admin().indices().getDataStreams(getRenamedDS).actionGet();
+        GetDataStreamAction.Response response = client.execute(GetDataStreamAction.INSTANCE, getRenamedDS).actionGet();
         assertThat(
             response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(),
             is(DataStream.getDefaultBackingIndexName("test-ds", 1L))
@@ -282,7 +294,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         // data stream "ds" should still exist in the system
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
-        response = client.admin().indices().getDataStreams(getDSRequest).actionGet();
+        response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
         assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
     }
 
@@ -309,10 +321,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
-        GetDataStreamAction.Response ds = client.admin()
-            .indices()
-            .getDataStreams(new GetDataStreamAction.Request(new String[] { "ds2" }))
-            .get();
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "ds2" })
+        ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
         assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
@@ -323,7 +335,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testDataStreamNotStoredWhenIndexRequested() throws Exception {
+    public void testDataStreamNotStoredWhenIndexRequested() {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(REPO, "snap2")
@@ -353,7 +365,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
 
         assertTrue(
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "ds" })).get().isAcknowledged()
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
+                .get()
+                .isAcknowledged()
         );
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -366,7 +380,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "ds" });
-        expectThrows(ResourceNotFoundException.class, () -> client.admin().indices().getDataStreams(getRequest).actionGet());
+        expectThrows(ResourceNotFoundException.class, () -> client.execute(GetDataStreamAction.INSTANCE, getRequest).actionGet());
     }
 
     public void testDataStreamNotIncludedInLimitedSnapshot() throws ExecutionException, InterruptedException {
@@ -381,7 +395,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), Matchers.is(SnapshotState.SUCCESS));
 
         assertThat(
-            client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "*" })).get().isAcknowledged(),
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" }))
+                .get()
+                .isAcknowledged(),
             is(true)
         );
 

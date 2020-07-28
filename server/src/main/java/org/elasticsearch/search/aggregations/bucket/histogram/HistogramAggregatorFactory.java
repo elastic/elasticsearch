@@ -48,6 +48,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final boolean keyed;
     private final long minDocCount;
     private final double minBound, maxBound;
+    private final DoubleBounds hardBounds;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
@@ -67,6 +68,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         long minDocCount,
                                         double minBound,
                                         double maxBound,
+                                        DoubleBounds hardBounds,
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
@@ -79,6 +81,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         this.minDocCount = minDocCount;
         this.minBound = minBound;
         this.maxBound = maxBound;
+        this.hardBounds = hardBounds;
     }
 
     public long minDocCount() {
@@ -98,7 +101,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         }
         HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
         return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            config, searchContext, parent, cardinality, metadata);
+            hardBounds, config, searchContext, parent, cardinality, metadata);
     }
 
     @Override
@@ -106,6 +109,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

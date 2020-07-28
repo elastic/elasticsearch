@@ -8,9 +8,9 @@ query.
 --------------------------------------------------
 GET /twitter/_explain/0
 {
-      "query" : {
-        "match" : { "message" : "elasticsearch" }
-      }
+  "query" : {
+    "match" : { "message" : "elasticsearch" }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -89,9 +89,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 --------------------------------------------------
 GET /twitter/_explain/0
 {
-      "query" : {
-        "match" : { "message" : "elasticsearch" }
-      }
+  "query" : {
+    "match" : { "message" : "elasticsearch" }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]

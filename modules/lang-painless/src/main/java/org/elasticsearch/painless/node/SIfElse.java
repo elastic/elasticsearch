@@ -20,22 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.IfElseNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
-import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.InLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -45,92 +30,44 @@ import java.util.Objects;
 public class SIfElse extends AStatement {
 
     private final AExpression conditionNode;
-    private final SBlock ifblockNode;
-    private final SBlock elseblockNode;
+    private final SBlock ifBlockNode;
+    private final SBlock elseBlockNode;
 
-    public SIfElse(int identifier, Location location, AExpression conditionNode, SBlock ifblockNode, SBlock elseblockNode) {
+    public SIfElse(int identifier, Location location, AExpression conditionNode, SBlock ifBlockNode, SBlock elseBlockNode) {
         super(identifier, location);
 
         this.conditionNode = Objects.requireNonNull(conditionNode);
-        this.ifblockNode = ifblockNode;
-        this.elseblockNode = elseblockNode;
+        this.ifBlockNode = ifBlockNode;
+        this.elseBlockNode = elseBlockNode;
     }
 
     public AExpression getConditionNode() {
         return conditionNode;
     }
 
-    public SBlock getIfblockNode() {
-        return ifblockNode;
+    public SBlock getIfBlockNode() {
+        return ifBlockNode;
     }
 
-    public SBlock getElseblockNode() {
-        return elseblockNode;
-    }
-
-    @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitIfElse(this, input);
+    public SBlock getElseBlockNode() {
+        return elseBlockNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitIfElse(this, scope);
+    }
 
-        semanticScope.setCondition(conditionNode, Read.class);
-        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
-        PainlessCast conditionCast = conditionNode.cast(semanticScope);
-        if (conditionNode instanceof EBoolean) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+
+        if (ifBlockNode != null) {
+            ifBlockNode.visit(userTreeVisitor, scope);
         }
 
-        if (ifblockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
+        if (elseBlockNode != null) {
+            elseBlockNode.visit(userTreeVisitor, scope);
         }
-
-        semanticScope.replicateCondition(this, ifblockNode, LastSource.class);
-        semanticScope.replicateCondition(this, ifblockNode, InLoop.class);
-        semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
-        Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope());
-
-        if (elseblockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous else statement."));
-        }
-
-        semanticScope.replicateCondition(this, elseblockNode, LastSource.class);
-        semanticScope.replicateCondition(this, elseblockNode, InLoop.class);
-        semanticScope.replicateCondition(this, elseblockNode, LastLoop.class);
-        Output elseblockOutput = elseblockNode.analyze(classNode, semanticScope.newLocalScope());
-
-        if (semanticScope.getCondition(ifblockNode, MethodEscape.class) && semanticScope.getCondition(elseblockNode, MethodEscape.class)) {
-            semanticScope.setCondition(this, MethodEscape.class);
-        }
-
-        if (semanticScope.getCondition(ifblockNode, LoopEscape.class) && semanticScope.getCondition(elseblockNode, LoopEscape.class)) {
-            semanticScope.setCondition(this, LoopEscape.class);
-        }
-
-        if (semanticScope.getCondition(ifblockNode, AllEscape.class) && semanticScope.getCondition(elseblockNode, AllEscape.class)) {
-            semanticScope.setCondition(this, AllEscape.class);
-        }
-
-        if (semanticScope.getCondition(ifblockNode, AnyContinue.class) || semanticScope.getCondition(elseblockNode, AnyContinue.class)) {
-            semanticScope.setCondition(this, AnyContinue.class);
-        }
-
-        if (semanticScope.getCondition(ifblockNode, AnyBreak.class) || semanticScope.getCondition(elseblockNode, AnyBreak.class)) {
-            semanticScope.setCondition(this, AnyBreak.class);
-        }
-
-        IfElseNode ifElseNode = new IfElseNode();
-        ifElseNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
-        ifElseNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
-        ifElseNode.setElseBlockNode((BlockNode)elseblockOutput.statementNode);
-        ifElseNode.setLocation(getLocation());
-
-        output.statementNode = ifElseNode;
-
-        return output;
     }
 }

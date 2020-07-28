@@ -9,22 +9,20 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /** Sorted numeric doc values for geo shapes */
 class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
     private final MultiGeoShapeValues geoShapeValues;
-    private final Consumer<Long> circuitBreakerConsumer;
     protected int precision;
     protected GeoGridTiler tiler;
 
     protected GeoShapeCellValues(MultiGeoShapeValues geoShapeValues, int precision, GeoGridTiler tiler,
-                                 Consumer<Long> circuitBreakerConsumer) {
+                                 LongConsumer circuitBreakerConsumer) {
+        super(circuitBreakerConsumer);
         this.geoShapeValues = geoShapeValues;
         this.precision = precision;
         this.tiler = tiler;
-        this.circuitBreakerConsumer = circuitBreakerConsumer;
-        circuitBreakerConsumer.accept((long) Long.BYTES);
     }
 
     @Override
@@ -45,18 +43,13 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
         return values;
     }
 
-    protected void add(int idx, long value) {
-        values[idx] = value;
+    void resizeCell(int newSize) {
+        resize(newSize);
     }
 
-    void resizeCell(int newSize) {
-        int oldValuesLength = values.length;
-        resize(newSize);
-        int newValuesLength = values.length;
-        if (newValuesLength > oldValuesLength) {
-            long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
-            circuitBreakerConsumer.accept(bytesDiff);
-        }
+
+    protected void add(int idx, long value) {
+        values[idx] = value;
     }
 
     /**

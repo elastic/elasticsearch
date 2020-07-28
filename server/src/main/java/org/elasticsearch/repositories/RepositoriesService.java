@@ -355,6 +355,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
             repositories = Collections.unmodifiableMap(builder);
         } catch (Exception ex) {
+            assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
         }
     }

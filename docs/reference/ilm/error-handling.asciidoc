@@ -37,7 +37,7 @@ index that has only two shards:
 
 [source,console]
 --------------------------------------------------
-PUT /myindex
+PUT /my-index-000001
 {
   "settings": {
     "index.number_of_shards": 2,
@@ -47,16 +47,16 @@ PUT /myindex
 --------------------------------------------------
 // TEST[continued]
 
-After five days, {ilm-init} attempts to shrink `myindex` from two shards to four shards.
+After five days, {ilm-init} attempts to shrink `my-index-000001` from two shards to four shards.
 Because the shrink action cannot _increase_ the number of shards, this operation fails 
-and {ilm-init} moves `myindex` to the `ERROR` step. 
+and {ilm-init} moves `my-index-000001` to the `ERROR` step. 
 
 You can use the <<ilm-explain-lifecycle,{ilm-init} Explain API>> to get information about
 what went wrong: 
 
 [source,console]
 --------------------------------------------------
-GET /myindex/_ilm/explain
+GET /my-index-000001/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
@@ -66,8 +66,8 @@ Which returns the following information:
 --------------------------------------------------
 {
   "indices" : {
-    "myindex" : {
-      "index" : "myindex",
+    "my-index-000001" : {
+      "index" : "my-index-000001",
       "managed" : true,                         
       "policy" : "shrink-index",                <1>
       "lifecycle_date_millis" : 1541717265865,
@@ -141,7 +141,7 @@ you might need to explicitly tell {ilm-init} to retry the step:
 
 [source,console]
 --------------------------------------------------
-POST /myindex/_ilm/retry
+POST /my-index-000001/_ilm/retry
 --------------------------------------------------
 // TEST[skip:we can't be sure the index is ready to be retried at this point]
 

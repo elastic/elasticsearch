@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -12,12 +10,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-data-streams'
 integTest.enabled = false
-
-tasks.named('internalClusterTest').configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.datastreams_feature_enabled', 'true'
-  }
-}
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

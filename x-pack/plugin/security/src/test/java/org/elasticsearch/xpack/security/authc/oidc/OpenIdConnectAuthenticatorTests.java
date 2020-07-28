@@ -823,6 +823,51 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertTrue(combinedAddress.containsKey("country"));
     }
 
+    public void testJsonObjectMergingWithBooleanLeniency() {
+        final JSONObject idTokenObject = new JWTClaimsSet.Builder()
+            .claim("email_verified", true)
+            .claim("email_verified_1", "true")
+            .claim("email_verified_2", false)
+            .claim("email_verified_3", "false")
+            .build()
+            .toJSONObject();
+        final JSONObject userInfoObject = new JWTClaimsSet.Builder()
+            .claim("email_verified", "true")
+            .claim("email_verified_1", true)
+            .claim("email_verified_2", "false")
+            .claim("email_verified_3", false)
+            .build()
+            .toJSONObject();
+        OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userInfoObject);
+        assertSame(Boolean.TRUE, idTokenObject.get("email_verified"));
+        assertSame(Boolean.TRUE, idTokenObject.get("email_verified_1"));
+        assertSame(Boolean.FALSE, idTokenObject.get("email_verified_2"));
+        assertSame(Boolean.FALSE, idTokenObject.get("email_verified_3"));
+
+        final JSONObject idTokenObject1 = new JWTClaimsSet.Builder()
+            .claim("email_verified", true)
+            .build()
+            .toJSONObject();
+        final JSONObject userInfoObject1 = new JWTClaimsSet.Builder()
+            .claim("email_verified", "false")
+            .build()
+            .toJSONObject();
+        IllegalStateException e =
+            expectThrows(IllegalStateException.class, () -> OpenIdConnectAuthenticator.mergeObjects(idTokenObject1, userInfoObject1));
+        assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
+
+        final JSONObject idTokenObject2 = new JWTClaimsSet.Builder()
+            .claim("email_verified", true)
+            .build()
+            .toJSONObject();
+        final JSONObject userInfoObject2 = new JWTClaimsSet.Builder()
+            .claim("email_verified", "yes")
+            .build()
+            .toJSONObject();
+        e = expectThrows(IllegalStateException.class, () -> OpenIdConnectAuthenticator.mergeObjects(idTokenObject2, userInfoObject2));
+        assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
+    }
+
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {
         return new OpenIdConnectProviderConfiguration(
             new Issuer("https://op.example.com"),

@@ -515,7 +515,7 @@ public class MetadataCreateIndexService {
         List<Map<String, Object>> result = new ArrayList<>();
 
         List<CompressedXContent> templateMappings =
-            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
+            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName, xContentRegistry);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
             result.add(parsedTemplateMapping);

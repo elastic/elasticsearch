@@ -21,11 +21,11 @@ All the cat commands accept a query string parameter `help` to see all
 the headers and info they provide, and the `/_cat` command alone lists all
 the available commands.
 
-[float]
+[discrete]
 [[common-parameters]]
 === Common parameters
 
-[float]
+[discrete]
 [[verbose]]
 ==== Verbose
 
@@ -46,7 +46,7 @@ u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 --------------------------------------------------
 // TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ non_json]
 
-[float]
+[discrete]
 [[help]]
 ==== Help
 
@@ -74,7 +74,7 @@ For example `GET _cat/shards/twitter?help` or `GET _cat/indices/twi*?help`
 results in an error. Use `GET _cat/shards?help` or `GET _cat/indices?help`
 instead.
 
-[float]
+[discrete]
 [[headers]]
 ==== Headers
 
@@ -98,7 +98,7 @@ You can also request multiple columns using simple wildcards like
 `/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting
 with `queue`.
 
-[float]
+[discrete]
 [[numeric-formats]]
 ==== Numeric formats
 
@@ -141,7 +141,7 @@ If you want to change the <<size-units,size units>>, use `size` parameter.
 
 If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 
-[float]
+[discrete]
 ==== Response as text, json, smile, yaml or cbor
 
 [source,sh]
@@ -193,7 +193,7 @@ For example:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[sort]]
 ==== Sort
 

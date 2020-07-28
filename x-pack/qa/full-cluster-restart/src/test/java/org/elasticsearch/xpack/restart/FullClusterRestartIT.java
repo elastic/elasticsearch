@@ -14,15 +14,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +47,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -642,15 +638,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testDataStreams() throws Exception {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {
-            String mapping = "{\n" +
-                "      \"properties\": {\n" +
-                "        \"@timestamp\": {\n" +
-                "          \"type\": \"date\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }";
-            Template template = new Template(null, new CompressedXContent(mapping), null);
-            createComposableTemplate(client(), "dst", "ds", template);
+            createComposableTemplate(client(), "dst", "ds");
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
             XContentBuilder builder = JsonXContent.contentBuilder().startObject()
@@ -674,16 +662,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNumHits("ds", 1, 1);
     }
 
-    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern)
         throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         StringEntity templateJSON = new StringEntity(
             String.format(Locale.ROOT, "{\n" +
                 "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
-                "  \"template\": %s\n" +
-                "}", indexPattern, Strings.toString(builder)),
+                "  \"data_stream\": {}\n" +
+                "}", indexPattern),
             ContentType.APPLICATION_JSON);
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);

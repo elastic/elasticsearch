@@ -172,8 +172,7 @@ public class QueryShardContextTests extends ESTestCase {
 
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName) ->
-                    mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
+                (mappedFieldType, idxName) -> mappedFieldType.fielddataBuilder(idxName).build(null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }

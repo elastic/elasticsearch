@@ -90,7 +90,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -133,6 +133,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
     }
 
     @Override

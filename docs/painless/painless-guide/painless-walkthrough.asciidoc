@@ -31,7 +31,7 @@ PUT hockey/_bulk?refresh
 ----------------------------------------------------------------
 // TESTSETUP
 
-[float]
+[discrete]
 ==== Accessing Doc Values from Painless
 
 Document values can be accessed from a `Map` named `doc`.
@@ -111,7 +111,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 
 
-[float]
+[discrete]
 ==== Missing values
 
 `doc['field'].value` throws an exception if
@@ -121,7 +121,7 @@ To check if a document is missing a value, you can call
 `doc['field'].size() == 0`.
 
 
-[float]
+[discrete]
 ==== Updating Fields with Painless
 
 You can also easily update fields. You access the original source for a field as `ctx._source.<field-name>`.
@@ -177,7 +177,7 @@ POST hockey/_update/1
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[modules-scripting-painless-dates]]
 ==== Dates
 
@@ -202,7 +202,7 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[modules-scripting-painless-regex]]
 ==== Regular expressions
 

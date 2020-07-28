@@ -104,7 +104,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
 
         @Override
@@ -148,6 +148,14 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value.toString();
+    }
+
+    @Override
     protected boolean indexedByDefault() {
         return false;
     }
@@ -156,5 +164,4 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
-
 }

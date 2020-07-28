@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
@@ -292,6 +293,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(bulkAnnotationsPersister).persistAnnotation(annotation);
+        if (annotation.getEvent() == Annotation.Event.CATEGORIZATION_STATUS_CHANGE) {
+            verify(auditor).warning(eq(JOB_ID), anyString());
+        }
     }
 
     public void testProcessResult_modelSizeStats() {

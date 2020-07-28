@@ -81,7 +81,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 /**
@@ -321,11 +321,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public Executor cacheFetchAsyncExecutor() {
-        return threadPool.executor(SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+        return threadPool.executor(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
     }
 
     public Executor prewarmExecutor() {
-        return threadPool.executor(ThreadPool.Names.SAME);
+        return threadPool.executor(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
     }
 
     @Override
@@ -377,7 +377,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private void prewarmCache() {
         if (prewarmCache) {
             final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
-            final Executor executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+            final Executor executor = prewarmExecutor();
 
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
                 if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
@@ -422,7 +422,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
 
             // Start as many workers as fit into the searchable snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME).getMax(), queue.size());
+            final int workers = Math.min(threadPool.info(CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getMax(), queue.size());
             for (int i = 0; i < workers; ++i) {
                 prewarmNext(executor, queue);
             }

@@ -41,10 +41,12 @@
       indices.delete:
         index: logs-foobar
 
+  # close request will not fail but will not match any data streams
   - do:
-      catch: bad_request
       indices.close:
         index: logs-*
+  - is_true: acknowledged
+  - length: { indices: 0 }
 
   - do:
       indices.delete_data_stream:

@@ -76,7 +76,8 @@ GET /cluster_one:twitter/_search
     "match": {
       "user": "kimchy"
     }
-  }
+  },
+  "_source": ["user", "message", "likes"]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -113,7 +114,6 @@ The API returns the following response:
         "_score": 1,
         "_source": {
           "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
           "message": "trying out Elasticsearch",
           "likes": 0
         }
@@ -147,7 +147,8 @@ GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
     "match": {
       "user": "kimchy"
     }
-  }
+  },
+  "_source": ["user", "message", "likes"]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -184,7 +185,6 @@ The API returns the following response:
         "_score": 2,
         "_source": {
           "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
           "message": "trying out Elasticsearch",
           "likes": 0
         }
@@ -195,7 +195,6 @@ The API returns the following response:
         "_score": 1,
         "_source": {
           "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
           "message": "trying out Elasticsearch",
           "likes": 0
         }
@@ -206,7 +205,6 @@ The API returns the following response:
         "_score": 1,
         "_source": {
           "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
           "message": "trying out Elasticsearch",
           "likes": 0
         }

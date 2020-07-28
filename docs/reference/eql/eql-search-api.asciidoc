@@ -17,7 +17,7 @@ event.
 ////
 [source,console]
 ----
-PUT /my_index/_bulk?refresh
+PUT /my-index-000001/_bulk?refresh
 {"index":{ }}
 { "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{ }}
@@ -36,7 +36,7 @@ PUT /my_index/_bulk?refresh
 
 [source,console]
 ----
-GET /my_index/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     process where process.name = "regsvr32.exe"
@@ -510,7 +510,7 @@ The following EQL search request searches for events with an `event.category` of
 
 [source,console]
 ----
-GET /my_index/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     file where (file.name == "cmd.exe" and agent.id != "my_user")
@@ -542,7 +542,7 @@ the events in ascending, lexicographic order.
     },
     "events": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "fwGeywNsBl8Y9Ys1x51b",
         "_score": null,
         "_source": {
@@ -569,7 +569,7 @@ the events in ascending, lexicographic order.
         }
       },
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "AtOJ4UjUBAAx3XR5kcCM",
         "_score": null,
         "_source": {
@@ -627,7 +627,7 @@ These events must also share the same `agent.id` value.
 
 [source,console]
 ----
-GET /my_index/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     sequence by agent.id
@@ -666,7 +666,7 @@ the events in ascending, lexicographic order.
         ],
         "events": [
           {
-            "_index": "my_index",
+            "_index": "my-index-000001",
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
             "_version": 1,
             "_seq_no": 3,
@@ -696,7 +696,7 @@ the events in ascending, lexicographic order.
             }
           },
           {
-            "_index": "my_index",
+            "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_version": 1,
             "_seq_no": 4,

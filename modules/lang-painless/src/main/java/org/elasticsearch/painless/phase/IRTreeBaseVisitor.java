@@ -71,7 +71,14 @@ import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.ir.StoreBraceDefNode;
+import org.elasticsearch.painless.ir.StoreBraceNode;
+import org.elasticsearch.painless.ir.StoreDotDefNode;
+import org.elasticsearch.painless.ir.StoreDotNode;
+import org.elasticsearch.painless.ir.StoreDotShortcutNode;
 import org.elasticsearch.painless.ir.StoreFieldMemberNode;
+import org.elasticsearch.painless.ir.StoreListShortcutNode;
+import org.elasticsearch.painless.ir.StoreMapShortcutNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -333,17 +340,52 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitStoreFieldMember(StoreFieldMemberNode irStoreFieldMemberNode, Input input) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Output visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public Output visitLoadBrace(LoadBraceNode irLoadBraceNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreDotDef(StoreDotDefNode irStoreDotDefNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreDot(StoreDotNode irStoreDotNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreDotShortcut(StoreDotShortcutNode irDotSubShortcutNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreListShortcut(StoreListShortcutNode irStoreListShortcutNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreMapShortcut(StoreMapShortcutNode irStoreMapShortcutNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreFieldMember(StoreFieldMemberNode irStoreFieldMemberNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreBraceDef(StoreBraceDefNode irStoreBraceDefNode, Input input) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Output visitStoreBrace(StoreBraceNode irStoreBraceNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

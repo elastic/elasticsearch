@@ -86,6 +86,7 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -917,6 +918,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.docValueFields() != null) {
             FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService(), source.docValueFields());
             context.docValuesContext(docValuesContext);
+        }
+        if (source.fetchFields() != null) {
+            String indexName = context.indexShard().shardId().getIndexName();
+            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
+                indexName, context.mapperService(), source.fetchFields());
+            context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

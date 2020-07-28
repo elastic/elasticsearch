@@ -553,8 +553,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter;
-            indexWriter = new RandomIndexWriter(random(), directory);
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 

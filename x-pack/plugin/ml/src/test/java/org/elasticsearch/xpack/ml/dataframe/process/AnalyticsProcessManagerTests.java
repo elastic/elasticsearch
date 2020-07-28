@@ -112,7 +112,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         resultsPersisterService = mock(ResultsPersisterService.class);
         modelLoadingService = mock(ModelLoadingService.class);
-        processManager = new AnalyticsProcessManager(Settings.builder().build(), client, executorServiceForJob, executorServiceForProcess,
+        processManager = new AnalyticsProcessManager(Settings.EMPTY, client, executorServiceForJob, executorServiceForProcess,
             processFactory, auditor, trainedModelProvider, modelLoadingService, resultsPersisterService, 1);
     }
 

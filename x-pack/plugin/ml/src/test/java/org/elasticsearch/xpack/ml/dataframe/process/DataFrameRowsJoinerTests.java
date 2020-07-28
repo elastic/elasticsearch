@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -265,7 +266,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenProcessResults(Arrays.asList(result1, result2));
 
         List<BulkRequest> capturedBulkRequests = bulkRequestCaptor.getAllValues();
-        assertThat(capturedBulkRequests.size(), equalTo(1));
+        assertThat(capturedBulkRequests, hasSize(1));
         BulkRequest capturedBulkRequest = capturedBulkRequests.get(0);
         assertThat(capturedBulkRequest.numberOfActions(), equalTo(1));
     }

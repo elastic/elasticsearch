@@ -119,6 +119,7 @@ The values are returned as a flat list in the `fields` section in each hit:
         "_index" : "twitter",
         "_id" : "0",
         "_score" : 1.0,
+        "_type" : "_doc",
         "fields" : {
           "user" : [
             "kimchy"

@@ -302,7 +302,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             }, listener::onFailure));
         } else {
-            authorizeIndexActionName(action, authorizationInfo, null,
+            authorizeIndexActionName(action, authorizationInfo, null /* this value is ignored */,
                 ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
                         indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {

@@ -25,47 +25,28 @@ public class IndicesAccessControl {
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
             assert false == Regex.isSimpleMatchPattern(index) :
-                    "index access control can and should only be retrieved for a given concrete name, but requested [" + index + "]";
-            return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
+                    "index access control should only be retrieved by a concrete name, but requested [" + index + "]";
+            return IndexAccessControl.ALLOW_ALL_ACCESS_CONTROL;
         }
     };
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, null) {
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            for (String placeHolderIndexName : IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
-                if (placeHolderIndexName.equals(index)) {
-                    return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
-                }
+            // security request interceptors retrieve access control for the "no index" placeholder values, so this
+            // returns a value that they treat as "nothing to do"
+            if (IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST.contains(index)) {
+                return IndexAccessControl.ALLOW_ALL_ACCESS_CONTROL;
             }
             assert false : "the \"no index access control\" is empty and no access control can be retrieved, but requested [" + index + "]";
             return null;
         }
     };
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, null) {
-
-        IndexAccessControl DENIED_ACCESS_CONTROL = new IndexAccessControl(false, null, null) {
-
-            @Override
-            public FieldPermissions getFieldPermissions() {
-                throw new UnsupportedOperationException("No field permissions for index access control for unauthorized operations");
-            }
-
-            @Override
-            public DocumentPermissions getDocumentPermissions() {
-                throw new UnsupportedOperationException("No document permissions for index access control for unauthorized operations");
-            }
-
-            @Override
-            public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
-                throw new UnsupportedOperationException("Index access control for unauthorized operations cannot be limited");
-            }
-        };
-
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
             assert false == Regex.isSimpleMatchPattern(index) :
-                    "index access control can and should only be retrieved for a given concrete name, but requested [" + index + "]";
-            return DENIED_ACCESS_CONTROL;
+                    "index access control should only be retrieved by a concrete name, but requested [" + index + "]";
+            return IndexAccessControl.DENIED_ACCESS_CONTROL;
         }
     };
 
@@ -103,7 +84,26 @@ public class IndicesAccessControl {
     public static class IndexAccessControl {
 
         // no DLS or FLS filtering, i.e. expose all documents and fields
-        public static final IndexAccessControl PROMISCUOUS_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
+        public static final IndexAccessControl ALLOW_ALL_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
+
+        // denied access control does not have field and document level security and cannot be "limited" by another access control
+        static final IndexAccessControl DENIED_ACCESS_CONTROL = new IndexAccessControl(false, null, null) {
+
+            @Override
+            public FieldPermissions getFieldPermissions() {
+                throw new UnsupportedOperationException("No field permissions for index access control for unauthorized operations");
+            }
+
+            @Override
+            public DocumentPermissions getDocumentPermissions() {
+                throw new UnsupportedOperationException("No document permissions for index access control for unauthorized operations");
+            }
+
+            @Override
+            public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
+                throw new UnsupportedOperationException("Index access control for unauthorized operations cannot be limited");
+            }
+        };
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;

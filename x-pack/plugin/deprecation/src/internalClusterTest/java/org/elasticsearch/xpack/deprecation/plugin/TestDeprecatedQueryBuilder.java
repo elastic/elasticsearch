@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.http.plugin;
+package org.elasticsearch.xpack.deprecation.plugin;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;

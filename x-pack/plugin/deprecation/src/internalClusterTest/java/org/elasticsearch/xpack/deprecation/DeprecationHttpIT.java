@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.http;
+package org.elasticsearch.xpack.deprecation;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -29,14 +29,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.http.plugin.TestDeprecatedQueryBuilder;
-import org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction;
-import org.elasticsearch.http.plugin.TestDeprecationPlugin;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.deprecation.Deprecation;
+import org.elasticsearch.xpack.deprecation.plugin.TestDeprecatedQueryBuilder;
+import org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction;
+import org.elasticsearch.xpack.deprecation.plugin.TestDeprecationPlugin;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -47,11 +47,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.http.plugin.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;

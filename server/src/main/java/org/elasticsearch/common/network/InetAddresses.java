@@ -50,7 +50,7 @@ public class InetAddresses {
                 hasColon = true;
             } else if (c == '%') {
                 percentIndex = i;
-                break; // everything after a '%' is ignored (it's a Scope ID)
+                break; // Everything after a '%' is ignored (it's a Scope ID)
             } else if (Character.digit(c, 16) == -1) {
                 return null;  // Everything else must be a decimal or hex digit.
             }
@@ -65,7 +65,7 @@ public class InetAddresses {
                 }
             }
             if (percentIndex == ipString.length() - 1) {
-                return null;
+                return null;  // Filter out strings that end in % and have an empty scope ID.
             }
             if (percentIndex != -1) {
                ipString = ipString.substring(0, percentIndex);

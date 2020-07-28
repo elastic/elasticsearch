@@ -282,7 +282,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             nodeLookups.add(Tuple.tuple(resultClusterAlias, resultNodeId));
             phaseResult.setSearchShardTarget(new SearchShardTarget(resultNodeId, resultShardId, resultClusterAlias, OriginalIndices.NONE));
             phaseResult.setShardIndex(i);
-            phaseResults.consumeResult(phaseResult);
+            phaseResults.consumeResult(phaseResult, () -> {});
         }
         return phaseResults;
     }

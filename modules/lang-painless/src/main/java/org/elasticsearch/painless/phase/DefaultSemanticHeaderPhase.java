@@ -28,7 +28,7 @@ import org.elasticsearch.painless.symbol.ScriptScope;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope> {
+public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope> {
 
     @Override
     public void visitClass(SClass userClassNode, ScriptScope scriptScope) {

@@ -2227,6 +2227,15 @@ Number of indexing requests rejected in the primary stage.
 (integer)
 Number of indexing requests rejected in the replica stage.
 ========
+`limit`::
+(<<byte-units,byte value>>)
+Configured memory limit for the indexing requests. Replica requests have an
+automatic limit that is 1.5x this value.
+
+`limit_in_bytes`::
+(integer)
+Configured memory limit, in bytes, for the indexing requests. Replica requests
+have an automatic limit that is 1.5x this value.
 =======
 ======
 

@@ -44,8 +44,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long coordinatingRejections;
     private final long primaryRejections;
     private final long replicaRejections;
-    private final long combinedLimit;
-    private final long replicaLimit;
+    private final long memoryLimit;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
@@ -64,18 +63,16 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         // TODO: Change to 7.10 after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            combinedLimit = in.readVLong();
-            replicaLimit = in.readVLong();
+            memoryLimit = in.readVLong();
         } else {
-            combinedLimit = -1L;
-            replicaLimit = -1L;
+            memoryLimit = -1L;
         }
     }
 
     public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
                                  long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
                                  long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long combinedLimit, long replicaLimit) {
+                                 long replicaRejections, long memoryLimit) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -87,8 +84,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.coordinatingRejections = coordinatingRejections;
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
-        this.combinedLimit = combinedLimit;
-        this.replicaLimit = replicaLimit;
+        this.memoryLimit = memoryLimit;
     }
 
     @Override
@@ -109,8 +105,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         // TODO: Change to 7.10 after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVLong(combinedLimit);
-            out.writeVLong(replicaLimit);
+            out.writeVLong(memoryLimit);
         }
     }
 
@@ -171,6 +166,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
     private static final String PRIMARY_REJECTIONS = "primary_rejections";
     private static final String REPLICA_REJECTIONS = "replica_rejections";
+    private static final String LIMIT = "limit";
+    private static final String LIMIT_IN_BYTES = "limit_in_bytes";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -193,10 +190,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
-        builder.startObject("limit");
-        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(combinedLimit));
-        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(replicaLimit));
-        builder.endObject();
+        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(memoryLimit));
         builder.endObject();
         return builder.endObject();
     }

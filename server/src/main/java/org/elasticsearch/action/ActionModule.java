@@ -393,6 +393,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -459,15 +460,18 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        Version minimumRestCompatibilityVersion = getMinimumRestCompatibilityVersion(restCompatPlugins);
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService,minimumRestCompatibilityVersion);
+        BiFunction<Map<String, List<String>>, Boolean, Boolean> minimumRestCompatibilityVersion = getMinimumRestCompatibilityVersion(restCompatPlugins);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, minimumRestCompatibilityVersion);
     }
 
-    private Version getMinimumRestCompatibilityVersion(List<RestCompatibilityPlugin> restCompatPlugins) {
-        return restCompatPlugins.stream()
-            .map(RestCompatibilityPlugin::minimumRestCompatibilityVersion)
-            .max(Version::compareTo)
-            .orElse(Version.CURRENT);
+    private BiFunction<Map<String, List<String>>, Boolean, Boolean> getMinimumRestCompatibilityVersion(List<RestCompatibilityPlugin> restCompatPlugins) {
+        if (restCompatPlugins.size() > 1) {
+            throw new IllegalStateException("Only one rest compatibility plugin is allowed");
+        }
+        return (headers, hasContent) -> restCompatPlugins.stream()
+            .findFirst()
+            .orElse((a, b) -> false)
+            .isRequestingCompatibility(headers, hasContent);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

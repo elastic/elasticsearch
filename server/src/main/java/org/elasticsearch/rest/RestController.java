@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -76,13 +77,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private Version minimumRestCompatibilityVersion;
+    private BiFunction<Map<String,List<String>>,Boolean,Boolean> isRestCompatibleFunction;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, Version minimumRestCompatibilityVersion) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          BiFunction<Map<String, List<String>>, Boolean, Boolean> isRestCompatibleFunction) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        this.minimumRestCompatibilityVersion = minimumRestCompatibilityVersion;
+        this.isRestCompatibleFunction = isRestCompatibleFunction;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -299,7 +301,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 //once we have a version then we can find a handler registered for path, method and version
-Version version = request.getCompatibleApiVersion(minimumRestCompatibilityVersion);
+        Version version = request.getCompatibleApiVersion(isRestCompatibleFunction);
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

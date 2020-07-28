@@ -21,6 +21,9 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 
+import java.util.List;
+import java.util.Map;
+
 public interface RestCompatibilityPlugin {
-    Version minimumRestCompatibilityVersion();
+    boolean isRequestingCompatibility(Map<String, List<String>> headers, boolean hasContent);
 }

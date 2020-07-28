@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -91,7 +90,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         RestController restController = new RestController(Collections.emptySet(),
-                null, null, circuitBreakerService, usageService, Version.CURRENT);
+                null, null, circuitBreakerService, usageService, (a, b) -> false);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {

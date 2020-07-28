@@ -46,10 +46,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -180,9 +180,9 @@ public class RestRequest implements ToXContent.Params {
      * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
      * @return a version with what a client is compatible with.
      */
-    public Version getCompatibleApiVersion(Version minimumRestCompatibilityVersion) {
-        if (/*headersValidation &&*/ isRequestingCompatibility()) {
-            return minimumRestCompatibilityVersion;
+    public Version getCompatibleApiVersion(BiFunction<Map<String,List<String>>,Boolean,Boolean> isRequestingCompatibilityFunction) {
+        if (/*headersValidation &&*/ isRequestingCompatibilityFunction.apply(getHeaders(),hasContent())) {
+            return Version.fromString(Version.CURRENT.major-1+".0.0");
         } else {
             return Version.CURRENT;
         }
@@ -596,12 +596,5 @@ public class RestRequest implements ToXContent.Params {
             super(cause);
         }
 
-    }
-
-    public static class CompatibleApiHeadersCombinationException extends RuntimeException {
-
-        CompatibleApiHeadersCombinationException(String cause) {
-            super(cause);
-        }
     }
 }

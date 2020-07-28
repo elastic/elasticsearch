@@ -21,8 +21,6 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilteredTermsEnum;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Terms;
@@ -46,27 +44,18 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
     private final IndexFieldDataCache cache;
-
-    private final double minFrequency, maxFrequency;
-    private final int minSegmentSize;
     protected final CircuitBreakerService breakerService;
 
     protected AbstractIndexOrdinalsFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache,
-        CircuitBreakerService breakerService,
-        double minFrequency,
-        double maxFrequency,
-        int minSegmentSize
+        CircuitBreakerService breakerService
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.cache = cache;
         this.breakerService = breakerService;
-        this.minFrequency = minFrequency;
-        this.maxFrequency = maxFrequency;
-        this.minSegmentSize = minSegmentSize;
     }
 
     @Override
@@ -162,51 +151,9 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         );
     }
 
-    protected TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {
-        if (iterator == null) {
-            return null;
-        }
-        int docCount = terms.getDocCount();
-        if (docCount == -1) {
-            docCount = reader.maxDoc();
-        }
-        if (docCount >= minSegmentSize) {
-            final int minFreq = minFrequency > 1.0
-                    ? (int) minFrequency
-                    : (int)(docCount * minFrequency);
-            final int maxFreq = maxFrequency > 1.0
-                    ? (int) maxFrequency
-                    : (int)(docCount * maxFrequency);
-            if (minFreq > 1 || maxFreq < docCount) {
-                iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
-            }
-        }
-        return iterator;
-    }
-
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
-    }
-
-    private static final class FrequencyFilter extends FilteredTermsEnum {
-
-        private int minFreq;
-        private int maxFreq;
-        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
-            super(delegate, false);
-            this.minFreq = minFreq;
-            this.maxFreq = maxFreq;
-        }
-
-        @Override
-        protected AcceptStatus accept(BytesRef arg0) throws IOException {
-            int docFreq = docFreq();
-            if (docFreq >= minFreq && docFreq <= maxFreq) {
-                return AcceptStatus.YES;
-            }
-            return AcceptStatus.NO;
-        }
     }
 
     /**

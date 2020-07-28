@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -66,7 +65,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
 
                 if (found == false) {
                     logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
-                        bulkItemRequest.index());
+                            bulkItemRequest.index());
                 }
             }
         }

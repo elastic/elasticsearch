@@ -21,80 +21,78 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
-public class DotSubNode extends ExpressionNode {
+public class LoadMapShortcutNode extends IndexNode {
 
     /* ---- begin node data ---- */
 
-    private PainlessField field;
+    private PainlessMethod setter;
+    private PainlessMethod getter;
 
-    public void setField(PainlessField field) {
-        this.field = field;
+    public void setSetter(PainlessMethod setter) {
+        this.setter = setter;
     }
 
-    public PainlessField getField() {
-        return field;
+    public PainlessMethod getSetter() {
+        return setter;
+    }
+
+    public void setGetter(PainlessMethod getter) {
+        this.getter = getter;
+    }
+
+    public PainlessMethod getGetter() {
+        return getter;
     }
 
     /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSub(this, input);
+        return irTreeVisitor.visitLoadMapShortcut(this, input);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        getIndexNode().write(classWriter, methodWriter, writeScope);
 
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
+
+        if (getter.returnType != getter.javaMethod.getReturnType()) {
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
     @Override
     protected int accessElementCount() {
-        return 1;
+        return 2;
     }
 
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        // Do nothing.
+        getIndexNode().write(classWriter, methodWriter, writeScope);
     }
 
     @Override
     protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
 
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+        if (getter.returnType != getter.javaMethod.getReturnType()) {
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
     @Override
     protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
-
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.putStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.putField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
+        methodWriter.invokeMethodCall(setter);
+        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 }

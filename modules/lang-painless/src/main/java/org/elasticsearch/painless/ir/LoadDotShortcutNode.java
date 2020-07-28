@@ -25,7 +25,7 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class DotSubShortcutNode extends ExpressionNode {
+public class LoadDotShortcutNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
@@ -52,7 +52,7 @@ public class DotSubShortcutNode extends ExpressionNode {
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubShortcut(this, input);
+        return irTreeVisitor.visitLoadDotShortcut(this, input);
     }
 
     /* ---- end visitor ---- */

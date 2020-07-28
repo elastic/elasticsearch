@@ -24,13 +24,13 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class BraceSubNode extends IndexNode {
+public class LoadBraceNode extends IndexNode {
 
     /* ---- begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBraceSub(this, input);
+        return irTreeVisitor.visitLoadBrace(this, input);
     }
 
     /* ---- end visitor ---- */

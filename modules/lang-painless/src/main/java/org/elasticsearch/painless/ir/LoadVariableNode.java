@@ -20,54 +20,60 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
+import org.objectweb.asm.Opcodes;
 
-public class BraceSubDefNode extends IndexNode {
+public class LoadVariableNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private String name;
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBraceSubDef(this, input);
+        return irTreeVisitor.visitLoadVariable(this, input);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        setup(classWriter, methodWriter, writeScope);
-        load(classWriter, methodWriter, writeScope);
+        Variable variable = writeScope.getVariable(name);
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
     protected int accessElementCount() {
-        return 2;
+        return 0;
     }
 
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
+        // do nothing
     }
 
     @Override
     protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(MethodWriter.getType(
-                getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getIndexNode().getExpressionType()));
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        Variable variable = writeScope.getVariable(name);
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
     protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(Type.getType(void.class), Type.getType(Object.class),
-                MethodWriter.getType(getIndexNode().getExpressionType()), MethodWriter.getType(getExpressionType()));
-        methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
+        Variable variable = writeScope.getVariable(name);
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

@@ -26,7 +26,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class DotSubDefNode extends ExpressionNode {
+public class LoadDotDefNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
@@ -44,7 +44,7 @@ public class DotSubDefNode extends ExpressionNode {
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubDef(this, input);
+        return irTreeVisitor.visitLoadDotDef(this, input);
     }
 
     /* ---- end visitor ---- */

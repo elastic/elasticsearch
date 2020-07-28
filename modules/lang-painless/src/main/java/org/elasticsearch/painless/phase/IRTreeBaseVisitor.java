@@ -24,8 +24,8 @@ import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.BraceSubDefNode;
-import org.elasticsearch.painless.ir.BraceSubNode;
+import org.elasticsearch.painless.ir.LoadBraceDefNode;
+import org.elasticsearch.painless.ir.LoadBraceNode;
 import org.elasticsearch.painless.ir.BreakNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -38,9 +38,9 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.DotSubDefNode;
-import org.elasticsearch.painless.ir.DotSubNode;
-import org.elasticsearch.painless.ir.DotSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadDotDefNode;
+import org.elasticsearch.painless.ir.LoadDotNode;
+import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.DupNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.ir.FieldNode;
@@ -59,11 +59,11 @@ import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
-import org.elasticsearch.painless.ir.ListSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadListShortcutNode;
 import org.elasticsearch.painless.ir.LoadDotArrayLengthNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
-import org.elasticsearch.painless.ir.MapSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadMapShortcutNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.ir.NullNode;
@@ -77,7 +77,7 @@ import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
-import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
 
 public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Output> {
@@ -283,7 +283,7 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitVariable(VariableNode irVariableNode, Input input) {
+    public Output visitLoadVariable(LoadVariableNode irLoadVariableNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -303,27 +303,27 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitDotSubDef(DotSubDefNode irDotSubDefNode, Input input) {
+    public Output visitLoadDotDef(LoadDotDefNode irLoadDotDefNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitDotSub(DotSubNode irDotSubNode, Input input) {
+    public Output visitLoadDot(LoadDotNode irLoadDotNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitDotSubShortcut(DotSubShortcutNode irDotSubShortcutNode, Input input) {
+    public Output visitLoadDotShortcut(LoadDotShortcutNode irDotSubShortcutNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitListSubShortcut(ListSubShortcutNode irListSubShortcutNode, Input input) {
+    public Output visitLoadListShortcut(LoadListShortcutNode irLoadListShortcutNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitMapSubShortcut(MapSubShortcutNode irMapSubShorcutNode, Input input) {
+    public Output visitLoadMapShortcut(LoadMapShortcutNode irLoadMapShortcutNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -338,12 +338,12 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitBraceSubDef(BraceSubDefNode irBraceSubDefNode, Input input) {
+    public Output visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitBraceSub(BraceSubNode irBraceSubNode, Input input) {
+    public Output visitLoadBrace(LoadBraceNode irLoadBraceNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

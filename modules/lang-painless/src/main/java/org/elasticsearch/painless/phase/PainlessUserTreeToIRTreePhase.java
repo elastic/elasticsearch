@@ -40,7 +40,7 @@ import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SFunction;
@@ -397,12 +397,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
-            VariableNode irVariableNode = new VariableNode();
-            irVariableNode.setLocation(internalLocation);
-            irVariableNode.setExpressionType(ScriptException.class);
-            irVariableNode.setName("#painlessExplainError");
+            LoadVariableNode irLoadVariableNode = new LoadVariableNode();
+            irLoadVariableNode.setLocation(internalLocation);
+            irLoadVariableNode.setExpressionType(ScriptException.class);
+            irLoadVariableNode.setName("#painlessExplainError");
 
-            irInvokeCallMemberNode.addArgumentNode(irVariableNode);
+            irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
             AccessNode irAccessNode = new AccessNode();
             irAccessNode.setLocation(internalLocation);
@@ -410,12 +410,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irInvokeCallMemberNode.addArgumentNode(irAccessNode);
 
-            irVariableNode = new VariableNode();
-            irVariableNode.setLocation(internalLocation);
-            irVariableNode.setExpressionType(PainlessExplainError.class);
-            irVariableNode.setName("#painlessExplainError");
+            irLoadVariableNode = new LoadVariableNode();
+            irLoadVariableNode.setLocation(internalLocation);
+            irLoadVariableNode.setExpressionType(PainlessExplainError.class);
+            irLoadVariableNode.setName("#painlessExplainError");
 
-            irAccessNode.setLeftNode(irVariableNode);
+            irAccessNode.setLeftNode(irLoadVariableNode);
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
             irInvokeCallNode.setLocation(internalLocation);
@@ -483,12 +483,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
-                irVariableNode = new VariableNode();
-                irVariableNode.setLocation(internalLocation);
-                irVariableNode.setExpressionType(ScriptException.class);
-                irVariableNode.setName(name);
+                irLoadVariableNode = new LoadVariableNode();
+                irLoadVariableNode.setLocation(internalLocation);
+                irLoadVariableNode.setExpressionType(ScriptException.class);
+                irLoadVariableNode.setName(name);
 
-                irInvokeCallMemberNode.addArgumentNode(irVariableNode);
+                irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
                 irAccessNode = new AccessNode();
                 irAccessNode.setLocation(internalLocation);

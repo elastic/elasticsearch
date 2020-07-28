@@ -44,8 +44,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
 
     private final String fieldName;
-    private ValuesSourceType valuesSourceType;
-    protected final IndexFieldDataCache cache;
+    private final ValuesSourceType valuesSourceType;
+    private final IndexFieldDataCache cache;
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
@@ -91,12 +91,11 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
-            return empty(context.reader().maxDoc());
+            return AbstractLeafOrdinalsFieldData.empty();
         }
 
         try {
-            LeafOrdinalsFieldData fd = cache.load(context, this);
-            return fd;
+            return cache.load(context, this);
         } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
@@ -161,10 +160,6 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             logger,
             AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
         );
-    }
-
-    protected LeafOrdinalsFieldData empty(int maxDoc) {
-        return AbstractLeafOrdinalsFieldData.empty();
     }
 
     protected TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {

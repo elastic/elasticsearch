@@ -121,6 +121,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
+            queryShardContext.lookup().source(),
             queryShardContext.bigArrays(),
             fieldType,
             sourceFieldNames,
@@ -153,12 +154,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
         SignificantTextCollectorSource(
+            SourceLookup sourceLookup,
             BigArrays bigArrays,
             MappedFieldType fieldType,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            this.sourceLookup = new SourceLookup();
+            this.sourceLookup = sourceLookup;
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
             this.sourceFieldNames = sourceFieldNames;

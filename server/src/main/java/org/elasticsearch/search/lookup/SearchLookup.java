@@ -29,20 +29,26 @@ import java.util.function.Function;
 public class SearchLookup {
     private final DocLookup docMap;
     private final MapperService mapperService;
+    private final SourceLookup sourceLookup;
 
     public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         docMap = new DocLookup(mapperService, fieldDataLookup);
         this.mapperService = mapperService;
+        this.sourceLookup = new SourceLookup();
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(context,
                 docMap.getLeafDocLookup(context),
-                new SourceLookup(),
+                sourceLookup,
                 new LeafFieldsLookup(mapperService, context.reader()));
     }
 
     public DocLookup doc() {
         return docMap;
+    }
+
+    public SourceLookup source() {
+        return sourceLookup;
     }
 }

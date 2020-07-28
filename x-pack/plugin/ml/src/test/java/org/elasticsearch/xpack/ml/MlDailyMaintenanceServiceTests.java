@@ -5,30 +5,37 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -57,6 +64,10 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
     public void testScheduledTriggering() throws InterruptedException {
         when(clusterService.state()).thenReturn(createClusterState(false));
+        doAnswer(withResponse(new DeleteExpiredDataAction.Response(true)))
+            .when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.emptyList(), 0, new ParseField("")))))
+            .when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
 
         int triggerCount = randomIntBetween(2, 4);
         CountDownLatch latch = new CountDownLatch(triggerCount);
@@ -65,8 +76,9 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
         }
 
-        verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier, Mockito.atLeast(triggerCount - 1)).auditUnassignedMlTasks(any(), any());
+        verify(client, times(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(client, times(triggerCount - 1)).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier, times(triggerCount - 1)).auditUnassignedMlTasks(any(), any());
     }
 
     public void testScheduledTriggeringWhileUpgradeModeIsEnabled() throws InterruptedException {
@@ -83,6 +95,54 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, clusterService, mlAssignmentNotifier);
     }
 
+    public void testBothTasksAreTriggered_BothTasksSucceed() throws InterruptedException {
+        assertThatBothTasksAreTriggered(
+            withResponse(new DeleteExpiredDataAction.Response(true)),
+            withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.emptyList(), 0, new ParseField("")))));
+    }
+
+    public void testBothTasksAreTriggered_DeleteExpiredDataTaskFails() throws InterruptedException {
+        assertThatBothTasksAreTriggered(
+            withResponse(new DeleteExpiredDataAction.Response(false)),
+            withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.emptyList(), 0, new ParseField("")))));
+    }
+
+    public void testBothTasksAreTriggered_DeleteExpiredDataTaskFailsWithException() throws InterruptedException {
+        assertThatBothTasksAreTriggered(
+            withException(new ElasticsearchException("exception thrown by DeleteExpiredDataAction")),
+            withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.emptyList(), 0, new ParseField("")))));
+    }
+
+    public void testBothTasksAreTriggered_DeleteJobsTaskFails() throws InterruptedException {
+        assertThatBothTasksAreTriggered(
+            withResponse(new DeleteExpiredDataAction.Response(true)),
+            withException(new ElasticsearchException("exception thrown by GetJobsAction")));
+    }
+
+    public void testBothTasksAreTriggered_BothTasksFail() throws InterruptedException {
+        assertThatBothTasksAreTriggered(
+            withException(new ElasticsearchException("exception thrown by DeleteExpiredDataAction")),
+            withException(new ElasticsearchException("exception thrown by GetJobsAction")));
+    }
+
+    private void assertThatBothTasksAreTriggered(Answer<?> deleteExpiredDataAnswer, Answer<?> getJobsAnswer) throws InterruptedException {
+        when(clusterService.state()).thenReturn(createClusterState(false));
+        doAnswer(deleteExpiredDataAnswer).when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        doAnswer(getJobsAnswer).when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(2);
+        try (MlDailyMaintenanceService service = createService(latch, client)) {
+            service.start();
+            latch.await(5, TimeUnit.SECONDS);
+        }
+
+        verify(client, times(2)).threadPool();
+        verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verifyNoMoreInteractions(client, mlAssignmentNotifier);
+    }
+
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
         return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
                 latch.countDown();
@@ -97,5 +157,23 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).build()))
             .nodes(DiscoveryNodes.builder().build())
             .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withException(Exception e) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onFailure(e);
+            return null;
+        };
     }
 }

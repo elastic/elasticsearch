@@ -156,14 +156,18 @@ public class MlDailyMaintenanceService implements Releasable {
                 e -> LOGGER.error("An error occurred during maintenance tasks execution", e)
             );
 
-            // Step 2: Delete jobs that are in deleting state
-            ActionListener<AcknowledgedResponse> deleteExpiredDataActionListener = ActionListener.wrap(
-                unused -> triggerDeleteJobsInStateDeletingWithoutDeletionTask(finalListener),
-                finalListener::onFailure
+            // Step 2: Delete expired data
+            ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(
+                unused -> triggerDeleteExpiredDataTask(finalListener),
+                e -> {
+                    LOGGER.info("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
+                    // Note: Steps 1 and 2 are independent of each other and step 2 is executed even if step 1 failed.
+                    triggerDeleteExpiredDataTask(finalListener);
+                }
             );
 
-            // Step 1: Delete expired data
-            triggerDeleteExpiredDataTask(deleteExpiredDataActionListener);
+            // Step 1: Delete jobs that are in deleting state
+            triggerDeleteJobsInStateDeletingWithoutDeletionTask(deleteJobsListener);
 
             auditUnassignedMlTasks();
         } finally {
@@ -184,7 +188,8 @@ public class MlDailyMaintenanceService implements Releasable {
             finalListener::onFailure
         );
 
-        executeAsyncWithOrigin(client,
+        executeAsyncWithOrigin(
+            client,
             ML_ORIGIN,
             DeleteExpiredDataAction.INSTANCE,
             new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
@@ -200,7 +205,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 if (deleteJobsResponses.stream().allMatch(AcknowledgedResponse::isAcknowledged)) {
                     LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
                 } else {
-                    LOGGER.info("At least one of the ML jobs could not be deleted.");
+                    LOGGER.info("At least one of the ML jobs could not be deleted");
                 }
                 finalListener.onResponse(new AcknowledgedResponse(true));
             },

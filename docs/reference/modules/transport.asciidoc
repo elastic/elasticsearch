@@ -80,8 +80,8 @@ Linux and macOS, and requires Java 11 or newer.
 Configures the `TCP_KEEPINTVL` option for this socket,
 which determines the time in seconds between sending TCP keepalive probes.
 Defaults to `network.tcp.keep_interval` if set, or the system default otherwise.
-May not be greater than 300. In case where the system default is higher than 300,
-the value is automatically lowered to 300. Only applicable on Linux and macOS,
+This value cannot exceed `300` seconds. In cases where the system default is higher than `300`,
+the value is automatically lowered to `300`. Only applicable on Linux and macOS,
 and requires Java 11 or newer.
 
 `transport.tcp.keep_count`::

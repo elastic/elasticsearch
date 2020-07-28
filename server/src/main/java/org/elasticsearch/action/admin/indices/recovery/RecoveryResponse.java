@@ -28,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,20 +36,11 @@ import java.util.Map;
  */
 public class RecoveryResponse extends BroadcastResponse {
 
-    private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
+    private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
     public RecoveryResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            String s = in.readString();
-            int listSize = in.readVInt();
-            List<RecoveryState> list = new ArrayList<>(listSize);
-            for (int j = 0; j < listSize; j++) {
-                list.add(RecoveryState.readRecoveryState(in));
-            }
-            shardRecoveryStates.put(s, list);
-        }
+        shardRecoveryStates = in.readMapOfLists(StreamInput::readString, RecoveryState::new);
     }
 
     /**
@@ -105,14 +94,7 @@ public class RecoveryResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shardRecoveryStates.size());
-        for (Map.Entry<String, List<RecoveryState>> entry : shardRecoveryStates.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (RecoveryState recoveryState : entry.getValue()) {
-                recoveryState.writeTo(out);
-            }
-        }
+        out.writeMapOfLists(shardRecoveryStates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     @Override

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ml.utils.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +22,8 @@ import java.util.function.Consumer;
  * limit for indexing.
  */
 public class MlBulkIndexer implements AutoCloseable {
+
+    private static final Logger LOGGER = LogManager.getLogger(MlBulkIndexer.class);
 
     private static final int BATCH_SIZE = 1000;
 
@@ -47,6 +51,8 @@ public class MlBulkIndexer implements AutoCloseable {
 
     private void execute() {
         if (currentBulkRequest.numberOfActions() > 0) {
+            LOGGER.debug("Executing bulk request; current bytes [{}]; bytes limit [{}]; number of actions [{}]",
+                currentRamBytes, bytesLimit, currentBulkRequest.numberOfActions());
             executor.accept(currentBulkRequest);
             currentBulkRequest = new BulkRequest();
             currentRamBytes = 0;

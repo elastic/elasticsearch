@@ -1533,6 +1533,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         })), listener::onFailure);
         filterRepositoryDataStep.whenComplete(filteredRepositoryData -> {
             final long newGen = setPendingStep.result();
+            final RepositoryData newRepositoryData = filteredRepositoryData.withGenId(newGen);
             if (latestKnownRepoGen.get() >= newGen) {
                 throw new IllegalArgumentException(
                     "Tried writing generation [" + newGen + "] but repository is at least at generation [" + latestKnownRepoGen.get()
@@ -1545,7 +1546,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             final BytesReference serializedRepoData =
-                    BytesReference.bytes(filteredRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version));
+                    BytesReference.bytes(newRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version));
             writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);
             // write the current generation to the index-latest file
             final BytesReference genBytes;
@@ -1601,7 +1602,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             } catch (IOException e) {
                                 logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
                             }
-                            return filteredRepositoryData.withGenId(newGen);
+                            return newRepositoryData;
                         }));
                     }
                 });

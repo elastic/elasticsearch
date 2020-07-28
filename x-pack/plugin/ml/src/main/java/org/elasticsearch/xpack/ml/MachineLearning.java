@@ -694,7 +694,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client,
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
+            settings,
+            client,
             threadPool,
             analyticsProcessFactory,
             dataFrameAnalyticsAuditor,

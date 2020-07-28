@@ -175,63 +175,18 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    /**
-     * An http request can be accompanied with a compatible version indicating with what version a client is using.
-     * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
-     * @return a version with what a client is compatible with.
-     */
-    public Version getCompatibleApiVersion(BiFunction<Map<String,List<String>>,Boolean,Boolean> isRequestingCompatibilityFunction) {
-        if (/*headersValidation &&*/ isRequestingCompatibilityFunction.apply(getHeaders(),hasContent())) {
-            return Version.fromString(Version.CURRENT.major-1+".0.0");
-        } else {
-            return Version.CURRENT;
-        }
+    public Version getRequestedCompatibility(BiFunction<String, String, Version> restCompatibleFunction) {
+        return restCompatibleFunction.apply(getSingleHeader("Accept"), getSingleHeader("Content-Type"));
     }
 
-
-    private boolean isRequestingCompatibility() {
-      /*  String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
-        String aVersion = XContentType.parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
-        String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
-        String cVersion = XContentType.parseVersion(contentTypeHeader);
-        byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
-
-        if(Version.CURRENT.major < acceptVersion || Version.CURRENT.major - acceptVersion > 1 ){
-            throw new CompatibleApiHeadersCombinationException(
-                String.format(Locale.ROOT, "Unsupported version provided. " +
-                        "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                    contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+    private final String getSingleHeader(String name) {
+        //TODO: is this case sensitive ?
+        List<String> values = headers.get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
         }
-        if (hasContent()) {
-            if(Version.CURRENT.major < contentTypeVersion || Version.CURRENT.major - contentTypeVersion > 1 ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Unsupported version provided. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-
-            if (contentTypeVersion != acceptVersion) {
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Content-Type and Accept headers have to match when content is present. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-            // both headers should be versioned or none
-            if ((cVersion == null && aVersion!=null) || (aVersion ==null && cVersion!=null) ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Versioning is required on both Content-Type and Accept headers. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-
-            return contentTypeVersion < Version.CURRENT.major;
-        }
-
-        return acceptVersion < Version.CURRENT.major;*/
-        return true;
+        return null;
     }
-
 
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
@@ -597,4 +552,5 @@ public class RestRequest implements ToXContent.Params {
         }
 
     }
+
 }

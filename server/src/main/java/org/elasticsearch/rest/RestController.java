@@ -77,14 +77,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private BiFunction<Map<String,List<String>>,Boolean,Boolean> isRestCompatibleFunction;
+    private BiFunction<String, String, Version> restCompatibleFunction;
+
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
                           NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
-                          BiFunction<Map<String, List<String>>, Boolean, Boolean> isRestCompatibleFunction) {
+                          BiFunction<String, String, Version> restCompatibleFunction) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        this.isRestCompatibleFunction = isRestCompatibleFunction;
+        this.restCompatibleFunction = restCompatibleFunction;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -300,8 +301,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
-//once we have a version then we can find a handler registered for path, method and version
-        Version version = request.getCompatibleApiVersion(isRestCompatibleFunction);
+        //once we have a version then we can find a handler registered for path, method and version
+        Version version = request.getRequestedCompatibility(restCompatibleFunction);
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

@@ -6,74 +6,66 @@
 package org.elasticsearch.compat;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RestCompatibilityPlugin;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class CompatRestRequestPlugin extends Plugin implements RestCompatibilityPlugin {
-    private static final String COMPATIBLE_ACCEPT_HEADER = "Accept";
-    private static final String COMPATIBLE_CONTENT_TYPE_HEADER = "Content-Type";
+
+    private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
+        "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
+        Pattern.CASE_INSENSITIVE);
 
     @Override
-    public boolean isRequestingCompatibility(Map<String, List<String>>  headers, boolean hasContent) {
-        String acceptHeader = header(headers, COMPATIBLE_ACCEPT_HEADER);
-        String aVersion = XContentType.parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
-        String contentTypeHeader = header(headers, COMPATIBLE_CONTENT_TYPE_HEADER);
-        String cVersion = XContentType.parseVersion(contentTypeHeader);
-        byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
+    public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader) {
 
-        if(Version.CURRENT.major < acceptVersion || Version.CURRENT.major - acceptVersion > 1 ){
-            throw new CompatibleApiHeadersCombinationException(
-                String.format(Locale.ROOT, "Unsupported version provided. " +
-                        "Accept=%s Content-Type=%s hasContent=%b", acceptHeader,
-                    contentTypeHeader, hasContent));
-        }
-        if (hasContent) {
-            if(Version.CURRENT.major < contentTypeVersion || Version.CURRENT.major - contentTypeVersion > 1 ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Unsupported version provided. " +
-                            "Accept=%s Content-Type=%s hasContent=%b", acceptHeader,
-                        contentTypeHeader, hasContent));
-            }
+        Integer acceptVersion = acceptHeader == null ? null : parseVersion(acceptHeader);
+        Integer contentTypeVersion = contentTypeHeader == null ? null : parseVersion(contentTypeHeader);
 
-            if (contentTypeVersion != acceptVersion) {
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Content-Type and Accept headers have to match when content is present. " +
-                            "Accept=%s Content-Type=%s hasContent=%b", acceptHeader,
-                        contentTypeHeader, hasContent));
-            }
-            // both headers should be versioned or none
-            if ((cVersion == null && aVersion!=null) || (aVersion ==null && cVersion!=null) ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Versioning is required on both Content-Type and Accept headers. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent));
-            }
-
-            return contentTypeVersion < Version.CURRENT.major;
+        //request version must be current or prior
+        if (acceptVersion != null && acceptVersion > Version.CURRENT.major ||
+            contentTypeVersion != null && contentTypeVersion > Version.CURRENT.major) {
+            throw new CompatibleApiException(
+                String.format(Locale.ROOT, "Compatible version must be equal or less then the current version. " +
+                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
         }
 
-        return acceptVersion < Version.CURRENT.major;
+        //request version can not be older then last major
+        if (acceptVersion != null && acceptVersion < Version.CURRENT.major - 1 ||
+            contentTypeVersion != null && contentTypeVersion < Version.CURRENT.major - 1) {
+            throw new CompatibleApiException(
+                String.format(Locale.ROOT, "Compatible versioning only is only available for past major version. " +
+                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
+        }
+
+        // if a compatible content type is sent, so must a versioned accept header.
+        if (contentTypeVersion != null && acceptVersion == null ) {
+            throw new CompatibleApiException(
+                String.format(Locale.ROOT, "The Accept header must have request a version if the Content-Type version is requested." +
+                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
+        }
+
+        // if both accept and content-type are sent , the version must match
+        if (acceptVersion != null && contentTypeVersion != null && contentTypeVersion != acceptVersion) {
+            throw new CompatibleApiException(
+                String.format(Locale.ROOT, "Content-Type and Accept version requests have to match. " +
+                        "Accept=%s Content-Type=%s", acceptHeader,
+                    contentTypeHeader));
+        }
+        return Version.fromString(Version.CURRENT.major - 1 + ".0.0");
     }
 
-    public final String header(Map<String, List<String>>  headers, String name) {
-        List<String> values = headers.get(name);
-        if (values != null && values.isEmpty() == false) {
-            return values.get(0);
+    public static Integer parseVersion(String mediaType) {
+        if (mediaType != null) {
+            Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
+            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(2))) {
+                return Integer.valueOf(matcher.group(5));
+            }
         }
         return null;
-    }
-
-
-    public static class CompatibleApiHeadersCombinationException extends RuntimeException {
-
-        CompatibleApiHeadersCombinationException(String cause) {
-            super(cause);
-        }
     }
 }

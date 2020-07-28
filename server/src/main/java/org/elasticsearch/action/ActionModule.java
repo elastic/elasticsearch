@@ -460,18 +460,18 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        BiFunction<Map<String, List<String>>, Boolean, Boolean> minimumRestCompatibilityVersion = getMinimumRestCompatibilityVersion(restCompatPlugins);
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, minimumRestCompatibilityVersion);
+        BiFunction<String, String, Version> restCompatibleFunction = getRestCompatibleFunction(restCompatPlugins);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restCompatibleFunction);
     }
 
-    private BiFunction<Map<String, List<String>>, Boolean, Boolean> getMinimumRestCompatibilityVersion(List<RestCompatibilityPlugin> restCompatPlugins) {
+    private BiFunction<String, String, Version> getRestCompatibleFunction(List<RestCompatibilityPlugin> restCompatPlugins) {
         if (restCompatPlugins.size() > 1) {
             throw new IllegalStateException("Only one rest compatibility plugin is allowed");
         }
-        return (headers, hasContent) -> restCompatPlugins.stream()
+        return (acceptHeader, contentTypeHeader) -> restCompatPlugins.stream()
             .findFirst()
-            .orElse((a, b) -> false)
-            .isRequestingCompatibility(headers, hasContent);
+            .orElse((a, b) -> Version.CURRENT)
+            .getCompatibleVersion(acceptHeader, contentTypeHeader);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

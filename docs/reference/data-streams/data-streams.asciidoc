@@ -56,20 +56,19 @@ image::images/data-streams/data-streams-diagram.svg[align="center"]
 
 To create backing indices, each data stream requires a matching
 <<indices-templates,index template>>. This template acts as a blueprint for the
-stream's backing indices. It contains:
+stream's backing indices. It specifies:
 
-* The mappings and settings applied to each backing index when it's created.
+* One or more wildcard (`*`) patterns that match the name of the stream.
 
-* A name or wildcard (`*`) pattern that matches the data stream's name.
+* The mappings and settings for the stream's backing indices.
 
-* A `data_stream` object with an empty body (`{ }`). This object indicates the
-template is used for data streams.
+* That the template is used exclusively for data streams.
 
-A `@timestamp` field must be included in every document indexed to the data
-stream. This field can be mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field data type in the stream's matching index
-template. If no mapping is specified in the template, the `date` field data type
-with default options is used.
+Every document indexed to a data stream must have a `@timestamp` field. This
+field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
+data type by the stream's index template. If the template does not specify a
+mapping, the `@timestamp` field is mapped as a `date` field  with default
+options.
 
 The same index template can be used to create multiple data streams.
 

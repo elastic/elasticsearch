@@ -269,7 +269,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 * <<specify-fragmenter, Specify a fragmenter for the plain highlighter>>
 
 [[override-global-settings]]
-[float]
+[discrete]
 === Override global settings
 
 You can specify highlighter settings globally and selectively override them for
@@ -296,7 +296,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[specify-highlight-query]]
 === Specify a highlight query
 
@@ -365,7 +365,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[set-highlighter-type]]
 === Set highlighter type
 
@@ -390,7 +390,7 @@ GET /_search
 // TEST[setup:twitter]
 
 [[configure-tags]]
-[float]
+[discrete]
 === Configure highlighting tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
@@ -455,7 +455,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[highlight-source]]
 === Highlight on source
 
@@ -480,7 +480,7 @@ GET /_search
 
 
 [[highlight-all]]
-[float]
+[discrete]
 === Highlight in all fields
 
 By default, only fields that contains a query match are highlighted. Set
@@ -504,7 +504,7 @@ GET /_search
 // TEST[setup:twitter]
 
 [[matched-fields]]
-[float]
+[discrete]
 === Combine matches on multiple fields
 
 WARNING: This is only supported by the `fvh` highlighter
@@ -638,7 +638,7 @@ to
 
 
 [[explicit-field-order]]
-[float]
+[discrete]
 === Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
@@ -664,7 +664,7 @@ fields are highlighted but a plugin might.
 
 
 
-[float]
+[discrete]
 [[control-highlighted-frags]]
 === Control highlighted fragments
 
@@ -761,7 +761,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[highlight-postings-list]]
 === Highlight using the postings list
 
@@ -801,7 +801,7 @@ PUT /example
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[specify-fragmenter]]
 === Specify a fragmenter for the plain highlighter
 

@@ -21,7 +21,7 @@ You index and search a wildcard field as follows
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -32,12 +32,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_wildcard" : "This string can be quite lengthy"
 }
 
-POST my_index/_doc/_search
+POST my-index-000001/_doc/_search
 {
   "query": {
       "wildcard" : "*quite*lengthy"

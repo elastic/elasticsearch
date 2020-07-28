@@ -23,7 +23,8 @@ suitable to be ingested into {es}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml` or
 `monitor` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and
+{ml-docs-setup-privileges}.
 
 
 [[ml-find-file-structure-desc]]

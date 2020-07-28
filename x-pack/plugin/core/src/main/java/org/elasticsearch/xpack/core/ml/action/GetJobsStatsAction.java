@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -75,8 +73,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             this.expandedJobsIds = Collections.singletonList(jobId);
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
@@ -133,13 +129,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetJobsStatsAction action) {
-            super(client, action, new Request());
         }
     }
 
@@ -203,7 +192,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
             }
-            
+
             public ForecastStats getForecastStats() {
                 return forecastStats;
             }
@@ -247,7 +236,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 if (forecastStats != null) {
                     builder.field(FORECASTS_STATS, forecastStats);
                 }
-                
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);

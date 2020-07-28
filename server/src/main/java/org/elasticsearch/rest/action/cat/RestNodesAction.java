@@ -173,12 +173,9 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size",
-            "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
-        table.addCell("query_cache.evictions",
-            "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
-        table.addCell("query_cache.hit_count",
-            "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
         table.addCell("query_cache.miss_count",
             "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 

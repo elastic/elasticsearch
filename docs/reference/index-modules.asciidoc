@@ -46,6 +46,17 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 
 // end::index-number-of-shards-tag[]
 
+[[index-number-of-routing-shards]]
+`index.number_of_routing_shards`::
+Number of routing shards used to <<indices-split-index,split>> an index and its
+primary shards. This setting specifies the hashing space used internally to
+distribute documents for a split index across shards. See
+<<indices-split-index>>.
++
+This setting's default value depends on the number of primary shards in the
+index. The default is designed to allow you to split by factors of 2 up
+to a maximum of 1024 shards.
+
 `index.shard.check_on_startup`::
 
 Whether or not shards should be checked for corruption before opening. When

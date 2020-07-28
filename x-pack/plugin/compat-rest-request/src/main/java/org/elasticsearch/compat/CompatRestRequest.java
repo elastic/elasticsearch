@@ -8,13 +8,13 @@ package org.elasticsearch.compat;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
+import org.elasticsearch.plugins.RestCompatibility;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CompatRestRequestPlugin extends Plugin implements RestCompatibilityPlugin {
+public class CompatRestRequest extends Plugin implements RestCompatibility {
 
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
         "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
@@ -59,7 +59,7 @@ public class CompatRestRequestPlugin extends Plugin implements RestCompatibility
         return Version.fromString(Version.CURRENT.major - 1 + ".0.0");
     }
 
-    public static Integer parseVersion(String mediaType) {
+    private static Integer parseVersion(String mediaType) {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(2))) {

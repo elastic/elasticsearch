@@ -141,7 +141,7 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -190,6 +190,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -513,7 +514,7 @@ public class Node implements Closeable {
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService,
-                pluginsService.filterPlugins(RestCompatibilityPlugin.class));
+                getRestCompatibleFunction());
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -680,6 +681,21 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    /**
+     * @return A function that can be used to determine the requested REST compatible version
+     */
+    private BiFunction<String, String, Version> getRestCompatibleFunction(){
+        List<RestCompatibility> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibility.class);
+        BiFunction<String, String, Version> restCompatibleFunction = (a, b) -> Version.CURRENT;
+        if (restCompatibilityPlugins.size() > 1) {
+            throw new IllegalStateException("Only one rest compatibility plugin is allowed");
+        } else if (restCompatibilityPlugins.size() == 1){
+            restCompatibleFunction =
+                (acceptHeader, contentTypeHeader) -> restCompatibilityPlugins.get(0).getCompatibleVersion(acceptHeader, contentTypeHeader);
+        }
+        return restCompatibleFunction;
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

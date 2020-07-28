@@ -258,7 +258,6 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -428,7 +427,7 @@ public class ActionModule extends AbstractModule {
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
                         CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService,
-                        List<RestCompatibilityPlugin> restCompatPlugins) {
+                        BiFunction<String, String, Version> restCompatibleFunction) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -460,18 +459,7 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        BiFunction<String, String, Version> restCompatibleFunction = getRestCompatibleFunction(restCompatPlugins);
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restCompatibleFunction);
-    }
-
-    private BiFunction<String, String, Version> getRestCompatibleFunction(List<RestCompatibilityPlugin> restCompatPlugins) {
-        if (restCompatPlugins.size() > 1) {
-            throw new IllegalStateException("Only one rest compatibility plugin is allowed");
-        }
-        return (acceptHeader, contentTypeHeader) -> restCompatPlugins.stream()
-            .findFirst()
-            .orElse((a, b) -> Version.CURRENT)
-            .getCompatibleVersion(acceptHeader, contentTypeHeader);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

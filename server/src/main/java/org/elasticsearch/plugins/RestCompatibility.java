@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import java.util.List;
 import java.util.Map;
 
-public interface RestCompatibilityPlugin {
+@FunctionalInterface
+public interface RestCompatibility {
     Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader);
 }

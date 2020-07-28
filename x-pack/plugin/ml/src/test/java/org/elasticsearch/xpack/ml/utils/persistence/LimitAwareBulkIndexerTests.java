@@ -20,12 +20,12 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MlBulkIndexerTests extends ESTestCase {
+public class LimitAwareBulkIndexerTests extends ESTestCase {
 
     private List<BulkRequest> executedBulkRequests = new ArrayList<>();
 
     public void testAddAndExecuteIfNeeded_GivenRequestsReachingBytesLimit() {
-        try (MlBulkIndexer bulkIndexer = createIndexer(100)) {
+        try (LimitAwareBulkIndexer bulkIndexer = createIndexer(100)) {
             bulkIndexer.addAndExecuteIfNeeded(mockIndexRequest(50));
             assertThat(executedBulkRequests, is(empty()));
 
@@ -49,7 +49,7 @@ public class MlBulkIndexerTests extends ESTestCase {
     }
 
     public void testAddAndExecuteIfNeeded_GivenRequestsReachingBatchSize() {
-        try (MlBulkIndexer bulkIndexer = createIndexer(10000)) {
+        try (LimitAwareBulkIndexer bulkIndexer = createIndexer(10000)) {
             for (int i = 0; i < 1000; i++) {
                 bulkIndexer.addAndExecuteIfNeeded(mockIndexRequest(1));
             }
@@ -66,14 +66,14 @@ public class MlBulkIndexerTests extends ESTestCase {
     }
 
     public void testNoRequests() {
-        try (MlBulkIndexer bulkIndexer = createIndexer(10000)) {
+        try (LimitAwareBulkIndexer bulkIndexer = createIndexer(10000)) {
         }
 
         assertThat(executedBulkRequests, is(empty()));
     }
 
-    private MlBulkIndexer createIndexer(long bytesLimit) {
-        return new MlBulkIndexer(bytesLimit, executedBulkRequests::add);
+    private LimitAwareBulkIndexer createIndexer(long bytesLimit) {
+        return new LimitAwareBulkIndexer(bytesLimit, executedBulkRequests::add);
     }
 
     private static IndexRequest mockIndexRequest(long ramBytes) {

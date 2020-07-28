@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.utils.persistence.MlBulkIndexer;
+import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.util.Deque;
@@ -96,7 +96,7 @@ public class InferenceRunner {
         long totalDocCount = 0;
         long processedDocCount = 0;
 
-        try (MlBulkIndexer bulkIndexer = new MlBulkIndexer(settings, this::executeBulkRequest)) {
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (testDocsIterator.hasNext()) {
                 if (isCancelled) {
                     break;

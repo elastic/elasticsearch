@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
-import org.elasticsearch.xpack.ml.utils.persistence.MlBulkIndexer;
+import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -90,7 +90,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     }
 
     private void joinCurrentResults() {
-        try (MlBulkIndexer bulkIndexer = new MlBulkIndexer(settings, this::executeBulkRequest)) {
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (currentResults.isEmpty() == false) {
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();

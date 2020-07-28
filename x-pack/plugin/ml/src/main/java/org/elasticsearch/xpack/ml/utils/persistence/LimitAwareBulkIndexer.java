@@ -21,9 +21,9 @@ import java.util.function.Consumer;
  * that do exceed a 1000 operations or half the available memory
  * limit for indexing.
  */
-public class MlBulkIndexer implements AutoCloseable {
+public class LimitAwareBulkIndexer implements AutoCloseable {
 
-    private static final Logger LOGGER = LogManager.getLogger(MlBulkIndexer.class);
+    private static final Logger LOGGER = LogManager.getLogger(LimitAwareBulkIndexer.class);
 
     private static final int BATCH_SIZE = 1000;
 
@@ -32,11 +32,11 @@ public class MlBulkIndexer implements AutoCloseable {
     private BulkRequest currentBulkRequest = new BulkRequest();
     private long currentRamBytes;
 
-    public MlBulkIndexer(Settings settings, Consumer<BulkRequest> executor) {
+    public LimitAwareBulkIndexer(Settings settings, Consumer<BulkRequest> executor) {
         this((long) Math.ceil(0.5 * IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes()), executor);
     }
 
-    MlBulkIndexer(long bytesLimit, Consumer<BulkRequest> executor) {
+    LimitAwareBulkIndexer(long bytesLimit, Consumer<BulkRequest> executor) {
         this.bytesLimit = bytesLimit;
         this.executor = Objects.requireNonNull(executor);
     }

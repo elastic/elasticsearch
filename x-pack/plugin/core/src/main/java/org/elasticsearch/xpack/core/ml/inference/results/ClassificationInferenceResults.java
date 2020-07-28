@@ -27,18 +27,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static final String NAME = "classification";
 
+    public static final String PREDICTION_PROBABILITY = "prediction_probability";
+    public static final String PREDICTION_SCORE = "prediction_score";
+
     private final String topNumClassesField;
     private final String resultsField;
     private final String classificationLabel;
     private final List<TopClassEntry> topClasses;
     private final PredictionFieldType predictionFieldType;
-
-    public ClassificationInferenceResults(double value,
-                                          String classificationLabel,
-                                          List<TopClassEntry> topClasses,
-                                          InferenceConfig config) {
-        this(value, classificationLabel, topClasses, Collections.emptyList(), (ClassificationConfig)config);
-    }
+    private final int numClasses;
 
     public ClassificationInferenceResults(double value,
                                           String classificationLabel,
@@ -61,6 +58,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topNumClassesField = classificationConfig.getTopClassesResultsField();
         this.resultsField = classificationConfig.getResultsField();
         this.predictionFieldType = classificationConfig.getPredictionFieldType();
+        // -1 is a special number indicating include ALL classes
+        this.numClasses = classificationConfig.getNumTopClasses() < 0 ?
+            this.topClasses.size() :
+            classificationConfig.getNumTopClasses();
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
@@ -73,6 +74,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             this.predictionFieldType = in.readEnum(PredictionFieldType.class);
         } else {
             this.predictionFieldType = PredictionFieldType.STRING;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            this.numClasses = in.readVInt();
+        } else {
+            this.numClasses = this.topClasses.size();
         }
     }
 
@@ -92,11 +98,24 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(classificationLabel);
-        out.writeCollection(topClasses);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeCollection(topClasses);
+        } else {
+            // If we are serializing to an older node and the number of configured classes is 0,
+            // we should not include the default top class
+            if (numClasses == 0) {
+                out.writeCollection(Collections.emptyList());
+            } else {
+                out.writeCollection(topClasses);
+            }
+        }
         out.writeString(topNumClassesField);
         out.writeString(resultsField);
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeEnum(predictionFieldType);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeVInt(numClasses);
         }
     }
 
@@ -111,6 +130,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             && Objects.equals(topNumClassesField, that.topNumClassesField)
             && Objects.equals(topClasses, that.topClasses)
             && Objects.equals(predictionFieldType, that.predictionFieldType)
+            && Objects.equals(numClasses, that.numClasses)
             && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
     }
 
@@ -121,6 +141,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             topClasses,
             resultsField,
             topNumClassesField,
+            numClasses,
             getFeatureImportance(),
             predictionFieldType);
     }
@@ -147,7 +168,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.isEmpty() == false) {
-            map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+            if (numClasses > 0) {
+                map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+            }
+            map.put(PREDICTION_PROBABILITY, topClasses.get(0).getProbability());
+            map.put(PREDICTION_SCORE, topClasses.get(0).getScore());
         }
         if (getFeatureImportance().isEmpty() == false) {
             map.put(FEATURE_IMPORTANCE, getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
@@ -164,7 +189,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.size() > 0) {
-            builder.field(topNumClassesField, topClasses);
+            if (numClasses > 0) {
+                builder.field(topNumClassesField, topClasses);
+            }
+            builder.field(PREDICTION_PROBABILITY, topClasses.get(0).getProbability());
+            builder.field(PREDICTION_SCORE, topClasses.get(0).getScore());
         }
         if (getFeatureImportance().size() > 0) {
             builder.field(FEATURE_IMPORTANCE, getFeatureImportance());

@@ -178,7 +178,7 @@ public class TreeInferenceModel implements InferenceModel {
                     classificationProbability(value),
                     classificationLabels,
                     null,
-                    classificationConfig.getNumTopClasses(),
+                    classificationConfig.getNumTopClasses() == 0 ? 1 : classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
                 return new ClassificationInferenceResults(topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),

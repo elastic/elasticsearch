@@ -68,6 +68,7 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.singletonList(new ClassificationInferenceResults(1.0,
                 "foo",
                 null,
+                Collections.emptyList(),
                 ClassificationConfig.EMPTY_PARAMS)),
             true);
         inferenceProcessor.mutateDocument(response, document);
@@ -98,7 +99,11 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -169,7 +174,11 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 

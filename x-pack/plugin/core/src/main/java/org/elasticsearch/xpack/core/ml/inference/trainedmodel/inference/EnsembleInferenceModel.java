@@ -210,7 +210,7 @@ public class EnsembleInferenceModel implements InferenceModel {
                     processedInferences,
                     classificationLabels,
                     classificationWeights,
-                    classificationConfig.getNumTopClasses(),
+                    classificationConfig.getNumTopClasses() == 0 ? 1 : classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
                 return new ClassificationInferenceResults((double)topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),

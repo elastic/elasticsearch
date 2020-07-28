@@ -92,11 +92,13 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
 
         LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
-        "foo",
-            Collections.emptyList(),
-            config),
+                "foo",
+                Collections.emptyList(),
+                Collections.emptyList(),
+                config),
             new ClassificationInferenceResults(0.0,
                 "bar",
+                Collections.emptyList(),
                 Collections.emptyList(),
                 config));
 

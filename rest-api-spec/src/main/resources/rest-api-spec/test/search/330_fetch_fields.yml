@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "fields retrieval is currently only implemented on master"
+      version: " - 7.9.99"
+      reason: "the 'fields' parameter was added in 7.10"
 
 ---
 "Test basic field retrieval":

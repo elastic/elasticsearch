@@ -4,7 +4,7 @@
 <titleabbrev>Index template exists</titleabbrev>
 ++++
 
-Checks if an index template exists.
+Checks if an <<index-templates, index template>> exists.
 
 
 
@@ -26,8 +26,8 @@ HEAD /_template/template_1
 Use the index template exists API
 to determine whether one or more index templates exist.
 
-include::templates.asciidoc[tag=index-template-def]
-
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
+and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
 
 [[template-exists-api-path-params]]
 ==== {api-path-parms-title}

@@ -16,7 +16,7 @@ The following snippet shows a simple `index` action definition:
     "condition": { ... }, <2>
     "transform": { ... }, <3>
     "index" : {
-      "index" : "my-index", <4>
+      "index" : "my-index-000001", <4>
       "doc_id": "my-id" <5>
     }
   }
@@ -86,7 +86,7 @@ The following snippet shows a multi-document `index` action definition:
       "script": """
       def documents = ctx.payload.hits.hits.stream()
         .map(hit -> [
-          "_index": "my-index", <1>
+          "_index": "my-index-000001", <1>
           "_id": hit._id, <2>
           "severity": "Sev: " + hit._source.severity <3>
         ])

@@ -176,7 +176,7 @@ cluster in multiple primary and replica shards. For more information about the
 concepts of clusters, nodes, and shards, see
 <<getting-started>>.
 
-[float]
+[discrete]
 [[encrypting-internode-nextsteps]]
 === What's next?
 

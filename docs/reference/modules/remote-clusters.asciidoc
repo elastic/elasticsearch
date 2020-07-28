@@ -15,7 +15,7 @@ goes through the <<modules-transport,transport layer>>. Remote cluster
 connections consist of uni-directional connections from the coordinating
 node to the remote remote connections.
 
-[float]
+[discrete]
 [[sniff-mode]]
 === Sniff mode
 
@@ -27,7 +27,7 @@ are accessible by the local cluster.
 
 Sniff mode is the default connection mode.
 
-[float]
+[discrete]
 [[gateway-nodes-selection]]
 ==== Gateway nodes selection
 
@@ -62,7 +62,7 @@ communicate with 6.7. The matrix below summarizes compatibility as described abo
 (see <<remote-cluster-settings>>), though such tagged nodes still have
 to satisfy the two above requirements.
 
-[float]
+[discrete]
 [[proxy-mode]]
 === Proxy mode
 
@@ -77,7 +77,7 @@ to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
 
-[float]
+[discrete]
 [[configuring-remote-clusters]]
 ==== Configuring remote clusters
 
@@ -229,7 +229,7 @@ PUT _cluster/settings
 <1> `cluster_two` would be removed from the cluster settings, leaving
 `cluster_one` and `cluster_three` intact.
 
-[float]
+[discrete]
 [[remote-cluster-settings]]
 === Remote cluster settings for all modes
 
@@ -279,7 +279,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
 
-[float]
+[discrete]
 [[remote-cluster-sniff-settings]]
 === Remote cluster settings for sniff mode
 
@@ -299,7 +299,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   `node.attr.gateway: true` such that only nodes with this attribute will be
   connected to if `cluster.remote.node.attr` is set to `gateway`.
 
-[float]
+[discrete]
 [[remote-cluster-proxy-settings]]
 === Remote cluster settings for proxy mode
 
@@ -321,7 +321,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   remote connections if this field is not a valid hostname as defined by the
   TLS SNI specification.
 
-[float]
+[discrete]
 [[retrieve-remote-clusters-info]]
 === Retrieving remote clusters info
 

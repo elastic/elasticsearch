@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -28,6 +29,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -57,6 +60,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -81,6 +85,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
@@ -91,6 +96,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
             "action.search.shard_count.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.NodeScope);
 
+    private final NodeClient client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
@@ -100,11 +106,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
-                                 SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
-                                 ClusterService clusterService, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSearchAction(NodeClient client, ThreadPool threadPool, TransportService transportService,
+                                 SearchService searchService, SearchTransportService searchTransportService,
+                                 SearchPhaseController searchPhaseController, ClusterService clusterService,
+                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+        this.client = client;
         this.threadPool = threadPool;
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
@@ -618,18 +625,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters, exc -> cancelTask(task, exc));
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters, exc -> cancelTask(task, exc));
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
             }
             return searchAsyncAction;
         }
+    }
+
+    private void cancelTask(SearchTask task, Exception exc) {
+        String errorMsg = exc.getMessage() != null ? exc.getMessage() : "";
+        CancelTasksRequest req = new CancelTasksRequest()
+            .setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
+            .setReason("Fatal failure during search: " + errorMsg);
+        // force the origin to execute the cancellation as a system user
+        new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
 
     private static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {

@@ -31,9 +31,6 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
             this.jobIds = jobIds;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobIds = in.readStringArray();

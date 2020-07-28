@@ -73,8 +73,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             this.expandedJobsIds = Collections.singletonList(jobId);
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();

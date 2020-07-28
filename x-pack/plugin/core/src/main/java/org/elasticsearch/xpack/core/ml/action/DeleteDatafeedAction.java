@@ -40,9 +40,6 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();

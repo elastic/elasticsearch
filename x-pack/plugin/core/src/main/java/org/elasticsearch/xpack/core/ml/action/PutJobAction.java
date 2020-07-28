@@ -66,9 +66,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             this.jobBuilder = jobBuilder;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobBuilder = new Job.Builder(in);

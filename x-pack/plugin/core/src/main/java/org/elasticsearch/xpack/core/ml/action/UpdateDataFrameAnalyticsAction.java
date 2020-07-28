@@ -50,8 +50,6 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
 
         private DataFrameAnalyticsConfigUpdate update;
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             update = new DataFrameAnalyticsConfigUpdate(in);

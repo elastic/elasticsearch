@@ -68,9 +68,6 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
             jobParams = new JobParams(in);
         }
 
-        public Request() {
-        }
-
         public JobParams getJobParams() {
             return jobParams;
         }

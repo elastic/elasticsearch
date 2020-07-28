@@ -100,7 +100,7 @@ NOTE: Using the following analyzer as an index analyzer results in an error.
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index": {
@@ -144,7 +144,7 @@ and pick up the file changes.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
 --------------------------------------------------
 // TEST[continued]
 
@@ -160,7 +160,7 @@ The API returns the following response.
   },
   "reload_details": [
     {
-      "index": "my_index",
+      "index": "my-index-000001",
       "reloaded_analyzers": [
         "my_synonyms"
       ],

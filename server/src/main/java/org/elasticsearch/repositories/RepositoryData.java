@@ -70,7 +70,8 @@ public final class RepositoryData {
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY,
+            IndexMetaDataGenerations.EMPTY);
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -108,13 +109,22 @@ public final class RepositoryData {
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
                           Map<String, Version> snapshotVersions, Map<IndexId, List<SnapshotId>> indexSnapshots,
                           ShardGenerations shardGenerations, IndexMetaDataGenerations indexMetaDataGenerations) {
+        this(genId, Collections.unmodifiableMap(snapshotIds), Collections.unmodifiableMap(snapshotStates),
+                Collections.unmodifiableMap(snapshotVersions),
+                indexSnapshots.keySet().stream().collect(Collectors.toUnmodifiableMap(IndexId::getName, Function.identity())),
+                Collections.unmodifiableMap(indexSnapshots), shardGenerations, indexMetaDataGenerations);
+    }
+
+    private RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
+                           Map<String, Version> snapshotVersions, Map<String, IndexId> indices,
+                           Map<IndexId, List<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations,
+                           IndexMetaDataGenerations indexMetaDataGenerations) {
         this.genId = genId;
-        this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
-        this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
-        this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
-            .collect(Collectors.toMap(IndexId::getName, Function.identity())));
-        this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.shardGenerations = Objects.requireNonNull(shardGenerations);
+        this.snapshotIds = snapshotIds;
+        this.snapshotStates = snapshotStates;
+        this.indices = indices;
+        this.indexSnapshots = indexSnapshots;
+        this.shardGenerations = shardGenerations;
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
@@ -305,8 +315,8 @@ public final class RepositoryData {
         if (newGeneration == genId) {
             return this;
         }
-        return new RepositoryData(
-            newGeneration, snapshotIds, snapshotStates, snapshotVersions, indexSnapshots, shardGenerations, indexMetaDataGenerations);
+        return new RepositoryData(newGeneration, snapshotIds, snapshotStates, snapshotVersions, indices, indexSnapshots, shardGenerations,
+                indexMetaDataGenerations);
     }
 
     /**

@@ -4,7 +4,7 @@
 The fact that Elasticsearch operates with shards and replicas adds challenges
 when it comes to having good scoring.
 
-[float]
+[discrete]
 ==== Scores are not reproducible
 
 Say the same user runs the same request twice in a row and documents do not come
@@ -39,7 +39,7 @@ they will be sorted by their internal Lucene doc id (which is unrelated to the
 the same shard. So by always hitting the same shard, we would get more
 consistent ordering of documents that have the same scores.
 
-[float]
+[discrete]
 ==== Relevancy looks wrong
 
 If you notice that two documents with the same content get different scores or

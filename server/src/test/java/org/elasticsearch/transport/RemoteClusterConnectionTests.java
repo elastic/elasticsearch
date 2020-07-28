@@ -1206,7 +1206,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59879")
     public void testPendingConnectListeners() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
@@ -1225,6 +1224,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     ConnectionManager connectionManager = connection.getConnectionManager();
                     CountDownLatch connectionOpenedLatch = new CountDownLatch(1);
                     CountDownLatch connectionBlockedLatch = new CountDownLatch(1);
+                    CountDownLatch completionLatch = new CountDownLatch(1);
                     connectionManager.addListener(new TransportConnectionListener() {
                         @Override
                         public void onConnectionOpened(Transport.Connection connection) {
@@ -1233,6 +1233,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 connectionBlockedLatch.await();
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
+                            } finally {
+                                completionLatch.countDown();
                             }
                         }
                     });
@@ -1261,6 +1263,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         }
                     } finally {
                         connectionBlockedLatch.countDown();
+                        completionLatch.await();
                         thread.join();
                     }
                 }

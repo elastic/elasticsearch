@@ -89,7 +89,13 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
+    // Skip tests for jdk 8u262 https://github.com/elastic/elasticsearch/issues/56507
+    public void testSuppressedOnJDK8u262() {
+        assumeFalse("AwaitsFix on JDK 8u262", "1.8.0_262".equals(System.getProperty("java.version")));
+    }
+
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -99,6 +105,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -108,6 +115,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));

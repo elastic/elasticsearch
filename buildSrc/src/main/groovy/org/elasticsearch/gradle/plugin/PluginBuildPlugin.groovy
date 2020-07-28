@@ -120,6 +120,14 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
 
+        //disable integTest task if project has been converted to use yaml or java rest test plugin
+        project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") {
+            project.tasks.integTest.enabled = false
+        }
+        project.pluginManager.withPlugin("elasticsearch.java-rest-test") {
+            project.tasks.integTest.enabled = false
+        }
+
         project.tasks.named('testingConventions').configure {
             naming.clear()
             naming {

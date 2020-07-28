@@ -25,12 +25,15 @@ import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
 
+import java.io.IOException;
+
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class NioTransportLoggingIT extends NioIntegTestCase {
 
     private MockLogAppender appender;
@@ -39,16 +42,19 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
         super.setUp();
         appender = new MockLogAppender();
         Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
+        Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
         Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.stop();
         super.tearDown();
     }
 
-    public void testLoggingHandler() throws IllegalAccessException {
+    @TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
+    public void testLoggingHandler() {
         final String writePattern =
                 ".*\\[length: \\d+" +
                         ", request id: \\d+" +
@@ -78,4 +84,18 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
         appender.assertAllExpectationsMatched();
     }
 
+    @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
+    public void testConnectionLogging() throws IOException {
+        appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation("open connection log",
+                TcpTransport.class.getCanonicalName(), Level.DEBUG,
+                ".*opened transport connection \\[[1-9][0-9]*\\] to .*"));
+        appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation("close connection log",
+                TcpTransport.class.getCanonicalName(), Level.DEBUG,
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"));
+
+        final String nodeName = internalCluster().startNode();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
+
+        appender.assertAllExpectationsMatched();
+    }
 }

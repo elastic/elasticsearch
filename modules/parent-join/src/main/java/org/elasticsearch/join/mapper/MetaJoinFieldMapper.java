@@ -138,6 +138,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

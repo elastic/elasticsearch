@@ -1075,6 +1075,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Number nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
@@ -1121,6 +1126,19 @@ public class NumberFieldMapper extends FieldMapper {
         if (docValued == false && (stored || fieldType().isSearchable())) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value.equals("")) {
+            return nullValue;
+        }
+
+        return fieldType().type.parse(value, coerce.value());
     }
 
     @Override

@@ -65,6 +65,11 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

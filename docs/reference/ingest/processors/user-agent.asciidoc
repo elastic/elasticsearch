@@ -36,11 +36,11 @@ PUT _ingest/pipeline/user_agent
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=user_agent
+PUT my-index-000001/_doc/my_id?pipeline=user_agent
 {
   "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
 }
-GET my_index/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns
@@ -49,7 +49,7 @@ Which returns
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 22,

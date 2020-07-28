@@ -188,6 +188,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) other;
         this.children = parentMergeWith.children;

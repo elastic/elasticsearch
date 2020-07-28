@@ -21,11 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.InLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastLoop;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a continue statement.
@@ -44,19 +39,5 @@ public class SContinue extends AStatement {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, InLoop.class) == false) {
-            throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
-        }
-
-        if (semanticScope.getCondition(this, LastLoop.class)) {
-            throw createError(new IllegalArgumentException("Extraneous continue statement."));
-        }
-
-        semanticScope.setCondition(this, AllEscape.class);
-        semanticScope.setCondition(this, AnyContinue.class);
     }
 }

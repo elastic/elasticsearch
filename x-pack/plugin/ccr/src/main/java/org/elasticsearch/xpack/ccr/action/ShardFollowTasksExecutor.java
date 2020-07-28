@@ -79,6 +79,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
@@ -123,14 +124,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
-        final DiscoveryNode selectedNode = selectLeastLoadedNode(
+        DiscoveryNode node = selectLeastLoadedNode(
             clusterState,
-            node -> node.isDataNode() && (node.isRemoteClusterClient() || node.getVersion().before(DiscoveryNode.PLUGGABLE_ROLES_VERSION))
+            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
         );
-        if (selectedNode == null) {
+        if (node == null) {
+            node = selectLeastLoadedNode(clusterState, n -> n.isDataNode() && n.getVersion().before(DiscoveryNode.PLUGGABLE_ROLES_VERSION));
+        }
+        if (node == null) {
             return NO_ASSIGNMENT;
         } else {
-            return new Assignment(selectedNode.getId(), "node is the least loaded data node and remote cluster client");
+            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
         }
     }
 

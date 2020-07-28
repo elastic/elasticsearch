@@ -127,6 +127,44 @@ The maximum number of warning headers in client HTTP responses. Defaults to `unb
 `http.max_warning_header_size`::
 The maximum total size of warning headers in client HTTP responses. Defaults to `unbounded`.
 
+`http.tcp.no_delay`::
+Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+setting. Defaults to `network.tcp.no_delay`.
+
+`http.tcp.keep_alive`::
+Configures the `SO_KEEPALIVE` option for this socket, which
+determines whether it sends TCP keepalive probes.
+Defaults to `network.tcp.keep_alive`.
+
+`http.tcp.keep_idle`:: Configures the `TCP_KEEPIDLE` option for this socket, which
+determines the time in seconds that a connection must be idle before
+starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle`, which
+uses the system default. This value cannot exceed `300` seconds. Only applicable on
+Linux and macOS, and requires Java 11 or newer.
+
+`http.tcp.keep_interval`:: Configures the `TCP_KEEPINTVL` option for this socket,
+which determines the time in seconds between sending TCP keepalive probes.
+Defaults to `network.tcp.keep_interval`, which uses the system default.
+This value cannot exceed `300` seconds. Only applicable on Linux and macOS, and requires
+Java 11 or newer.
+
+`http.tcp.keep_count`:: Configures the `TCP_KEEPCNT` option for this socket, which
+determines the number of unacknowledged TCP keepalive probes that may be
+sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`,
+which uses the system default. Only applicable on Linux and macOS, and
+requires Java 11 or newer.
+
+`http.tcp.reuse_address`::
+Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
+
+`http.tcp.send_buffer_size`::
+The size of the TCP send buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.send_buffer_size`.
+
+`http.tcp.receive_buffer_size`::
+The size of the TCP receive buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.receive_buffer_size`.
+
 [http-rest-request-tracer]
 ==== REST request tracer
 

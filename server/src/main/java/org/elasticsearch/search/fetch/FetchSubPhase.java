@@ -67,6 +67,13 @@ public interface FetchSubPhase {
             return docId;
         }
 
+        /**
+         * This lookup provides access to the source for the given hit document. Note
+         * that it should always be set to the correct doc ID and {@link LeafReaderContext}.
+         *
+         * In most cases, the hit document's source is loaded eagerly at the start of the
+         * {@link FetchPhase}. This lookup will contain the preloaded source.
+         */
         public SourceLookup sourceLookup() {
             return sourceLookup;
         }

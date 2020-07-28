@@ -53,6 +53,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -222,7 +223,10 @@ public class FetchPhase implements SearchPhase {
 
     /**
      * Resets the provided {@link FetchSubPhase.HitContext} with information on the current
-     * document. This includes adding a {@link SearchHit} and setting the _source.
+     * document. This includes the following:
+     *   - Adding an initial {@link SearchHit} instance.
+     *   - Loading the document source and setting it on {@link SourceLookup}. This allows
+     *     fetch subphases that use the hit context to access the preloaded source.
      */
     private void prepareHitContext(FetchSubPhase.HitContext hitContext,
                                    SearchContext context,
@@ -255,8 +259,13 @@ public class FetchPhase implements SearchPhase {
     }
 
     /**
+     /**
      * Resets the provided {@link FetchSubPhase.HitContext} with information on the current
-     * nested document. This includes adding a {@link SearchHit} and setting the _source.
+     * nested document. This includes the following:
+     *   - Adding an initial {@link SearchHit} instance.
+     *   - Loading the document source, filtering it based on the nested document ID, then
+     *     setting it on {@link SourceLookup}. This allows fetch subphases that use the hit
+     *     context to access the preloaded source.
      */
     @SuppressWarnings("unchecked")
     private void prepareNestedHitContext(FetchSubPhase.HitContext hitContext,

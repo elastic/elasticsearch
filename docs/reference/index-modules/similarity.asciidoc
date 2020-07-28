@@ -9,7 +9,7 @@ Configuring a custom similarity is considered an expert feature and the
 builtin similarities are most likely sufficient as is described in
 <<similarity>>.
 
-[float]
+[discrete]
 [[configuration]]
 === Configuring a similarity
 
@@ -52,10 +52,10 @@ PUT /index/_mapping
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 === Available similarities
 
-[float]
+[discrete]
 [[bm25]]
 ==== BM25 similarity (*default*)
 
@@ -80,7 +80,7 @@ This similarity has the following options:
 
 Type name: `BM25`
 
-[float]
+[discrete]
 [[dfr]]
 ==== DFR similarity
 
@@ -110,7 +110,7 @@ All options but the first option need a normalization value.
 
 Type name: `DFR`
 
-[float]
+[discrete]
 [[dfi]]
 ==== DFI similarity
 
@@ -130,7 +130,7 @@ frequency will get a score equal to 0.
 
 Type name: `DFI`
 
-[float]
+[discrete]
 [[ib]]
 ==== IB similarity.
 
@@ -151,7 +151,7 @@ This similarity has the following options:
 
 Type name: `IB`
 
-[float]
+[discrete]
 [[lm_dirichlet]]
 ==== LM Dirichlet similarity.
 
@@ -167,7 +167,7 @@ Lucene, so such terms get a score of 0.
 
 Type name: `LMDirichlet`
 
-[float]
+[discrete]
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
@@ -180,7 +180,7 @@ for title queries and `0.7` for long queries. Default to `0.1`. When value appro
 
 Type name: `LMJelinekMercer`
 
-[float]
+[discrete]
 [[scripted_similarity]]
 ==== Scripted similarity
 
@@ -506,7 +506,7 @@ GET /index/_search?explain=true
 
 Type name: `scripted`
 
-[float]
+[discrete]
 [[default-base]]
 ==== Default Similarity
 

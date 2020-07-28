@@ -34,8 +34,7 @@ import org.elasticsearch.transport.TransportLogger;
 
 import java.io.IOException;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60321")
+@ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
 public class NioTransportLoggingIT extends NioIntegTestCase {
 
     private MockLogAppender appender;

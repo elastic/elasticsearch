@@ -32,6 +32,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -39,9 +40,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<LeafOrdinalsFieldData>
-        implements IndexOrdinalsFieldData {
+public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
+
+    private final String fieldName;
+    private ValuesSourceType valuesSourceType;
+    protected final IndexFieldDataCache cache;
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
@@ -56,7 +60,9 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         double maxFrequency,
         int minSegmentSize
     ) {
-        super(fieldName, valuesSourceType, cache);
+        this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
+        this.cache = cache;
         this.breakerService = breakerService;
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
@@ -64,8 +70,40 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
+    public String getFieldName() {
+        return this.fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
+    }
+
+    @Override
     public OrdinalMap getOrdinalMap() {
         return null;
+    }
+
+    @Override
+    public LeafOrdinalsFieldData load(LeafReaderContext context) {
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
+            // Some leaf readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
+            return empty(context.reader().maxDoc());
+        }
+
+        try {
+            LeafOrdinalsFieldData fd = cache.load(context, this);
+            return fd;
+        } catch (Exception e) {
+            if (e instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e;
+            } else {
+                throw new ElasticsearchException(e);
+            }
+        }
     }
 
     @Override
@@ -125,7 +163,6 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         );
     }
 
-    @Override
     protected LeafOrdinalsFieldData empty(int maxDoc) {
         return AbstractLeafOrdinalsFieldData.empty();
     }
@@ -177,4 +214,40 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         }
     }
 
+    /**
+     * A {@code PerValueEstimator} is a sub-class that can be used to estimate
+     * the memory overhead for loading the data. Each field data
+     * implementation should implement its own {@code PerValueEstimator} if it
+     * intends to take advantage of the CircuitBreaker.
+     * <p>
+     * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
+     * manually called.
+     */
+    public interface PerValueEstimator {
+
+        /**
+         * @return the number of bytes for the given term
+         */
+        long bytesPerValue(BytesRef term);
+
+        /**
+         * Execute any pre-loading estimations for the terms. May also
+         * optionally wrap a {@link TermsEnum} in a
+         * {@link RamAccountingTermsEnum}
+         * which will estimate the memory on a per-term basis.
+         *
+         * @param terms terms to be estimated
+         * @return A TermsEnum for the given terms
+         */
+        TermsEnum beforeLoad(Terms terms) throws IOException;
+
+        /**
+         * Possibly adjust a circuit breaker after field data has been loaded,
+         * now that the actual amount of memory used by the field data is known
+         *
+         * @param termsEnum  terms that were loaded
+         * @param actualUsed actual field data memory usage
+         */
+        void afterLoad(TermsEnum termsEnum, long actualUsed);
+    }
 }

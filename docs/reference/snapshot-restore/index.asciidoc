@@ -55,23 +55,34 @@ IMPORTANT: Version compatibility refers to the underlying Lucene index
 compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
 when migrating between versions.
 
-A snapshot contains a copy of the on-disk data structures that make up an
+A snapshot contains a copy of the on-disk data structures that comprise an
 index or a data stream's backing indices. This means that snapshots can only be restored to versions of
-{es} that can read the indices:
+{es} that can read the indices.
 
-* A snapshot of an index created in 6.x can be restored to 7.x.
-* A snapshot of an index created in 5.x can be restored to 6.x.
-* A snapshot of an index created in 2.x can be restored to 5.x.
-* A snapshot of an index created in 1.x can be restored to 2.x.
+The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.
 
-Conversely, snapshots of indices created in 1.x **cannot** be restored to 5.x
-or 6.x, snapshots of indices created in 2.x **cannot** be restored to 6.x
-or 7.x, and snapshots of indices created in 5.x **cannot** be restored to 7.x
-or 8.x.
+// tag::snapshot-compatibility-matrix[]
+[cols="6"]
+|===
+| 5+^h| Cluster version
+^h| Snapshot version ^| 2.x ^| 5.x ^| 6.x ^| 7.x ^| 8.x
+^| *1.x* -> ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
+^| *2.x* -> ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
+^| *5.x* -> ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}
+^| *6.x* -> ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}
+^| *7.x* -> ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon}
+|===
+// end::snapshot-compatibility-matrix[]
 
-We do not recommend restoring snapshots from later {es} versions in earlier
-versions. In some cases, the snapshots cannot be restored. For example, a
-snapshot taken in 7.6.0 cannot be restored to 7.5.0.
+The following conditions apply for restoring snapshots and indices across versions:
+
+* *Snapshots*: You cannot restore snapshots from later {es} versions into a cluster running an earlier {es} version. For example, you cannot restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
+* *Indices*: You cannot restore indices into a cluster running a version of {es} that is more than _one major version_ newer than the version of {es} used to snapshot the indices. For example, you cannot restore indices from a snapshot taken in 5.0 to a cluster running 7.0.
++
+[NOTE]
+====
+The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
+====
 
 Each snapshot can contain indices created in various versions of {es}. This
 includes backing indices created for data streams. When restoring a snapshot, it

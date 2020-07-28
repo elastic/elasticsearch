@@ -184,7 +184,9 @@ public class FetchSourcePhaseTests extends ESTestCase {
 
         @Override
         public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
+            SearchLookup lookup = new SearchLookup(this.mapperService(), (ft, l) -> {
+                throw new UnsupportedOperationException();
+            });
             lookup.source().setSource(source);
             return lookup;
         }

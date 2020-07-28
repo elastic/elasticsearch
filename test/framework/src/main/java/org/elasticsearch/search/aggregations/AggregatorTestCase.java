@@ -316,7 +316,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
             .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField);
+        SearchLookup searchLookup = new SearchLookup(mapperService, (ft, l) -> ifds.getForField(ft, "test", l));
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext =

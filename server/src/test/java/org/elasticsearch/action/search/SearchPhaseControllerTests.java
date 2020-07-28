@@ -487,8 +487,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        int numCompletedTasks = (int) (fixedExecutor.getCompletedTaskCount() - beforeCompletedTasks);
-        assertEquals(numCompletedTasks, reduce.numReducePhases-1);
         assertEquals(numTotalReducePhases, reduce.numReducePhases);
         assertEquals(numTotalReducePhases, reductions.size());
         assertAggReduction(request);

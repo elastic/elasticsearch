@@ -62,7 +62,8 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexDocumentationIT extends ESIntegTestCase {
+//TODO: remove the "2" after https://github.com/elastic/docs/pull/1920 is merged and the "test" variant is removed.
+public class ReindexDocumentation2IT extends ESIntegTestCase {
 
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);

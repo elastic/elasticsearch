@@ -144,8 +144,8 @@ Linux and macOS, and requires Java 11 or newer.
 
 `http.tcp.keep_interval`:: Configures the `TCP_KEEPINTVL` option for this socket,
 which determines the time in seconds between sending TCP keepalive probes.
-Defaults to `network.tcp.keep_interval` which means to use the system default.
-May not be greater than 300. Only applicable on Linux and macOS, and requires
+Defaults to `network.tcp.keep_interval`, which uses the system default.
+This value cannot exceed `300` seconds. Only applicable on Linux and macOS, and requires
 Java 11 or newer.
 
 `http.tcp.keep_count`:: Configures the `TCP_KEEPCNT` option for this socket, which

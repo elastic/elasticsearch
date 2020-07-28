@@ -102,6 +102,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         });
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
+            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
             .get();
         assertBusy(() -> {

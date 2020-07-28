@@ -17,6 +17,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsAggregationBuilders;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.IOException;
@@ -29,7 +32,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class, AnalyticsPlugin.class);
     }
 
     public String setUpIndex(String indexName) throws IOException {
@@ -479,6 +482,14 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.cardinality("myterms").field("version")).get();
         Cardinality card = response.getAggregations().get("myterms");
         assertEquals(5, card.getValue());
+
+        // string stats
+        response = client().prepareSearch(indexName)
+            .addAggregation(AnalyticsAggregationBuilders.stringStats("stats").field("version"))
+            .get();
+        InternalStringStats stats = response.getAggregations().get("stats");
+        assertEquals(3, stats.getMinLength());
+        assertEquals(11, stats.getMaxLength());
     }
 
     public void testNullValue() throws Exception {

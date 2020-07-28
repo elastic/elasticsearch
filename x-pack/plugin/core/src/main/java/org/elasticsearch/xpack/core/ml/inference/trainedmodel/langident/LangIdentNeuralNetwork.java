@@ -139,7 +139,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             probabilities,
             LANGUAGE_NAMES,
             null,
-            classificationConfig.getNumTopClasses(),
+            classificationConfig.getNumTopClasses() == 0 ? 1 : classificationConfig.getNumTopClasses(),
             PredictionFieldType.STRING);
         assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();

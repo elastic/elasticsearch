@@ -29,8 +29,8 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
         index.setFileDetailsComplete();
 
         CacheFile cacheFile = mock(CacheFile.class);
-        when(cacheFile.getCachedLength()).thenReturn(fileLength);
-        index.addCacheFileDetail("file", cacheFile);
+        when(cacheFile.getPhysicalLength()).thenReturn(fileLength);
+        index.addCacheFileRecoveryDetail("file", cacheFile);
 
         // This call is a no-op
         index.addRecoveredBytesToFile("file", randomInt(1024));
@@ -47,12 +47,12 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
         index.setFileDetailsComplete();
 
         CacheFile cacheFile = mock(CacheFile.class);
-        when(cacheFile.getCachedLength()).thenReturn(fileLength);
-        index.addCacheFileDetail("file", cacheFile);
+        when(cacheFile.getPhysicalLength()).thenReturn(fileLength);
+        index.addCacheFileRecoveryDetail("file", cacheFile);
 
         assertThat(index.getFileDetails("file").recovered(), is(fileLength));
 
-        index.removeCacheFileDetail("file", cacheFile);
+        index.removeCacheFileRecoveryDetail("file", cacheFile);
 
         assertThat(index.getFileDetails("file").recovered(), is(0L));
     }

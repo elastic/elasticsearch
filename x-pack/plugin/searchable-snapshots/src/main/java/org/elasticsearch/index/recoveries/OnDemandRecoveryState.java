@@ -35,16 +35,16 @@ public final class OnDemandRecoveryState extends RecoveryState {
 
     public static class Index extends RecoveryState.Index {
         public Index() {
-            super(new SearchableSnapshotsRecoveryFiles());
+            super(new OnDemandRecoveryFilesDetails());
         }
 
-        public synchronized void addCacheFileDetail(String fileName, CacheFile cacheFile) {
+        public synchronized void addCacheFileRecoveryDetail(String fileName, CacheFile cacheFile) {
             CachedFileDetail fileDetails = (CachedFileDetail) getFileDetails(fileName);
             assert fileDetails != null : "Unknown file [" + fileName + "]. The file detail should have been declared during recovery";
             fileDetails.addCacheFile(cacheFile);
         }
 
-        public synchronized void removeCacheFileDetail(String fileName, CacheFile cacheFile) {
+        public synchronized void removeCacheFileRecoveryDetail(String fileName, CacheFile cacheFile) {
             CachedFileDetail fileDetails = (CachedFileDetail) getFileDetails(fileName);
             assert fileDetails != null : "Unknown file [" + fileName + "]. The file detail should have been declared during recovery";
             fileDetails.removeCacheFile(cacheFile);
@@ -56,7 +56,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
         }
     }
 
-    private static class SearchableSnapshotsRecoveryFiles extends RecoveryFilesDetails {
+    private static class OnDemandRecoveryFilesDetails extends RecoveryFilesDetails {
         @Override
         public void addFileDetails(String name, long length, boolean reused) {
             // We allow reporting the same file details multiple times as we populate the file
@@ -103,7 +103,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
         public long recovered() {
             long recovered = 0;
             for (CacheFile cacheFile : cacheFiles) {
-                recovered += cacheFile.getCachedLength();
+                recovered += cacheFile.getPhysicalLength();
             }
             return Math.min(recovered, length());
         }

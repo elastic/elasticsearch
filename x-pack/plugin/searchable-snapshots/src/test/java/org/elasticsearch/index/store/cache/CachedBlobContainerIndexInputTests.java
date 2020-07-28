@@ -7,6 +7,10 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -102,7 +106,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         threadPool
                     )
                 ) {
-                    final boolean loaded = directory.loadSnapshot(new OnDemandRecoveryState.Index());
+                    final boolean loaded = directory.loadSnapshot(createRecoveryState());
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -174,7 +178,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     threadPool
                 )
             ) {
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(new OnDemandRecoveryState.Index());
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(createRecoveryState());
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
@@ -238,6 +242,18 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             assert false : "this method should never be called";
             throw new UnsupportedOperationException();
         }
+    }
+
+    private OnDemandRecoveryState createRecoveryState() {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            randomAlphaOfLength(10),
+            0,
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        return new OnDemandRecoveryState(shardRouting, targetNode, null);
     }
 
     /**

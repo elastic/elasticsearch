@@ -38,6 +38,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
@@ -436,7 +440,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
      * - consumes the default and the searchable snapshot directories using the {@link CheckedBiConsumer}.
      */
     private void testDirectories(final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer) throws Exception {
-        testDirectories(randomBoolean(), randomBoolean(), new OnDemandRecoveryState.Index(), consumer);
+        testDirectories(randomBoolean(), randomBoolean(), createRecoveryState(), consumer);
     }
 
     private void testDirectories(
@@ -444,13 +448,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         final boolean prewarmCache,
         final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer
     ) throws Exception {
-        testDirectories(enableCache, prewarmCache, new OnDemandRecoveryState.Index(), consumer);
+        testDirectories(enableCache, prewarmCache, createRecoveryState(), consumer);
     }
 
     private void testDirectories(
         final boolean enableCache,
         final boolean prewarmCache,
-        final OnDemandRecoveryState.Index indexRecovery,
+        final OnDemandRecoveryState recoveryState,
         final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer
     ) throws Exception {
         final IndexSettings indexSettings = newIndexSettings();
@@ -583,7 +587,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         threadPool
                     )
                 ) {
-                    final boolean loaded = snapshotDirectory.loadSnapshot(indexRecovery);
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState);
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", snapshotDirectory.snapshot(), sameInstance(snapshot));
                     assertThat("BlobContainer should be loaded", snapshotDirectory.blobContainer(), sameInstance(blobContainer));
@@ -672,7 +676,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 )
             ) {
 
-                final boolean loaded = directory.loadSnapshot(new OnDemandRecoveryState.Index());
+                OnDemandRecoveryState onDemandRecoveryState = createRecoveryState();
+                final boolean loaded = directory.loadSnapshot(onDemandRecoveryState);
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));
                 assertThat("BlobContainer should be loaded", directory.blobContainer(), sameInstance(blobContainer));
@@ -705,11 +710,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testRecoveryStateIsPopulatedOnceTheSnapshotIsLoaded() throws Exception {
-        OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
-        testDirectories(true, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
+        OnDemandRecoveryState recoveryState = createRecoveryState();
+        testDirectories(true, false, recoveryState, (directory, snapshotDirectory) -> {
 
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFile : snapshotDirectory.snapshot().indexFiles()) {
-                RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(snapshotFile.physicalName());
+                RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(snapshotFile.physicalName());
                 assertThat(fileDetail, is(notNullValue()));
                 assertThat(fileDetail.length(), is(snapshotFile.length()));
                 assertThat(fileDetail.reused(), is(false));
@@ -719,8 +724,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testRecoveryFileDetailsAreFilledAsDataIsRead() throws Exception {
-        OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
-        testDirectories(true, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
+        OnDemandRecoveryState recoveryState = createRecoveryState();
+        testDirectories(true, false, recoveryState, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
 
             for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles) {
@@ -730,7 +735,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     byte[] buffer = new byte[fileLength];
                     input.readBytes(buffer, 0, fileLength);
 
-                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(fileInfo.physicalName());
                     assertThat(fileDetail, is(notNullValue()));
                     assertThat(fileDetail.length(), is(fileDetail.length()));
                     assertThat(fileDetail.reused(), is(false));
@@ -745,8 +750,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testRecoveryFileDetailsAreNotFilledWithDirectReads() throws Exception {
-        OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
-        testDirectories(false, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
+        OnDemandRecoveryState recoveryState = createRecoveryState();
+        testDirectories(false, false, recoveryState, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
 
             for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles) {
@@ -756,7 +761,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     byte[] buffer = new byte[fileLength];
                     input.readBytes(buffer, 0, fileLength);
 
-                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(fileInfo.physicalName());
                     assertThat(fileDetail, is(notNullValue()));
                     assertThat(fileDetail.length(), is(fileDetail.length()));
                     assertThat(fileDetail.reused(), is(false));
@@ -767,8 +772,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testRecoveryFileDetailsAreResetAfterClearingTheCache() throws Exception {
-        OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
-        testDirectories(true, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
+        OnDemandRecoveryState recoveryState = createRecoveryState();
+        testDirectories(true, false, recoveryState, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
 
             for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles) {
@@ -784,7 +789,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
             assertBusy(() -> {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles) {
-                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(fileInfo.physicalName());
                     assertThat(fileDetail, is(notNullValue()));
                     assertThat(fileDetail.length(), is(fileInfo.length()));
                     assertThat(fileDetail.reused(), is(false));
@@ -795,8 +800,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testRecoveryFileDetailsAreFilledDuringPreWarming() throws Exception {
-        OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
-        testDirectories(true, true, recoveryStateIndex, (directory, snapshotDirectory) -> {
+        OnDemandRecoveryState recoveryState = createRecoveryState();
+        testDirectories(true, true, recoveryState, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
             assertBusy(() -> {
                 ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.prewarmExecutor();
@@ -807,9 +812,9 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFile : snapshotFiles) {
                 String fileName = snapshotFile.physicalName();
 
-                RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileName);
+                RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(fileName);
                 CacheFile cacheFile = snapshotDirectory.getCacheFile(snapshotDirectory.createCacheKey(fileName), snapshotFile.length());
-                assertThat(fileDetail.recovered(), is(cacheFile.getCachedLength()));
+                assertThat(fileDetail.recovered(), is(cacheFile.getPhysicalLength()));
             }
         });
     }
@@ -883,6 +888,18 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build()
         );
+    }
+
+    private OnDemandRecoveryState createRecoveryState() {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            randomAlphaOfLength(10),
+            0,
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        return new OnDemandRecoveryState(shardRouting, targetNode, null);
     }
 
 }

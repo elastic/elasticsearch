@@ -262,7 +262,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         remainingBytes -= bytesRead;
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
+                    stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
                 }
 
                 assert totalBytesRead == rangeLength;
@@ -270,10 +270,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
-    }
-
-    private void addCachedBytesWritten(long totalBytesWritten, long totalTime) {
-        stats.addCachedBytesWritten(totalBytesWritten, totalTime);
     }
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -370,7 +366,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 progressUpdater.accept(start + bytesCopied);
             }
             final long endTimeNanos = stats.currentTimeNanos();
-            addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+            stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
     }
 
@@ -501,7 +497,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (newCacheFile.acquire(this)) {
                     final CacheFile previousCacheFile = cacheFile.getAndSet(newCacheFile);
                     assert previousCacheFile == null;
-                    directory.trackCacheFile(cacheKey.getFileName(), newCacheFile);
+                    directory.addCacheFileRecoveryDetail(cacheKey.getFileName(), newCacheFile);
                     return newCacheFile;
                 }
             }

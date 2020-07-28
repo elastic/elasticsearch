@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -35,8 +34,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) indexShard.recoveryState().getIndex();
-        final boolean success = directory.loadSnapshot(index);
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState());
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success
             || indexShard.routingEntry()

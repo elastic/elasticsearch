@@ -66,18 +66,13 @@ public class SearchableSnapshotsRecoveryStateTests extends BaseSearchableSnapsho
     }
 
     public void testRecoveryStateRecoveredBytesMatchPhysicalCacheState() throws Exception {
-        createThenMountASearchableSnapshotAndExecute((restoredIndex, snapshotInfo) -> {
-            assertBusy(() -> {
-                long physicalCacheSize = getPhysicalCacheSize(restoredIndex, snapshotInfo.snapshotId().getUUID());
-                long recoveredBytes = getRecoveredBytes(restoredIndex.getName());
-
-                assertThat("Physical cache size doesn't match with recovery state data", physicalCacheSize, is(recoveredBytes));
-            });
-        });
+        createThenMountASearchableSnapshotAndExecute(this::assertRecoveredBytesMatchPhysicalCacheSize);
     }
 
     public void testRecoveryStateRecoveredBytesAreZeroAfterClearingTheCache() throws Exception {
         createThenMountASearchableSnapshotAndExecute((restoredIndex, snapshotInfo) -> {
+            assertRecoveredBytesMatchPhysicalCacheSize(restoredIndex, snapshotInfo);
+
             final ActionFuture<ClearSearchableSnapshotsCacheResponse> future = client().execute(
                 ClearSearchableSnapshotsCacheAction.INSTANCE,
                 new ClearSearchableSnapshotsCacheRequest(restoredIndex.getName())
@@ -89,6 +84,15 @@ public class SearchableSnapshotsRecoveryStateTests extends BaseSearchableSnapsho
 
             assertThat(recoveredBytes, is(0L));
             assertThat(physicalCacheSize, is(0L));
+        });
+    }
+
+    private void assertRecoveredBytesMatchPhysicalCacheSize(Index restoredIndex, SnapshotInfo snapshotInfo) throws Exception {
+        assertBusy(() -> {
+            long physicalCacheSize = getPhysicalCacheSize(restoredIndex, snapshotInfo.snapshotId().getUUID());
+            long recoveredBytes = getRecoveredBytes(restoredIndex.getName());
+
+            assertThat("Physical cache size doesn't match with recovery state data", physicalCacheSize, equalTo(recoveredBytes));
         });
     }
 

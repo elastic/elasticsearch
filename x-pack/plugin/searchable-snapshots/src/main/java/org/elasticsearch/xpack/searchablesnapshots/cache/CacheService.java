@@ -80,11 +80,13 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     public void addRemovalListener(RemovalListener listener) {
+        assert removalListeners.contains(listener) == false : "The removal listener is already registered";
         removalListeners.add(listener);
     }
 
     public void deleteRemovalListener(RemovalListener listener) {
-        removalListeners.remove(listener);
+        boolean removed = removalListeners.remove(listener);
+        assert removed : "The removal listener wasn't registered";
     }
 
     private void onCacheRemoval(RemovalNotification<CacheKey, CacheFile> notification) {

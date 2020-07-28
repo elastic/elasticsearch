@@ -42,6 +42,7 @@ import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -107,7 +108,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
     private final ShardId shardId;
     private final LongSupplier statsCurrentTimeNanosSupplier;
     private final Map<String, IndexInputStats> stats;
-    private final Set<String> recoveryStateRegisteredEvictionListeners;
     private final ThreadPool threadPool;
     private final CacheService cacheService;
     private final boolean useCache;
@@ -142,7 +142,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
         this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-        this.recoveryStateRegisteredEvictionListeners = ConcurrentCollections.newConcurrentSet();
         this.statsCurrentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Objects.requireNonNull(cacheDir);
@@ -175,12 +174,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
     /**
      * Loads the snapshot if and only if it the snapshot is not loaded yet.
      *
-     * @param recoveryStateIndex the recovery state index tracker
+     * @param recoveryState the recovery state that is backed by this Directory
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(OnDemandRecoveryState.Index recoveryStateIndex) {
+    public boolean loadSnapshot(RecoveryState recoveryState) {
         assert assertCurrentThreadMayLoadSnapshot();
-        assert recoveryStateIndex != null;
+        assert recoveryState != null;
+        assert recoveryState instanceof OnDemandRecoveryState;
         boolean alreadyLoaded = this.loaded;
         if (alreadyLoaded == false) {
             synchronized (this) {
@@ -189,9 +189,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
                     this.blobContainer = blobContainerSupplier.get();
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
-                    this.recoveryStateIndex = recoveryStateIndex;
+                    this.recoveryStateIndex = (OnDemandRecoveryState.Index) recoveryState.getIndex();
                     for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-                        recoveryStateIndex.addFileDetail(file.physicalName(), file.length(), false);
+                        this.recoveryStateIndex.addFileDetail(file.physicalName(), file.length(), false);
                     }
                     prewarmCache();
                 }
@@ -312,18 +312,18 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
             // Ideally we could let the cache evict/remove cached files by itself after the
             // directory has been closed.
             clearCache();
+            cacheService.deleteRemovalListener(this);
         }
     }
 
     public void clearCache() {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
-        cacheService.deleteRemovalListener(this);
     }
 
     @Override
     public void onRemoval(CacheKey cacheKey, CacheFile cacheFile) {
         if (cacheKey.belongsTo(snapshotId, indexId, shardId)) {
-            recoveryStateIndex.removeCacheFileDetail(cacheKey.getFileName(), cacheFile);
+            recoveryStateIndex.removeCacheFileRecoveryDetail(cacheKey.getFileName(), cacheFile);
         }
     }
 
@@ -461,8 +461,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory implements CacheS
         }
     }
 
-    public void trackCacheFile(String fileName, CacheFile cacheFile) {
-        recoveryStateIndex.addCacheFileDetail(fileName, cacheFile);
+    public void addCacheFileRecoveryDetail(String fileName, CacheFile cacheFile) {
+        recoveryStateIndex.addCacheFileRecoveryDetail(fileName, cacheFile);
     }
 
     public static Directory create(

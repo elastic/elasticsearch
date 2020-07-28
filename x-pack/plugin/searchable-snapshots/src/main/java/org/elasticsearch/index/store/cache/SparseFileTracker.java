@@ -48,12 +48,6 @@ public class SparseFileTracker {
         return length;
     }
 
-    public long getPhysicalLength() {
-        synchronized (mutex) {
-            return computeLengthOfRanges();
-        }
-    }
-
     /**
      * @return the sum of the length of the ranges
      */

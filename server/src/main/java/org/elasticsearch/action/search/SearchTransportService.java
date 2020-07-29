@@ -45,7 +45,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -109,11 +108,6 @@ public class SearchTransportService {
                                 ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
-    }
-
-    public void rerouteSearchRequest(DiscoveryNode node, SearchRequest request, Task task, ActionListener<SearchResponse> listener) {
-        transportService.sendChildRequest(node, SearchAction.NAME, request, task,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchResponse::new));
     }
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final

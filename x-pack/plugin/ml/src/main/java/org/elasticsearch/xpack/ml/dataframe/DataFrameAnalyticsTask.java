@@ -299,6 +299,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 }
                 IndexRequest indexRequest = new IndexRequest(indexOrAlias)
                     .id(progressDocId)
+                    .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     new StoredProgress(stats.get().getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);

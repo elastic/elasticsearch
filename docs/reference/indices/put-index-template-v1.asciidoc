@@ -1,18 +1,12 @@
 [[indices-templates-v1]]
 === Put index template API
 ++++
-<titleabbrev>Put index template</titleabbrev>
+<titleabbrev>Put index template (legacy)</titleabbrev>
 ++++
 
-This documentation is about legacy index templates, which are deprecated and will be replaced by
-composable templates. For information about composable templates, see <<indices-templates>>.
-
-[NOTE]
-====
-In {es} 7.8 composable templates were introduced. When a composable template matches a given index
-it always takes precedence over a legacy template. If no composable template matches, a legacy
-template may still match and be applied.
-====
+IMPORTANT: This documentation is about legacy index templates, 
+which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
+For information about composable templates, <<indices-templates>>.
 
 Creates or updates an index template.
 
@@ -64,12 +58,14 @@ DELETE _template/template_*
 Use the PUT index template API
 to create or update an index template.
 
-// tag::index-template-def[]
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
 that you can automatically apply when creating new indices.
 {es} applies templates to new indices
 based on an index pattern that matches the index name.
-// end::index-template-def[]
+
+NOTE: Composable templates always take precedence over legacy templates. 
+If no composable template matches a new index, 
+matching legacy templates are applied according to their order.
 
 Index templates are only applied during index creation.
 Changes to index templates do not affect existing indices.

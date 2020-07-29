@@ -66,17 +66,6 @@ public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
 
     @Override
     public Object toXContentAsObject(Geometry geometry) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
-            StreamInput input = BytesReference.bytes(builder).streamInput();
-
-            try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
-                return parser.map();
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return GeoJson.toMap(geometry);
     }
 }

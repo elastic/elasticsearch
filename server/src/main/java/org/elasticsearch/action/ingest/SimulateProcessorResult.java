@@ -33,7 +33,9 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -81,6 +83,21 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
     }
 
+    private static final ConstructingObjectParser<Tuple<String, Boolean>, Void> IF_CONDITION_PARSER =
+        new ConstructingObjectParser<>(
+            "if_condition_parser",
+            true,
+            a -> {
+                String condition = a[0] == null ? null : (String) a[0];
+                Boolean result = a[1] == null ? null : (Boolean) a[1];
+                return new Tuple<>(condition, result);
+            }
+        );
+    static {
+        IF_CONDITION_PARSER.declareString(optionalConstructorArg(), new ParseField("condition"));
+        IF_CONDITION_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("result"));
+    }
+
     public static final ConstructingObjectParser<SimulateProcessorResult, Void> PARSER =
         new ConstructingObjectParser<>(
             "simulate_processor_result",
@@ -89,17 +106,14 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
                 String type = (String) a[0];
                 String processorTag = a[1] == null ? null : (String)a[1];
                 String description = a[2] == null ? null : (String)a[2];
-                IngestDocument document = a[3] == null ? null : ((WriteableIngestDocument)a[3]).getIngestDocument();
+                Tuple<String, Boolean> conditionalWithResult = a[3] == null ? null : (Tuple<String, Boolean>)a[3];
+                IngestDocument document = a[4] == null ? null : ((WriteableIngestDocument)a[4]).getIngestDocument();
                 Exception failure = null;
-                if (a[4] != null) {
-                    failure = (ElasticsearchException)a[4];
-                } else if (a[5] != null) {
+                if (a[5] != null) {
                     failure = (ElasticsearchException)a[5];
+                } else if (a[6] != null) {
+                    failure = (ElasticsearchException)a[6];
                 }
-                //TODO:
-                Tuple<String, Boolean> conditionalWithResult = null;
-                //Status status = Status.fromString((String) a[6]);
-                //FIXME
 
                 return new SimulateProcessorResult(type, processorTag, description, document, failure, conditionalWithResult);
             }
@@ -108,6 +122,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.TAG_KEY));
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.DESCRIPTION_KEY));
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            IF_CONDITION_PARSER,
+            new ParseField("if")
+        );
         PARSER.declareObject(
             optionalConstructorArg(),
             WriteableIngestDocument.INGEST_DOC_PARSER,
@@ -123,7 +142,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             (p, c) -> ElasticsearchException.fromXContent(p),
             new ParseField("error")
         );
-        PARSER.declareString(optionalConstructorArg(), new ParseField(STATUS_FIELD)); //fixme ... don't acutually need the status field, only the if condition object
     }
 
     public SimulateProcessorResult(String type, String processorTag, String description, IngestDocument ingestDocument,
@@ -158,8 +176,13 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
         if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            this.type = in.readString();
             this.description = in.readOptionalString();
+        } else {
+            this.description = null;
+        }
+        //TODO: fix the version after backport
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.type = in.readString();
             boolean hasConditional = in.readBoolean();
             if (hasConditional) {
                 this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
@@ -167,7 +190,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
                 this.conditionalWithResult = null; //no condition exists
             }
         } else {
-            this.description = null;
             this.conditionalWithResult = null;
             this.type = null;
         }
@@ -179,8 +201,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeString(type);
             out.writeOptionalString(description);
+        }
+        //TODO: fix the version after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeString(type);
             out.writeBoolean(conditionalWithResult != null);
             if (conditionalWithResult != null) {
                 out.writeString(conditionalWithResult.v1());
@@ -212,7 +237,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-
         if(type != null){
             builder.field(TYPE_FIELD, type);
         }
@@ -234,7 +258,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             builder.endObject();
         }
 
-
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);
             ElasticsearchException.generateFailureXContent(builder, params, failure, true);
@@ -255,26 +278,21 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    //TODO: clean this up and this
     private Status getStatus() {
-        if (conditionalWithResult != null) {
-            if (conditionalWithResult.v2() == false) {
-                return Status.SKIPPED;
+        //if no condition, or condition passed
+        if (conditionalWithResult == null || (conditionalWithResult != null && conditionalWithResult.v2())) {
+            if (failure != null) {
+                if (ingestDocument == null) {
+                    return Status.ERROR;
+                } else {
+                    return Status.ERROR_IGNORED;
+                }
+            } else if (ingestDocument == null) {
+                return Status.DROPPED;
             }
-            return getStatusTrueCondition();
+            return Status.SUCCESS;
+        } else { //has condition that failed the check
+            return Status.SKIPPED;
         }
-        return getStatusTrueCondition();
-    }
-    private Status getStatusTrueCondition(){
-        if (failure != null) {
-            if (ingestDocument == null) {
-                return Status.ERROR;
-            } else {
-                return Status.ERROR_IGNORED;
-            }
-        } else if (ingestDocument == null) {
-            return Status.DROPPED;
-        }
-        return Status.SUCCESS;
     }
 }

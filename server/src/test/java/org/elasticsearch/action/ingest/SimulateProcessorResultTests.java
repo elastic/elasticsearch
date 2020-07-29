@@ -20,6 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +46,8 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     public void testSerialization() throws IOException {
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
-        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
+        boolean hasCondition = randomBoolean();
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException, hasCondition);
 
         BytesStreamOutput out = new BytesStreamOutput();
         simulateProcessorResult.writeTo(out);
@@ -73,7 +75,8 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     public void testBWCDescription() throws IOException {
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
-        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
+        boolean hasCondition = randomBoolean();
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException, hasCondition);
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
@@ -85,22 +88,23 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     }
 
     static SimulateProcessorResult createTestInstance(boolean isSuccessful,
-                                                                boolean isIgnoredException) {
+                                                                boolean isIgnoredException, boolean hasCondition) {
         String type = randomAlphaOfLengthBetween(1, 10);
         String processorTag = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(1, 10);
+        Tuple<String, Boolean> conditionWithResult = hasCondition ? new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomBoolean()) : null;
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {
             IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
                 simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument,
-                    new IllegalArgumentException("test"), null);
+                    new IllegalArgumentException("test"), conditionWithResult);
             } else {
-                simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument, null);
+                simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument, conditionWithResult);
             }
         } else {
             simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description,
-                new IllegalArgumentException("test"), null);
+                new IllegalArgumentException("test"), conditionWithResult);
         }
         return simulateProcessorResult;
     }
@@ -108,13 +112,14 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     private static SimulateProcessorResult createTestInstanceWithFailures() {
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
-        return createTestInstance(isSuccessful, isIgnoredException);
+        boolean hasCondition = randomBoolean();
+        return createTestInstance(isSuccessful, isIgnoredException, hasCondition);
     }
 
     @Override
     protected SimulateProcessorResult createTestInstance() {
         // we test failures separately since comparing XContent is not possible with failures
-        return createTestInstance(true, false);
+        return createTestInstance(true, false, true);
     }
 
     @Override

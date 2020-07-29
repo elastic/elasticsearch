@@ -150,7 +150,10 @@ include::request/search-type.asciidoc[]
 
 See <<sort-search-results>>.
 
-include::request/source-filtering.asciidoc[]
+[[request-body-search-source-filtering]]
+==== Source filtering
+
+See <<source filtering>>.
 
 include::request/stored-fields.asciidoc[]
 

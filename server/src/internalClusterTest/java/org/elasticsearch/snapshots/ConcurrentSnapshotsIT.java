@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -468,8 +469,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, dataNode);
         unblockNode(repoName, dataNode2);
 
-        assertAcked(firstDeleteFuture.get());
-        assertAcked(deleteAllSnapshots.get());
+        for (ActionFuture<AcknowledgedResponse> deleteFuture : Arrays.asList(firstDeleteFuture, deleteAllSnapshots)) {
+            try {
+                assertAcked(deleteFuture.actionGet());
+            } catch (RepositoryException rex) {
+                // rarely the master node fails over twice when shutting down the initial master and fails the transport listener
+                assertThat(rex.repository(), is("_all"));
+                assertThat(rex.getMessage(), endsWith("Failed to update cluster state during repository operation"));
+            }
+        }
         expectThrows(SnapshotException.class, snapshotThreeFuture::actionGet);
 
         logger.info("--> verify that all snapshots are gone and no more work is left in the cluster state");

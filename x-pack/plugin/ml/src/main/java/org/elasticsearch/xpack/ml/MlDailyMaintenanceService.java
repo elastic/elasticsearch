@@ -17,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,6 +41,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -150,10 +152,10 @@ public class MlDailyMaintenanceService implements Releasable {
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
 
-            // Step 3: Log whether the tasks have finished
+            // Step 3: Log any error that could have happened
             ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
-                unused -> LOGGER.info("Completed [ML] maintenance tasks"),
-                e -> LOGGER.error("An error occurred during maintenance tasks execution", e)
+                unused -> {},
+                e -> LOGGER.error("An error occurred during [ML] maintenance tasks execution", e)
             );
 
             // Step 2: Delete expired data
@@ -200,12 +202,18 @@ public class MlDailyMaintenanceService implements Releasable {
     public void triggerDeleteJobsInStateDeletingWithoutDeletionTask(ActionListener<AcknowledgedResponse> finalListener) {
         SetOnce<Set<String>> jobsInStateDeletingHolder = new SetOnce<>();
 
-        ActionListener<List<AcknowledgedResponse>> deleteJobsActionListener = ActionListener.wrap(
+        ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = ActionListener.wrap(
             deleteJobsResponses -> {
-                if (deleteJobsResponses.stream().allMatch(AcknowledgedResponse::isAcknowledged)) {
+                List<String> jobIds =
+                    deleteJobsResponses.stream()
+                        .filter(t -> t.v2().isAcknowledged() == false)
+                        .map(Tuple::v1)
+                        .map(DeleteJobAction.Request::getJobId)
+                        .collect(toList());
+                if (jobIds.isEmpty()) {
                     LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
                 } else {
-                    LOGGER.info("At least one of the ML jobs could not be deleted");
+                    LOGGER.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
                 }
                 finalListener.onResponse(new AcknowledgedResponse(true));
             },
@@ -222,14 +230,22 @@ public class MlDailyMaintenanceService implements Releasable {
                         .map(t -> t.getDescription().substring(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX.length()))
                         .collect(toSet());
                 Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
-
-                TypedChainTaskExecutor<AcknowledgedResponse> chainTaskExecutor =
-                    new TypedChainTaskExecutor<>(threadPool.generic(), unused -> true, unused -> true);
+                if (jobsInStateDeletingWithoutDeletionTask.isEmpty()) {
+                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    return;
+                }
+                TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor =
+                    new TypedChainTaskExecutor<>(threadPool.executor(ThreadPool.Names.SAME), unused -> true, unused -> true);
                 for (String jobId : jobsInStateDeletingWithoutDeletionTask) {
+                    DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
                     chainTaskExecutor.add(
                         listener ->
                             executeAsyncWithOrigin(
-                                client, ML_ORIGIN, DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId), listener)
+                                client,
+                                ML_ORIGIN,
+                                DeleteJobAction.INSTANCE,
+                                request,
+                                ActionListener.wrap(response -> listener.onResponse(Tuple.tuple(request, response)), listener::onFailure))
                     );
                 }
                 chainTaskExecutor.execute(deleteJobsActionListener);

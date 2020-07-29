@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,13 +20,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -139,6 +146,84 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, times(2)).threadPool();
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verifyNoMoreInteractions(client, mlAssignmentNotifier);
+    }
+
+    public void testJobInDeletingStateAlreadyHasDeletionTask() throws InterruptedException {
+        String jobId = "job-in-state-deleting";
+        TaskInfo taskInfo =
+            new TaskInfo(
+                new TaskId("test", 123),
+                "test",
+                DeleteJobAction.NAME,
+                "delete-job-" + jobId,
+                null,
+                0,
+                0,
+                true,
+                new TaskId("test", 456),
+                Collections.emptyMap());
+
+        when(clusterService.state()).thenReturn(createClusterState(false));
+        doAnswer(withResponse(new DeleteExpiredDataAction.Response(true)))
+            .when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        Job job = mock(Job.class);
+        when(job.getId()).thenReturn(jobId);
+        when(job.isDeleting()).thenReturn(true);
+        doAnswer(withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.singletonList(job), 1, new ParseField("")))))
+            .when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new ListTasksResponse(Collections.singletonList(taskInfo), Collections.emptyList(), Collections.emptyList())))
+            .when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(2);
+        try (MlDailyMaintenanceService service = createService(latch, client)) {
+            service.start();
+            latch.await(5, TimeUnit.SECONDS);
+        }
+
+        verify(client, times(3)).threadPool();
+        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verifyNoMoreInteractions(client, mlAssignmentNotifier);
+    }
+
+    public void testJobGetsDeleted() throws InterruptedException {
+        testJobInDeletingStateDoesNotHaveDeletionTask(true);
+    }
+
+    public void testJobDoesNotGetDeleted() throws InterruptedException {
+        testJobInDeletingStateDoesNotHaveDeletionTask(false);
+    }
+
+    private void testJobInDeletingStateDoesNotHaveDeletionTask(boolean deleted) throws InterruptedException {
+        String jobId = "job-in-state-deleting";
+        when(clusterService.state()).thenReturn(createClusterState(false));
+        doAnswer(withResponse(new DeleteExpiredDataAction.Response(true)))
+            .when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        Job job = mock(Job.class);
+        when(job.getId()).thenReturn(jobId);
+        when(job.isDeleting()).thenReturn(true);
+        doAnswer(withResponse(new GetJobsAction.Response(new QueryPage<>(Collections.singletonList(job), 1, new ParseField("")))))
+            .when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList())))
+            .when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new AcknowledgedResponse(deleted)))
+            .when(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(2);
+        try (MlDailyMaintenanceService service = createService(latch, client)) {
+            service.start();
+            latch.await(5, TimeUnit.SECONDS);
+        }
+
+        verify(client, times(4)).threadPool();
+        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
+        verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }

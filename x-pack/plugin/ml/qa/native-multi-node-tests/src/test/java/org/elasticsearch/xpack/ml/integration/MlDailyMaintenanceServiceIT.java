@@ -45,7 +45,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         jobConfigProvider = new JobConfigProvider(client(), xContentRegistry());
         threadPool = mock(ThreadPool.class);
         ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(directExecutorService);
+        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(directExecutorService);
     }
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {
@@ -92,7 +92,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         function.accept(listener);
         latch.await();
         if (exceptionHolder.get() != null) {
-            assertNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
+            fail(exceptionHolder.get().getMessage());
         }
     }
 

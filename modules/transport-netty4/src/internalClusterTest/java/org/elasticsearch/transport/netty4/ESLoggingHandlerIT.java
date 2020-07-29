@@ -33,7 +33,7 @@ import org.elasticsearch.transport.TransportLogger;
 
 import java.io.IOException;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2)
+@ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;

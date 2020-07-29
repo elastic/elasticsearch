@@ -179,19 +179,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
-                    o.writeVInt(v == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
-                    if (v != MappingMetadata.EMPTY_MAPPINGS) {
-                        o.writeString(MapperService.SINGLE_MAPPING_NAME);
-                        v.writeTo(o);
-                    }
-                } : (o, v) -> {
-                    o.writeBoolean(v != MappingMetadata.EMPTY_MAPPINGS);
-                    if (v != MappingMetadata.EMPTY_MAPPINGS) {
-                        v.writeTo(o);
-                    }
-                }
-        );
+        MappingMetadata.writeMappingMetadata(out, mappings);
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
         out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
         out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));

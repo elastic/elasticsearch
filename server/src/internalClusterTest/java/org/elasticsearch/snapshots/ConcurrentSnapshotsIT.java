@@ -1172,6 +1172,22 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoryData.shardGenerations(), is(ShardGenerations.EMPTY));
     }
 
+    public void testQueuedDeleteAfterFinalizationFailure() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final String snapshotName = "snap-1";
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDelete(repoName, snapshotName);
+        awaitNDeletionsInProgress(1);
+        unblockNode(repoName, masterNode);
+        assertAcked(deleteFuture.get());
+        final SnapshotException sne = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        assertThat(sne.getCause().getMessage(), containsString("exception after block"));
+    }
+
     private static String startDataNodeWithLargeSnapshotPool() {
         return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
     }

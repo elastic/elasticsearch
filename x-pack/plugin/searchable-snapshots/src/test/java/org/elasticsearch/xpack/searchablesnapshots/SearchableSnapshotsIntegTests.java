@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -84,7 +85,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String aliasName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String restoredIndexName = true ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         final Path repo = randomRepoPath();
@@ -132,6 +133,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        ensureGreen(indexName);
 
         assertShardFolders(indexName, false);
 
@@ -201,11 +203,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+        ensureGreen(restoredIndexName);
         assertShardFolders(restoredIndexName, true);
 
         if (deletedBeforeMount) {
             assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
             assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        } else if (indexName.equals(restoredIndexName) == false) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertAcked(client().admin().indices().prepareAliases()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
+                .addAlias(restoredIndexName, aliasName));
         }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
@@ -294,17 +302,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     private void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
+        final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
         boolean shardFolderFound = false;
         for (String node : internalCluster().getNodeNames()) {
             final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
                 assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
 
                 assertTrue(Files.exists(shardPath.resolveTranslog()));
-
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {

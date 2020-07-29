@@ -105,7 +105,7 @@
             properties:
               timestamp:
                 type: date
-                format: yyyy-MM-dd HH:mm:ss.SSS
+                format: 8yyyy-MM-dd HH:mm:ss.SSS
   - do:
       bulk:
         refresh: true
@@ -173,7 +173,7 @@
             properties:
               timestamp:
                 type: date_nanos
-                format: yyyy-MM-dd HH:mm:ss.SSSSSS
+                format: 8yyyy-MM-dd HH:mm:ss.SSSSSS
   - do:
       bulk:
         refresh: true

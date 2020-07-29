@@ -19,6 +19,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * under the License.
  */
 apply plugin: "elasticsearch.publish"
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'
@@ -26,6 +27,8 @@ esplugin {
   hasClientJar = true
 }
 
+// integTest have been converted to internalClusterTest 
+integTest.enabled = false
 dependencies {
   api project(':libs:elasticsearch-nio')
 

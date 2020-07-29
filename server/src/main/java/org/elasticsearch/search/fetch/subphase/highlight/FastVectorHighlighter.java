@@ -102,7 +102,7 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                 field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, hitContext,
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, hitContext.sourceLookup(),
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
@@ -113,7 +113,7 @@ public class FastVectorHighlighter implements Highlighter {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, hitContext,
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, hitContext.sourceLookup(),
                                     field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
@@ -122,8 +122,8 @@ public class FastVectorHighlighter implements Highlighter {
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder =
-                                new SourceSimpleFragmentsBuilder(fieldType, hitContext, field.fieldOptions().preTags(),
-                                    field.fieldOptions().postTags(), boundaryScanner);
+                                new SourceSimpleFragmentsBuilder(fieldType, hitContext.sourceLookup(),
+                                    field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }
                 }

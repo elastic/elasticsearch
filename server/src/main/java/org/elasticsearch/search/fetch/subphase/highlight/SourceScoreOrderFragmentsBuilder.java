@@ -26,7 +26,6 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -35,22 +34,21 @@ import java.util.List;
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final MappedFieldType fieldType;
-    private final FetchSubPhase.HitContext context;
+    private final SourceLookup sourceLookup;
 
     public SourceScoreOrderFragmentsBuilder(MappedFieldType fieldType,
-                                            FetchSubPhase.HitContext context,
+                                            SourceLookup sourceLookup,
                                             String[] preTags,
                                             String[] postTags,
                                             BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.fieldType = fieldType;
-        this.context = context;
+        this.sourceLookup = sourceLookup;
     }
 
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        SourceLookup sourceLookup = context.sourceLookup();
         List<Object> values = sourceLookup.extractRawValues(fieldType.name());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {

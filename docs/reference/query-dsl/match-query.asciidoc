@@ -89,7 +89,7 @@ transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>> for valid values and more
 information.
 
-If the `fuzziness` parameter is not `0`, the `match` query uses a `rewrite`
+If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite`
 method of `top_terms_blended_freqs_${max_expansions}` by default.
 --
 

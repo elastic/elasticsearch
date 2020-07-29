@@ -2,7 +2,7 @@
 === Japanese (kuromoji) Analysis Plugin
 
 The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis
-module into elasticsearch.
+module into {es}.
 
 :plugin_name: analysis-kuromoji
 include::install_remove.asciidoc[]
@@ -22,6 +22,62 @@ The `kuromoji` analyzer consists of the following tokenizer and token filters:
 
 It supports the `mode` and `user_dictionary` settings from
 <<analysis-kuromoji-tokenizer,`kuromoji_tokenizer`>>.
+
+[discrete]
+[[kuromoji-analyzer-normalize-full-width-characters]]
+==== Normalize full-width characters
+
+The `kuromoji_tokenizer` tokenizer uses characters from the MeCab-IPADIC
+dictionary to split text into tokens. The dictionary includes some full-width
+characters, such as `ｏ` and `ｆ`. If a text contains full-width characters,
+the tokenizer can produce unexpected tokens.
+
+For example, the `kuromoji_tokenizer` tokenizer converts the text
+`Ｃｕｌｔｕｒｅ　ｏｆ　Ｊａｐａｎ` to the tokens `[ culture, o, f, japan ]` by
+default. However, a user may expect the tokenizer to instead produce 
+`[ culture, of, japan ]`.
+
+To avoid this, add the <<analysis-icu-normalization-charfilter,`icu_normalizer`
+character filter>> to a custom analyzer based on the `kuromoji` analyzer. The
+`icu_normalizer` character filter converts full-width characters to their normal
+equivalents.
+
+First, duplicate the `kuromoji` analyzer to create the basis for a custom
+analyzer. Then add the `icu_normalizer` character filter to the custom analyzer.
+For example:
+
+[source,console]
+----
+PUT index-00001
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "kuromoji_normalize": {                 <1>
+            "char_filter": [
+              "icu_normalizer"                    <2>
+            ],
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "kuromoji_baseform",
+              "kuromoji_part_of_speech",
+              "cjk_width",
+              "ja_stop",
+              "kuromoji_stemmer",
+              "lowercase"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+----
+<1> Creates a new custom analyzer, `kuromoji_normalize`, based on the `kuromoji`
+analyzer.
+<2> Adds the `icu_normalizer` character filter to the analyzer.
+
 
 [[analysis-kuromoji-charfilter]]
 ==== `kuromoji_iteration_mark` character filter
@@ -213,6 +269,11 @@ The above `analyze` request returns the following:
     Example output with `search` or `extended` mode and this option `true`:
 
     関西, 国際, 空港
+
+NOTE: If a text contains full-width characters, the `kuromoji_tokenizer`
+tokenizer can produce unexpected tokens. To avoid this, add the
+<<analysis-icu-normalization-charfilter,`icu_normalizer` character filter>> to
+your analyzer. See <<kuromoji-analyzer-normalize-full-width-characters>>.
 
 
 [[analysis-kuromoji-baseform]]

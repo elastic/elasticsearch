@@ -29,10 +29,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -97,16 +95,18 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testSimpleDataStreamPivot() throws Exception {
         String indexName = "reviews_data_stream";
-        createReviewsIndex(indexName,  1000, "date", true);
+        createReviewsIndex(indexName, 1000, "date", true, -1, null);
         String transformId = "simple_data_stream_pivot";
         String transformIndex = "pivot_reviews_data_stream";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
-        createPivotReviewsTransform(transformId,
+        createPivotReviewsTransform(
+            transformId,
             transformIndex,
             null,
             null,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
-            indexName);
+            indexName
+        );
 
         startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
@@ -338,7 +338,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testContinuousPivot() throws Exception {
         String indexName = "continuous_reviews";
-        createReviewsIndex(indexName);
+        createReviewsIndex(indexName, 1000, "date", false, 5, "user_id");
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -360,7 +360,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "   \"group_by\": {"
             + "     \"reviewer\": {"
             + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
+            + "         \"field\": \"user_id\","
+            + "         \"missing_bucket\": true"
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -376,7 +377,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertTrue(indexExists(transformIndex));
         // get and check some users
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+
+        // missing bucket check
+        assertOnePivotValue(transformIndex + "/_search?q=!_exists_:reviewer", 3.72);
+
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
@@ -424,6 +428,19 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 .append("\",\"timestamp\":")
                 .append(dateStamp)
                 .append("}\n");
+
+            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
+            bulk.append("{")
+                .append("\"business_id\":\"")
+                .append("business_")
+                .append(business)
+                .append("\",\"stars\":")
+                .append(stars)
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":")
+                .append(dateStamp)
+                .append("}\n");
         }
         bulk.append("\r\n");
 
@@ -439,20 +456,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         // assert that other users are unchanged
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=!_exists_:reviewer", 4.36);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
 
-        Map<String, Object> user26searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_26");
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", user26searchResult));
-        double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user26searchResult)).get(0);
-        assertThat(actual, greaterThan(3.92));
-
-        Map<String, Object> user42searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_42");
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", user42searchResult));
-        actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user42searchResult)).get(0);
-        assertThat(actual, greaterThan(0.0));
-        assertThat(actual, lessThan(5.0));
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 4.354838709);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
     }
 
     public void testHistogramPivot() throws Exception {
@@ -738,7 +747,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "              \"size\": 2"
             + "         }}"
             + "        } "
-            +"      },"
+            + "      },"
             + "     \"rare_users\": {"
             + "       \"rare_terms\": {"
             + "         \"field\": \"user_id\""
@@ -769,25 +778,28 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             searchResult
         )).get(0);
         assertThat(commonUsers, is(not(nullValue())));
-        assertThat(commonUsers, equalTo(new HashMap<>(){{
-            put("user_10",
-                Collections.singletonMap(
-                    "common_businesses",
-                    new HashMap<>(){{
+        assertThat(commonUsers, equalTo(new HashMap<>() {
+            {
+                put("user_10", Collections.singletonMap("common_businesses", new HashMap<>() {
+                    {
                         put("business_12", 6);
                         put("business_9", 4);
-            }}));
-            put("user_0", Collections.singletonMap(
-                "common_businesses",
-                new HashMap<>(){{
-                    put("business_0", 35);
-            }}));
-        }}));
+                    }
+                }));
+                put("user_0", Collections.singletonMap("common_businesses", new HashMap<>() {
+                    {
+                        put("business_0", 35);
+                    }
+                }));
+            }
+        }));
         assertThat(rareUsers, is(not(nullValue())));
-        assertThat(rareUsers, equalTo(new HashMap<>(){{
-            put("user_5", 1);
-            put("user_12", 1);
-        }}));
+        assertThat(rareUsers, equalTo(new HashMap<>() {
+            {
+                put("user_5", 1);
+                put("user_12", 1);
+            }
+        }));
     }
 
     private void assertDateHistogramPivot(String indexName) throws Exception {

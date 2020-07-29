@@ -26,7 +26,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";

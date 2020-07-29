@@ -12,9 +12,8 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testImplementation "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
+  javaRestTestImplementation "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }

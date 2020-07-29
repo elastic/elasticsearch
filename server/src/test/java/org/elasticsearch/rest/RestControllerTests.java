@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -92,7 +93,7 @@ public class RestControllerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, (a, b) -> false);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -107,7 +108,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", true)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> false);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -143,7 +144,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> false);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -157,7 +158,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> false);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -211,7 +212,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, (a, b) -> false);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod =
@@ -238,7 +239,7 @@ public class RestControllerTests extends ESTestCase {
                 h -> {
                     assertSame(handler, h);
                     return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-                }, null, circuitBreakerService, usageService, (a, b) -> false);
+                }, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -301,7 +302,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, (a, b) -> false);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, (a, b) -> Version.CURRENT);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (r, c, client) -> c.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));

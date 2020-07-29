@@ -258,7 +258,6 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -428,7 +427,7 @@ public class ActionModule extends AbstractModule {
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
                         CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService,
-                        List<RestCompatibilityPlugin> restCompatPlugins) {
+                        BiFunction<String, String, Version> restCompatibleFunction) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -460,18 +459,7 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        BiFunction<Map<String, List<String>>, Boolean, Boolean> minimumRestCompatibilityVersion = getMinimumRestCompatibilityVersion(restCompatPlugins);
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, minimumRestCompatibilityVersion);
-    }
-
-    private BiFunction<Map<String, List<String>>, Boolean, Boolean> getMinimumRestCompatibilityVersion(List<RestCompatibilityPlugin> restCompatPlugins) {
-        if (restCompatPlugins.size() > 1) {
-            throw new IllegalStateException("Only one rest compatibility plugin is allowed");
-        }
-        return (headers, hasContent) -> restCompatPlugins.stream()
-            .findFirst()
-            .orElse((a, b) -> false)
-            .isRequestingCompatibility(headers, hasContent);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restCompatibleFunction);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

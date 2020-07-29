@@ -20,10 +20,12 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 
 import java.util.List;
 import java.util.Map;
 
-public interface RestCompatibilityPlugin {
-    boolean isRequestingCompatibility(Map<String, List<String>> headers, boolean hasContent);
+@FunctionalInterface
+public interface RestCompatibility {
+    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader);
 }

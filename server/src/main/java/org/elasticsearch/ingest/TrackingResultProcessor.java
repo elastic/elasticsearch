@@ -24,6 +24,7 @@ import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -83,6 +84,9 @@ public final class TrackingResultProcessor implements Processor {
                 } else {
                     //now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
                     CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
+                    //add the pipeline process to the results
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), conditionalWithResult));
                     Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
                         verbosePipelineProcessor);
                     ingestDocument.executePipeline(verbosePipeline, handler);
@@ -146,7 +150,16 @@ public final class TrackingResultProcessor implements Processor {
             }
             if (processor instanceof CompoundProcessor) {
                 processors.add(decorate((CompoundProcessor) processor, conditionalProcessor, processorResultList));
-            } else {
+
+            }
+//            else if (processor instanceof PipelineProcessor) {
+//                PipelineProcessor pipelineProcessor = (PipelineProcessor) processor;
+//                CompoundProcessor compoundProcessorFromPipeline = pipelineProcessor
+//                    .getPipeline(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())).getCompoundProcessor();
+//
+//                 processors.add(decorate(compoundProcessorFromPipeline, null, processorResultList));
+//            }
+            else {
                 processors.add(
                     new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList));
             }

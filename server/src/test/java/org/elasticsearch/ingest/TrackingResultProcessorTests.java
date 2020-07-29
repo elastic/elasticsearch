@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -281,19 +282,23 @@ public class TrackingResultProcessorTests extends ESTestCase {
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(1)).getPipeline(pipelineId);
-        assertThat(resultList.size(), equalTo(3));
 
-        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+        assertThat(resultList.size(), equalTo(4));
+
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
 
         assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
-        assertTrue(resultList.get(1).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
         assertFalse(resultList.get(1).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
-        assertThat(resultList.get(2).getFailure(), nullValue());
-        assertThat(resultList.get(2).getProcessorTag(), nullValue());
+        assertTrue(resultList.get(2).getIngestDocument().hasField(key1));
+        assertTrue(resultList.get(2).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(2).getIngestDocument().hasField(key3));
+
+        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(3).getFailure(), nullValue());
+        assertThat(resultList.get(3).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessorWithTrueConditional() throws Exception {
@@ -326,7 +331,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
-                factory.create(Collections.emptyMap(), null, null, pipelineConfig2)),
+                factory.create(Collections.emptyMap(), "pipeline1", null, pipelineConfig2)),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key3, randomInt()); })
         )
         );
@@ -338,13 +343,12 @@ public class TrackingResultProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
 
-        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, pipelineConfig0);
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), "pipeline0", null, pipelineConfig0);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
-
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
             actualProcessor.getDescription(), ingestDocument, null);
@@ -353,19 +357,28 @@ public class TrackingResultProcessorTests extends ESTestCase {
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId2);
 
-        assertThat(resultList.size(), equalTo(3));
+        assertThat(resultList.size(), equalTo(5));
 
-        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
+        assertThat(resultList.get(0).getProcessorTag(), equalTo("pipeline0"));
 
         assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
-        assertTrue(resultList.get(1).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
         assertFalse(resultList.get(1).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
-        assertThat(resultList.get(2).getFailure(), nullValue());
-        assertThat(resultList.get(2).getProcessorTag(), nullValue());
+        assertThat(resultList.get(2).getConditionalWithResult().v1(), equalTo(scriptName));
+        assertThat(resultList.get(2).getConditionalWithResult().v2(), is(Boolean.TRUE));
+        assertThat(resultList.get(2).getType(), equalTo("pipeline"));
+        assertThat(resultList.get(2).getProcessorTag(), equalTo("pipeline1"));
+
+        assertTrue(resultList.get(3).getIngestDocument().hasField(key1));
+        assertTrue(resultList.get(3).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(3).getIngestDocument().hasField(key3));
+
+        assertThat(resultList.get(4).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(4).getFailure(), nullValue());
+        assertThat(resultList.get(4).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessorWithFalseConditional() throws Exception {
@@ -424,22 +437,21 @@ public class TrackingResultProcessorTests extends ESTestCase {
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
         verify(ingestService, Mockito.never()).getPipeline(pipelineId2);
 
-        assertThat(resultList.size(), equalTo(3));
+        assertThat(resultList.size(), equalTo(4));
 
-        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
 
-        assertThat(resultList.get(1).getConditionalWithResult().v1(), equalTo(scriptName));
-        assertThat(resultList.get(1).getConditionalWithResult().v2(), is(Boolean.FALSE));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key3));
 
-        assertTrue(resultList.get(2).getIngestDocument().hasField(key1));
-        assertFalse(resultList.get(2).getIngestDocument().hasField(key2));
-        assertTrue(resultList.get(2).getIngestDocument().hasField(key3));
+        assertThat(resultList.get(2).getConditionalWithResult().v1(), equalTo(scriptName));
+        assertThat(resultList.get(2).getConditionalWithResult().v2(), is(Boolean.FALSE));
 
-        assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
-        assertThat(resultList.get(2).getFailure(), nullValue());
-        assertThat(resultList.get(2).getProcessorTag(), nullValue());
+        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(3).getFailure(), nullValue());
+        assertThat(resultList.get(3).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessorWithHandledFailure() throws Exception {
@@ -479,23 +491,26 @@ public class TrackingResultProcessorTests extends ESTestCase {
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService, Mockito.atLeast(2)).getPipeline(pipelineId);
-        assertThat(resultList.size(), equalTo(4));
+        assertThat(resultList.size(), equalTo(5));
 
-        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
-        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
+
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key3));
 
         //failed processor
-        assertNull(resultList.get(1).getIngestDocument());
-        assertThat(resultList.get(1).getFailure().getMessage(), equalTo(exception.getMessage()));
+        assertNull(resultList.get(2).getIngestDocument());
+        assertThat(resultList.get(2).getFailure().getMessage(), equalTo(exception.getMessage()));
 
-        assertTrue(resultList.get(2).getIngestDocument().hasField(key1));
-        assertTrue(resultList.get(2).getIngestDocument().hasField(key2));
-        assertFalse(resultList.get(2).getIngestDocument().hasField(key3));
+        assertTrue(resultList.get(3).getIngestDocument().hasField(key1));
+        assertTrue(resultList.get(3).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(3).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
-        assertThat(resultList.get(3).getFailure(), nullValue());
-        assertThat(resultList.get(3).getProcessorTag(), nullValue());
+        assertThat(resultList.get(4).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(4).getFailure(), nullValue());
+        assertThat(resultList.get(4).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessorWithCycle() throws Exception {
@@ -546,6 +561,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
+        // calls the same pipeline twice
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor, pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -557,21 +573,24 @@ public class TrackingResultProcessorTests extends ESTestCase {
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(2)).getPipeline(pipelineId);
-        assertThat(resultList.size(), equalTo(2));
+        assertThat(resultList.size(), equalTo(4));
 
-        assertThat(resultList.get(0).getIngestDocument(), not(equalTo(expectedResult.getIngestDocument())));
-        assertThat(resultList.get(0).getFailure(), nullValue());
-        assertThat(resultList.get(0).getProcessorTag(), nullValue());
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
 
-        assertThat(resultList.get(1).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(1).getIngestDocument(), not(equalTo(expectedResult.getIngestDocument())));
         assertThat(resultList.get(1).getFailure(), nullValue());
         assertThat(resultList.get(1).getProcessorTag(), nullValue());
 
+        assertNull(resultList.get(2).getConditionalWithResult());
+        assertThat(resultList.get(2).getType(), equalTo("pipeline"));
+
+        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(3).getFailure(), nullValue());
+        assertThat(resultList.get(3).getProcessorTag(), nullValue());
+
         //each invocation updates key1 with a random int
-        assertNotEquals(resultList.get(0).getIngestDocument().getSourceAndMetadata().get(key1),
-            resultList.get(1).getIngestDocument().getSourceAndMetadata().get(key1));
+        assertNotEquals(resultList.get(1).getIngestDocument().getSourceAndMetadata().get(key1),
+            resultList.get(3).getIngestDocument().getSourceAndMetadata().get(key1));
     }
-
-
-
 }

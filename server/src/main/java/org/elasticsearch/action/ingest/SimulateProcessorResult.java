@@ -238,6 +238,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return conditionalWithResult;
     }
 
+    public String getType() {
+        return type;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

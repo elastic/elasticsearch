@@ -48,12 +48,16 @@ setup:
   - is_true: acknowledged
 
   - do:
+      indices.rollover:
+        alias: "simple-data-stream1"
+
+  - do:
       indices.data_streams_stats: {}
   - match: { data_stream_count: 1 }
-  - match: { backing_indices: 1 }
+  - match: { backing_indices: 2 }
   - length: { data_streams: 1 }
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }
-  - match: { data_streams.0.backing_indices: 1 }
+  - match: { data_streams.0.backing_indices: 2 }
   - match: { data_streams.0.maximum_timestamp: 0 }
 
   - do:

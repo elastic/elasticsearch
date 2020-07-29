@@ -13,7 +13,7 @@ the provided index name prefix and the provided date rounding get formatted into
 Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
 expression.
 
-An example pipeline that points documents to a monthly index that starts with a `myindex-` prefix based on a
+An example pipeline that points documents to a monthly index that starts with a `my-index-` prefix based on a
 date in the `date1` field:
 
 [source,console]
@@ -25,7 +25,7 @@ PUT _ingest/pipeline/monthlyindex
     {
       "date_index_name" : {
         "field" : "date1",
-        "index_name_prefix" : "myindex-",
+        "index_name_prefix" : "my-index-",
         "date_rounding" : "M"
       }
     }
@@ -38,7 +38,7 @@ Using that pipeline for an index request:
 
 [source,console]
 --------------------------------------------------
-PUT /myindex/_doc/1?pipeline=monthlyindex
+PUT /my-index/_doc/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
@@ -48,7 +48,7 @@ PUT /myindex/_doc/1?pipeline=monthlyindex
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "myindex-2016-04-01",
+  "_index" : "my-index-2016-04-01",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -64,11 +64,11 @@ PUT /myindex/_doc/1?pipeline=monthlyindex
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
-The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
+The above request will not index this document into the `my-index` index, but into the `my-index-2016-04-01` index because
 it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
 
 To see the date-math value of the index supplied in the actual index request which resulted in the above document being
-indexed into `myindex-2016-04-01` we can inspect the effects of the processor using a simulate request.
+indexed into `my-index-2016-04-01` we can inspect the effects of the processor using a simulate request.
 
 
 [source,console]
@@ -82,7 +82,7 @@ POST _ingest/pipeline/_simulate
       {
         "date_index_name" : {
           "field" : "date1",
-          "index_name_prefix" : "myindex-",
+          "index_name_prefix" : "my-index-",
           "date_rounding" : "M"
         }
       }
@@ -107,7 +107,7 @@ and the result:
     {
       "doc" : {
         "_id" : "_id",
-        "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_index" : "<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
         "_source" : {
           "date1" : "2016-04-25T12:02:01.789Z"
         },
@@ -121,7 +121,7 @@ and the result:
 --------------------------------------------------
 // TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
-The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+The above example shows that `_index` was set to `<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
 understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]

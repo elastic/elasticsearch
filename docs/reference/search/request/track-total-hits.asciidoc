@@ -23,12 +23,12 @@ that `"total.value"` is the accurate count.
 --------------------------------------------------
 GET twitter/_search
 {
-    "track_total_hits": true,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": true,
+    "query": {
+      "match" : {
+        "message" : "Elasticsearch"
+      }
+    }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -38,17 +38,17 @@ GET twitter/_search
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 100,
-    "hits": {
-        "max_score": 1.0,
-        "total" : {
-            "value": 2048,    <1>
-            "relation": "eq"  <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 100,
+  "hits": {
+    "max_score": 1.0,
+    "total" : {
+      "value": 2048,    <1>
+      "relation": "eq"  <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
@@ -68,12 +68,12 @@ the query up to 100 documents:
 --------------------------------------------------
 GET twitter/_search
 {
-    "track_total_hits": 100,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": 100,
+  "query": {
+    "match": {
+      "message": "Elasticsearch"
+    }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -87,17 +87,17 @@ For instance the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 30,
-    "hits" : {
-        "max_score": 1.0,
-        "total" : {
-            "value": 42,         <1>
-            "relation": "eq"     <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 30,
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 42,         <1>
+      "relation": "eq"     <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
@@ -119,15 +119,15 @@ will indicate that the returned value is a lower bound:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "hits" : {
-        "max_score": 1.0,
-        "total" : {
-            "value": 100,         <1>
-            "relation": "gte"     <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 100,         <1>
+      "relation": "gte"     <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:response is already tested in the previous snippet]
@@ -142,12 +142,12 @@ times by setting this option to `false`:
 --------------------------------------------------
 GET twitter/_search
 {
-    "track_total_hits": false,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": false,
+  "query": {
+    "match": {
+      "message": "Elasticsearch"
+    }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -157,13 +157,13 @@ GET twitter/_search
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 10,
-    "hits" : { <1>
-        "max_score": 1.0,
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 10,
+  "hits": {             <1>
+    "max_score": 1.0,
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]

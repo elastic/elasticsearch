@@ -25,7 +25,7 @@ GET /_search?scroll=1m
 --------------------------------------------------
 GET /_search/scroll
 {
-    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
+  "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 --------------------------------------------------
 // TEST[continued]

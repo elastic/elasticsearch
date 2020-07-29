@@ -25,7 +25,7 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 
 ========================================
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -99,7 +99,7 @@ The above sentence would produce the following terms:
 [ The, foo_bar_size, s, default, is, 5 ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern` tokenizer accepts the following parameters:
@@ -118,7 +118,7 @@ The `pattern` tokenizer accepts the following parameters:
 
     Which capture group to extract as tokens.  Defaults to `-1` (split).
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern` tokenizer to break text into
@@ -126,7 +126,7 @@ tokens when it encounters commas:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -145,7 +145,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "comma,separated,values"
@@ -214,7 +214,7 @@ escaped, so the pattern ends up looking like:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -234,7 +234,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "\"value\", \"value with embedded \\\" quote\""

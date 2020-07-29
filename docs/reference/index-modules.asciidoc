@@ -8,7 +8,7 @@
 Index Modules are modules created per index and control all aspects related to
 an index.
 
-[float]
+[discrete]
 [[index-modules-settings]]
 == Index Settings
 
@@ -31,7 +31,7 @@ WARNING: Changing static or dynamic index settings on a closed index could
 result in incorrect settings that are impossible to rectify without deleting
 and recreating the index.
 
-[float]
+[discrete]
 === Static index settings
 
 Below is a list of all _static_ index settings that are not associated with any
@@ -88,14 +88,14 @@ indices.
     per request through the use of the `expand_wildcards` parameter. Possible values are
     `true` and `false` (default).
 
-[float]
+[discrete]
 [[dynamic-index-settings]]
 === Dynamic index settings
 
 Below is a list of all _dynamic_ index settings that are not associated with any
 specific index module:
 
-
+[[dynamic-index-number-of-replicas]]
 `index.number_of_replicas`::
 
     The number of replicas each primary shard has.  Defaults to 1.
@@ -238,7 +238,7 @@ specific index module:
     the default pipeline (if it exists). The special pipeline name `_none`
     indicates no ingest pipeline will run.
 
-[float]
+[discrete]
 === Settings in other index modules
 
 Other index settings are available in index modules:
@@ -281,7 +281,11 @@ Other index settings are available in index modules:
 
     Control over the retention of a history of operations in the index.
 
-[float]
+<<index-modules-indexing-pressure,Indexing pressure>>::
+
+    Configure indexing back pressure limits.
+
+[discrete]
 [[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
 
@@ -311,3 +315,5 @@ include::index-modules/translog.asciidoc[]
 include::index-modules/history-retention.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]
+
+include::index-modules/indexing-pressure.asciidoc[]

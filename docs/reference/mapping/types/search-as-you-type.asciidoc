@@ -16,7 +16,7 @@ When adding a field of this type to a mapping
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -69,7 +69,7 @@ root field `my_field`.
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "my_field": "quick brown fox jump lazy dog"
 }
@@ -85,7 +85,7 @@ in order in a shingle subfield.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "multi_match": {
@@ -121,7 +121,7 @@ GET my_index/_search
     "max_score" : 0.8630463,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {
@@ -145,7 +145,7 @@ queries may be less efficient than using the `match_bool_prefix` query.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_phrase_prefix": {

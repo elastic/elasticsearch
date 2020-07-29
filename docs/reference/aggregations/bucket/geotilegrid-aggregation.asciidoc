@@ -34,13 +34,13 @@ fields, in which case all points will be taken into account during aggregation.
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-          "properties": {
-              "location": {
-                  "type": "geo_point"
-              }
-          }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -59,14 +59,14 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "large-grid" : {
-            "geotile_grid" : {
-                "field" : "location",
-                "precision" : 8
-            }
-        }
+  "aggregations": {
+    "large-grid": {
+      "geotile_grid": {
+        "field": "location",
+        "precision": 8
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -75,25 +75,25 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "large-grid": {
-            "buckets": [
-                {
-                  "key" : "8/131/84",
-                  "doc_count" : 3
-                },
-                {
-                  "key" : "8/129/88",
-                  "doc_count" : 2
-                },
-                {
-                  "key" : "8/131/85",
-                  "doc_count" : 1
-                }
-            ]
+  ...
+  "aggregations": {
+    "large-grid": {
+      "buckets": [
+        {
+          "key": "8/131/84",
+          "doc_count": 3
+        },
+        {
+          "key": "8/129/88",
+          "doc_count": 2
+        },
+        {
+          "key": "8/131/85",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -109,26 +109,26 @@ will be created and returned.
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "zoomed-in" : {
-            "filter" : {
-                "geo_bounding_box" : {
-                    "location" : {
-                        "top_left" : "52.4, 4.9",
-                        "bottom_right" : "52.3, 5.0"
-                    }
-                }
-            },
-            "aggregations":{
-                "zoom1":{
-                    "geotile_grid" : {
-                        "field": "location",
-                        "precision": 22
-                    }
-                }
-            }
+  "aggregations": {
+    "zoomed-in": {
+      "filter": {
+        "geo_bounding_box": {
+          "location": {
+            "top_left": "52.4, 4.9",
+            "bottom_right": "52.3, 5.0"
+          }
         }
+      },
+      "aggregations": {
+        "zoom1": {
+          "geotile_grid": {
+            "field": "location",
+            "precision": 22
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -136,28 +136,28 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "zoomed-in" : {
-            "doc_count" : 3,
-            "zoom1" : {
-                "buckets" : [
-                    {
-                      "key" : "22/2154412/1378379",
-                      "doc_count" : 1
-                    },
-                    {
-                      "key" : "22/2154385/1378332",
-                      "doc_count" : 1
-                    },
-                    {
-                      "key" : "22/2154259/1378425",
-                      "doc_count" : 1
-                    }
-                ]
-            }
-        }
+  ...
+  "aggregations": {
+    "zoomed-in": {
+      "doc_count": 3,
+      "zoom1": {
+        "buckets": [
+          {
+            "key": "22/2154412/1378379",
+            "doc_count": 1
+          },
+          {
+            "key": "22/2154385/1378332",
+            "doc_count": 1
+          },
+          {
+            "key": "22/2154259/1378425",
+            "doc_count": 1
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -177,18 +177,18 @@ to any additional `geo_bounding_box` queries defined in the context of the aggre
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "tiles-in-bounds" : {
-            "geotile_grid" : {
-                "field" : "location",
-                "precision" : 22,
-                "bounds": {
-                  "top_left" : "52.4, 4.9",
-                  "bottom_right" : "52.3, 5.0"
-                }
-            }
+  "aggregations": {
+    "tiles-in-bounds": {
+      "geotile_grid": {
+        "field": "location",
+        "precision": 22,
+        "bounds": {
+          "top_left": "52.4, 4.9",
+          "bottom_right": "52.3, 5.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -196,25 +196,25 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "tiles-in-bounds" : {
-           "buckets" : [
-               {
-                 "key" : "22/2154412/1378379",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "22/2154385/1378332",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "22/2154259/1378425",
-                 "doc_count" : 1
-               }
-           ]
+  ...
+  "aggregations": {
+    "tiles-in-bounds": {
+      "buckets": [
+        {
+          "key": "22/2154412/1378379",
+          "doc_count": 1
+        },
+        {
+          "key": "22/2154385/1378332",
+          "doc_count": 1
+        },
+        {
+          "key": "22/2154259/1378425",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -225,7 +225,7 @@ POST /museums/_search?size=0
 
 Aggregating on <<geo-shape>> fields works just as it does for points, except that a single
 shape can be counted for in multiple tiles. A shape will contribute to the count of matching values
-if any part of its shape intersects with that tile. Below is an image that demonstrates this
+if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
 
 image:images/spatial/geoshape_grid.png[]

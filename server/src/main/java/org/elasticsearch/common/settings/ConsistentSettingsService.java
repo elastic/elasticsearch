@@ -29,8 +29,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -43,10 +45,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 
 /**
  * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
@@ -245,11 +243,6 @@ public final class ConsistentSettingsService {
         @Override
         public void offMaster() {
             logger.trace("I am no longer master, nothing to do");
-        }
-
-        @Override
-        public String executorName() {
-            return ThreadPool.Names.SAME;
         }
     }
 

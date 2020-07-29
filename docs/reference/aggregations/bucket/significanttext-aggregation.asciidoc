@@ -36,21 +36,21 @@ Example:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {"content" : "Bird flu"}
-    },
-    "aggregations" : {
-        "my_sample" : {
-            "sampler" : {
-                "shard_size" : 100
-            },
-            "aggregations": {
-                "keywords" : {
-                    "significant_text" : { "field" : "content" }
-                }
-            }
+  "query": {
+    "match": { "content": "Bird flu" }
+  },
+  "aggregations": {
+    "my_sample": {
+      "sampler": {
+        "shard_size": 100
+      },
+      "aggregations": {
+        "keywords": {
+          "significant_text": { "field": "content" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]
@@ -109,7 +109,7 @@ mentioning "elasticsearch":
 [source,js]
 --------------------------------------------------
 {
-    ...
+  ...
   "aggregations": {
     "sample": {
       "doc_count": 35,
@@ -420,21 +420,21 @@ context:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {
-            "content" : "madrid"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_text" : {
-                "field" : "content",
-                "background_filter": {
-                    "term" : { "content" : "spain"}
-                }
-            }
-        }
+  "query": {
+    "match": {
+      "content": "madrid"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_text": {
+        "field": "content",
+        "background_filter": {
+          "term": { "content": "spain" }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]
@@ -458,19 +458,19 @@ will be analyzed using the `source_fields` parameter:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {
-            "custom_all" : "elasticsearch"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_text" : {
-                "field" : "custom_all",
-                "source_fields": ["content" , "title"]
-            }
-        }
+  "query": {
+    "match": {
+      "custom_all": "elasticsearch"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_text": {
+        "field": "custom_all",
+        "source_fields": [ "content", "title" ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]

@@ -7,6 +7,7 @@
 package org.elasticsearch.compat;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.Version;
@@ -30,6 +31,7 @@ public class CompatRestRequestTest extends ESTestCase {
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
     CompatRestRequest plugin = new CompatRestRequest();
+
     public void testAcceptAndContentTypeCombinations() {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()),
             Matchers.allOf(requestCreated(), isCompatible()));

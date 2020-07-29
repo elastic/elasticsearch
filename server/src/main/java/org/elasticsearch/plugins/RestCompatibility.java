@@ -24,8 +24,8 @@ import org.elasticsearch.common.Nullable;
 
 @FunctionalInterface
 public interface RestCompatibility {
-     Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader);
+    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent);
 
-     RestCompatibility CURRENT_VERSION = (a,c)->Version.CURRENT;
+    RestCompatibility CURRENT_VERSION = (acceptHeader, contentTypeHeader, hasContent) -> Version.CURRENT;
 
 }

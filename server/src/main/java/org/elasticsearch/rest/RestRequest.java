@@ -176,7 +176,8 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public Version getRequestedCompatibility(RestCompatibility restCompatibleFunction) {
-        return restCompatibleFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"));
+        //TODO why not header() ?
+        return restCompatibleFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"), hasContent());
     }
 
     private String getSingleHeader(String name) {

@@ -523,7 +523,7 @@ public class SysColumnsTests extends ESTestCase {
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, mapping);
 
         int[] rowCount = {0};
-        tuple.v1().execute(tuple.v2(), new ActionListener<>() {
+        tuple.v1().execute(tuple.v2(), new ActionListener<Cursor.Page>() {
             @Override
             public void onResponse(Cursor.Page page) {
                 Cursor c = page.next();

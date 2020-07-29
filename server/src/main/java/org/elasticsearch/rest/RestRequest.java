@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.plugins.RestCompatibility;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -175,8 +176,8 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    public Version getRequestedCompatibility(BiFunction<String, String, Version> restCompatibleFunction) {
-        return restCompatibleFunction.apply(getSingleHeader("Accept"), getSingleHeader("Content-Type"));
+    public Version getRequestedCompatibility(RestCompatibility restCompatibleFunction) {
+        return restCompatibleFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"));
     }
 
     private final String getSingleHeader(String name) {

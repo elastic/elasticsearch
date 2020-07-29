@@ -276,6 +276,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return builder.value(toString());
     }
 
+    public Version previousMajor() {
+        return Version.fromString(this.major - 1 + ".0.0");
+    }
+
     /*
      * We need the declared versions when computing the minimum compatibility version. As computing the declared versions uses reflection it
      * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions

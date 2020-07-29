@@ -190,7 +190,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -686,14 +685,14 @@ public class Node implements Closeable {
     /**
      * @return A function that can be used to determine the requested REST compatible version
      */
-    private BiFunction<String, String, Version> getRestCompatibleFunction(){
+    private RestCompatibility getRestCompatibleFunction(){
         List<RestCompatibility> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibility.class);
-        BiFunction<String, String, Version> restCompatibleFunction = (a, b) -> Version.CURRENT;
+        RestCompatibility restCompatibleFunction = RestCompatibility.CURRENT_VERSION;
         if (restCompatibilityPlugins.size() > 1) {
             throw new IllegalStateException("Only one rest compatibility plugin is allowed");
         } else if (restCompatibilityPlugins.size() == 1){
             restCompatibleFunction =
-                (acceptHeader, contentTypeHeader) -> restCompatibilityPlugins.get(0).getCompatibleVersion(acceptHeader, contentTypeHeader);
+                restCompatibilityPlugins.get(0);
         }
         return restCompatibleFunction;
     }

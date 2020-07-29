@@ -21,11 +21,15 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Map;
 
 @FunctionalInterface
 public interface RestCompatibility {
-    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader);
+     Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader);
+
+     RestCompatibility CURRENT_VERSION = (a,c)->Version.CURRENT;
+
 }

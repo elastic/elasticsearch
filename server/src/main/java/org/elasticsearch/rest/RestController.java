@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -49,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -77,12 +77,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private BiFunction<String, String, Version> restCompatibleFunction;
+    private RestCompatibility restCompatibleFunction;
 
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
-                          BiFunction<String, String, Version> restCompatibleFunction) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, RestCompatibility restCompatibleFunction) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         this.restCompatibleFunction = restCompatibleFunction;
@@ -302,7 +301,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
         //TODO: now that we have a version we can implement a REST handler that accepts path, method AND version
-        //Version version = request.getRequestedCompatibility(restCompatibleFunction);
+        Version version = request.getRequestedCompatibility(restCompatibleFunction);
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

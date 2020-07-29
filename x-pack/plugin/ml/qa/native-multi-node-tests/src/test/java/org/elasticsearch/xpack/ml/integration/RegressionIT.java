@@ -30,6 +30,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60340")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -88,6 +90,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         int trainingDocsWithEmptyFeatureImportance = 0;
         int testDocsWithEmptyFeatureImportance = 0;
+
+        // for debugging
+        List<Map<String, Object>> badDocuments = new ArrayList<>();
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
@@ -107,6 +112,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
 
             if (importanceArray.isEmpty()) {
+                badDocuments.add(destDoc);
                 if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
                     trainingDocsWithEmptyFeatureImportance++;
                 } else {
@@ -126,7 +132,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // If feature importance was empty for some of the docs this assertion helps us
         // understand whether the offending docs were training or test docs.
         assertThat("There were [" + trainingDocsWithEmptyFeatureImportance + "] training docs and ["
-            + testDocsWithEmptyFeatureImportance + "] test docs with empty feature importance",
+            + testDocsWithEmptyFeatureImportance + "] test docs with empty feature importance"
+            + " from " + sourceData.getHits().getTotalHits().value + " hits.\n"
+            + badDocuments,
             trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance, equalTo(0));
 
         assertProgressComplete(jobId);

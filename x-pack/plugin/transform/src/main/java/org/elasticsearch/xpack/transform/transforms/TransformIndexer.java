@@ -345,7 +345,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // create the function
         function = FunctionFactory.create(getConfig());
 
-        if (isContinuous() && function.supportsIncrementalBucketUpdate()) {
+        if (isContinuous()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
         }
     }

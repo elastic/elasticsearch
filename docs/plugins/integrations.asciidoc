@@ -146,7 +146,7 @@ releases 2.0 and later do not support rivers.
   Integration of Micronaut with Elasticsearch
 
 * https://streampipes.apache.org[Apache StreamPipes]:
-  StreamPipes is a framework that enables users to work with IoT data streams allowing to store data in Elasticsearch.
+  StreamPipes is a framework that enables users to work with IoT data sources.
 
 * https://metamodel.apache.org/[Apache MetaModel]:
   Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.

@@ -119,10 +119,11 @@
   - do:
       search:
         index: test
+        rest_total_hits_as_int: true
         body:
           size: 1
           sort: [{ timestamp: desc }]
-  - match: {hits.total.value: 2 }
+  - match: {hits.total: 2 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._source.timestamp: "2019-10-21 08:30:04.828" }
@@ -132,11 +133,12 @@
   - do:
       search:
         index: test
+        rest_total_hits_as_int: true
         body:
           size: 1
           sort: [{ timestamp: desc }]
           search_after: [1571646604828]
-  - match: {hits.total.value: 2 }
+  - match: {hits.total: 2 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._source.timestamp: "2019-10-21 00:30:04.828" }
@@ -146,11 +148,12 @@
   - do:
       search:
         index: test
+        rest_total_hits_as_int: true
         body:
           size: 1
           sort: [{ timestamp: desc }]
           search_after: ["2019-10-21 08:30:04.828"]
-  - match: {hits.total.value: 2 }
+  - match: {hits.total: 2 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._source.timestamp: "2019-10-21 00:30:04.828" }
@@ -159,8 +162,8 @@
 ---
 "date_nanos":
   - skip:
-      version: " - 7.99.99"
-      reason: fixed in 8.0.0 to be backported to 7.10.0
+      version: " - 7.9.99"
+      reason: fixed in 7.10.0
 
   - do:
       indices.create:

@@ -187,7 +187,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             Settings.builder().put("index.number_of_shards", 1).build(),
             "_doc",
             "version",
-            "type=version,store_malformed=true"
+            "type=version"
         );
         ensureGreen(indexName);
 
@@ -230,7 +230,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             Settings.builder().put("index.number_of_shards", 1).build(),
             "_doc",
             "version",
-            "type=version,store_malformed=true"
+            "type=version"
         );
         ensureGreen(indexName);
 
@@ -349,6 +349,9 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(6, response.getHits().getTotalHits().value);
     }
 
+    /**
+     * test that versions that are invalid under semver are still indexed and retrieveable, though they sort differently
+     */
     public void testStoreMalformed() throws Exception {
         String indexName = "test_malformed";
         createIndex(
@@ -356,7 +359,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             Settings.builder().put("index.number_of_shards", 1).build(),
             "_doc",
             "version",
-            "type=version,store_malformed=true"
+            "type=version"
         );
         ensureGreen(indexName);
 
@@ -527,7 +530,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             Settings.builder().put("index.number_of_shards", 1).build(),
             "_doc",
             "version",
-            "type=version,store_malformed=true"
+            "type=version"
         );
         ensureGreen(indexName);
 

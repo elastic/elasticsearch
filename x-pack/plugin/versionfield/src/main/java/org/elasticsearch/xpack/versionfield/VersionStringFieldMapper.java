@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -99,7 +98,6 @@ public class VersionStringFieldMapper extends FieldMapper {
     static class Builder extends FieldMapper.Builder<Builder> {
 
         protected String nullValue = Defaults.NULL_VALUE;
-        private boolean storeMalformed = false;
 
         Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -111,19 +109,13 @@ public class VersionStringFieldMapper extends FieldMapper {
             return builder;
         }
 
-        Builder storeMalformed(boolean storeMalformed) {
-            this.storeMalformed = storeMalformed;
-            return builder;
-        }
-
         @Override
         public Builder indexOptions(IndexOptions indexOptions) {
             throw new MapperParsingException("index_options not allowed in field [" + name + "] of type [version]");
         }
 
         private VersionStringFieldType buildFieldType(BuilderContext context) {
-            boolean validateVersion = storeMalformed == false;
-            return new VersionStringFieldType(buildFullName(context), indexed, validateVersion, meta, boost, fieldType);
+            return new VersionStringFieldType(buildFullName(context), indexed, meta, boost, fieldType);
         }
 
         @Override
@@ -138,7 +130,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                 name,
                 fieldType,
                 buildFieldType(context),
-                storeMalformed,
                 nullValue,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
@@ -168,9 +159,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                     }
                     builder.nullValue(propNode.toString());
                     iterator.remove();
-                } else if (propName.equals("store_malformed")) {
-                    builder.storeMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".store_malformed"));
-                    iterator.remove();
                 }
             }
             return builder;
@@ -179,13 +167,9 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        // if true, we want to throw errors on illegal versions at index and query time
-        private boolean validateVersion = false;
-
         public VersionStringFieldType(
             String name,
             boolean isSearchable,
-            boolean validateVersion,
             Map<String, String> meta,
             float boost,
             FieldType fieldType
@@ -193,7 +177,6 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name, isSearchable, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
-            this.validateVersion = validateVersion;
         }
 
         @Override
@@ -340,11 +323,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             } else {
                 throw new IllegalArgumentException("Illegal value type: " + value.getClass() + ", value: " + value);
             }
-            EncodedVersion encodedVersion = encodeVersion(valueAsString);
-            if (encodedVersion.isLegal == false && validateVersion) {
-                throw new IllegalArgumentException("Illegal version string: " + valueAsString);
-            }
-            return encodedVersion.bytesRef;
+            return encodeVersion(valueAsString).bytesRef;
         }
 
         @Override
@@ -406,7 +385,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
     }
 
-    private boolean storeMalformed;
     private String nullValue;
     private BooleanFieldMapper prereleaseSubField;
     private NumberFieldMapper majorVersionSubField;
@@ -417,7 +395,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        boolean storeMalformed,
         String nullValue,
         MultiFields multiFields,
         CopyTo copyTo,
@@ -427,7 +404,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         NumberFieldMapper patchVersionMapper
     ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        this.storeMalformed = storeMalformed;
         this.nullValue = nullValue;
         this.prereleaseSubField = preReleaseMapper;
         this.majorVersionSubField = majorVersionMapper;
@@ -469,9 +445,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         EncodedVersion encoding = encodeVersion(versionString);
-        if (encoding.isLegal == false && storeMalformed == false) {
-            throw new IllegalArgumentException("Illegal version string: " + versionString);
-        }
         BytesRef encodedVersion = encoding.bytesRef;
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(fieldType().name(), encodedVersion, fieldType);
@@ -500,7 +473,6 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         VersionStringFieldMapper mergeWith = (VersionStringFieldMapper) other;
-        this.storeMalformed = mergeWith.storeMalformed;
         this.nullValue = mergeWith.nullValue;
     }
 
@@ -510,7 +482,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }
-        builder.field("store_malformed", storeMalformed);
     }
 
     @Override

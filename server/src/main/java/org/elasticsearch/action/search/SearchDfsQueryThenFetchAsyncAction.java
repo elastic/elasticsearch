@@ -33,10 +33,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
     private final SearchPhaseController searchPhaseController;
+    private final Consumer<Exception> onPartialMergeFailure;
 
     SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
                                        final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -46,12 +48,14 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
                                        final SearchRequest request, final ActionListener<SearchResponse> listener,
                                        final GroupShardsIterator<SearchShardIterator> shardsIts,
                                        final TransportSearchAction.SearchTimeProvider timeProvider,
-                                       final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
+                                       final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters,
+                                       Consumer<Exception> onPartialMergeFailure) {
         super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener,
                 shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
         this.searchPhaseController = searchPhaseController;
+        this.onPartialMergeFailure = onPartialMergeFailure;
         SearchProgressListener progressListener = task.getProgressListener();
         SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
@@ -68,6 +72,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, final SearchPhaseContext context) {
         return new DfsQueryPhase(results.getAtomicArray(), searchPhaseController, (queryResults) ->
-            new FetchSearchPhase(queryResults, searchPhaseController, context, clusterState()), context);
+            new FetchSearchPhase(queryResults, searchPhaseController, context, clusterState()), context, onPartialMergeFailure);
     }
 }

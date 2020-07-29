@@ -178,7 +178,7 @@ on non-word characters or on underscores (`\W|_`), and to lower-case the result:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -193,7 +193,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_email_analyzer",
   "text": "John_Smith@foo-bar.com"
@@ -265,7 +265,7 @@ The following more complicated example splits CamelCase text into tokens:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -279,7 +279,7 @@ PUT my_index
   }
 }
 
-GET my_index/_analyze
+GET my-index-000001/_analyze
 {
   "analyzer": "camel",
   "text": "MooseX::FTPClass2_beta"

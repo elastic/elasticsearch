@@ -29,7 +29,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSource;
 
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoTileGroupSourceTests extends AbstractResponseTestCase<
@@ -40,11 +39,14 @@ public class GeoTileGroupSourceTests extends AbstractResponseTestCase<
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         return new GeoTileGroupSource(
             randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
-            randomBoolean() ? null : new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            )
+            randomBoolean()
+                ? null
+                : new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                )
         );
     }
 

@@ -6,7 +6,7 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-[float]
+[discrete]
 === Plugins
 
 Elasticsearch's plugin infrastructure is extremely flexible in terms of what can
@@ -17,21 +17,21 @@ source or not) and therefore we cannot guarantee their compliance with
 {stack-security-features}. For this reason, third-party plugins are not
 officially supported on clusters with {security-features} enabled.
 
-[float]
+[discrete]
 === Changes in wildcard behavior
 
 Elasticsearch clusters with the {security-features} enabled apply the `/_all`
 wildcard, and all other wildcards, to the data streams, indices, and index aliases that the current user has
 privileges for, not all data streams, indices, and index aliases on the cluster.
 
-[float]
+[discrete]
 === Multi document APIs
 
 Multi get and multi term vectors API throw IndexNotFoundException when trying to access non existing indices that the user is
 not authorized for. By doing that they leak information regarding the fact that the data stream or index doesn't exist, while the user is not
 authorized to know anything about those data streams or indices.
 
-[float]
+[discrete]
 === Filtered index aliases
 
 Aliases containing filters are not a secure way to restrict access to individual
@@ -41,7 +41,7 @@ The {stack-security-features} provide a secure way to restrict access to
 documents through the 
 <<field-and-document-access-control, document-level security>> feature.
 
-[float]
+[discrete]
 === Field and document level security limitations
 
 When a user's role enables document or field level security for a data stream or index:
@@ -71,7 +71,7 @@ When a user's role enables document level security for a data stream or index:
   the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.
 
-[float]
+[discrete]
 [[alias-limitations]]
 === Index and field names can be leaked when using aliases
 
@@ -83,7 +83,7 @@ index name and mappings for each index that the alias applies to.
 Until this limitation is addressed, avoid index and field names that contain
 confidential or sensitive information.
 
-[float]
+[discrete]
 === LDAP realm
 
 The <<ldap-realm, LDAP Realm>> does not currently support the discovery of nested

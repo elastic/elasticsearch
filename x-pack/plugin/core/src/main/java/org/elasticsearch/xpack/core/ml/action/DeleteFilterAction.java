@@ -38,10 +38,6 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
             filterId = in.readString();
         }
 
-        public Request() {
-
-        }
-
         public Request(String filterId) {
             this.filterId = ExceptionsHelper.requireNonNull(filterId, FILTER_ID.getPreferredName());
         }

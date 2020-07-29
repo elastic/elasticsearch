@@ -63,9 +63,6 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         private String calendarId;
         private List<ScheduledEvent> scheduledEvents;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();

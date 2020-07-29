@@ -46,9 +46,6 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
             this.update = update;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             update = new DatafeedUpdate(in);

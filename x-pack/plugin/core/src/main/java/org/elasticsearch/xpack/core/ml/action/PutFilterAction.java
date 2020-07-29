@@ -48,10 +48,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
         private MlFilter filter;
 
-        public Request() {
-
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             filter = new MlFilter(in);

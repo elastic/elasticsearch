@@ -4,6 +4,8 @@ import java.security.KeyPairGenerator
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
+import org.elasticsearch.gradle.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -28,7 +30,8 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
@@ -254,12 +257,12 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+processYamlRestTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-test {
+internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
 }
@@ -276,33 +279,37 @@ final Closure testClustersConfiguration = {
   }
 }
 
-integTest {
+yamlRestTest {
   if (useFixture) {
     dependsOn createServiceAccountFile
   }
 }
-check.dependsOn integTest
 
 testClusters {
-  integTest testClustersConfiguration
+  all testClustersConfiguration
 }
 
 /*
  * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
-task largeBlobIntegTest(type: RestIntegTestTask) {
-  mustRunAfter integTest
+task largeBlobYamlRestTest(type: RestIntegTestTask) {
   dependsOn project(':plugins:repository-gcs').bundlePlugin
   if (useFixture) {
     dependsOn createServiceAccountFile
   }
+  runner {
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+  }
 }
-check.dependsOn largeBlobIntegTest
 
-testClusters.largeBlobIntegTest testClustersConfiguration
+check.dependsOn largeBlobYamlRestTest
+
 testClusters {
-  largeBlobIntegTest {
+  largeBlobYamlRestTest {
     plugin project(':plugins:repository-gcs').bundlePlugin.archiveFile
 
     // force large blob uploads by setting the threshold small, forcing this code path to be tested
@@ -311,7 +318,10 @@ testClusters {
 }
 
 task gcsThirdPartyTest(type: Test) {
-  dependsOn integTest,largeBlobIntegTest
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket

@@ -16,42 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
-import java.util.function.Function;
+public class FieldsLookup {
 
-public class SearchLookup {
+    private final MapperService mapperService;
 
-    final DocLookup docMap;
-
-    final SourceLookup sourceLookup;
-
-    final FieldsLookup fieldsLookup;
-
-    public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
-        docMap = new DocLookup(mapperService, fieldDataLookup);
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService);
+    FieldsLookup(MapperService mapperService) {
+        this.mapperService = mapperService;
     }
 
-    public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context,
-                docMap.getLeafDocLookup(context),
-                sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context));
+    public LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
+        return new LeafFieldsLookup(mapperService, context.reader());
     }
 
-    public DocLookup doc() {
-        return docMap;
-    }
-
-    public SourceLookup source() {
-        return sourceLookup;
-    }
 }

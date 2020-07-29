@@ -944,8 +944,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);
-                SearchLookup searchLookup = context.getQueryShardContext().lookup();
-                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), searchLookup);
+                SearchLookup lookup = context.getQueryShardContext().lookup();
+                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), lookup);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

@@ -83,6 +83,11 @@ public class HllFieldMapper extends FieldMapper {
 
     public static final ParseField SKETCH_FIELD = new ParseField("sketch");
 
+    // compression modes for doc values
+    private static final byte FIXED_LENGTH = 0;
+    private static final byte RUN_LENGTH = 1;
+    private static final byte CUSTOM = 2;
+
     public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
         protected Integer precision;
@@ -245,6 +250,7 @@ public class HllFieldMapper extends FieldMapper {
                                 final ByteArrayDataInput dataInput = new ByteArrayDataInput();
                                 final InternalFixedLengthHllValue fixedValue = new InternalFixedLengthHllValue();
                                 final InternalRunLenHllValue runLenValue = new InternalRunLenHllValue();
+                                final InternalCustomHllValue customValue = new InternalCustomHllValue();
                                 return new HllValues() {
 
                                     @Override
@@ -258,12 +264,18 @@ public class HllFieldMapper extends FieldMapper {
                                             BytesRef bytesRef = values.binaryValue();
                                             dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
                                             byte mode = dataInput.readByte();
-                                            if (mode == 0) {
-                                                fixedValue.reset(dataInput);
-                                                return fixedValue;
-                                            } else {
-                                                runLenValue.reset(dataInput);
-                                                return runLenValue;
+                                            switch (mode) {
+                                                case FIXED_LENGTH:
+                                                    fixedValue.reset(dataInput);
+                                                    return fixedValue;
+                                                case RUN_LENGTH:
+                                                    runLenValue.reset(dataInput);
+                                                    return runLenValue;
+                                                case CUSTOM:
+                                                    customValue.reset(dataInput);
+                                                    return customValue;
+                                                default:
+                                                    throw new IOException("Unknown compression mode: " + mode);
                                             }
                                         } catch (IOException e) {
                                             throw new IOException("Cannot load doc value", e);
@@ -363,9 +375,6 @@ public class HllFieldMapper extends FieldMapper {
                 return;
             }
             ByteArrayList runLens = null;
-            // estimate length for runLen compression length
-            int runLenLength = 0;
-            int currentValue = Integer.MIN_VALUE;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
             subParser = new XContentSubParser(context.parser());
@@ -392,10 +401,6 @@ public class HllFieldMapper extends FieldMapper {
                             throw new MapperParsingException("error parsing field ["
                                 + name() + "], ["+ SKETCH_FIELD + "] elements must be <= " + Byte.MAX_VALUE + " but got " + newValue);
                         }
-                        if (newValue != currentValue) {
-                            runLenLength += 2;
-                            currentValue = newValue;
-                        }
                         runLens.add((byte) newValue);
                         token = subParser.nextToken();
                     }
@@ -415,16 +420,10 @@ public class HllFieldMapper extends FieldMapper {
                     + ", got [" + runLens.size() + "]");
             }
             if (fieldType().hasDocValues()) {
-                ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
-                if (runLenLength >= m) {
-                    writeFixedLen(runLens, dataOutput);
-                    assert dataOutput.size() == m + 1;
-                } else {
-                    writeRunLen(runLens, dataOutput);
-                    assert dataOutput.size() < m + 1;
-                }
-                BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
-                Field field = new BinaryDocValuesField(name(), docValue);
+                final ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
+                writeCompressed(runLens, dataOutput);
+                final BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+                final Field field = new BinaryDocValuesField(name(), docValue);
                 if (context.doc().getByKey(fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] doesn't not support indexing multiple values for the same field in the same document");
@@ -447,15 +446,51 @@ public class HllFieldMapper extends FieldMapper {
         context.path().remove();
     }
 
+    private void writeCompressed(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) throws IOException {
+        // chose the compression to use
+        final int fixedLength = m;
+        final int runLenLength = runLenLength(runLens);
+        final int customLength = customLength(runLens);
+        if (fixedLength <= runLenLength) {
+            if (fixedLength <= customLength) {
+                writeFixedLen(runLens, dataOutput);
+                assert dataOutput.size() == fixedLength + 1;
+            } else {
+                writeCustom(runLens, dataOutput);
+                assert dataOutput.size() == customLength + 1;
+            }
+        } else if (runLenLength < customLength) {
+            writeRunLen(runLens, dataOutput);
+            assert dataOutput.size() < fixedLength + 1;
+        } else {
+            writeCustom(runLens, dataOutput);
+            assert dataOutput.size() == customLength + 1;
+        }
+    }
+
     private void writeFixedLen(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) {
-        dataOutput.writeByte((byte) 0);
+        dataOutput.writeByte(FIXED_LENGTH);
         for (int i = 0; i < m; i++) {
             dataOutput.writeByte(runLens.get(i));
         }
     }
 
+    private int runLenLength(ByteArrayList runLens) {
+        int compressionLength = 0;
+        byte value = runLens.get(0);
+        for (int i = 1; i < runLens.size(); i++) {
+            byte nextValue = runLens.get(i);
+            if (nextValue != value) {
+                compressionLength += 2;
+                value = nextValue;
+            }
+        }
+        compressionLength += 2;
+        return compressionLength;
+    }
+
     private void writeRunLen(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) throws IOException {
-        dataOutput.writeByte((byte) 1);
+        dataOutput.writeByte(RUN_LENGTH);
         int length = 1;
         byte value = runLens.get(0);
         for (int i = 1; i < runLens.size(); i++) {
@@ -470,6 +505,53 @@ public class HllFieldMapper extends FieldMapper {
             }
         }
         dataOutput.writeVInt(length);
+        dataOutput.writeByte(value);
+    }
+
+    private int customLength(ByteArrayList runLens) {
+        int compressionLength = 0;
+        byte length = 1;
+        byte value = runLens.get(0);
+        for (int i = 1; i < runLens.size(); i++) {
+            byte nextValue = runLens.get(i);
+            if (nextValue != value || length == Byte.MAX_VALUE) {
+                if (length > 1) {
+                    compressionLength++;
+                }
+                compressionLength++;
+                length = 1;
+                value = nextValue;
+            } else {
+                length++;
+            }
+        }
+        if (length > 1) {
+            compressionLength++;
+        }
+        compressionLength++;
+        return compressionLength;
+    }
+
+    private void writeCustom(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) throws IOException {
+        dataOutput.writeByte(CUSTOM);
+        byte length = 1;
+        byte value = runLens.get(0);
+        for (int i = 1; i < runLens.size(); i++) {
+            byte nextValue = runLens.get(i);
+            if (nextValue != value || length == Byte.MAX_VALUE) {
+                if (length > 1) {
+                    dataOutput.writeByte((byte) -length);
+                }
+                dataOutput.writeByte(value);
+                length = 1;
+                value = nextValue;
+            } else {
+                length++;
+            }
+        }
+        if (length > 1) {
+            dataOutput.writeByte((byte) -length);
+        }
         dataOutput.writeByte(value);
     }
 
@@ -489,7 +571,7 @@ public class HllFieldMapper extends FieldMapper {
         return false;
     }
 
-    /** re-usable {@link HllValue} implementation */
+    /** re-usable {@link HllValue} implementation. HLL sketch is compressed as fixed length array */
     private static class InternalFixedLengthHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
         private byte value;
         private boolean isExhausted;
@@ -529,7 +611,7 @@ public class HllFieldMapper extends FieldMapper {
         }
     }
 
-    /** re-usable {@link HllValue} implementation */
+    /** re-usable {@link HllValue} implementation. HLL sketch is compressed using run length compression. */
     private static class InternalRunLenHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
         private byte value;
         private boolean isExhausted;
@@ -556,6 +638,66 @@ public class HllFieldMapper extends FieldMapper {
             if (dataInput.eof() == false) {
                 valuesInBuffer = dataInput.readVInt() - 1;
                 value = dataInput.readByte();
+                return true;
+            }
+            isExhausted = true;
+            return false;
+        }
+
+        @Override
+        public byte value() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("HyperLogLog sketch already exhausted");
+            }
+            return value;
+        }
+
+        @Override
+        public void skip(int bytes) {
+            if (valuesInBuffer >= bytes) {
+                valuesInBuffer -= bytes;
+            } else {
+                int valuesLeft = valuesInBuffer;
+                valuesInBuffer = 0;
+                next();
+                skip(bytes - valuesLeft - 1);
+            }
+        }
+    }
+
+    /** re-usable {@link HllValue} implementation. HLL sketch is compressed using custom compression. Negative values
+     * indicate repeated values. */
+    private static class InternalCustomHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
+        private byte value;
+        private boolean isExhausted;
+        private ByteArrayDataInput dataInput;
+        private int valuesInBuffer;
+
+        InternalCustomHllValue() {
+        }
+
+        /** reset the value for the HLL sketch */
+        void reset(ByteArrayDataInput dataInput) {
+            this.dataInput = dataInput;
+            isExhausted = false;
+            value = 0;
+            valuesInBuffer = 0;
+        }
+
+        @Override
+        public boolean next() {
+            if (valuesInBuffer > 0) {
+                valuesInBuffer--;
+                return true;
+            }
+            if (dataInput.eof() == false) {
+                byte b = dataInput.readByte();
+                if (b < 0) {
+                    valuesInBuffer = -b - 1;
+                    value = dataInput.readByte();
+                } else {
+                    value = b;
+                }
                 return true;
             }
             isExhausted = true;

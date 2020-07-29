@@ -70,7 +70,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest();
 
         int numDocs = 100000;
-        int frq = 10000;
+        int frq = randomBoolean() ? 10000 : 1000;
 
 
         for (int i =0; i < numDocs; i ++) {
@@ -168,7 +168,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest();
 
         int numDocs = 100000;
-        int frq = 10000;
+        int frq = randomBoolean() ? 10000 : 1000;
 
         for (int i =0; i < numDocs; i ++) {
             String value  = TestUtil.randomSimpleString(random());

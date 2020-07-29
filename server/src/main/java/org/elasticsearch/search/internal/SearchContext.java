@@ -50,10 +50,11 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -160,9 +161,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchExtBuilder getSearchExt(String name);
 
-    public abstract SearchContextHighlight highlight();
+    public abstract SearchHighlightContext highlight();
 
-    public abstract void highlight(SearchContextHighlight highlight);
+    public abstract void highlight(SearchHighlightContext highlight);
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
@@ -200,6 +201,16 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract FetchDocValuesContext docValuesContext();
 
     public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
+
+    /**
+     * The context related to retrieving fields.
+     */
+    public abstract FetchFieldsContext fetchFieldsContext();
+
+    /**
+     * Sets the context related to retrieving fields.
+     */
+    public abstract SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext);
 
     public abstract ContextIndexSearcher searcher();
 

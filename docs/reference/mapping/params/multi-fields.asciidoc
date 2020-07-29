@@ -8,7 +8,7 @@ search, and as a `keyword` field for sorting or aggregations:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -24,17 +24,17 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "city": "New York"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "city": "York"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -73,7 +73,7 @@ which stems words into their root form:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -90,13 +90,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "text": "quick brown fox" } <3>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "text": "quick brown foxes" } <3>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "multi_match": {

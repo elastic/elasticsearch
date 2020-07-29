@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -24,16 +25,24 @@ import static org.hamcrest.Matchers.empty;
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfigWithDeprecatedFields() {
+        return randomPivotConfigWithDeprecatedFields(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfigWithDeprecatedFields(Version version) {
         return new PivotConfig(
-            GroupConfigTests.randomGroupConfig(),
+            GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
             randomIntBetween(10, 10_000) // deprecated
         );
     }
 
     public static PivotConfig randomPivotConfig() {
+        return randomPivotConfig(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfig(Version version) {
         return new PivotConfig(
-            GroupConfigTests.randomGroupConfig(),
+            GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
             null // deprecated
         );

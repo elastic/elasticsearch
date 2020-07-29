@@ -75,7 +75,7 @@ The following <<indices-create-index, create index>> API request creates a new i
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings" : {
     "properties" : {
@@ -95,7 +95,7 @@ two histograms: `histogram_1` and `histogram_2`.
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_text" : "histogram_1",
   "my_histogram" : {
@@ -104,7 +104,7 @@ PUT my_index/_doc/1
    }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_text" : "histogram_2",
   "my_histogram" : {

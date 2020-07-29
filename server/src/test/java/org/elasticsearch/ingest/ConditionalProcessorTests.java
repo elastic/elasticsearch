@@ -54,6 +54,8 @@ import static org.mockito.Mockito.when;
 
 public class ConditionalProcessorTests extends ESTestCase {
 
+    private static final String scriptName = "conditionalScript";
+
     public void testChecksCondition() throws Exception {
         String conditionalField = "field1";
         String scriptName = "conditionalScript";
@@ -114,7 +116,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
         assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
         assertStats(processor, 0, 0, 0);
-        System.out.println("*************** " + processor.getCondition());
+        assertEquals(scriptName, processor.getCondition());
 
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
@@ -149,7 +151,7 @@ public class ConditionalProcessorTests extends ESTestCase {
     }
 
     public void testTypeDeprecation() throws Exception {
-        String scriptName = "conditionalScript";
+
         ScriptService scriptService = new ScriptService(Settings.builder().build(),
                 Collections.singletonMap(
                         Script.DEFAULT_SCRIPT_LANG,

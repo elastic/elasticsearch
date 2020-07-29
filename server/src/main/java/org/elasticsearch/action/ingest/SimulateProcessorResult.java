@@ -33,9 +33,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -45,6 +43,8 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private static final String IGNORED_ERROR_FIELD = "ignored_error";
     private static final String STATUS_FIELD = "status";
     private static final String TYPE_FIELD = "processor_type";
+    private static final String CONDITION_FIELD = "condition";
+    private static final String RESULT_FIELD = "result";
 
     enum Status {
         SUCCESS,
@@ -94,10 +94,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             }
         );
     static {
-        IF_CONDITION_PARSER.declareString(optionalConstructorArg(), new ParseField("condition"));
-        IF_CONDITION_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("result"));
+        IF_CONDITION_PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD));
+        IF_CONDITION_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(RESULT_FIELD));
     }
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SimulateProcessorResult, Void> PARSER =
         new ConstructingObjectParser<>(
             "simulate_processor_result",
@@ -253,8 +254,8 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
         if(conditionalWithResult != null){
             builder.startObject("if");
-            builder.field("condition", conditionalWithResult.v1());
-            builder.field("result", conditionalWithResult.v2());
+            builder.field(CONDITION_FIELD, conditionalWithResult.v1());
+            builder.field(RESULT_FIELD, conditionalWithResult.v2());
             builder.endObject();
         }
 

@@ -32,6 +32,6 @@ public class AmazonEC2DiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTe
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
 }

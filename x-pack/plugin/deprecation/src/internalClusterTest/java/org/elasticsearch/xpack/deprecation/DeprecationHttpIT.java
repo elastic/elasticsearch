@@ -94,7 +94,14 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             indices[i] = "test" + i;
 
             // create indices with a single shard to reduce noise; the query only deprecates uniquely by index anyway
-            assertTrue(client().admin().indices().prepareCreate(indices[i]).setSettings(Settings.builder().put("number_of_shards", 1)).get().isAcknowledged());
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareCreate(indices[i])
+                    .setSettings(Settings.builder().put("number_of_shards", 1))
+                    .get()
+                    .isAcknowledged()
+            );
 
             int randomDocCount = randomIntBetween(1, 2);
 

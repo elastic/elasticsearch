@@ -21,7 +21,7 @@ NOTE: You cannot send deletion requests directly to a data stream. To delete a
 document in a data stream, you must target the backing index containing the
 document. See <<update-delete-docs-in-a-backing-index>>.
 
-[float]
+[discrete]
 [[optimistic-concurrency-control-delete]]
 ===== Optimistic concurrency control
 
@@ -31,7 +31,7 @@ term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
 and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
-[float]
+[discrete]
 [[delete-versioning]]
 ===== Versioning
 
@@ -44,7 +44,7 @@ short time after deletion to allow for control of concurrent operations. The
 length of time for which a deleted document's version remains available is
 determined by the `index.gc_deletes` index setting and defaults to 60 seconds.
 
-[float]
+[discrete]
 [[delete-routing]]
 ===== Routing
 
@@ -80,7 +80,7 @@ DELETE /twitter/_doc/1?routing=kimchy
 This request deletes the tweet with id `1`, but it is routed based on the
 user. The document is not deleted if the correct routing is not specified.
 
-[float]
+[discrete]
 [[delete-index-creation]]
 ===== Automatic index creation
 
@@ -89,7 +89,7 @@ the delete operation automatically creates the specified index if it does not
 exist. For information about manually creating indices, see
 <<indices-create-index,create index API>>.
 
-[float]
+[discrete]
 [[delete-distributed]]
 ===== Distributed
 
@@ -97,7 +97,7 @@ The delete operation gets hashed into a specific shard id. It then gets
 redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
 
-[float]
+[discrete]
 [[delete-wait-for-active-shards]]
 ===== Wait for active shards
 
@@ -107,14 +107,14 @@ before starting to process the delete request. See
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 
-[float]
+[discrete]
 [[delete-refresh]]
 ===== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh>>.
 
-[float]
+[discrete]
 [[delete-timeout]]
 ===== Timeout
 

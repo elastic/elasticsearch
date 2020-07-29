@@ -32,6 +32,7 @@ A `moving_fn` aggregation looks like this in isolation:
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
 |`window` |The size of window to "slide" across the histogram. |Required |
 |`script` |The script that should be executed on each window of data |Required |
+|`gap_policy` |The policy to apply when gaps are found in the data. See <<gap-policy>>. |Optional |`skip`
 |`shift` |<<shift-parameter, Shift>> of window position. |Optional | 0
 |===
 

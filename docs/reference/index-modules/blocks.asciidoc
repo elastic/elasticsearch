@@ -141,9 +141,9 @@ The following example shows how to add an index block:
 
 [source,console]
 --------------------------------------------------
-PUT /my_index/_block/write
+PUT /my-index-000001/_block/write
 --------------------------------------------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 The API returns following response:
 
@@ -153,7 +153,7 @@ The API returns following response:
   "acknowledged" : true,
   "shards_acknowledged" : true,
   "indices" : [ {
-    "name" : "my_index",
+    "name" : "my-index-000001",
     "blocked" : true
   } ]
 }

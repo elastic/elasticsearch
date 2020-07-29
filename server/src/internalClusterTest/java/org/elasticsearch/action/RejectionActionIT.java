@@ -34,6 +34,8 @@ import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
@@ -85,8 +87,8 @@ public class RejectionActionIT extends ESIntegTestCase {
             if (response instanceof SearchResponse) {
                 SearchResponse searchResponse = (SearchResponse) response;
                 for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-                    assertTrue("got unexpected reason..." + failure.reason(),
-                        failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                    assertThat(failure.reason().toLowerCase(Locale.ENGLISH),
+                        anyOf(containsString("cancelled"), containsString("rejected")));
                 }
             } else {
                 Exception t = (Exception) response;
@@ -94,8 +96,8 @@ public class RejectionActionIT extends ESIntegTestCase {
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {
-                        assertTrue("got unexpected reason..." + failure.reason(),
-                            failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                        assertThat(failure.reason().toLowerCase(Locale.ENGLISH),
+                            anyOf(containsString("cancelled"), containsString("rejected")));
                     }
                 } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
                     throw new AssertionError("unexpected failure", (Throwable) response);

@@ -11,7 +11,7 @@ NOTE: You cannot create forecasts for {anomaly-jobs} that contain geographic
 functions. You also cannot add rules with conditions to detectors that use
 geographic functions. 
 
-[float]
+[discrete]
 [[ml-lat-long]]
 == Lat_long
 

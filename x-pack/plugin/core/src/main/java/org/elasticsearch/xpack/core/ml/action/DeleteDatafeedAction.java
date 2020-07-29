@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,9 +38,6 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -92,13 +87,6 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(datafeedId, force);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteDatafeedAction action) {
-            super(client, action, new Request());
         }
     }
 }

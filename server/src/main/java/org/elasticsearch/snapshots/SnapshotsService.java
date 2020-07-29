@@ -1437,7 +1437,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return stateWithoutSnapshot(currentState, snapshot);
+                final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot);
+                // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
+                return updateWithSnapshots(updatedState, null, deletionsWithoutSnapshots(
+                        updatedState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY),
+                        Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository()));
             }
 
             @Override
@@ -1471,6 +1475,36 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         });
+    }
+
+    /**
+     * Remove the given {@link SnapshotId}s for the given {@code repository} from an instance of {@link SnapshotDeletionsInProgress}.
+     * If no deletion contained any of the snapshot ids to remove then return {@code null}.
+     *
+     * @param deletions   snapshot deletions to update
+     * @param snapshotIds snapshot ids to remove
+     * @param repository  repository that the snapshot ids belong to
+     * @return            updated {@link SnapshotDeletionsInProgress} or {@code null} if unchanged
+     */
+    @Nullable
+    private static SnapshotDeletionsInProgress deletionsWithoutSnapshots(SnapshotDeletionsInProgress deletions,
+                                                                         Collection<SnapshotId> snapshotIds, String repository) {
+        boolean changed = false;
+        List<SnapshotDeletionsInProgress.Entry> updatedEntries = new ArrayList<>(deletions.getEntries().size());
+        for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
+            if (entry.repository().equals(repository)) {
+                final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.getSnapshots());
+                if (updatedSnapshotIds.removeAll(snapshotIds)) {
+                    changed = true;
+                    updatedEntries.add(entry.withSnapshots(updatedSnapshotIds));
+                } else {
+                    updatedEntries.add(entry);
+                }
+            } else {
+                updatedEntries.add(entry);
+            }
+        }
+        return changed ? SnapshotDeletionsInProgress.of(updatedEntries) : null;
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
@@ -1968,22 +2002,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
                 @Override
                 protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
-                    boolean changed = false;
-                    List<SnapshotDeletionsInProgress.Entry> updatedEntries = new ArrayList<>(deletions.getEntries().size());
-                    for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
-                        if (entry.repository().equals(deleteEntry.repository())) {
-                            final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.getSnapshots());
-                            if (updatedSnapshotIds.removeAll(deleteEntry.getSnapshots())) {
-                                changed = true;
-                                updatedEntries.add(entry.withSnapshots(updatedSnapshotIds));
-                            } else {
-                                updatedEntries.add(entry);
-                            }
-                        } else {
-                            updatedEntries.add(entry);
-                        }
-                    }
-                    return changed ? SnapshotDeletionsInProgress.of(updatedEntries) : deletions;
+                    final SnapshotDeletionsInProgress updatedDeletions =
+                            deletionsWithoutSnapshots(deletions, deleteEntry.getSnapshots(), deleteEntry.repository());
+                    return updatedDeletions == null ? deletions : updatedDeletions;
                 }
 
                 @Override

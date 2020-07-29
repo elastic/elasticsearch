@@ -24,14 +24,12 @@ import org.elasticsearch.gradle.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 final int gceNumberOfNodes = 3
 
 dependencies {
-  testImplementation project(':plugins:discovery-gce')
+  yamlRestTestImplementation project(':plugins:discovery-gce')
 }
 
 restResources {
@@ -42,26 +40,26 @@ restResources {
 
 /** A task to start the GCEFixture which emulates a GCE service **/
 task gceFixture(type: AntFixture) {
-  dependsOn compileTestJava
-  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
+  dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
+  env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/integTest-1/config/unicast_hosts.txt"
+  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
 }
 
 Map<String, Object> expansions = [
   'expected_nodes': gceNumberOfNodes
 ]
 
-processTestResources {
+processYamlRestTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-integTest {
+yamlRestTest {
   dependsOn gceFixture, project(':plugins:discovery-gce').bundlePlugin
 }
 
-testClusters.integTest {
+testClusters.yamlRestTest {
   numberOfNodes = gceNumberOfNodes
   plugin project(':plugins:discovery-gce').bundlePlugin.archiveFile
   // use gce fixture for Auth calls instead of http://metadata.google.internal

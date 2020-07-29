@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -179,6 +180,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
         return Objects.equals(precision,other.precision)
             && Objects.equals(geoBoundingBox, other.geoBoundingBox);
+    }
+
+    @Override
+    protected ValuesSourceType getDefaultValuesSourceType() {
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     @Override

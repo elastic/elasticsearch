@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -276,9 +277,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext,
                                                                 ValuesSourceConfig config) throws IOException;
 
+    protected ValuesSourceType getDefaultValuesSourceType() {
+        return CoreValuesSourceType.BYTES;
+    }
+
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext,
-            valueType, field, script, null, timeZone(), format, CoreValuesSourceType.BYTES);
+            valueType, field, script, null, timeZone(), format, getDefaultValuesSourceType());
         return innerBuild(queryShardContext, config);
     }
 

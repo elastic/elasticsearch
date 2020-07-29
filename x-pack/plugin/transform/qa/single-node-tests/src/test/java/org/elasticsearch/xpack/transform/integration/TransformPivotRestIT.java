@@ -778,15 +778,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             searchResult
         )).get(0);
         assertThat(commonUsers, is(not(nullValue())));
-        assertThat(commonUsers, equalTo(new HashMap<>() {
+        assertThat(commonUsers, equalTo(new HashMap<String, Object>() {
             {
-                put("user_10", Collections.singletonMap("common_businesses", new HashMap<>() {
+                put("user_10", Collections.singletonMap("common_businesses", new HashMap<String, Object>() {
                     {
                         put("business_12", 6);
                         put("business_9", 4);
                     }
                 }));
-                put("user_0", Collections.singletonMap("common_businesses", new HashMap<>() {
+                put("user_0", Collections.singletonMap("common_businesses", new HashMap<String, Object>() {
                     {
                         put("business_0", 35);
                     }
@@ -794,7 +794,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             }
         }));
         assertThat(rareUsers, is(not(nullValue())));
-        assertThat(rareUsers, equalTo(new HashMap<>() {
+        assertThat(rareUsers, equalTo(new HashMap<String, Object>() {
             {
                 put("user_5", 1);
                 put("user_12", 1);

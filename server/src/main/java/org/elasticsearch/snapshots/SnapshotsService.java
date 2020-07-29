@@ -565,7 +565,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
                         endSnapshot(new SnapshotsInProgress.Entry(
-                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), null, version,
+                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), ImmutableOpenMap.of(), version,
                             null), clusterState.metadata(), repositoryData);
                         return;
                     }

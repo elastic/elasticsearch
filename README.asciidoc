@@ -132,7 +132,7 @@ creates `my-index-000002` with two primary shards rather than the default of
 one. This may be helpful for larger indices.
 
 ----
-curl -X PUT http://localhost:9200/my-index-000002?pretty -H 'Content-Type: application/json' -d '
+curl -X PUT 'http://localhost:9200/my-index-000002?pretty' -H 'Content-Type: application/json' -d '
 {
   "settings" : {
     "index.number_of_shards" : 2

@@ -118,8 +118,6 @@ See <<docvalue-fields>>.
 
 See <<collapse-search-results>>.
 
-include::request/collapse.asciidoc[]
-
 [[request-body-search-highlighting]]
 ==== Highlighting
 

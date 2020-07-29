@@ -103,7 +103,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     public void testCompositeTermsAggregation() throws IOException {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(
+            Collections.singletonList(
                 new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME)
             )
         );

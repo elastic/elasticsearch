@@ -16,15 +16,6 @@ aliases. You use component templates to construct index templates, they aren't d
 set of indices. Index templates can contain a collection of component templates, as well as directly
 specify settings, mappings, and aliases.
 
-If a new index matches more than one index template, the index template with the highest priority is used.
-
-When a composable template matches a given index
-it always takes precedence over a legacy template. If no composable template matches, a legacy
-template may still match and be applied.
-
-If an index is created with explicit settings and also matches an index template,
-the settings from the create index request take precedence over settings specified in the index template and its component templates.
-
 [source,console]
 --------------------------------------------------
 PUT _component_template/component_template1
@@ -98,3 +89,15 @@ DELETE _component_template/*
 // TEARDOWN
 
 ////
+
+== Index template and settings priority
+
+If a new index matches more than one index template, the index template with the highest priority is used.
+
+When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
+
+If an index is created with explicit settings and also matches an index template,
+the settings from the create index request take precedence over settings specified in the index template and its component templates.
+

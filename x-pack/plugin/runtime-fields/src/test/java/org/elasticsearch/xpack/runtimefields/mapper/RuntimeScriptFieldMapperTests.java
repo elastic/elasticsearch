@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
@@ -137,6 +138,13 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
     }
 
+    public void testDate() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("date")).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping("date")), Strings.toString(mapperService.documentMapper()));
+    }
+
     public void testFieldCaps() throws Exception {
         for (String runtimeType : runtimeTypes) {
             String scriptIndex = "test_" + runtimeType + "_script";
@@ -219,6 +227,14 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                 }
 
                 private Object dummyScriptFactory(ScriptContext<?> context) {
+                    if (context == DateScriptFieldScript.CONTEXT) {
+                        return (DateScriptFieldScript.Factory) (params, lookup) -> ctx -> new DateScriptFieldScript(params, lookup, ctx) {
+                            @Override
+                            public void execute() {
+                                new DateScriptFieldScript.Millis(this).millis(1595431354874L);
+                            }
+                        };
+                    }
                     if (context == DoubleScriptFieldScript.CONTEXT) {
                         return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(
                             params,
@@ -256,7 +272,12 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
 
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(StringScriptFieldScript.CONTEXT, LongScriptFieldScript.CONTEXT);
+                    return Set.of(
+                        DateScriptFieldScript.CONTEXT,
+                        DoubleScriptFieldScript.CONTEXT,
+                        StringScriptFieldScript.CONTEXT,
+                        LongScriptFieldScript.CONTEXT
+                    );
                 }
             };
         }

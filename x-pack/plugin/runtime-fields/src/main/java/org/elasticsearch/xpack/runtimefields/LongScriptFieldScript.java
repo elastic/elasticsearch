@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -18,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -35,44 +34,8 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
         LongScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    private long[] values = new long[1];
-    private int count;
-
     public LongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
-    }
-
-    /**
-     * Execute the script for the provided {@code docId}.
-     */
-    public final void runForDoc(int docId) {
-        count = 0;
-        setDocument(docId);
-        execute();
-    }
-
-    /**
-     * Values from the last time {@link #runForDoc(int)} was called. This array
-     * is mutable and will change with the next call of {@link #runForDoc(int)}.
-     * It is also oversized and will contain garbage at all indices at and
-     * above {@link #count()}.
-     */
-    public final long[] values() {
-        return values;
-    }
-
-    /**
-     * The number of results produced the last time {@link #runForDoc(int)} was called.
-     */
-    public final int count() {
-        return count;
-    }
-
-    private void collectValue(long v) {
-        if (values.length < count + 1) {
-            values = ArrayUtil.grow(values, count + 1);
-        }
-        values[count++] = v;
     }
 
     public static class Value {

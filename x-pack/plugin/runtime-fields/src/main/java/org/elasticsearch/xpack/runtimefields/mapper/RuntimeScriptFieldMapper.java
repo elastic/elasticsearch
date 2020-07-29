@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -77,6 +79,19 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+            DateFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                DateScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    DateScriptFieldScript.CONTEXT
+                );
+                return new ScriptDateMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
             NumberType.DOUBLE.typeName(),
             (builder, context) -> {
                 DoubleScriptFieldScript.Factory factory = builder.scriptCompiler.compile(

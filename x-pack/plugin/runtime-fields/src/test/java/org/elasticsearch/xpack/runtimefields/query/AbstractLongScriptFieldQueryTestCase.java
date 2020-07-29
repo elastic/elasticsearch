@@ -6,22 +6,24 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public abstract class AbstractLongScriptFieldQueryTestCase<T extends AbstractLongScriptFieldQuery> extends AbstractScriptFieldQueryTestCase<
     T> {
-    protected final LongScriptFieldScript.LeafFactory leafFactory = mock(LongScriptFieldScript.LeafFactory.class);
+    protected final CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory = ctx -> null;
 
     @Override
     public final void testVisit() {

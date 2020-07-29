@@ -16,19 +16,24 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Abstract base class for building queries based on {@link LongScriptFieldScript}.
+ * Abstract base class for building queries based on {@link AbstractLongScriptFieldScript}.
  */
 abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
-    private final LongScriptFieldScript.LeafFactory leafFactory;
+    private final CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory;
 
-    AbstractLongScriptFieldQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractLongScriptFieldQuery(
+        Script script,
+        CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory,
+        String fieldName
+    ) {
         super(script, fieldName);
         this.leafFactory = Objects.requireNonNull(leafFactory);
     }
@@ -48,7 +53,7 @@ abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                LongScriptFieldScript script = leafFactory.newInstance(ctx);
+                AbstractLongScriptFieldScript script = leafFactory.apply(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override

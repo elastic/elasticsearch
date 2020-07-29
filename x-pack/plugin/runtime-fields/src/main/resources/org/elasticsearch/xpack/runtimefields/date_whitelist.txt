@@ -1,0 +1,19 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# The whitelist for date-valued runtime fields
+
+class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript @no_import {
+}
+
+static_import {
+    void millis(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Millis
+    void date(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, TemporalAccessor) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Date
+}
+
+# This import is required to make painless happy and it isn't 100% clear why
+class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Factory @no_import {
+}

@@ -6,11 +6,19 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+
+import java.io.IOException;
 
 public class LongScriptFieldExistsQuery extends AbstractLongScriptFieldQuery {
-    public LongScriptFieldExistsQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public LongScriptFieldExistsQuery(
+        Script script,
+        CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory,
+        String fieldName
+    ) {
         super(script, leafFactory, fieldName);
     }
 

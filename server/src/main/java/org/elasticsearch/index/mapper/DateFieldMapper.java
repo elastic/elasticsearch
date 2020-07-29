@@ -31,10 +31,10 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -305,60 +306,83 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
+            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                Query query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                    if (context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                }
+                return query;
+            });
+        }
+
+        public static Query dateRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            @Nullable ZoneId timeZone,
+            DateMathParser parser,
+            QueryShardContext context,
+            Resolution resolution,
+            BiFunction<Long, Long, Query> builder
+        ) {
+            return handleNow(context, nowSupplier -> {
+                long l, u;
+                if (lowerTerm == null) {
+                    l = Long.MIN_VALUE;
+                } else {
+                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                    if (includeLower == false) {
+                        ++l;
+                    }
+                }
+                if (upperTerm == null) {
+                    u = Long.MAX_VALUE;
+                } else {
+                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                    if (includeUpper == false) {
+                        --u;
+                    }
+                }
+                return builder.apply(l, u);
+            });
+        }
+
+        /**
+         * Handle {@code now} in queries.
+         * @param context context from which to read the current time
+         * @param builder build the query
+         * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
+         */
+        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
                 return context.nowInMillis();
             };
-            long l, u;
-            if (lowerTerm == null) {
-                l = Long.MIN_VALUE;
-            } else {
-                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier);
-                if (includeLower == false) {
-                    ++l;
-                }
-            }
-            if (upperTerm == null) {
-                u = Long.MAX_VALUE;
-            } else {
-                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier);
-                if (includeUpper == false) {
-                    --u;
-                }
-            }
-
-            Query query = LongPoint.newRangeQuery(name(), l, u);
-            if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                query = new IndexOrDocValuesQuery(query, dvQuery);
-
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                }
-            }
-
-            if (nowUsed[0]) {
-                query = new DateRangeIncludingNowQuery(query);
-            }
-            return query;
+            Query query = builder.apply(nowSupplier);
+            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
         }
 
-        public long parseToLong(Object value, boolean roundUp,
-                                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, LongSupplier now) {
-            DateMathParser dateParser = dateMathParser();
-            if (forcedDateParser != null) {
-                dateParser = forcedDateParser;
-            }
+        public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
+            dateParser = dateParser == null ? dateMathParser() : dateParser;
+            return parseToLong(value, roundUp, zone, dateParser, now, resolution);
+        }
 
-            String strValue;
-            if (value instanceof BytesRef) {
-                strValue = ((BytesRef) value).utf8ToString();
-            } else {
-                strValue = value.toString();
-            }
-            Instant instant = dateParser.parse(strValue, now, roundUp, zone);
-            return resolution.convert(instant);
+        public static long parseToLong(
+            Object value,
+            boolean roundUp,
+            @Nullable ZoneId zone,
+            DateMathParser dateParser,
+            LongSupplier now,
+            Resolution resolution
+        ) {
+            return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
         @Override
@@ -371,7 +395,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis);
+                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -382,7 +406,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis);
+                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;

@@ -55,7 +55,7 @@ compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
 when migrating between versions.
 
 A snapshot contains a copy of the on-disk data structures that comprise an
-index or a data stream's backing indices. This means that snapshots can only be restored to versions of
+index. This means that snapshots can only be restored to versions of
 {es} that can read the indices.
 
 The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.

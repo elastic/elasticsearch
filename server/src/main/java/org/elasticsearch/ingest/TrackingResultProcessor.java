@@ -24,7 +24,6 @@ import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 

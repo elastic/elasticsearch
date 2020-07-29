@@ -394,6 +394,10 @@ public class BigArraysTests extends ESTestCase {
         final int pageSize = 1 << (randomIntBetween(2, 16));
         final int minSize = randomIntBetween(1, pageSize) * randomIntBetween(1, 100);
         final long size = BigArrays.overSize(minSize, pageSize, 1);
+        assertThat(size, greaterThanOrEqualTo((long)minSize));
+        if (size >= pageSize) {
+            assertThat(size + " is a multiple of " + pageSize, size % pageSize, equalTo(0L));
+        }
         assertThat(size - minSize, lessThan((long) pageSize));
     }
 

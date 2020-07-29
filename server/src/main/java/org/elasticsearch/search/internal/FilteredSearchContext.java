@@ -46,7 +46,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -166,12 +166,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextHighlight highlight() {
+    public SearchHighlightContext highlight() {
         return in.highlight();
     }
 
     @Override
-    public void highlight(SearchContextHighlight highlight) {
+    public void highlight(SearchHighlightContext highlight) {
         in.highlight(highlight);
     }
 

@@ -509,7 +509,7 @@ GET /_search
 ===== Lat Lon as Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
-conform with http://geojson.org/[GeoJSON].
+conform with https://geojson.org/[GeoJSON].
 
 [source,console]
 --------------------------------------------------

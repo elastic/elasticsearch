@@ -54,7 +54,7 @@ or longitude, or `STRICT` (default is `STRICT`).
 Format as `[lon, lat]`
 
 Note: the order of lon/lat here must
-conform with http://geojson.org/[GeoJSON].
+conform with https://geojson.org/[GeoJSON].
 
 [source,console]
 --------------------------------------------------

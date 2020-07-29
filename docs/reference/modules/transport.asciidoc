@@ -10,7 +10,7 @@ the data).
 The transport mechanism is completely asynchronous in nature, meaning
 that there is no blocking thread waiting for a response. The benefit of
 using asynchronous communication is first solving the
-http://en.wikipedia.org/wiki/C10k_problem[C10k problem], as well as
+https://en.wikipedia.org/wiki/C10k_problem[C10k problem], as well as
 being the ideal solution for scatter (broadcast) / gather operations such
 as search in Elasticsearch.
 

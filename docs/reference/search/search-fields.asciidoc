@@ -90,7 +90,7 @@ POST twitter/_search
     format for the field's values. The date fields
     <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
     <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
-    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
+    accept either `geojson` for https://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
     https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].
     Other field types do not support the `format` parameter.

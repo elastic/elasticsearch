@@ -22,6 +22,7 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 <<nested>>::    `nested` for arrays of JSON objects
 
 [discrete]
+[[spatial_datatypes]]
 === Spatial data types
 
 <<geo-point>>::     `geo_point` for lat/lon points

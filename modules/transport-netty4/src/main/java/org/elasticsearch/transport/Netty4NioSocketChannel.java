@@ -17,12 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.search.lookup.SearchLookup;
+import io.netty.channel.Channel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 
-//TODO this is a temporary interface only to avoid changing signature of MappedFieldType#fielddataBuilder
-public interface SearchLookupAware {
+import java.nio.channels.SocketChannel;
 
-    void setSearchLookup(SearchLookup searchLookup);
+/**
+ * Helper class to expose {@link #javaChannel()} method
+ */
+public class Netty4NioSocketChannel extends NioSocketChannel {
+
+    public Netty4NioSocketChannel() {
+        super();
+    }
+
+    public Netty4NioSocketChannel(Channel parent, SocketChannel socket) {
+        super(parent, socket);
+    }
+
+    @Override
+    public SocketChannel javaChannel() {
+        return super.javaChannel();
+    }
+
 }

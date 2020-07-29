@@ -86,7 +86,7 @@ NOTE: Adding context mappings increases the index size for completion field. The
 is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
 
 [[suggester-context-category]]
-[float]
+[discrete]
 ===== Category Context
 
 The `category` context allows you to associate one or more categories with suggestions at index
@@ -130,7 +130,7 @@ are explicitly indexed, the suggestions are indexed with both set
 of categories.
 
 
-[float]
+[discrete]
 ====== Category Query
 
 Suggestions can be filtered by one or more categories. The following
@@ -218,7 +218,7 @@ NOTE: If a suggestion entry matches multiple contexts the final score is compute
 maximum score produced by any matching contexts.
 
 [[suggester-context-geo]]
-[float]
+[discrete]
 ===== Geo location Context
 
 A `geo` context allows you to associate one or more geo points or geohashes with suggestions
@@ -227,7 +227,7 @@ a certain distance of a specified geo location.
 
 Internally, geo points are encoded as geohashes with the specified precision.
 
-[float]
+[discrete]
 ====== Geo Mapping
 
 In addition to the `path` setting, `geo` context mapping accepts the following settings:
@@ -241,7 +241,7 @@ In addition to the `path` setting, `geo` context mapping accepts the following s
 NOTE: The index time `precision` setting sets the maximum geohash precision that
 can be used at query time.
 
-[float]
+[discrete]
 ====== Indexing geo contexts
 
 `geo` contexts can be explicitly set with suggestions or be indexed from a geo point field in the
@@ -271,7 +271,7 @@ PUT place/_doc/1
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ====== Geo location Query
 
 Suggestions can be filtered and boosted with respect to how close they are to one or

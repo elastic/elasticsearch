@@ -100,7 +100,7 @@ a sort on an existing index. Index sorting also has a cost in terms of indexing 
 documents must be sorted at flush and merge time. You should test the impact on your application
 before activating this feature.
 
-[float]
+[discrete]
 [[early-terminate]]
 === Early termination of search request
 

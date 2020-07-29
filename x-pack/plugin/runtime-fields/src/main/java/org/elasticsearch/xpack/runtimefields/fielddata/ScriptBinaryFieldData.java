@@ -8,63 +8,49 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
+public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final Script script;
-        private final StringScriptFieldScript.Factory scriptFactory;
+        private final StringScriptFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, Script script, StringScriptFieldScript.Factory scriptFactory) {
+        public Builder(String name, StringScriptFieldScript.LeafFactory leafFactory) {
             this.name = name;
-            this.script = script;
-            this.scriptFactory = scriptFactory;
+            this.leafFactory = leafFactory;
         }
 
         @Override
         public ScriptBinaryFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptBinaryFieldData(name, script, scriptFactory);
+            return new ScriptBinaryFieldData(name, leafFactory);
         }
     }
 
     private final String fieldName;
-    private final Script script;
-    private final StringScriptFieldScript.Factory scriptFactory;
-    private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
+    private final StringScriptFieldScript.LeafFactory leafFactory;
 
-    private ScriptBinaryFieldData(String fieldName, Script script, StringScriptFieldScript.Factory scriptFactory) {
+    private ScriptBinaryFieldData(String fieldName, StringScriptFieldScript.LeafFactory leafFactory) {
         this.fieldName = fieldName;
-        this.script = script;
-        this.scriptFactory = scriptFactory;
-    }
-
-    @Override
-    public void setSearchLookup(SearchLookup searchLookup) {
-        this.leafFactory.set(scriptFactory.newFactory(script.getParams(), searchLookup));
+        this.leafFactory = leafFactory;
     }
 
     @Override
@@ -88,7 +74,7 @@ public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryF
 
     @Override
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptBinaryLeafFieldData(new ScriptBinaryDocValues(leafFactory.get().newInstance(context)));
+        return new ScriptBinaryLeafFieldData(new ScriptBinaryDocValues(leafFactory.newInstance(context)));
     }
 
     @Override

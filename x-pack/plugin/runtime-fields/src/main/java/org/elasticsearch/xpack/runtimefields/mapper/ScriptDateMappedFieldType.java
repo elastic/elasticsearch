@@ -21,7 +21,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
@@ -33,6 +33,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
     private final DateScriptFieldScript.Factory scriptFactory;
@@ -73,20 +74,18 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     @Override
-    public ScriptDateFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptDateFieldData.Builder(name(), script, scriptFactory);
+    public ScriptDateFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
+        return new ScriptDateFieldData.Builder(name(), leafFactory(lookup.get()));
     }
 
-    private AbstractLongScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
-        DateScriptFieldScript.LeafFactory delegate = scriptFactory.newFactory(script.getParams(), context.lookup());
-        return ctx -> delegate.newInstance(ctx);
+    private DateScriptFieldScript.LeafFactory leafFactory(SearchLookup lookup) {
+        return scriptFactory.newFactory(script.getParams(), lookup);
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(context.lookup())::newInstance, name());
     }
 
     @Override
@@ -111,7 +110,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context.lookup())::newInstance, name(), l, u)
         );
     }
 
@@ -127,7 +126,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                 DateFieldMapper.Resolution.MILLISECONDS
             );
             checkAllowExpensiveQueries(context);
-            return new LongScriptFieldTermQuery(script, leafFactory(context), name(), l);
+            return new LongScriptFieldTermQuery(script, leafFactory(context.lookup())::newInstance, name(), l);
         });
     }
 
@@ -151,7 +150,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                 );
             }
             checkAllowExpensiveQueries(context);
-            return new LongScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+            return new LongScriptFieldTermsQuery(script, leafFactory(context.lookup())::newInstance, name(), terms);
         });
     }
 }

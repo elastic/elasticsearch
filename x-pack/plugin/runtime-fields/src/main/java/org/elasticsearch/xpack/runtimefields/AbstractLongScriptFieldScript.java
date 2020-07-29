@@ -10,17 +10,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
  * Common base class for script field scripts that return long values.
  */
 public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldScript {
-    public interface LeafFactory {
-        AbstractLongScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
-    }
-
     private long[] values = new long[1];
     private int count;
 

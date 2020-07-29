@@ -83,8 +83,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptDateMappedFieldType ft = build("add_days", Map.of("days", 1));
-                ScriptDateFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptDateFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -122,8 +121,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptDateFieldData ifd = simpleMappedFieldType().fielddataBuilder("test").build(null, null, null);
-                ifd.setSearchLookup(mockContext().lookup());
+                ScriptDateFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(

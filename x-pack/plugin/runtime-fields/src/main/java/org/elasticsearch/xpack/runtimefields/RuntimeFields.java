@@ -21,7 +21,7 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(RuntimeScriptFieldMapper.CONTENT_TYPE, new RuntimeScriptFieldMapper.TypeParser());
+        return Collections.singletonMap(RuntimeScriptFieldMapper.CONTENT_TYPE, RuntimeScriptFieldMapper.PARSER);
     }
 
     @Override

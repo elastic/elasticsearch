@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -62,6 +63,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
@@ -262,7 +264,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
                 @Override
@@ -354,6 +356,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected ScaledFloatFieldMapper clone() {
         return (ScaledFloatFieldMapper) super.clone();
+    }
+
+    @Override
+    protected Double nullValue() {
+        return nullValue;
     }
 
     @Override
@@ -472,6 +479,26 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         return doubleValue;
+    }
+
+    @Override
+    protected Double parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        double doubleValue;
+        if (value.equals("")) {
+            if (nullValue == null) {
+                return null;
+            }
+            doubleValue = nullValue;
+        } else {
+            doubleValue = objectToDouble(value);
+        }
+
+        double scalingFactor = fieldType().getScalingFactor();
+        return Math.round(doubleValue * scalingFactor) / scalingFactor;
     }
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {

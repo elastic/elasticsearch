@@ -16,7 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
     private final LongScriptFieldScript.Factory scriptFactory;
@@ -47,20 +48,18 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     @Override
-    public ScriptLongFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptLongFieldData.Builder(name(), script, scriptFactory);
+    public ScriptLongFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new ScriptLongFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private AbstractLongScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
-        LongScriptFieldScript.LeafFactory delegate = scriptFactory.newFactory(script.getParams(), context.lookup());
-        return ctx -> delegate.newInstance(ctx);
+    private LongScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+        return scriptFactory.newFactory(script.getParams(), searchLookup);
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(context.lookup())::newInstance, name());
     }
 
     @Override
@@ -80,7 +79,7 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context.lookup())::newInstance, name(), l, u)
         );
     }
 
@@ -90,7 +89,12 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToLong(value, true));
+        return new LongScriptFieldTermQuery(
+            script,
+            leafFactory(context.lookup())::newInstance,
+            name(),
+            NumberType.objectToLong(value, true)
+        );
     }
 
     @Override
@@ -109,6 +113,6 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
             return Queries.newMatchNoDocsQuery("All values have a decimal part");
         }
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        return new LongScriptFieldTermsQuery(script, leafFactory(context.lookup())::newInstance, name(), terms);
     }
 }

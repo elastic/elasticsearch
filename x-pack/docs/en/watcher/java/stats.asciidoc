@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[api-java-stats]]
 === Stats API
 

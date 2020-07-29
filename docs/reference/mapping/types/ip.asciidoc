@@ -9,7 +9,7 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -20,12 +20,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "ip_addr": "192.168.1.1"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -75,7 +75,7 @@ notation: `[ip_address]/[prefix_length]`. For instance:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -89,7 +89,7 @@ or
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -106,7 +106,7 @@ searched value:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "query_string" : {

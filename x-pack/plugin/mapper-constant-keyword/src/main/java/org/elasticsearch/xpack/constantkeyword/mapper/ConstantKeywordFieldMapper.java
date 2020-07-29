@@ -38,6 +38,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -45,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -138,7 +141,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new ConstantIndexFieldData.Builder(mapperService -> value, name(), CoreValuesSourceType.BYTES);
         }
 
@@ -260,6 +263,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
+    }
+
+    @Override
+    public List<String> lookupValues(SourceLookup lookup, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        return fieldType().value == null
+            ? List.of()
+            : List.of(fieldType().value);
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("This should never be called, since lookupValues is implemented directly.");
     }
 
     @Override

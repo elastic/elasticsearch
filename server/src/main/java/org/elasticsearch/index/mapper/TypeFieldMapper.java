@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -100,7 +102,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
             return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
         }

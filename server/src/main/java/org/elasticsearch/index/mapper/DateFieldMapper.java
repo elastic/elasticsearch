@@ -47,12 +47,14 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +62,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -269,6 +272,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
@@ -437,7 +441,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
         }
@@ -520,6 +524,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValueAsString;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -565,6 +574,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    public String parseSourceValue(Object value, String format) {
+        String date = value.toString();
+        long timestamp = fieldType().parse(date);
+
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        if (format != null) {
+            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+        }
+        return dateTimeFormatter.format(dateTime);
+    }
 
     public boolean getIgnoreMalformed() {
         return ignoreMalformed;

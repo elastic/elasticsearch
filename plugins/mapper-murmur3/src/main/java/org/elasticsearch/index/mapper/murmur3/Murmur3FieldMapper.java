@@ -39,10 +39,12 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends FieldMapper {
 
@@ -102,7 +104,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
@@ -148,6 +150,14 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value.toString();
+    }
+
+    @Override
     protected boolean indexedByDefault() {
         return false;
     }
@@ -156,5 +166,4 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
-
 }

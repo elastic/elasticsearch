@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -81,6 +82,17 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         );
         when(context.lookup()).thenReturn(lookup);
         return context;
+    }
+
+    public void testRangeQueryWithShapeRelationIsError() throws IOException {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> simpleMappedFieldType().rangeQuery(1, 2, true, true, ShapeRelation.DISJOINT, null, null, null)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Field [test] of type [runtime_script] with runtime type [" + runtimeType() + "] does not support DISJOINT ranges")
+        );
     }
 
     public void testPhraseQueryIsError() {

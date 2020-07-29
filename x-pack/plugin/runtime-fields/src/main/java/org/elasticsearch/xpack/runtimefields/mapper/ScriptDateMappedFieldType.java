@@ -11,7 +11,6 @@ import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -94,7 +93,6 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        ShapeRelation relation,
         ZoneId timeZone,
         @Nullable DateMathParser parser,
         QueryShardContext context

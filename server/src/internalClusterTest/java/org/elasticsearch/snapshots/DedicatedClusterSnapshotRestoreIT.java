@@ -1303,6 +1303,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final SnapshotInfo snapshot2 =
                 PlainActionFuture.get(f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-2"), f));
         assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
+
+        final SnapshotInfo snapshot3 =
+                PlainActionFuture.get(f -> snapshotsService.executeSnapshotLegacy(
+                        new CreateSnapshotRequest(repoName, "snap-3").indices("does-not-exist-*"), f));
+        assertThat(snapshot3.state(), is(SnapshotState.SUCCESS));
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

@@ -449,7 +449,7 @@ Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 
 Note that Amazon has published instructions at 
-https://docs.aws.amazon.com/cli/latest/reference/ec2/create-vpc-endpoint.html
+https://docs.aws.amazon.com/vpc/latest/userguide/vpce-gateway.html
 that permit you to create a gateway endpoint that will expose access to S3 to 
 endpoints within subnets within your VPC, which will reduce network load upon 
 your VPC's NAT instance while backing up and restoring your ElasticSearch 

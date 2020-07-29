@@ -34,9 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.deprecation.plugin.TestDeprecatedQueryBuilder;
-import org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction;
-import org.elasticsearch.xpack.deprecation.plugin.TestDeprecationPlugin;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -49,9 +46,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.xpack.deprecation.plugin.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -237,7 +234,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
     private static RestClient buildRestClient(Client client ) {
         NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
-        assertEquals(nodesInfoResponse.getNodes(), hasSize(1));
+        assertThat(nodesInfoResponse.getNodes(), hasSize(1));
 
         NodeInfo node = nodesInfoResponse.getNodes().get(0);
         assertNotNull(node.getInfo(HttpInfo.class));

@@ -234,6 +234,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return description;
     }
 
+    public Tuple<String, Boolean> getConditionalWithResult() {
+        return conditionalWithResult;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -295,5 +299,17 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         } else { //has condition that failed the check
             return Status.SKIPPED;
         }
+    }
+
+    @Override
+    public String toString() {
+        return "SimulateProcessorResult{" +
+            "type='" + type + '\'' +
+            ", processorTag='" + processorTag + '\'' +
+            ", description='" + description + '\'' +
+            ", ingestDocument=" + ingestDocument +
+            ", failure=" + failure +
+            ", conditionalWithResult=" + conditionalWithResult +
+            '}';
     }
 }

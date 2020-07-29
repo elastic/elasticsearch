@@ -34,7 +34,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
         ScriptConfig scriptConfig = version.onOrAfter(Version.V_7_7_0)
             ? randomBoolean() ? null : ScriptConfigTests.randomScriptConfig()
             : null;
-        boolean missingBucket = version.onOrAfter(Version.V_8_0_0) ? randomBoolean() : false; // todo: V_7_10_0
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
 
         DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {

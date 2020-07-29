@@ -327,9 +327,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return null;
         });
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField);
-        when(queryShardContext.lookup()).thenReturn(searchLookup);
-
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .filter(Objects::nonNull)

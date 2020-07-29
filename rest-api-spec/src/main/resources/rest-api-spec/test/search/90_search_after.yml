@@ -97,6 +97,10 @@
 
 ---
 "date":
+  - skip:
+      version: " - 7.9.99"
+      reason: fixed in 7.10.0
+
   - do:
       indices.create:
         index: test
@@ -105,7 +109,7 @@
             properties:
               timestamp:
                 type: date
-                format: 8yyyy-MM-dd HH:mm:ss.SSS
+                format: yyyy-MM-dd HH:mm:ss.SSS
   - do:
       bulk:
         refresh: true
@@ -173,7 +177,7 @@
             properties:
               timestamp:
                 type: date_nanos
-                format: 8yyyy-MM-dd HH:mm:ss.SSSSSS
+                format: yyyy-MM-dd HH:mm:ss.SSSSSS
   - do:
       bulk:
         refresh: true

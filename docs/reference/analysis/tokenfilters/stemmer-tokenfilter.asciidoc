@@ -83,7 +83,7 @@ analyzer>>.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -256,7 +256,7 @@ words using the `light_german` algorithm:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

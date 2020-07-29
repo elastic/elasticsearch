@@ -20,23 +20,30 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -584,6 +591,39 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("location").nullField("lat").nullField("lon").endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        AbstractGeometryFieldMapper<?, ?> mapper = new GeoPointFieldMapper.Builder("field").build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
+        Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
+        String wktPoint = "POINT (42.0 27.1)";
+        String otherWktPoint = "POINT (30.0 50.0)";
+
+        // Test a single point in [lon, lat] array format.
+        sourceLookup.setSource(Collections.singletonMap("field", List.of(42.0, 27.1)));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a single point in "lat, lon" string format.
+        sourceLookup.setSource(Collections.singletonMap("field", "27.1,42.0"));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a list of points in [lon, lat] array format.
+        sourceLookup.setSource(Collections.singletonMap("field", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0))));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a single point in well-known text format.
+        sourceLookup.setSource(Collections.singletonMap("field", "POINT (42.0 27.1)"));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
     }
 
     @Override

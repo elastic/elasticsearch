@@ -1,7 +1,7 @@
 [[index-modules-slowlog]]
 == Slow Log
 
-[float]
+[discrete]
 [[search-slow-log]]
 === Search Slow Log
 
@@ -55,7 +55,7 @@ level.
 
 The search slow log file is configured in the `log4j2.properties` file.
 
-[float]
+[discrete]
 ==== Identifying search slow log origin
 
 It is often useful to identify what triggered a slow running query. If a call was initiated with an `X-Opaque-ID` header, then the user ID
@@ -85,7 +85,7 @@ is included in Search Slow logs as an additional **id** field
 ---------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[index-slow-log]]
 === Index Slow log
 

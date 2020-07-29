@@ -21,17 +21,10 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.FunctionTable;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
@@ -114,43 +107,5 @@ public class SFunction extends ANode {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         blockNode.visit(userTreeVisitor, scope);
-    }
-
-    void analyze(ScriptScope scriptScope) {
-        FunctionTable.LocalFunction localFunction =
-                scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
-        Class<?> returnType = localFunction.getReturnType();
-        List<Class<?>> typeParameters = localFunction.getTypeParameters();
-        FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
-
-        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
-            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
-            String parameterName = parameterNames.get(index);
-            functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
-        }
-
-        if (blockNode.getStatementNodes().isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
-        }
-
-        functionScope.setCondition(blockNode, LastSource.class);
-        blockNode.analyze(functionScope.newLocalScope());
-        boolean methodEscape = functionScope.getCondition(blockNode, MethodEscape.class);
-
-        if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
-            throw createError(new IllegalArgumentException("not all paths provide a return value " +
-                    "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
-        }
-
-        if (methodEscape) {
-            functionScope.setCondition(this, MethodEscape.class);
-        }
-
-        // TODO: do not specialize for execute
-        // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(functionName)) {
-            scriptScope.setUsedVariables(functionScope.getUsedVariables());
-        }
-        // TODO: end
     }
 }

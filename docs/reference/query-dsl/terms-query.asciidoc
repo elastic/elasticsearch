@@ -125,7 +125,7 @@ To see how terms lookup works, try the following example.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -143,7 +143,7 @@ PUT my_index
 
 [source,console]
 ----
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "color":   ["blue", "green"]
 }
@@ -158,7 +158,7 @@ field.
 
 [source,console]
 ----
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "color":   "blue"
 }
@@ -176,7 +176,7 @@ parameter so the response is more readable.
 
 [source,console]
 ----
-POST my_index/_refresh
+POST my-index-000001/_refresh
 ----
 // TEST[continued]
 
@@ -184,12 +184,12 @@ POST my_index/_refresh
 
 [source,console]
 ----
-GET my_index/_search?pretty
+GET my-index-000001/_search?pretty
 {
   "query": {
     "terms": {
         "color" : {
-            "index" : "my_index",
+            "index" : "my-index-000001",
             "id" : "2",
             "path" : "color"
         }
@@ -221,7 +221,7 @@ field, {es} returns both documents.
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -232,7 +232,7 @@ field, {es} returns both documents.
         }
       },
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "2",
         "_score" : 1.0,
         "_source" : {

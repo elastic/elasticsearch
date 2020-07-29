@@ -89,9 +89,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
-    // Skip tests for jdk 8u262 https://github.com/elastic/elasticsearch/issues/56507
+    //  JDK 8u262 shipped with a NPE in Kerberos code, see https://github.com/elastic/elasticsearch/issues/56507
     public void testSuppressedOnJDK8u262() {
-        assumeFalse("AwaitsFix on JDK 8u262", "1.8.0_262".equals(System.getProperty("java.version")));
+        assumeFalse("Cannot run on JDK 8u262", "1.8.0_262".equals(System.getProperty("java.version")));
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {

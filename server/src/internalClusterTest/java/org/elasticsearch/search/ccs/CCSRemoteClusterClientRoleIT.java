@@ -21,6 +21,7 @@ package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -29,9 +30,12 @@ import org.elasticsearch.test.NodeRoles;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase {
 
@@ -50,16 +54,36 @@ public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase 
         return numDocs;
     }
 
-    public void testRerouteRequestToNodeWithRemoteClusterClientRole() throws Exception {
+    public void testRemoteClusterClientRole() throws Exception {
         final int demoDocs = indexDocs(client(LOCAL_CLUSTER), "demo");
         final int prodDocs = indexDocs(client("cluster_a"), "prod");
         final InternalTestCluster localCluster = cluster(LOCAL_CLUSTER);
-        final String nodeWithoutRemoteRole = localCluster.startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_ROLE));
-        final SearchResponse response = cluster(LOCAL_CLUSTER).client(nodeWithoutRemoteRole)
+        if (randomBoolean()) {
+            localCluster.startDataOnlyNode();
+        }
+        final String nodeWithoutRemoteClusterClientRole = localCluster.startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_ROLE));
+        final IllegalStateException error = expectThrows(IllegalStateException.class, () ->
+            localCluster.client(nodeWithoutRemoteClusterClientRole)
+                .prepareSearch("demo", "cluster_a:prod")
+                .setQuery(new MatchAllQueryBuilder())
+                .setAllowPartialSearchResults(false)
+                .setSize(1000)
+                .get());
+        assertThat(error.getMessage(),
+            equalTo("node [" + nodeWithoutRemoteClusterClientRole + "] does not have the remote cluster client role enabled"));
+
+        final String nodeWithRemoteClusterClientRole = randomFrom(
+            StreamSupport.stream(localCluster.clusterService().state().nodes().spliterator(), false)
+                .map(DiscoveryNode::getName)
+                .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
+                .collect(Collectors.toList()));
+
+        final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
             .prepareSearch("demo", "cluster_a:prod")
             .setQuery(new MatchAllQueryBuilder())
             .setAllowPartialSearchResults(false)
-            .setSize(1000).get();
-        assertHitCount(response, demoDocs + prodDocs);
+            .setSize(1000)
+            .get();
+        assertHitCount(resp, demoDocs + prodDocs);
     }
 }

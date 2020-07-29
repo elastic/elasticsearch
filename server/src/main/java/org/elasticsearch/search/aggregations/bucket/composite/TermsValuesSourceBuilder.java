@@ -78,7 +78,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
             TYPE,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {

@@ -184,4 +184,33 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
             getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
             this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
     }
+
+    public void testStatus(){
+        SimulateProcessorResult result;
+        // conditional returned false
+        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
+            new Tuple<>(randomAlphaOfLengthBetween(1, 10), false));
+        assertEquals(SimulateProcessorResult.Status.SKIPPED, result.getStatus());
+
+        // no ingest doc
+        result = new SimulateProcessorResult(null, null, null, null, null, null);
+        assertEquals(SimulateProcessorResult.Status.DROPPED, result.getStatus());
+
+        // failure
+        result = new SimulateProcessorResult(null, null, null, null, new RuntimeException(""), null);
+        assertEquals(SimulateProcessorResult.Status.ERROR, result.getStatus());
+
+        // failure, but ignored
+        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), new RuntimeException(""), null);
+        assertEquals(SimulateProcessorResult.Status.ERROR_IGNORED, result.getStatus());
+
+        //success - no conditional
+        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null, null);
+        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus());
+
+        //success - conditional true
+        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
+            new Tuple<>(randomAlphaOfLengthBetween(1, 10), true));
+        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus());
+    }
 }

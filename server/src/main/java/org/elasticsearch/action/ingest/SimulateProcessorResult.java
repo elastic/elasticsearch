@@ -46,7 +46,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private static final String STATUS_FIELD = "status";
     private static final String TYPE_FIELD = "processor_type";
 
-    private enum Status {
+    enum Status {
         SUCCESS,
         ERROR,
         ERROR_IGNORED,
@@ -278,7 +278,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    private Status getStatus() {
+    Status getStatus() {
         //if no condition, or condition passed
         if (conditionalWithResult == null || (conditionalWithResult != null && conditionalWithResult.v2())) {
             if (failure != null) {

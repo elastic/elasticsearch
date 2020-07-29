@@ -98,3 +98,5 @@ DELETE _component_template/*
 // TEARDOWN
 
 ////
+
+include::simulate-multi-component-templates.asciidoc[]

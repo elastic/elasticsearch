@@ -57,14 +57,13 @@ DELETE _component_template/template_*
 
 An index template can be composed of multiple component templates. 
 To use a component template, specify it in an index template's `composed_of` list.
-Component templates are only applied to new data streams and indices 
+Component templates are only applied to indices 
 as part of a matching index template. 
 
 Settings and mappings specified directly in the index template or the <<indices-create-index, create index>>
 request override any settings or mappings specified in a component template.
 
-Component templates are only used during index creation. For data streams, this
-includes data stream creation and the creation of a stream's backing indices.
+Component templates are only used during index creation. 
 Changes to component templates do not
 affect existing indices, including a stream's backing indices.
 
@@ -100,8 +99,6 @@ This is the template to be applied, may optionally include a `mappings`,
 `settings`, or `aliases` configuration.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
-+
-NOTE: You cannot add data streams to an index alias.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
@@ -151,7 +148,7 @@ actual index name that the template gets applied to, during index creation.
 [[applying-component-templates]]
 ===== Applying component templates
 
-You cannot directly apply a component template to a data stream or index.
+You cannot directly apply a component template to an index.
 To be applied, a component template must be included in an index template's `composed_of` list. See <<indices-templates>>.
 
 [[component-templates-version]]

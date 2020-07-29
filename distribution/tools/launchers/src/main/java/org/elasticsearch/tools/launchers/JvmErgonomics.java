@@ -75,7 +75,7 @@ final class JvmErgonomics {
         private final String value;
         private final String origin;
 
-        public JvmOption(String value, String origin) {
+        JvmOption(String value, String origin) {
             this.value = value;
             this.origin = origin;
         }
@@ -93,8 +93,7 @@ final class JvmErgonomics {
         }
     }
 
-    static Map<String, JvmOption> finalJvmOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
-        IOException {
+    static Map<String, JvmOption> finalJvmOptions(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
         return flagsFinal(userDefinedJvmOptions).stream()
             .map(OPTION::matcher)
             .filter(Matcher::matches)
@@ -154,9 +153,7 @@ final class JvmErgonomics {
     // Use ParallelGC for heaps <= 4GB unless the user has explicitly set the garbage collector
     static boolean extractUseParallelGC(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
         JvmOption g1 = finalJvmOptions.get("UseG1GC");
-        boolean parallel =  (heapSize <= 4L << 30 && g1.getMandatoryValue().equals("true")
-          && g1.isCommandLineOrigin() == false);
-        return parallel;
+        return (heapSize <= 4L << 30 && g1.getMandatoryValue().equals("true") && g1.isCommandLineOrigin() == false);
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

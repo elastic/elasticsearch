@@ -153,6 +153,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return originalIndicesMap;
     }
 
+    public boolean maybeIncludeRemoteIndices(String[] indices) {
+        return Arrays.stream(indices).anyMatch(i -> i.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
+    }
+
     /**
      * Returns <code>true</code> iff the given cluster is configured as a remote cluster. Otherwise <code>false</code>
      */

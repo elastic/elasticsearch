@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -203,6 +204,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        if (remoteClusterService.isEnabled() == false && remoteClusterService.maybeIncludeRemoteIndices(searchRequest.indices())) {
+            final List<DiscoveryNode> nodesWithRemoteClusterClientRole = new ArrayList<>();
+            for (DiscoveryNode node : clusterService.state().nodes()) {
+                if (node.isRemoteClusterClient()) {
+                    nodesWithRemoteClusterClientRole.add(node);
+                }
+            }
+            if (nodesWithRemoteClusterClientRole.isEmpty() == false) {
+                Randomness.shuffle(nodesWithRemoteClusterClientRole);
+                searchTransportService.rerouteSearchRequest(nodesWithRemoteClusterClientRole.get(0), searchRequest, task, listener);
+                return;
+            }
+        }
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
             new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);

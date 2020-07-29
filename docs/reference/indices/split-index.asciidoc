@@ -97,6 +97,7 @@ PUT /my-index-000001
   }
 }
 ----
+// TEST[continued]
 ====
 
 The `index.number_of_routing_shards` setting's default value depends 

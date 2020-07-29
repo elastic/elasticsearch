@@ -51,7 +51,7 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    public final Cache<CacheKey, CacheFile> cache;
+    private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;

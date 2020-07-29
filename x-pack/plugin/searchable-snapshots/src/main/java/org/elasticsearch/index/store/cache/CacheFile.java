@@ -80,6 +80,14 @@ public class CacheFile {
         return tracker.getLength();
     }
 
+    /**
+     * Returns the current physical length of this cache file.
+     * This method might return different results depending on the
+     * underlying file system that backs this cache file, as some of
+     * them don't support sparse files.
+     *
+     * @return the physical length of this cache file as reported by the file system
+     */
     public long getPhysicalLength() {
         try {
             return Files.size(file);

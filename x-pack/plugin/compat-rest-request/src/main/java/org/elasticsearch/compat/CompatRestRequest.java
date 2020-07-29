@@ -28,8 +28,8 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
         String cVersion = parseVersion(contentTypeHeader);
         byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
 
-        // accept  version must be current or prior
-        if(acceptVersion > Version.CURRENT.major  || acceptVersion < Version.CURRENT.major - 1 ){
+        // accept version must be current or prior
+        if (acceptVersion > Version.CURRENT.major || acceptVersion < Version.CURRENT.major - 1) {
             throw new CompatibleApiException(
                 String.format(
                     Locale.ROOT,
@@ -42,7 +42,7 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
         if (hasContent) {
 
             // content-type version must be current or prior
-            if(  contentTypeVersion > Version.CURRENT.major|| contentTypeVersion < Version.CURRENT.major - 1 ){
+            if (contentTypeVersion > Version.CURRENT.major || contentTypeVersion < Version.CURRENT.major - 1) {
                 throw new CompatibleApiException(
                     String.format(
                         Locale.ROOT,
@@ -64,7 +64,7 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
                 );
             }
             // both headers should be versioned or none
-            if ((cVersion == null && aVersion!=null) || (aVersion ==null && cVersion!=null) ){
+            if ((cVersion == null && aVersion != null) || (aVersion == null && cVersion != null)) {
                 throw new CompatibleApiException(
                     String.format(
                         Locale.ROOT,
@@ -74,12 +74,12 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
                     )
                 );
             }
-            if(contentTypeVersion < Version.CURRENT.major){
+            if (contentTypeVersion < Version.CURRENT.major) {
                 return Version.CURRENT.previousMajor();
             }
         }
 
-        if(acceptVersion < Version.CURRENT.major) {
+        if (acceptVersion < Version.CURRENT.major) {
             return Version.CURRENT.previousMajor();
         }
 

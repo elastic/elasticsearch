@@ -110,6 +110,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
                 .source(xContentBuilder)
+                .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
     }

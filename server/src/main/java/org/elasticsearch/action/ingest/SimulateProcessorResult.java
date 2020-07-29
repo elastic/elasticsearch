@@ -250,7 +250,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             builder.field(TYPE_FIELD, type);
         }
 
-        builder.field(STATUS_FIELD, getStatus());
+        builder.field(STATUS_FIELD, getStatus(type));
 
         if (description != null) {
             builder.field(ConfigurationUtils.DESCRIPTION_KEY, description);
@@ -287,7 +287,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    Status getStatus() {
+    Status getStatus(String type) {
         //if no condition, or condition passed
         if (conditionalWithResult == null || (conditionalWithResult != null && conditionalWithResult.v2())) {
             if (failure != null) {
@@ -296,7 +296,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
                 } else {
                     return Status.ERROR_IGNORED;
                 }
-            } else if (ingestDocument == null) {
+            } else if (ingestDocument == null && "pipeline".equals(type) == false) {
                 return Status.DROPPED;
             }
             return Status.SUCCESS;

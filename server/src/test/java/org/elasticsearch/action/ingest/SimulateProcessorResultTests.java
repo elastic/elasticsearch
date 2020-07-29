@@ -190,27 +190,31 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         // conditional returned false
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
             new Tuple<>(randomAlphaOfLengthBetween(1, 10), false));
-        assertEquals(SimulateProcessorResult.Status.SKIPPED, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.SKIPPED, result.getStatus("set"));
 
         // no ingest doc
         result = new SimulateProcessorResult(null, null, null, null, null, null);
-        assertEquals(SimulateProcessorResult.Status.DROPPED, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.DROPPED, result.getStatus(null));
+
+        // no ingest doc - as pipeline processor
+        result = new SimulateProcessorResult(null, null, null, null, null, null);
+        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus("pipeline"));
 
         // failure
         result = new SimulateProcessorResult(null, null, null, null, new RuntimeException(""), null);
-        assertEquals(SimulateProcessorResult.Status.ERROR, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.ERROR, result.getStatus("rename"));
 
         // failure, but ignored
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), new RuntimeException(""), null);
-        assertEquals(SimulateProcessorResult.Status.ERROR_IGNORED, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.ERROR_IGNORED, result.getStatus(""));
 
         //success - no conditional
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null, null);
-        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus(null));
 
         //success - conditional true
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
             new Tuple<>(randomAlphaOfLengthBetween(1, 10), true));
-        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus());
+        assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus(null));
     }
 }

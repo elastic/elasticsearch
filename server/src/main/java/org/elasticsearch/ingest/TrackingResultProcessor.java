@@ -65,7 +65,12 @@ public final class TrackingResultProcessor implements Processor {
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             //runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
-            ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline(ingestDocument), (result, e) -> {
+            Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
+            if (pipelineToCall == null) {
+                throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" +
+                    pipelineProcessor.getPipelineToCallName(ingestDocument) + ']');
+            }
+            ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // do nothing, let the tracking processors throw the exception while recording the path up to the failure
                 if (e instanceof ElasticsearchException) {
                     ElasticsearchException elasticsearchException = (ElasticsearchException) e;
@@ -149,16 +154,7 @@ public final class TrackingResultProcessor implements Processor {
             }
             if (processor instanceof CompoundProcessor) {
                 processors.add(decorate((CompoundProcessor) processor, conditionalProcessor, processorResultList));
-
-            }
-//            else if (processor instanceof PipelineProcessor) {
-//                PipelineProcessor pipelineProcessor = (PipelineProcessor) processor;
-//                CompoundProcessor compoundProcessorFromPipeline = pipelineProcessor
-//                    .getPipeline(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())).getCompoundProcessor();
-//
-//                 processors.add(decorate(compoundProcessorFromPipeline, null, processorResultList));
-//            }
-            else {
+            } else {
                 processors.add(
                     new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList));
             }

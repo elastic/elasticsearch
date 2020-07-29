@@ -13,10 +13,19 @@
 ################################################################################
 # Build stage 0 `builder`:
 # Extract elasticsearch artifact
-# Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
+FROM ${base_image} AS builder
+
+# Ensure some requires tools are installed. They may not be on some minimal base images.
+# We run ${package_manager} commands in a loop, in order to prevent transient repository access errors
+# from failing the build. We only loop on failure, using \$exit_code to track success or failure.
+RUN for iter in {1..10}; do \\
+        ${package_manager} install --setopt=tsflags=nodocs -y tar gzip && \\
+        exit_code=0 && break || \\
+            exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10 ; \\
+    done; \\
+    (exit \$exit_code)
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -39,11 +48,7 @@ RUN set -eux ; \\
     mv \${tini_bin} /tini ; \\
     chmod +x /tini
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
-
+RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 ${source_elasticsearch}
@@ -61,15 +66,21 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 
-COPY --from=builder /tini /tini
+COPY --from=builder --chown=0:0 /tini /tini
 
-RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \\
-    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \\
+# We run ${package_manager} commands in a loop, in order to prevent transient repository access errors
+# from failing the build. We only loop on failure, using \$exit_code to track success or failure.
+RUN for iter in {1..10}; do \\
+        ${package_manager} update --setopt=tsflags=nodocs -y && \\
+        ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
+        ${package_manager} clean all && \\
+        exit_code=0 && break || \\
+            exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10 ; \\
+    done; \\
     (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \\
@@ -123,6 +134,7 @@ ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
 ################################################################################
 # End of multi-stage Dockerfile
 ################################################################################

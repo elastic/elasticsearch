@@ -127,7 +127,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
         final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS || architecture == Architecture.X64
             ? ""
-            : "-" + architecture.toString().toLowerCase();
+            : "-" + architecture;
 
         if (distribution.getFlavor() == ElasticsearchDistribution.Flavor.OSS) {
             projectName += "oss-";
@@ -139,7 +139,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
         switch (distribution.getType()) {
             case ARCHIVE:
-                projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                projectName += platform + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
                     ? "-zip"
                     : "-tar");
                 break;

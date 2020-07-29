@@ -28,14 +28,14 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-ext.expansions = { architecture, oss, local ->
+ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
   String classifier
   if (local) {
     switch (architecture) {
-      case "aarch64":
+      case Architecture.AARCH64:
         classifier = "linux-aarch64"
         break
-      case "x64":
+      case Architecture.X64:
         classifier = "linux-x86_64"
         break
       default:
@@ -66,24 +66,46 @@ RUN curl --retry 8 -S -L \\
   }
 
   return [
+    'base_image'          : ubi ? 'registry.access.redhat.com/ubi7/ubi-minimal:7.7' : 'centos:7',
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
-    'source_elasticsearch': sourceElasticsearch,
+    'package_manager'     : ubi ? 'microdnf' : 'yum',
+    'source_elasticsearch': sourceElasticsearch.trim(),
     'version'             : VersionProperties.elasticsearch
   ]
 }
 
-private static String buildPath(final String architecture, final boolean oss) {
-  return "build/${"aarch64".equals(architecture) ? 'aarch64-' : ''}${oss ? 'oss-' : ''}docker"
+private static String buildPath(final Architecture architecture, final boolean oss, final boolean ubi) {
+  String prefix = ""
+  if (architecture == Architecture.AARCH64) {
+    prefix += "aarch64-"
+  }
+  if (oss) {
+    prefix += "oss-"
+  }
+  if (ubi) {
+    prefix += "ubi-"
+  }
+  return "build/${prefix}docker"
 }
 
-private static String taskName(final String prefix, final String architecture, final boolean oss, final String suffix) {
-  return "${prefix}${"aarch64".equals(architecture) ? 'Aarch64' : ''}${oss ? 'Oss' : ''}${suffix}"
+private static String taskName(final String prefix, final Architecture architecture, final boolean oss, final boolean ubi, final String suffix) {
+  String infix = ""
+  if (architecture == Architecture.AARCH64) {
+    infix += "Aarch64"
+  }
+  if (oss) {
+    infix += "Oss"
+  }
+  if (ubi) {
+    infix += "Ubi"
+  }
+  return prefix + infix + suffix
 }
 
 project.ext {
-  dockerBuildContext = { String architecture, boolean oss, boolean local ->
+  dockerBuildContext = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
     copySpec {
       into('bin') {
         from project.projectDir.toPath().resolve("src/docker/bin")
@@ -102,22 +124,22 @@ project.ext {
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(expansions(architecture, oss, local))
+        expand(expansions(architecture, oss, ubi, local))
       }
     }
   }
 }
 
-void addCopyDockerContextTask(final String architecture, final boolean oss) {
-  task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
-    expansions(architecture, oss, true).findAll { it.key != 'build_date' }.each { k, v ->
+void addCopyDockerContextTask(final Architecture architecture, final boolean oss, final boolean ubi) {
+  task(taskName("copy", architecture, oss, ubi, "DockerContext"), type: Sync) {
+    expansions(architecture, oss, ubi, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into buildPath(architecture, oss)
+    into buildPath(architecture, oss, ubi)
 
-    with dockerBuildContext(architecture, oss, true)
+    with dockerBuildContext(architecture, oss, ubi, true)
 
-    if ("aarch64".equals(architecture)) {
+    if (architecture == Architecture.AARCH64) {
       if (oss) {
         from configurations.aarch64OssDockerSource
       } else {
@@ -200,34 +222,36 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
-void addBuildDockerImage(final String architecture, final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", architecture, oss, "DockerImage"), type: DockerBuildTask) {
-    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, "DockerContext"))
+void addBuildDockerImage(final Architecture architecture, final boolean oss, final boolean ubi) {
+  final Task buildDockerImageTask = task(taskName("build", architecture, oss, ubi, "DockerImage"), type: DockerBuildTask) {
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, ubi, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
     if (oss) {
       tags = [
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
-        "elasticsearch-oss:test"
+        "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
       ]
     } else {
       tags = [
-        "elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
-        "elasticsearch:test",
+        "elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}-full:${VersionProperties.elasticsearch}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:test",
       ]
     }
   }
-  buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
+  buildDockerImageTask.onlyIf { Architecture.current() == architecture }
   assemble.dependsOn(buildDockerImageTask)
 }
 
-for (final String architecture : ["aarch64", "x64"]) {
+for (final Architecture architecture : Architecture.values()) {
   for (final boolean oss : [false, true]) {
-    addCopyDockerContextTask(architecture, oss)
-    addBuildDockerImage(architecture, oss)
+    for (final boolean ubi : [false, true]) {
+      addCopyDockerContextTask(architecture, oss, ubi)
+      addBuildDockerImage(architecture, oss, ubi)
+    }
   }
 }
 
@@ -246,12 +270,13 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
-    final String architecture = subProject.name.contains('aarch64-') ? 'aarch64' : 'x64'
+    final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     final boolean oss = subProject.name.contains('oss-')
+    final boolean ubi = subProject.name.contains('ubi-')
 
-    def exportTaskName = taskName("export", architecture, oss, "DockerImage")
-    def buildTaskName = taskName("build", architecture, oss, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${"aarch64".equals(architecture) ? '-aarch64' : ''}${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+    def exportTaskName = taskName("export", architecture, oss, ubi, "DockerImage")
+    def buildTaskName = taskName("build", architecture, oss, ubi, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${architecture == Architecture.AARCH64 ? '-aarch64' : ''}${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
@@ -260,7 +285,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${oss ? '-oss' : ''}:test"
+        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}:test"
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
@@ -269,7 +294,7 @@ subprojects { Project subProject ->
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'
-      name "elasticsearch${"aarch64".equals(architecture) ? '-aarch64' : ''}${oss ? '-oss' : ''}"
+      name "elasticsearch${architecture == Architecture.AARCH64 ? '-aarch64' : ''}${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
       builtBy exportTaskName
     }
 

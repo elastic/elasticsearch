@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gradle;
 
+import java.util.Locale;
+
 public enum Architecture {
 
     X64,
@@ -37,4 +39,8 @@ public enum Architecture {
         }
     }
 
+    @Override
+    public String toString() {
+        return super.toString().toLowerCase(Locale.ROOT);
+    }
 }

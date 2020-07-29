@@ -6,8 +6,7 @@ task buildOssDockerBuildContext(type: Tar) {
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch-oss"
   // Non-local builds don't need to specify an architecture.
-  // Make this explicit via the string value.
-  with dockerBuildContext("<remote>", true, false)
+  with dockerBuildContext(null, true, false, false)
 }
 
 assemble.dependsOn buildOssDockerBuildContext

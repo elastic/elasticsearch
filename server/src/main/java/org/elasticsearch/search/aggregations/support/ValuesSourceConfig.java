@@ -30,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -370,5 +371,37 @@ public class ValuesSourceConfig {
 
     public boolean hasGlobalOrdinals() {
         return valuesSource.hasGlobalOrdinals();
+    }
+
+    /**
+     * This method is used when an aggregation can optimize by using the indexed data instead of the doc values.  We check to see if the
+     * indexed data will match the values source output (meaning there isn't a script or a missing value, since both could modify the
+     * value at read time).  If the settings allow for it, we then ask the {@link ValuesSourceType} to build the actual point reader
+     * based on the field type.  This allows for a point of extensibility in plugins.
+     *
+     * @return null if we cannot apply the optimization, otherwise the point reader function.
+     */
+    @Nullable
+    public Function<byte[], Number> getPointReaderOrNull() {
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null && script() == null && missing() == null) {
+            return fieldType.pointReaderIfPossible();
+        }
+        return null;
+    }
+
+    /**
+     * Returns a human readable description of this values source, for use in error messages and similar.
+     */
+    public String getDescription() {
+        if (script != null) {
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
+        }
+
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null) {
+            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+        }
+        return "unmapped field";
     }
 }

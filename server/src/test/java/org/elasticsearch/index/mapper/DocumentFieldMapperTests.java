@@ -76,15 +76,6 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        FakeFieldType(FakeFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "fake";
@@ -109,6 +100,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         @Override
         protected void parseCreateField(ParseContext context) throws IOException {
+        }
+
+        @Override
+        protected Object parseSourceValue(Object value, String format) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

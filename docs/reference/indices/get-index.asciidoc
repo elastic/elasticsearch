@@ -4,7 +4,8 @@
 <titleabbrev>Get index</titleabbrev>
 ++++
 
-Returns information about one or more indexes.
+Returns information about one or more indices. For data streams, the API
+returns information about the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
@@ -15,20 +16,19 @@ GET /twitter
 [[get-index-api-request]]
 ==== {api-request-title}
 
-`GET /<index>`
+`GET /<target>`
 
 
 [[get-index-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
+(Required, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
---
-(Required, string) Comma-separated list or wildcard expression of index names
-used to limit the request.
-
-Use a value of `_all` to retrieve information for all indices in the cluster.
---
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[get-index-api-query-params]]

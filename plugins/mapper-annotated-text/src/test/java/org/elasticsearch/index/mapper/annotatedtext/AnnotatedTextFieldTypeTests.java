@@ -29,16 +29,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
-public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new AnnotatedTextFieldMapper.AnnotatedTextFieldType(name, meta);
-    }
+public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntervals() throws IOException {
-        MappedFieldType ft = createDefaultFieldType("field", Collections.emptyMap());
+        MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
         NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
         IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
         assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);

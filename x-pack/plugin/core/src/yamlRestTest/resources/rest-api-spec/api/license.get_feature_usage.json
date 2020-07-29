@@ -1,0 +1,17 @@
+{
+  "license.get_feature_usage":{
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/feature_usage",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+    }
+  }
+}

@@ -656,7 +656,7 @@ PUT /_security/role_mapping/saml-example
 
 <1> The `example_role` role is *not* a builtin Elasticsearch role.
 This example assumes that you have created a custom role of your own, with
-appropriate access to your <<roles-indices-priv,indices>> and
+appropriate access to your <<roles-indices-priv,data streams, indices,>> and
 {kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The attributes that are mapped via the realm configuration are used to process

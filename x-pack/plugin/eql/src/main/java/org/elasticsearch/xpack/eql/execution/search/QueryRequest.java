@@ -12,7 +12,7 @@ public interface QueryRequest {
 
     SearchSourceBuilder searchSource();
 
-    default void next(Ordinal ordinal) {
+    default void nextAfter(Ordinal ordinal) {
         searchSource().searchAfter(ordinal.toArray());
     }
 }

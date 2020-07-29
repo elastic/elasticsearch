@@ -104,15 +104,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.dims = dims;
         }
 
-        protected DenseVectorFieldType(DenseVectorFieldType ref) {
-            super(ref);
-            this.dims = ref.dims;
-        }
-
-        public DenseVectorFieldType clone() {
-            return new DenseVectorFieldType(this);
-        }
-
         int dims() {
             return dims;
         }
@@ -135,7 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -212,6 +203,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
     }
 
     @Override

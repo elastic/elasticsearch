@@ -87,7 +87,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
+            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+                final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
+                final BytesReference blob = blobs.get(key);
+                if (blob == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    final byte[] response = buildBlobInfoJson(key, blob.length()).getBytes(UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                }
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -104,12 +115,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         if (delimiterPos > -1) {
                             prefixes.add("\"" + blobName.substring(0, prefix.length() + delimiterPos + 1) + "\"");
                         } else {
-                            listOfBlobs.add("{\"kind\":\"storage#object\","
-                                + "\"bucket\":\"" + bucket + "\","
-                                + "\"name\":\"" + blobName + "\","
-                                + "\"id\":\"" + blobName + "\","
-                                + "\"size\":\"" + blob.getValue().length() + "\""
-                                + "}");
+                            listOfBlobs.add(buildBlobInfoJson(blobName, blob.getValue().length()));
                         }
                     }
                 }
@@ -250,6 +256,15 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
             exchange.close();
         }
+    }
+
+    private String buildBlobInfoJson(String blobName, int size) {
+        return "{\"kind\":\"storage#object\","
+            + "\"bucket\":\"" + bucket + "\","
+            + "\"name\":\"" + blobName + "\","
+            + "\"id\":\"" + blobName + "\","
+            + "\"size\":\"" + size + "\""
+            + "}";
     }
 
     public Map<String, BytesReference> blobs() {

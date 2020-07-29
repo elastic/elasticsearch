@@ -11,7 +11,7 @@ http://www.egothor.org/[Egothor project].
 include::install_remove.asciidoc[]
 
 [[analysis-stempel-tokenizer]]
-[float]
+[discrete]
 ==== `stempel` tokenizer and token filters
 
 The plugin provides the `polish` analyzer and the `polish_stem` and `polish_stop` token filters,

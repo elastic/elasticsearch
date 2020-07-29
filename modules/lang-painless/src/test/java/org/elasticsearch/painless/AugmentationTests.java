@@ -19,13 +19,40 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.ScriptContext;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 public class AugmentationTests extends ScriptTestCase {
+
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+        List<Whitelist> digestWhitelist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt"));
+        contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
+
+        return contexts;
+    }
+
+    public abstract static class DigestTestScript {
+        public static final String[] PARAMETERS = {};
+        public abstract String execute();
+        public interface Factory {
+            DigestTestScript newInstance();
+        }
+
+        public static final ScriptContext<DigestTestScript.Factory> CONTEXT =
+            new ScriptContext<>("test", DigestTestScript.Factory.class);
+    }
 
     public void testStatic() {
         assertEquals(1, exec("ArrayList l = new ArrayList(); l.add(1); return l.getLength();"));
@@ -237,5 +264,25 @@ public class AugmentationTests extends ScriptTestCase {
                 (String[])exec("return \""+split.input+"\".splitOnToken(\""+split.token+"\", "+split.count+");")
             );
         }
+    }
+
+    public String execDigest(String script) {
+        return scriptEngine.compile(
+            "digest_test",
+            script,
+            DigestTestScript.CONTEXT, Collections.emptyMap()
+        ).newInstance().execute();
+    }
+
+    public void testSha1() {
+        assertEquals("0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", execDigest("'foo'.sha1()"));
+        assertEquals("62cdb7020ff920e5aa642c3d4066950dd1f01f4d", execDigest("'bar'.sha1()"));
+        assertEquals("5f5513f8822fdbe5145af33b64d8d970dcf95c6e", execDigest("'foobarbaz'.sha1()"));
+    }
+
+    public void testSha256() {
+        assertEquals("2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", execDigest("'foo'.sha256()"));
+        assertEquals("fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9", execDigest("'bar'.sha256()"));
+        assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
 }

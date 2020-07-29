@@ -115,7 +115,7 @@ suggested text, its document frequency and score compared to the suggest
 entry text. The meaning of the score depends on the used suggester. The
 term suggester's score is based on the edit distance.
 
-[float]
+[discrete]
 [[global-suggest]]
 ===== Global suggest text
 

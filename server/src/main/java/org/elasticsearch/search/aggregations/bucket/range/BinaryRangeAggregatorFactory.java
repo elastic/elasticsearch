@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -55,14 +56,15 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, metadata);
+                ranges, keyed, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             IpRangeAggregationBuilder.NAME);
@@ -72,7 +74,7 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
-                ranges, keyed, searchContext, parent, metadata);
+                ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
 }

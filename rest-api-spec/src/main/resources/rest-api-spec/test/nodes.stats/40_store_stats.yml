@@ -1,8 +1,6 @@
 ---
 "Store stats":
   - skip:
-      version: " - 7.99.99"
-      reason: "reserved_in_bytes field is not returned in prior versions"
       features: [arbitrary_key]
 
   - do:

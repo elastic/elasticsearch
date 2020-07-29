@@ -4,7 +4,8 @@
 <titleabbrev>Refresh</titleabbrev>
 ++++
 
-Refreshes one or more indices.
+Refreshes one or more indices. For data streams, the API refreshes the stream's
+backing indices.
 
 [source,console]
 ----
@@ -16,9 +17,9 @@ POST /twitter/_refresh
 [[refresh-api-request]]
 ==== {api-request-title}
 
-`POST <index>/_refresh`
+`POST <target>/_refresh`
 
-`GET <index>/_refresh`
+`GET <target>/_refresh`
 
 `POST /_refresh`
 
@@ -29,6 +30,7 @@ POST /twitter/_refresh
 ==== {api-description-title}
 
 Use the refresh API to explicitly refresh one or more indices.
+If the request targets a data stream, it refreshes the stream's backing indices.
 A _refresh_ makes all operations performed on an index
 since the last refresh
 available for search.
@@ -87,7 +89,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 
 [[refresh-api-multiple-ex]]
-===== Refresh several indices
+===== Refresh several data streams and indices
 
 [source,console]
 ----
@@ -97,7 +99,7 @@ POST /kimchy,elasticsearch/_refresh
 
 
 [[refresh-api-all-ex]]
-===== Refresh all indices
+===== Refresh all data streams and indices in a cluster
 
 [source,console]
 ----

@@ -221,7 +221,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                 List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();

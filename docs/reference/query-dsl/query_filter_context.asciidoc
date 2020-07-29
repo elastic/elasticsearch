@@ -1,7 +1,7 @@
 [[query-filter-context]]
 == Query and filter context
 
-[float]
+[discrete]
 [[relevance-scores]]
 === Relevance scores
 
@@ -14,7 +14,7 @@ The relevance score is a positive floating point number, returned in the
 relevance scores differently, score calculation also depends on whether the
 query clause is run in a **query** or **filter** context.
 
-[float]
+[discrete]
 [[query-context]]
 === Query context
 In the query context, a query clause answers the question ``__How well does this
@@ -26,7 +26,7 @@ Query context is in effect whenever a query clause is passed to a `query`
 parameter, such as the `query` parameter in the
 <<request-body-search-query,search>> API.
 
-[float]
+[discrete]
 [[filter-context]]
 === Filter context
 In a filter context, a query clause answers the question ``__Does this
@@ -46,7 +46,7 @@ parameter, such as the `filter` or `must_not` parameters in the
 <<query-dsl-constant-score-query,`constant_score`>> query, or the
 <<search-aggregations-bucket-filter-aggregation,`filter`>> aggregation.
 
-[float]
+[discrete]
 [[query-filter-context-ex]]
 === Example of query and filter contexts
 Below is an example of query clauses being used in query and filter context

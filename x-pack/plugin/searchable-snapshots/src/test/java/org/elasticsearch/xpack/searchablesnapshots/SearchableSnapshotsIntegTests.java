@@ -211,9 +211,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
             assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
-            assertAcked(client().admin().indices().prepareAliases()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
-                .addAlias(restoredIndexName, aliasName));
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareAliases()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
+                    .addAlias(restoredIndexName, aliasName)
+            );
         }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);

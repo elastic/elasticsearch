@@ -877,7 +877,7 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     private JobResultsProvider createProvider(Client client) {
-        return new JobResultsProvider(client, Settings.EMPTY, new IndexNameExpressionResolver());
+        return new JobResultsProvider(client, Settings.EMPTY, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {

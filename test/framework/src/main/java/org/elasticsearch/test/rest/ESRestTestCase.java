@@ -645,6 +645,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             final Request deleteRequest = new Request("DELETE", "*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.addParameter("allow_system_index_access", "true");
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));

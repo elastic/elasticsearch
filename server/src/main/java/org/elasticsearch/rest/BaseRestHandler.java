@@ -76,6 +76,11 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        final String allow_system_index_access = request.param("allow_system_index_access");
+        if (allow_system_index_access != null
+            && (allow_system_index_access.isEmpty() || Boolean.parseBoolean(allow_system_index_access) == false)) {
+            client.threadPool().getThreadContext().putHeader("_from_rest", "true");
+        }
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 

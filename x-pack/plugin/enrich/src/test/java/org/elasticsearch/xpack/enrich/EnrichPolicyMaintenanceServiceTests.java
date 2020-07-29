@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -122,7 +123,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         createSourceIndices(client(), policy);
         doSyncronously(
             (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer)

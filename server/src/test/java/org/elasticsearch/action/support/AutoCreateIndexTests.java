@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -177,7 +178,8 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, new IndexNameExpressionResolver());
+        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
@@ -202,7 +204,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver());
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
 
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {

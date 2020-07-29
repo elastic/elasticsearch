@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -141,7 +142,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             null,
             testTaskManager,
             testThreadPool,
-            new IndexNameExpressionResolver(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             ESTestCase::randomNonNegativeLong
         );
 
@@ -198,7 +199,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             null,
             testTaskManager,
             testThreadPool,
-            new IndexNameExpressionResolver(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             ESTestCase::randomNonNegativeLong
         );
 

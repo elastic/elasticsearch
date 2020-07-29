@@ -99,7 +99,7 @@ public final class MlIndexAndAlias {
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + "-000001";
         String[] concreteIndexNames =
-            resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
+            resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern); //G-> THIS GONNA BREAK
         Optional<IndexMetadata> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
             ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().findFirst()
             : Optional.empty();

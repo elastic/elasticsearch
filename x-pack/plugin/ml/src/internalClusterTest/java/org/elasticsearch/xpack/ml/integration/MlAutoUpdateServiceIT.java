@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
@@ -70,7 +71,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         client().prepareIndex(MlConfigIndex.indexName())
             .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)

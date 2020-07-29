@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -60,7 +61,8 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         assertThat(
-            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver(), indexName),
+            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName), //G-> This is probably gonna break inside
             empty());
 
         metadata = new Metadata.Builder(cs.metadata());
@@ -80,7 +82,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(),
-            new IndexNameExpressionResolver(), indexName);
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName);
         assertThat(result, contains(indexName));
     }
 }

@@ -78,6 +78,8 @@ public interface IndexAbstraction {
      */
     boolean isHidden();
 
+    boolean isSystem();
+
     /**
      * An index abstraction type.
      */
@@ -160,6 +162,11 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
+
+        @Override
+        public boolean isSystem() {
+            return concreteIndex.isSystem();
+        }
     }
 
     /**
@@ -208,6 +215,13 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return isHidden;
+        }
+
+        @Override
+        public boolean isSystem() {
+            //G-> This is probably not the best way to tell if an alias is a system-index-alias
+            // this should probably be checked on the alias layer and added as a property in the AliasMetadata
+            return referenceIndexMetadatas.stream().anyMatch(IndexMetadata::isSystem); // G->
         }
 
         /**
@@ -322,6 +336,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
+            return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            // No such thing as system data streams (yet)
             return false;
         }
 

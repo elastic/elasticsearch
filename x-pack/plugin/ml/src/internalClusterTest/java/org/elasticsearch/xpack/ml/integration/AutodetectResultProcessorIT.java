@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -132,7 +133,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "test_node");
-        jobResultsProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver());
+        jobResultsProvider = new JobResultsProvider(client(), builder.build(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();

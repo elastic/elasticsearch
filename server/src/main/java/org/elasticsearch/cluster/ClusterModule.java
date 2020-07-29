@@ -77,6 +77,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -107,13 +108,13 @@ public class ClusterModule extends AbstractModule {
     final ShardsAllocator shardsAllocator;
 
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
-                         ClusterInfoService clusterInfoService) {
+                         ClusterInfoService clusterInfoService, ThreadPool threadPool) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext());
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
     }
 

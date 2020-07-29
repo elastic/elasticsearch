@@ -32,6 +32,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -191,6 +192,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
+        Resolver() {
+            super(new ThreadContext(Settings.EMPTY));
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

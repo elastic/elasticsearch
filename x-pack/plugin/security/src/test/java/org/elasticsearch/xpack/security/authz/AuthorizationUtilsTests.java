@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -98,7 +99,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
         for (String origin : Arrays.asList(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN)) {
+                ClientHelper.MONITORING_ORIGIN, PersistentTasksService.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN)) {
             assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
         }
     }

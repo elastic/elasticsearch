@@ -29,10 +29,11 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
-import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
+import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ import java.util.Map;
 public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
     public static final String CONTENT_TYPE = "geo_point";
     public static final FieldType FIELD_TYPE = new FieldType();
+
     static {
         FIELD_TYPE.setStored(false);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -216,6 +218,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         @Override
         public void resetCoords(double x, double y) {
             this.reset(y, x);
+        }
+
+        public Point asGeometry() {
+            return new Point(lon(), lat());
         }
 
         @Override

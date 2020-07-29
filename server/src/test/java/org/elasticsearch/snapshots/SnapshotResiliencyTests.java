@@ -1609,9 +1609,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(threadPool, transportService, searchService,
+                    new TransportSearchAction(client, threadPool, transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
-                        actionFilters, indicesService, indexNameExpressionResolver));
+                        actionFilters, indexNameExpressionResolver));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                         indexNameExpressionResolver));

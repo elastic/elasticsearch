@@ -90,7 +90,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             writeIndexOnly = in.readBoolean();
         }
     }
@@ -315,6 +315,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        out.writeBoolean(writeIndexOnly);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
+        }
     }
 }

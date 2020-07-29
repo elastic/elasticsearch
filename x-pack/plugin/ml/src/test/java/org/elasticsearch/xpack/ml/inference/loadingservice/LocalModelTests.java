@@ -67,7 +67,7 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
@@ -99,7 +99,7 @@ public class LocalModelTests extends ESTestCase {
 
         // Test with labels
         definition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildClassificationInference(true))
             .build();
         model = new LocalModel(modelId,
@@ -142,7 +142,7 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildClassificationInference(true))
             .build();
 
@@ -200,7 +200,7 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildRegressionInference())
             .build();
         LocalModel model = new LocalModel("regression_model",
@@ -228,7 +228,7 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildRegressionInference())
             .build();
         LocalModel model = new LocalModel(
@@ -260,7 +260,7 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 

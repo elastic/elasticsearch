@@ -903,7 +903,7 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
-"Test get stats on newly created congig":
+"Test get stats on newly created config":
 
   - do:
       ml.put_data_frame_analytics:
@@ -923,6 +923,20 @@ setup:
   - do:
       ml.get_data_frame_analytics_stats:
         id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+        verbose: true
   - match: { count: 1 }
   - length: { data_frame_analytics: 1 }
   - match: { data_frame_analytics.0.id: "foo-1" }

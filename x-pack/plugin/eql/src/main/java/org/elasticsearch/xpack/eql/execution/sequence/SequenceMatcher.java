@@ -11,10 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
-import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -63,18 +62,23 @@ public class SequenceMatcher {
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
+    private int completedInsertPosition = 0;
+
     private final long maxSpanInMillis;
 
+    private final boolean descending;
+
     private Limit limit;
-    private boolean limitReached = false;
+    private boolean headLimit = false;
 
     private final Stats stats = new Stats();
 
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
+        this.descending = descending;
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new LinkedList<>();
@@ -85,7 +89,7 @@ public class SequenceMatcher {
         this.limit = limit;
     }
 
-    public void trackSequence(Sequence sequence) {
+    private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
         stageToKeys.add(0, key);
@@ -98,34 +102,47 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, SearchHit>> hits) {
-        for (Tuple<KeyAndOrdinal, SearchHit> tuple : hits) {
+    boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+        for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
-            SearchHit hit = tuple.v2();
+            HitReference hit = tuple.v2();
 
             if (stage == 0) {
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+                // descending queries return descending blocks of ASC data
+                // to avoid sorting things during insertion,
+
                 trackSequence(seq);
             } else {
                 match(stage, ko.key, ko.ordinal, hit);
 
                 // early skip in case of reaching the limit
                 // check the last stage to avoid calling the state machine in other stages
-                if (reachedLimit()) {
-                    log.trace("Limit reached {}", stats);
+                if (headLimit) {
+                    log.trace("(Head) Limit reached {}", stats);
                     return false;
                 }
             }
         }
+
+        // check tail limit
+        if (tailLimitReached()) {
+            log.trace("(Tail) Limit reached {}", stats);
+            return false;
+        }
         log.trace("{}", stats);
         return true;
+    }
+
+    private boolean tailLimitReached() {
+        return limit != null && limit.limit() < 0 && limit.absLimit() <= completed.size();
     }
 
     /**
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    private void match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
+    private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
         
         int previousStage = stage - 1;
@@ -172,23 +189,43 @@ public class SequenceMatcher {
             }
         }
         
-        sequence.putMatch(stage, hit, ordinal);
+        sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
         if (stage == completionStage) {
-            if (limitReached == false) {
-                completed.add(sequence);
-                // update the bool lazily
-                limitReached = limit != null && completed.size() == limit.totalLimit();
+            // when dealing with descending queries
+            // avoid duplicate matching (since the ASC query can return previously seen results)
+            if (descending) {
+                for (Sequence seen : completed) {
+                    if (seen.key().equals(key) && seen.ordinal().equals(ordinal)) {
+                        return;
+                    }
+                }
             }
+
+            completed.add(completedInsertPosition++, sequence);
+            // update the bool lazily
+            // only consider positive limits / negative ones imply tail which means having to go
+            // through the whole page of results before selecting the last ones
+            // doing a limit early returns the 'head' not 'tail'
+            headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
         } else {
+            if (descending) {
+                // when dealing with descending queries
+                // avoid duplicate matching (since the ASC query can return previously seen results)
+                group = keyToSequences.groupIfPresent(stage, key);
+                if (group != null) {
+                    for (Ordinal previous : group) {
+                        if (previous.equals(ordinal)) {
+                            return;
+                        }
+                    }
+                }
+            }
+
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }
-    }
-
-    public boolean reachedLimit() {
-        return limitReached;
     }
 
     /**
@@ -198,7 +235,7 @@ public class SequenceMatcher {
      * However sequences on higher stages can, hence this check to know whether
      * it's possible to advance the window early.
      */
-    public boolean hasCandidates(int stage) {
+    boolean hasCandidates(int stage) {
         for (int i = stage; i < completionStage; i++) {
             if (stageToKeys.isEmpty(i) == false) {
                 return true;
@@ -207,20 +244,30 @@ public class SequenceMatcher {
         return false;
     }
 
-    public Payload payload(long startTime) {
-        TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-        List<Sequence> view = limit != null ? limit.view(completed) : completed;
-        Payload p = new SequencePayload(view, false, tookTime);
-        clear();
-        return p;
+
+    List<Sequence> completed() {
+        return limit != null ? limit.view(completed) : completed;
     }
 
-    public void dropUntil() {
+    void dropUntil() {
         keyToSequences.dropUntil();
     }
 
-    public void until(Iterable<KeyAndOrdinal> markers) {
+    void until(Iterable<KeyAndOrdinal> markers) {
         keyToSequences.until(markers);
+    }
+
+    void resetInsertPosition() {
+        // when dealing with descending calls
+        // update the insert point of all sequences
+        // for the next batch of hits which will be sorted ascending
+        // yet will occur _before_ the current batch
+        if (descending) {
+            keyToSequences.resetGroupInsertPosition();
+            keyToSequences.resetUntilInsertPosition();
+
+            completedInsertPosition = 0;
+        }
     }
 
     public Stats stats() {

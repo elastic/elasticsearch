@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Objects;
@@ -17,9 +17,9 @@ import java.util.Objects;
 class Match {
 
     private final Ordinal ordinal;
-    private final SearchHit hit;
+    private final HitReference hit;
 
-    Match(Ordinal ordinal, SearchHit hit) {
+    Match(Ordinal ordinal, HitReference hit) {
         this.ordinal = ordinal;
         this.hit = hit;
     }
@@ -28,7 +28,7 @@ class Match {
         return ordinal;
     }
 
-    SearchHit hit() {
+    HitReference hit() {
         return hit;
     }
 
@@ -54,6 +54,6 @@ class Match {
 
     @Override
     public String toString() {
-        return ordinal.toString() + "->" + hit.getId();
+        return ordinal + "->" + hit;
     }
 }

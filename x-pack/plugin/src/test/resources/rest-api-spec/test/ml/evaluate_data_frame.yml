@@ -149,14 +149,14 @@ setup:
       indices.refresh: {}
 
 ---
-"Test binary_soft_classification auc_roc":
+"Test outlier_detection auc_roc":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -165,18 +165,18 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_false: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - is_false: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is int":
+"Test outlier_detection auc_roc given actual_field is int":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier_int",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -185,18 +185,18 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_false: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - is_false: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc include curve":
+"Test outlier_detection auc_roc include curve":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -205,11 +205,11 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_true: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - is_true: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is always true":
+"Test outlier_detection auc_roc given actual_field is always true":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
       ml.evaluate_data_frame:
@@ -217,7 +217,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "all_true_field",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -228,7 +228,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is always false":
+"Test outlier_detection auc_roc given actual_field is always false":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
       ml.evaluate_data_frame:
@@ -236,7 +236,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "all_false_field",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -247,14 +247,14 @@ setup:
           }
 
 ---
-"Test binary_soft_classification precision":
+"Test outlier_detection precision":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -264,20 +264,20 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         precision:
           '0.0': 0.625
           '0.5': 1.0
 
 ---
-"Test binary_soft_classification recall":
+"Test outlier_detection recall":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -287,21 +287,21 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         recall:
           '0.0': 1.0
           '0.4': 0.8
           '0.5': 0.6
 
 ---
-"Test binary_soft_classification confusion_matrix":
+"Test outlier_detection confusion_matrix":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -311,7 +311,7 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         confusion_matrix:
           '0.0':
             tp: 5
@@ -330,7 +330,7 @@ setup:
             fn: 2
 
 ---
-"Test binary_soft_classification with query":
+"Test outlier_detection with query":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -338,7 +338,7 @@ setup:
             "index": "utopia",
             "query": { "bool": { "filter": { "term": { "dataset": "blue" } } } },
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -348,7 +348,7 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         confusion_matrix:
           '0.5':
             tp: 0
@@ -357,29 +357,29 @@ setup:
             fn: 1
 
 ---
-"Test binary_soft_classification default metrics":
+"Test outlier_detection default metrics":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
             }
           }
-  - is_true: binary_soft_classification.auc_roc.score
-  - is_true: binary_soft_classification.precision.0\.25
-  - is_true: binary_soft_classification.precision.0\.5
-  - is_true: binary_soft_classification.precision.0\.75
-  - is_true: binary_soft_classification.recall.0\.25
-  - is_true: binary_soft_classification.recall.0\.5
-  - is_true: binary_soft_classification.recall.0\.75
-  - is_true: binary_soft_classification.confusion_matrix.0\.25
-  - is_true: binary_soft_classification.confusion_matrix.0\.5
-  - is_true: binary_soft_classification.confusion_matrix.0\.75
+  - is_true: outlier_detection.auc_roc.score
+  - is_true: outlier_detection.precision.0\.25
+  - is_true: outlier_detection.precision.0\.5
+  - is_true: outlier_detection.precision.0\.75
+  - is_true: outlier_detection.recall.0\.25
+  - is_true: outlier_detection.recall.0\.5
+  - is_true: outlier_detection.recall.0\.75
+  - is_true: outlier_detection.confusion_matrix.0\.25
+  - is_true: outlier_detection.confusion_matrix.0\.5
+  - is_true: outlier_detection.confusion_matrix.0\.75
 
 ---
 "Test given missing index":
@@ -389,7 +389,7 @@ setup:
         body:  >
           {
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
@@ -405,7 +405,7 @@ setup:
           {
             "index": "missing_index",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
@@ -423,15 +423,15 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given evaluation with empty metrics":
+"Test outlier_detection given evaluation with empty metrics":
   - do:
-      catch: /\[binary_soft_classification\] must have one or more metrics/
+      catch: /\[outlier_detection\] must have one or more metrics/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -441,7 +441,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given missing actual_field":
+"Test outlier_detection given missing actual_field":
   - do:
       catch: /No documents found containing both \[missing, outlier_score\] fields/
       ml.evaluate_data_frame:
@@ -449,7 +449,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "missing",
                 "predicted_probability_field": "outlier_score"
               }
@@ -457,7 +457,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given missing predicted_probability_field":
+"Test outlier_detection given missing predicted_probability_field":
   - do:
       catch: /No documents found containing both \[is_outlier, missing\] fields/
       ml.evaluate_data_frame:
@@ -465,7 +465,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "missing"
               }
@@ -473,7 +473,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given precision with threshold less than zero":
+"Test outlier_detection given precision with threshold less than zero":
   - do:
       catch: /\[precision.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -481,7 +481,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -492,7 +492,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given recall with threshold less than zero":
+"Test outlier_detection given recall with threshold less than zero":
   - do:
       catch: /\[recall.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -500,7 +500,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -511,7 +511,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given confusion_matrix with threshold less than zero":
+"Test outlier_detection given confusion_matrix with threshold less than zero":
   - do:
       catch: /\[confusion_matrix.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -519,7 +519,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -530,7 +530,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given precision with empty thresholds":
+"Test outlier_detection given precision with empty thresholds":
   - do:
       catch: /\[precision.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -538,7 +538,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -549,7 +549,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given recall with empty thresholds":
+"Test outlier_detection given recall with empty thresholds":
   - do:
       catch: /\[recall.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -557,7 +557,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -568,7 +568,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given confusion_matrix with empty thresholds":
+"Test outlier_detection given confusion_matrix with empty thresholds":
   - do:
       catch: /\[confusion_matrix.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -576,7 +576,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {

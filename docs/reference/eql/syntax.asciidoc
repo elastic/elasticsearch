@@ -74,7 +74,7 @@ You can specify and combine these criteria using the following operators:
 
 You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
-<eql-functions,function>>.
+<<eql-functions,function>>.
 
 .*Example*
 [%collapsible]
@@ -102,12 +102,12 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [IMPORTANT]
 ====
-Avoid using the equal operator (`==`) to perform exact matching on `text` field
-values.
+Avoid using the equal operator (`==`) to perform exact matching on
+<<text,`text`>> field values.
 
-By default, {es} changes the values of <<text,`text`>> fields as part of
-<<analysis, analysis>>. This can make finding exact matches for `text` field
-values difficult.
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
 
 To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
 DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
@@ -350,8 +350,8 @@ the backslash remains in the resulting string.
 
 [NOTE]
 ====
-Raw strings cannot contain only a single backslash. Additionally, raw strings
-cannot end in an odd number of backslashes.
+Raw strings cannot contain only a single backslash or end in an odd number of
+backslashes.
 ====
 
 [discrete]
@@ -375,8 +375,8 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 
 You can use EQL sequences to describe and match an ordered series of events.
 Each item in a sequence is an event category and event condition,
-surrounded by square brackets. Events are listed in ascending chronological
-order, with the most recent event listed last.
+surrounded by square brackets (`[ ]`). Events are listed in ascending
+chronological order, with the most recent event listed last.
 
 [source,eql]
 ----

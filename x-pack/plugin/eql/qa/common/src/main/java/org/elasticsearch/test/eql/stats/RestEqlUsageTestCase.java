@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.eql.DataLoader.testIndexName;
+
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics. 
  */
@@ -115,7 +117,12 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
     }
 
     public void testEqlRestUsage() throws IOException {
-        DataLoader.loadDatasetIntoEs(highLevelClient(), (t, u) -> createParser(t, u));
+        // create the index and load the data, if the index doesn't exist
+        // it doesn't matter if the index is already there (probably created by another test); _if_ its mapping is the expected one 
+        // it should be enough
+        if (client().performRequest(new Request("HEAD", "/" + testIndexName)).getStatusLine().getStatusCode() == 404) {
+            DataLoader.loadDatasetIntoEs(highLevelClient(), (t, u) -> createParser(t, u));
+        }
 
         //
         // random event queries

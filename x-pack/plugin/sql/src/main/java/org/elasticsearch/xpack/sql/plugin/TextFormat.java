@@ -211,12 +211,7 @@ enum TextFormat {
                 }
                 return true;
             } else {
-                switch (header.toLowerCase(Locale.ROOT)) {
-                    case PARAM_HEADER_ABSENT: return false;
-                    case PARAM_HEADER_PRESENT: return true;
-                    default: throw new IllegalArgumentException("illegal value of [" + URL_PARAM_HEADER + "] " +
-                        "attribute: [" + header + "]; " + "allowed values: [" + PARAM_HEADER_ABSENT + ", " + PARAM_HEADER_PRESENT + "]");
-                }
+                return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
             }
         }
     },

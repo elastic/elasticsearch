@@ -74,7 +74,7 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
         SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
-        
+
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
         simulateProcessorResult.writeTo(out);
@@ -86,20 +86,21 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
 
     static SimulateProcessorResult createTestInstance(boolean isSuccessful,
                                                                 boolean isIgnoredException) {
+        String type = randomAlphaOfLengthBetween(1, 10);
         String processorTag = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(1, 10);
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {
             IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, description, ingestDocument,
-                    new IllegalArgumentException("test"));
+                simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument,
+                    new IllegalArgumentException("test"), null);
             } else {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, description, ingestDocument);
+                simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument, null);
             }
         } else {
-            simulateProcessorResult = new SimulateProcessorResult(processorTag, description,
-                new IllegalArgumentException("test"));
+            simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description,
+                new IllegalArgumentException("test"), null);
         }
         return simulateProcessorResult;
     }

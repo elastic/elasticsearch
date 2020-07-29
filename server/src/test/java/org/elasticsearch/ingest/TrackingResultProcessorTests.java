@@ -67,8 +67,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
 
         assertThat(actualProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
@@ -88,8 +88,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
         assertThat(((IngestProcessorException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
 
-        SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(testProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(testProcessor.getType(), testProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
         assertThat(resultList.get(0).getIngestDocument(), nullValue());
@@ -109,10 +109,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getTag(),
-            failProcessor.getDescription(), ingestDocument);
-        SimulateProcessorResult expectedSuccessResult = new SimulateProcessorResult(onFailureProcessor.getTag(),
-            failProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getType(), failProcessor.getTag(),
+            failProcessor.getDescription(), ingestDocument, null);
+        SimulateProcessorResult expectedSuccessResult = new SimulateProcessorResult(onFailureProcessor.getType(),
+            onFailureProcessor.getTag(), failProcessor.getDescription(), ingestDocument, null);
 
         assertThat(failProcessor.getInvokedCounter(), equalTo(2));
         assertThat(onFailureProcessor.getInvokedCounter(), equalTo(2));
@@ -163,10 +163,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {
         });
 
-        SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getTag(),
-            failProcessor.getDescription(), ingestDocument);
-        SimulateProcessorResult expectedSuccessResult = new SimulateProcessorResult(onFailureProcessor.getTag(),
-            onFailureProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getType(), failProcessor.getTag(),
+            failProcessor.getDescription(), ingestDocument, null);
+        SimulateProcessorResult expectedSuccessResult = new SimulateProcessorResult(onFailureProcessor.getType(),
+            onFailureProcessor.getTag(), onFailureProcessor.getDescription(), ingestDocument, null);
 
         assertThat(failProcessor.getInvokedCounter(), equalTo(1));
         assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
@@ -194,8 +194,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(testProcessor.getTag(),
-            testProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(testProcessor.getType(), testProcessor.getTag(),
+            testProcessor.getDescription(), ingestDocument, null);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
         assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
@@ -225,8 +225,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(compoundProcessor, null, resultList);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(compoundProcessor.getTag(),
-            compoundProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(compoundProcessor.getType(), compoundProcessor.getTag(),
+            compoundProcessor.getDescription(), ingestDocument, null);
 
         //the step for key 2 is never executed due to conditional and thus not part of the result set
         assertThat(resultList.size(), equalTo(2));
@@ -270,8 +270,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(1)).getPipeline(pipelineId);
@@ -340,8 +340,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId1);
 
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
@@ -411,8 +411,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId1);
 
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
@@ -464,8 +464,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService, Mockito.atLeast(2)).getPipeline(pipelineId);
@@ -542,8 +542,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(2)).getPipeline(pipelineId);

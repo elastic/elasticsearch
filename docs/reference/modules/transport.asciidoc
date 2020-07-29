@@ -17,44 +17,90 @@ as search in Elasticsearch.
 [[transport-settings]]
 ==== Transport settings
 
-The internal transport communicates over TCP. You can configure it with the
-following settings:
+The following settings can be configured for the internal transport that
+communicates over TCP. These settings also use the common
+<<modules-network,network settings>>.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`transport.port` |A bind port range. Defaults to `9300-9400`.
+`transport.port`::
+A bind port range. Defaults to `9300-9400`.
 
-|`transport.publish_port` |The port that other nodes in the cluster
+`transport.publish_port`::
+The port that other nodes in the cluster
 should use when communicating with this node. Useful when a cluster node
 is behind a proxy or firewall and the `transport.port` is not directly
 addressable from the outside. Defaults to the actual port assigned via
 `transport.port`.
 
-|`transport.bind_host` |The host address to bind the transport service to. Defaults to `transport.host` (if set) or `network.bind_host`.
+`transport.bind_host`::
+The host address to bind the transport service to. Defaults to
+`transport.host` (if set) or `network.bind_host`.
 
-|`transport.publish_host` |The host address to publish for nodes in the cluster to connect to. Defaults to `transport.host` (if set) or `network.publish_host`.
+`transport.publish_host`::
+The host address to publish for nodes in the cluster to connect to.
+Defaults to `transport.host` (if set) or `network.publish_host`.
 
-|`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host`.
+`transport.host`::
+Used to set the `transport.bind_host` and the `transport.publish_host`.
 
-
-|`transport.connect_timeout` |The connect timeout for initiating a new connection (in
+`transport.connect_timeout`::
+The connect timeout for initiating a new connection (in
 time setting format). Defaults to `30s`.
 
-|`transport.compress` |Set to `true` to enable compression (`DEFLATE`) between
+`transport.compress`::
+Set to `true` to enable compression (`DEFLATE`) between
 all nodes. Defaults to `false`.
 
-|`transport.ping_schedule` | Schedule a regular application-level ping message
+`transport.ping_schedule`::
+Schedule a regular application-level ping message
 to ensure that transport connections between nodes are kept alive. Defaults to
 `5s` in the transport client and `-1` (disabled) elsewhere. It is preferable
 to correctly configure TCP keep-alives instead of using this feature, because
 TCP keep-alives apply to all kinds of long-lived connections and not just to
 transport connections.
 
-|=======================================================================
+`transport.tcp.no_delay`::
+Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+setting. Defaults to `network.tcp.no_delay`.
 
-It also uses the common
-<<modules-network,network settings>>.
+`transport.tcp.keep_alive`::
+Configures the `SO_KEEPALIVE` option for this socket, which
+determines whether it sends TCP keepalive probes.
+Defaults to `network.tcp.keep_alive`.
+
+`transport.tcp.keep_idle`::
+Configures the `TCP_KEEPIDLE` option for this socket, which
+determines the time in seconds that a connection must be idle before
+starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle` if set,
+or the system default otherwise.
+This value cannot exceed `300` seconds. In cases where the system default
+is higher than `300`, the value is automatically lowered to `300`. Only applicable on
+Linux and macOS, and requires Java 11 or newer.
+
+`transport.tcp.keep_interval`::
+Configures the `TCP_KEEPINTVL` option for this socket,
+which determines the time in seconds between sending TCP keepalive probes.
+Defaults to `network.tcp.keep_interval` if set, or the system default otherwise.
+This value cannot exceed `300` seconds. In cases where the system default is higher than `300`,
+the value is automatically lowered to `300`. Only applicable on Linux and macOS,
+and requires Java 11 or newer.
+
+`transport.tcp.keep_count`::
+Configures the `TCP_KEEPCNT` option for this socket, which
+determines the number of unacknowledged TCP keepalive probes that may be
+sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`
+if set, or the system default otherwise. Only applicable on Linux and macOS, and
+requires Java 11 or newer.
+
+transport.tcp.reuse_address::
+Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
+
+`transport.tcp.send_buffer_size`::
+The size of the TCP send buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.send_buffer_size`.
+
+`transport.tcp.receive_buffer_size`::
+The size of the TCP receive buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.receive_buffer_size`.
 
 [[transport-profiles]]
 ===== Transport profiles
@@ -79,31 +125,14 @@ this node connects to other nodes in the cluster.
 The following parameters can be configured on each transport profile, as in the
 example above:
 
-* `port`: The port to bind to
-* `bind_host`: The host to bind
-* `publish_host`: The host which is published in informational APIs
-* `tcp.no_delay`: Configures the `TCP_NO_DELAY` option for this socket
-* `tcp.keep_alive`: Configures the `SO_KEEPALIVE` option for this socket
-* `tcp.keep_idle`: Configures the `TCP_KEEPIDLE` option for this socket, which
-   determines the time in seconds that a connection must be idle before
-   starting to send TCP keepalive probes.
-   Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
-* `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket,
-   which determines the time in seconds between sending TCP keepalive probes.
-   Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
-* `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket, which
-   determines the number of unacknowledged TCP keepalive probes that may be
-   sent on a connection before it is dropped.
-   Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
-* `tcp.reuse_address`: Configures the `SO_REUSEADDR` option for this socket
-* `tcp.send_buffer_size`: Configures the send buffer size of the socket
-* `tcp.receive_buffer_size`: Configures the receive buffer size of the socket
+* `port`: The port to which to bind.
+* `bind_host`: The host to which to bind.
+* `publish_host`: The host which is published in informational APIs.
+
+Profiles also support all the other transport settings specified in the
+<<transport-settings,transport settings>> section, and use these as defaults.
+For example, `transport.profiles.client.tcp.reuse_address` can be explicitly
+configured, and defaults otherwise to `transport.tcp.reuse_address`.
 
 [[long-lived-connections]]
 ===== Long-lived idle connections

@@ -26,21 +26,27 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -483,4 +489,26 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
     }
 
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
+
+        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
+        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
+        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+
+        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+    }
 }

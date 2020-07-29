@@ -348,7 +348,7 @@ Below is an example of how to set up a field for sorting German names in
 
 [source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -368,7 +368,7 @@ PUT my_index
   }
 }
 
-GET /my_index/_search <3>
+GET /my-index-000001/_search <3>
 {
   "query": {
     "match": {

@@ -95,7 +95,7 @@ In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [ ... ],                            <1>  
   "metric": {                                     <2>
@@ -114,7 +114,7 @@ application, along with the document ratings for each particular search request.
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -123,9 +123,9 @@ GET /my_index/_rank_eval
           "query": { "match": { "text": "amsterdam" } }
       },
       "ratings": [                                              <3> 
-        { "_index": "my_index", "_id": "doc1", "rating": 0 },
-        { "_index": "my_index", "_id": "doc2", "rating": 3 },
-        { "_index": "my_index", "_id": "doc3", "rating": 1 }
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 0 },
+        { "_index": "my-index-000001", "_id": "doc2", "rating": 3 },
+        { "_index": "my-index-000001", "_id": "doc3", "rating": 1 }
       ]
     },
     {
@@ -134,7 +134,7 @@ GET /my_index/_rank_eval
         "query": { "match": { "text": "berlin" } }
       },
       "ratings": [
-        { "_index": "my_index", "_id": "doc1", "rating": 1 }
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 1 }
       ]
     }
   ]
@@ -167,7 +167,7 @@ set of query templates, this helps make the evaluation request more succinct.
 
 [source,js]
 --------------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 { 
    [...]
   "templates": [
@@ -473,14 +473,14 @@ potential errors of individual queries. The response has the following format:
         "metric_score": 0.6,                      <3>
         "unrated_docs": [                         <4>
           {
-            "_index": "my_index",
+            "_index": "my-index-000001",
             "_id": "1960795"
           }, ...
         ],
         "hits": [
           {
             "hit": {                              <5>
-              "_index": "my_index",
+              "_index": "my-index-000001",
               "_type": "page",
               "_id": "1528558",
               "_score": 7.0556192

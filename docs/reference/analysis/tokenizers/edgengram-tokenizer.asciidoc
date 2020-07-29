@@ -142,7 +142,7 @@ length `10`:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -166,7 +166,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."
@@ -262,7 +262,7 @@ search terms longer than 10 characters may not match any indexed terms.
 
 [source,console]
 -----------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -300,14 +300,14 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "title": "Quick Foxes" <1>
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -344,7 +344,7 @@ GET my_index/_search
     "max_score": 0.5753642,
     "hits": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

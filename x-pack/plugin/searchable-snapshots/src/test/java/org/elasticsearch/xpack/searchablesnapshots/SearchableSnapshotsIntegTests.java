@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -28,9 +29,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -44,6 +48,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -68,6 +75,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -125,8 +133,16 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        ensureGreen(indexName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertShardFolders(indexName, false);
+
+        final boolean deletedBeforeMount = randomBoolean();
+        if (deletedBeforeMount) {
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        } else {
+            assertAcked(client().admin().indices().prepareClose(indexName));
+        }
 
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
@@ -187,9 +203,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+        ensureGreen(restoredIndexName);
+        assertShardFolders(restoredIndexName, true);
 
-        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        if (deletedBeforeMount) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        } else if (indexName.equals(restoredIndexName) == false) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareAliases()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
+                    .addAlias(restoredIndexName, aliasName)
+            );
+        }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
 
@@ -273,6 +302,32 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
 
+    }
+
+    private void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
+        final Index restoredIndex = resolveIndex(indexName);
+        final String customDataPath = resolveCustomDataPath(indexName);
+        final ShardId shardId = new ShardId(restoredIndex, 0);
+        boolean shardFolderFound = false;
+        for (String node : internalCluster().getNodeNames()) {
+            final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
+            if (shardPath != null && Files.exists(shardPath.getDataPath())) {
+                shardFolderFound = true;
+                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
+
+                assertTrue(Files.exists(shardPath.resolveTranslog()));
+                try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
+                    final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
+                    if (snapshotDirectory) {
+                        assertEquals(2L, translogFiles);
+                    } else {
+                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                    }
+                }
+            }
+        }
+        assertTrue("no shard folder found", shardFolderFound);
     }
 
     public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {

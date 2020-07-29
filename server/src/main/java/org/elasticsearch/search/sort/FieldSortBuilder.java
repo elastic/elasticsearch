@@ -258,7 +258,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Specifying a numeric type tells Elasticsearch what type the sort values should
      * have, which is important for cross-index search, if a field does not have
      * the same type on all indices.
-     * Allowed values are <code>long</code> and <code>double</code>.
+     * Allowed values are <code>long</code>, <code>double</code>, <code>date</code> and <code>date_nanos</code>.
      */
     public FieldSortBuilder setNumericType(String numericType) {
         String lowerCase = numericType.toLowerCase(Locale.ENGLISH);

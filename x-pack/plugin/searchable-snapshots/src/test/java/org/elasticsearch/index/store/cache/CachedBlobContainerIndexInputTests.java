@@ -12,7 +12,9 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -27,6 +29,7 @@ import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -83,6 +86,13 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     blobContainer = singleBlobContainer;
                 }
 
+                final Path shardDir;
+                try {
+                    shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
@@ -98,6 +108,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         () -> 0L,
                         cacheService,
                         cacheDir,
+                        shardPath,
                         threadPool
                     )
                 ) {
@@ -158,6 +169,13 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
             final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
+            final Path shardDir;
+            try {
+                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -170,6 +188,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
+                    shardPath,
                     threadPool
                 )
             ) {

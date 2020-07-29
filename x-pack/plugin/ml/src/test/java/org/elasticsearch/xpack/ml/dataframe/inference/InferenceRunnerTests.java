@@ -93,13 +93,19 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
 
         LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
-        "foo",
-            Collections.emptyList(),
-            config),
+                "foo",
+                Collections.emptyList(),
+                Collections.emptyList(),
+                config,
+                1.0,
+                1.0),
             new ClassificationInferenceResults(0.0,
                 "bar",
                 Collections.emptyList(),
-                config));
+                Collections.emptyList(),
+                config,
+                .5,
+                .7));
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
@@ -117,10 +123,15 @@ public class InferenceRunnerTests extends ESTestCase {
 
         Map<String, Object> expectedResultsField1 = new HashMap<>();
         expectedResultsField1.put("predicted_value", "foo");
+        expectedResultsField1.put("prediction_probability", 1.0);
+        expectedResultsField1.put("prediction_score", 1.0);
+        expectedResultsField1.put("predicted_value", "foo");
         expectedResultsField1.put("is_training", false);
 
         Map<String, Object> expectedResultsField2 = new HashMap<>();
         expectedResultsField2.put("predicted_value", "bar");
+        expectedResultsField2.put("prediction_probability", 0.5);
+        expectedResultsField2.put("prediction_score", 0.7);
         expectedResultsField2.put("is_training", false);
 
         assertThat(doc1Source.get("test_results_field"), equalTo(expectedResultsField1));

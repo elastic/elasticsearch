@@ -451,6 +451,7 @@ public class MlConfigMigrator {
         String documentId = "ml-config";
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .id(documentId)
+                .setRequireAlias(true)
                 .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));

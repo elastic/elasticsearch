@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
@@ -286,14 +287,16 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
     }
 
-    public CompositeBucketsChangeCollector(CompositeAggregationBuilder compositeAggregation, Map<String, FieldCollector> fieldCollectors) {
+    public CompositeBucketsChangeCollector(
+        @Nullable CompositeAggregationBuilder compositeAggregation,
+        Map<String, FieldCollector> fieldCollectors
+    ) {
         this.compositeAggregation = compositeAggregation;
         this.fieldCollectors = fieldCollectors;
     }
 
     @Override
     public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
-
         sourceBuilder.size(0);
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
             AggregationBuilder aggregationForField = fieldCollector.aggregateChanges();
@@ -304,9 +307,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             pageSize = Math.min(pageSize, fieldCollector.getMaxPageSize());
         }
 
-        CompositeAggregationBuilder changesAgg = this.compositeAggregation;
-        changesAgg.size(pageSize).aggregateAfter(position);
-        sourceBuilder.aggregation(changesAgg);
+        if (compositeAggregation != null) {
+            CompositeAggregationBuilder changesAgg = compositeAggregation;
+            changesAgg.size(pageSize).aggregateAfter(position);
+            sourceBuilder.aggregation(changesAgg);
+        }
 
         return sourceBuilder;
     }
@@ -364,7 +369,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     public static ChangeCollector buildChangeCollector(
-        CompositeAggregationBuilder compositeAggregationBuilder,
+        @Nullable CompositeAggregationBuilder compositeAggregationBuilder,
         Map<String, SingleGroupSource> groups,
         String synchronizationField
     ) {

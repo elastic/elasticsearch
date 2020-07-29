@@ -1,9 +1,10 @@
-[[request-body-search-collapse]]
-==== Field Collapsing
+[[collapse-search-results]]
+==== Collapse search results
 
-Allows to collapse search results based on field values.
-The collapsing is done by selecting only the top sorted document per collapse key.
-For instance the query below retrieves the best tweet for each user and sorts them by number of likes.
+You can use the `collapse` parameter to collapse search results based
+on field values. The collapsing is done by selecting only the top sorted
+document per collapse key. For instance the query below retrieves the best tweet
+for each user and sorts them by number of likes.
 
 [source,console]
 --------------------------------------------------

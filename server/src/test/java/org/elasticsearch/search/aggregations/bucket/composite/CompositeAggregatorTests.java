@@ -134,7 +134,8 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         FIELD_TYPES = null;
     }
 
-    public void testUnmappedField() throws Exception {
+    public void testUnmappedFieldWithTerms() throws Exception {
+
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
             Arrays.asList(

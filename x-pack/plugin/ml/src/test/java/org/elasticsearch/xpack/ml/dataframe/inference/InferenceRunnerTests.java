@@ -129,8 +129,8 @@ public class InferenceRunnerTests extends ESTestCase {
 
         Map<String, Object> expectedResultsField2 = new HashMap<>();
         expectedResultsField2.put("predicted_value", "bar");
-        expectedResultsField1.put("prediction_probability", 0.5);
-        expectedResultsField1.put("prediction_score", 0.7);
+        expectedResultsField2.put("prediction_probability", 0.5);
+        expectedResultsField2.put("prediction_score", 0.7);
         expectedResultsField2.put("is_training", false);
 
         assertThat(doc1Source.get("test_results_field"), equalTo(expectedResultsField1));

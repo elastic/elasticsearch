@@ -68,7 +68,10 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.singletonList(new ClassificationInferenceResults(1.0,
                 "foo",
                 null,
-                ClassificationConfig.EMPTY_PARAMS)),
+                Collections.emptyList(),
+                ClassificationConfig.EMPTY_PARAMS,
+                1.0,
+                1.0)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -98,7 +101,13 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -136,7 +145,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 classes,
                 featureInfluence,
-                classificationConfig)),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -169,7 +180,13 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 

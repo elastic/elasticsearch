@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -124,14 +125,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
-        final DiscoveryNode node = selectLeastLoadedNode(
-            clusterState,
+        DiscoveryNode selectedNode = selectLeastLoadedNode(clusterState,
             ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
         );
-        if (node == null) {
+        if (selectedNode == null) {
+            // best effort as nodes before 7.8 might not be able to connect to remote clusters
+            selectedNode = selectLeastLoadedNode(clusterState,
+                node -> node.isDataNode() && node.getVersion().before(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
+        }
+        if (selectedNode == null) {
             return NO_ASSIGNMENT;
         } else {
-            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
+            return new Assignment(selectedNode.getId(), "node is the least loaded data node and remote cluster client");
         }
     }
 

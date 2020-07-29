@@ -69,7 +69,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 null,
                 Collections.emptyList(),
-                ClassificationConfig.EMPTY_PARAMS)),
+                ClassificationConfig.EMPTY_PARAMS,
+                1.0,
+                1.0)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -103,7 +105,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 classes,
                 Collections.emptyList(),
-                classificationConfig)),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -141,7 +145,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 classes,
                 featureInfluence,
-                classificationConfig)),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -178,7 +184,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 classes,
                 Collections.emptyList(),
-                classificationConfig)),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 

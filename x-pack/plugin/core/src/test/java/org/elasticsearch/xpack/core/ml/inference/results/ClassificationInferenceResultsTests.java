@@ -49,7 +49,9 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 Stream.generate(featureImportanceCtor)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
-            config);
+            config,
+            randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false),
+            randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false));
     }
 
     public void testWriteResultsWithClassificationLabel() {
@@ -58,7 +60,9 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 "foo",
                 Collections.emptyList(),
                 Collections.emptyList(),
-                ClassificationConfig.EMPTY_PARAMS);
+                ClassificationConfig.EMPTY_PARAMS,
+                1.0,
+                1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 
@@ -70,7 +74,9 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             null,
             Collections.emptyList(),
             Collections.emptyList(),
-            ClassificationConfig.EMPTY_PARAMS);
+            ClassificationConfig.EMPTY_PARAMS,
+            1.0,
+            1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 
@@ -87,7 +93,9 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "foo",
             entries,
             Collections.emptyList(),
-            new ClassificationConfig(3, "my_results", "bar", null, PredictionFieldType.STRING));
+            new ClassificationConfig(3, "my_results", "bar", null, PredictionFieldType.STRING),
+            0.7,
+            0.7);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 
@@ -114,7 +122,9 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "foo",
             Collections.emptyList(),
             importanceList,
-            new ClassificationConfig(0, "predicted_value", "top_classes", 3, PredictionFieldType.STRING));
+            new ClassificationConfig(0, "predicted_value", "top_classes", 3, PredictionFieldType.STRING),
+            1.0,
+            1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 
@@ -152,33 +162,43 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             null,
             null,
             Collections.emptyList(),
-            toStringConfig);
+            toStringConfig,
+            1.0,
+            1.0);
         String stringRep = Strings.toString(result);
-        String expected = "{\"predicted_value\":\"1.0\"}";
+        String expected = "{\"predicted_value\":\"1.0\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
         ClassificationConfig toDoubleConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.NUMBER);
-        result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), toDoubleConfig);
+        result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), toDoubleConfig,
+            1.0,
+            1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":1.0}";
+        expected = "{\"predicted_value\":1.0,\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
         ClassificationConfig boolFieldConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.BOOLEAN);
-        result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), boolFieldConfig);
+        result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), boolFieldConfig,
+            1.0,
+            1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":true}";
+        expected = "{\"predicted_value\":true,\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
         ClassificationConfig config = new ClassificationConfig(1);
-        result = new ClassificationInferenceResults(1.0, "label1", null, Collections.emptyList(), config);
+        result = new ClassificationInferenceResults(1.0, "label1", null, Collections.emptyList(), config,
+            1.0,
+            1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":\"label1\"}";
+        expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
         FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
         TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
-            Collections.singletonList(fi), config);
+            Collections.singletonList(fi), config,
+            1.0,
+            1.0);
         stringRep = Strings.toString(result);
         expected = "{\"predicted_value\":\"label1\"," +
             "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}]," +
@@ -189,9 +209,11 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         config = new ClassificationConfig(0);
         result = new ClassificationInferenceResults(1.0,
             "label1",
-            Collections.singletonList(tp),
             Collections.emptyList(),
-            config);
+            Collections.emptyList(),
+            config,
+            1.0,
+            1.0);
         stringRep = Strings.toString(result);
         expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);

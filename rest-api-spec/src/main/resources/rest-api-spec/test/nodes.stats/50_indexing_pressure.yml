@@ -32,8 +32,7 @@
 ---
 "Indexing pressure memory limit":
   - skip:
-      # Change to 7.9.99 on backport
-      version: " - 7.10.99"
+      version: " - 7.9.99"
       reason: "memory limit was added in 7.10"
       features: [arbitrary_key]
 

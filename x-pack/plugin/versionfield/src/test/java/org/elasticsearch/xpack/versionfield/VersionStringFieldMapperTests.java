@@ -182,13 +182,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testRegexQuery() throws Exception {
         String indexName = "test_regex";
-        createIndex(
-            indexName,
-            Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
-            "version",
-            "type=version"
-        );
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
         client().prepareIndex(indexName)
@@ -225,13 +219,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testFuzzyQuery() throws Exception {
         String indexName = "test_fuzzy";
-        createIndex(
-            indexName,
-            Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
-            "version",
-            "type=version"
-        );
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
         client().prepareIndex(indexName)
@@ -354,13 +342,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
      */
     public void testStoreMalformed() throws Exception {
         String indexName = "test_malformed";
-        createIndex(
-            indexName,
-            Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
-            "version",
-            "type=version"
-        );
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
         client().prepareIndex(indexName)
@@ -372,10 +354,11 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             .setId("3")
             .setSource(jsonBuilder().startObject().field("version", "2.2.0-badchar!").endObject())
             .get();
+        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         SearchResponse response = client().prepareSearch(indexName).addDocValueField("version").get();
-        assertEquals(3, response.getHits().getTotalHits().value);
+        assertEquals(4, response.getHits().getTotalHits().value);
         assertEquals("1", response.getHits().getAt(0).getId());
         assertEquals("1.invalid.0", response.getHits().getAt(0).field("version").getValue());
 
@@ -385,6 +368,9 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("3", response.getHits().getAt(2).getId());
         assertEquals("2.2.0-badchar!", response.getHits().getAt(2).field("version").getValue());
 
+        assertEquals("4", response.getHits().getAt(3).getId());
+        assertEquals("", response.getHits().getAt(3).field("version").getValue());
+
         // exact match for malformed term
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "1.invalid.0")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
@@ -392,29 +378,38 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "2.2.0-badchar!")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
 
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
         // also should appear in terms aggs
         response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version")).get();
         Terms terms = response.getAggregations().get("myterms");
         List<? extends Bucket> buckets = terms.getBuckets();
 
-        assertEquals(3, buckets.size());
+        assertEquals(4, buckets.size());
         assertEquals("2.2.0", buckets.get(0).getKey());
-        assertEquals("1.invalid.0", buckets.get(1).getKey());
-        assertEquals("2.2.0-badchar!", buckets.get(2).getKey());
+        assertEquals("", buckets.get(1).getKey());
+        assertEquals("1.invalid.0", buckets.get(2).getKey());
+        assertEquals("2.2.0-badchar!", buckets.get(3).getKey());
 
         // invalid values should sort after all valid ones
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).addSort("version", SortOrder.ASC).get();
-        assertEquals(3, response.getHits().getTotalHits().value);
+        assertEquals(4, response.getHits().getTotalHits().value);
         SearchHit[] hits = response.getHits().getHits();
         assertEquals("2.2.0", hits[0].getSortValues()[0]);
-        assertEquals("1.invalid.0", hits[1].getSortValues()[0]);
-        assertEquals("2.2.0-badchar!", hits[2].getSortValues()[0]);
+        assertEquals("", hits[1].getSortValues()[0]);
+        assertEquals("1.invalid.0", hits[2].getSortValues()[0]);
+        assertEquals("2.2.0-badchar!", hits[3].getSortValues()[0]);
 
         // ranges can include them, but they are sorted last
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").to("3.0.0")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("3.0.0")).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(3, response.getHits().getTotalHits().value);
+
+        // using the empty string as lower bound should return all "invalid" versions
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("")).get();
+        assertEquals(3, response.getHits().getTotalHits().value);
     }
 
     public void testAggs() throws Exception {
@@ -525,13 +520,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiValues() throws Exception {
         String indexName = "test_multi";
-        createIndex(
-            indexName,
-            Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
-            "version",
-            "type=version"
-        );
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
         client().prepareIndex(indexName)

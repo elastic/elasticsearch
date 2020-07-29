@@ -167,13 +167,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        public VersionStringFieldType(
-            String name,
-            boolean isSearchable,
-            Map<String, String> meta,
-            float boost,
-            FieldType fieldType
-        ) {
+        public VersionStringFieldType(String name, boolean isSearchable, Map<String, String> meta, float boost, FieldType fieldType) {
             super(name, isSearchable, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);

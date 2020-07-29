@@ -182,6 +182,7 @@ public class VersionEncoderTests extends ESTestCase {
         }
 
         String[] invalidSemverVersions = new String[] {
+            "",
             "1.2.3-0123",
             "1.2.3-0123.0123",
             "1.1.2+.123",
@@ -218,7 +219,9 @@ public class VersionEncoderTests extends ESTestCase {
             "9.8.7-whatever+meta+meta",
             "999999999.999999999.999999999.----RC-SNAPSHOT.12.09.1--------------------------------..12",
             "12.el2",
-            "12.el2-1.0-rc5" };
+            "12.el2-1.0-rc5",
+            "6.nüll.7" // make sure extended ascii-range (128-255) in invalid versions is decoded correctly
+        };
         for (String version : invalidSemverVersions) {
             assertFalse("should be invalid: " + version, VersionEncoder.encodeVersion(version).isLegal);
             // since we're here, also check encoding / decoding rountrip

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.commons.codec.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
@@ -42,6 +43,7 @@ class VersionEncoder {
     private static final char PRERELEASE_SEPARATOR = '-';
     private static final char DOT_SEPARATOR = '.';
     private static final char BUILD_SEPARATOR = '+';
+    private static final String ENCODED_EMPTY_STRING = new String(new String(new byte[] { NO_PRERELEASE_SEPARATOR_BYTE }, Charsets.UTF_8));
 
     // Regex to test relaxed Semver Main Version validity. Allows for more or less than three main version parts
     private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)(\\.(0|[1-9]\\d*))*");
@@ -60,6 +62,11 @@ class VersionEncoder {
 
         // don't treat non-legal versions further, just mark them as illegal and return
         if (legalVersionString(versionParts) == false) {
+            if (versionString.length() == 0) {
+                // special case, we want empty string to sort after valid strings, which all start with 0x01, add a higher char that
+                // we are sure to remove when decoding
+                versionString = ENCODED_EMPTY_STRING;
+            }
             return new EncodedVersion(new BytesRef(versionString), false, true, 0, 0, 0);
         }
 

@@ -168,7 +168,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.isEmpty() == false) {
-            if (numClasses > 0) {
+            if (numClasses != 0) {
                 map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
             }
             map.put(PREDICTION_PROBABILITY, topClasses.get(0).getProbability());
@@ -189,7 +189,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.size() > 0) {
-            if (numClasses > 0) {
+            if (numClasses != 0) {
                 builder.field(topNumClassesField, topClasses);
             }
             builder.field(PREDICTION_PROBABILITY, topClasses.get(0).getProbability());

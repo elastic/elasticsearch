@@ -46,6 +46,25 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 
 // end::index-number-of-shards-tag[]
 
+[[index-number-of-routing-shards]]
+`index.number_of_routing_shards`::
++
+====
+Number of routing shards used to <<indices-split-index,split>> an index.
+
+For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
+2 x 3`) could be split by a factor of `2` or `3`.  In other words, it could be
+split as follows:
+
+* `5` -> `10` -> `30`  (split by 2, then by 3)
+* `5` -> `15` -> `30` (split by 3, then by 2)
+* `5` -> `30` (split by 6)
+
+This setting's default value depends on the number of primary shards in the
+index. The default is designed to allow you to split by factors of 2 up
+to a maximum of 1024 shards.
+====
+
 `index.shard.check_on_startup`::
 
 Whether or not shards should be checked for corruption before opening. When

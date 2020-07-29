@@ -59,17 +59,17 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        MappedFieldType fieldType = highlighterContext.fieldType;
-        SearchHighlightContext.Field field = highlighterContext.field;
-        QueryShardContext context = highlighterContext.context;
-        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        MappedFieldType fieldType = fieldContext.fieldType;
+        SearchHighlightContext.Field field = fieldContext.field;
+        QueryShardContext context = fieldContext.context;
+        FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
             KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
-                .mappers().getMapper(highlighterContext.fieldName);
+                .mappers().getMapper(fieldContext.fieldName);
             keywordIgnoreAbove = mapper.ignoreAbove();
         }
 
@@ -77,7 +77,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments();
         try {
             final Analyzer analyzer = getAnalyzer(context.getMapperService().documentMapper(), hitContext);
-            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext, highlighterContext.forceSource);
+            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext, fieldContext.forceSource);
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -92,7 +92,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
+                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
                         "] doc of [" + context.index().getName() + "] index " + "has exceeded [" +
                         maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                         "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
@@ -118,7 +118,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
 
             if (field.fieldOptions().requireFieldMatch()) {
-                final String fieldName = highlighterContext.fieldName;
+                final String fieldName = fieldContext.fieldName;
                 highlighter.setFieldMatcher((name) -> fieldName.equals(name));
             } else {
                 // ignore terms that targets the _id field since they use a different encoding
@@ -126,16 +126,16 @@ public class UnifiedHighlighter implements Highlighter {
                 highlighter.setFieldMatcher(name -> IdFieldMapper.NAME.equals(name) == false);
             }
 
-            Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
-                highlighterContext.query, hitContext.docId(), numberOfFragments);
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldContext.fieldName,
+                fieldContext.query, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {
                     snippets.add(fieldSnippet);
                 }
             }
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
-                "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            throw new FetchPhaseExecutionException(fieldContext.shardTarget,
+                "Failed to highlight field [" + fieldContext.fieldName + "]", e);
         }
 
         if (field.fieldOptions().scoreOrdered()) {
@@ -149,7 +149,7 @@ public class UnifiedHighlighter implements Highlighter {
         }
 
         if (fragments.length > 0) {
-            return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+            return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
         }
         return null;
     }

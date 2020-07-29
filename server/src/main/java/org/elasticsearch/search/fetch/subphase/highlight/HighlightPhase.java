@@ -109,14 +109,14 @@ public class HighlightPhase implements FetchSubPhase {
                 }
 
                 boolean forceSource = highlight.forceSource(field);
-                HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
+                FieldHighlightContext fieldContext = new FieldHighlightContext(fieldType.name(),
                     field, fieldType, shardTarget, context, hitContext, highlightQuery, forceSource);
 
                 if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
                     continue;
                 }
-                HighlightField highlightField = highlighter.highlight(highlighterContext);
+                HighlightField highlightField = highlighter.highlight(fieldContext);
                 if (highlightField != null) {
                     // Note that we make sure to use the original field name in the response. This is because the
                     // original field could be an alias, and highlighter implementations may instead reference the

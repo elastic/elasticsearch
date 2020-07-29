@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
-public class HighlighterContext {
+public class FieldHighlightContext {
 
     public final String fieldName;
     public final SearchHighlightContext.Field field;
@@ -35,14 +35,14 @@ public class HighlighterContext {
     public final Query query;
     public final boolean forceSource;
 
-    public HighlighterContext(String fieldName,
-                              SearchHighlightContext.Field field,
-                              MappedFieldType fieldType,
-                              SearchShardTarget shardTarget,
-                              QueryShardContext context,
-                              FetchSubPhase.HitContext hitContext,
-                              Query query,
-                              boolean forceSource) {
+    public FieldHighlightContext(String fieldName,
+                                 SearchHighlightContext.Field field,
+                                 MappedFieldType fieldType,
+                                 SearchShardTarget shardTarget,
+                                 QueryShardContext context,
+                                 FetchSubPhase.HitContext hitContext,
+                                 Query query,
+                                 boolean forceSource) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;

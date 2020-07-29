@@ -69,15 +69,15 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchHighlightContext.Field field = highlighterContext.field;
-        QueryShardContext context = highlighterContext.context;
-        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        MappedFieldType fieldType = highlighterContext.fieldType;
-        boolean forceSource = highlighterContext.forceSource;
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        SearchHighlightContext.Field field = fieldContext.field;
+        QueryShardContext context = fieldContext.context;
+        FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
+        MappedFieldType fieldType = fieldContext.fieldType;
+        boolean forceSource = fieldContext.forceSource;
 
         if (canHighlight(fieldType) == false) {
-            throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
+            throw new IllegalArgumentException("the field [" + fieldContext.fieldName +
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
@@ -136,14 +136,14 @@ public class FastVectorHighlighter implements Highlighter {
                      * we use top level reader to rewrite the query against all readers,
                      * with use caching it across hits (and across readers...)
                      */
-                    entry.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                    entry.fieldMatchFieldQuery = new CustomFieldQuery(fieldContext.query,
                         hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 } else {
                     /**
                      * we use top level reader to rewrite the query against all readers,
                      * with use caching it across hits (and across readers...)
                      */
-                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(fieldContext.query,
                         hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 entry.fragListBuilder = fragListBuilder;
@@ -186,10 +186,10 @@ public class FastVectorHighlighter implements Highlighter {
             }
 
             if (CollectionUtils.isEmpty(fragments) == false) {
-                return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+                return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
             }
 
-            int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
+            int noMatchSize = fieldContext.field.fieldOptions().noMatchSize();
             if (noMatchSize > 0) {
                 // Essentially we just request that a fragment is built from 0 to noMatchSize using
                 // the normal fragmentsBuilder
@@ -199,15 +199,15 @@ public class FastVectorHighlighter implements Highlighter {
                     fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
                 if (CollectionUtils.isEmpty(fragments) == false) {
-                    return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+                    return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
                 }
             }
 
             return null;
 
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
-                "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            throw new FetchPhaseExecutionException(fieldContext.shardTarget,
+                "Failed to highlight field [" + fieldContext.fieldName + "]", e);
         }
     }
 

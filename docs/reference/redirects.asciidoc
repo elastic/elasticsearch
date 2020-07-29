@@ -137,6 +137,7 @@ See <<sort-search-results>>.
 
 [role="exclude",id="search-request-source-filtering"]
 === Source filtering parameter for request body search API
+
 See <<source-filtering>>.
 
 [role="exclude",id="search-request-stored-fields"]

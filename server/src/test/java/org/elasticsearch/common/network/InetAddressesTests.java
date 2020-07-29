@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 
 public class InetAddressesTests extends ESTestCase {
@@ -128,8 +129,8 @@ public class InetAddressesTests extends ESTestCase {
         assertTrue(InetAddresses.isInetAddress(ipStr));
     }
 
-    public void testForStringIPv6WithScopeIdInput() throws UnknownHostException {
-        String ipStr = "0:0:0:0:0:0:0:1%lo";
+    public void testForStringIPv6WithScopeIdInput() throws java.io.IOException {
+        String ipStr = "0:0:0:0:0:0:0:1%" + NetworkInterface.getNetworkInterfaces().nextElement().getName();
         InetAddress ipv6Addr = InetAddress.getByName(ipStr);
         assertEquals(ipv6Addr, InetAddresses.forString(ipStr));
         assertTrue(InetAddresses.isInetAddress(ipStr));

@@ -105,7 +105,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithCustomDelimiterRegularData() {
-        Set<Character> forbidden = Set.of('"', '\r', '\n', '\t');
+        List<Character> forbidden = Arrays.asList('"', '\r', '\n', '\t');
         Character delim = randomValueOtherThanMany(forbidden::contains, () -> randomAlphaOfLength(1).charAt(0));
         String text = CSV.format(reqWithParam("delimiter", String.valueOf(delim)), regularData());
         List<String> terms = Arrays.asList("string", "number", "Along The River Bank", "708", "Mind Train", "280");

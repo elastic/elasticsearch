@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
@@ -145,7 +146,11 @@ enum TextFormat {
             if (delimiterParam == null) {
                 return delimiter();
             }
-            delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8);
+            try {
+                delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8.toString());
+            } catch (UnsupportedEncodingException uee) {
+                throw new IllegalArgumentException("delimiter [" + delimiterParam + "] cannot be decoded: " + uee.getMessage(), uee);
+            }
             if (delimiterParam.length() != 1) {
                 throw new IllegalArgumentException("invalid " +
                     (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");

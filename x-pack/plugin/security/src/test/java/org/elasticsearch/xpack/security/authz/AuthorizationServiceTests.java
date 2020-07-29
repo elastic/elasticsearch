@@ -714,8 +714,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));
         assertThat(securityException, throwableWithMessage(not(containsString("read-2"))));
         assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the privileges [read,all]")));
-
-        logger.info(securityException);
     }
 
     public void testDenialErrorMessagesForBulkIngest() throws Exception {

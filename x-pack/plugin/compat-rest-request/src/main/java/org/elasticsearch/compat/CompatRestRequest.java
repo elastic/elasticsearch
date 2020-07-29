@@ -18,7 +18,8 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
 
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
         "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
-        Pattern.CASE_INSENSITIVE);
+        Pattern.CASE_INSENSITIVE
+    );
 
     @Override
     public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader) {
@@ -26,35 +27,54 @@ public class CompatRestRequest extends Plugin implements RestCompatibility {
         Integer acceptVersion = acceptHeader == null ? null : parseVersion(acceptHeader);
         Integer contentTypeVersion = contentTypeHeader == null ? null : parseVersion(contentTypeHeader);
 
-        //request version must be current or prior
-        if (acceptVersion != null && acceptVersion > Version.CURRENT.major ||
-            contentTypeVersion != null && contentTypeVersion > Version.CURRENT.major) {
+        // request version must be current or prior
+        if (acceptVersion != null && acceptVersion > Version.CURRENT.major
+            || contentTypeVersion != null && contentTypeVersion > Version.CURRENT.major) {
             throw new CompatibleApiException(
-                String.format(Locale.ROOT, "Compatible version must be equal or less then the current version. " +
-                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
+                String.format(
+                    Locale.ROOT,
+                    "Compatible version must be equal or less then the current version. " + "Accept=%s Content-Type=%s",
+                    acceptHeader,
+                    contentTypeHeader
+                )
+            );
         }
 
-        //request version can not be older then last major
-        if (acceptVersion != null && acceptVersion < Version.CURRENT.major - 1 ||
-            contentTypeVersion != null && contentTypeVersion < Version.CURRENT.major - 1) {
+        // request version can not be older then last major
+        if (acceptVersion != null && acceptVersion < Version.CURRENT.major - 1
+            || contentTypeVersion != null && contentTypeVersion < Version.CURRENT.major - 1) {
             throw new CompatibleApiException(
-                String.format(Locale.ROOT, "Compatible versioning only is only available for past major version. " +
-                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
+                String.format(
+                    Locale.ROOT,
+                    "Compatible versioning only is only available for past major version. " + "Accept=%s Content-Type=%s",
+                    acceptHeader,
+                    contentTypeHeader
+                )
+            );
         }
 
         // if a compatible content type is sent, so must a versioned accept header.
-        if (contentTypeVersion != null && acceptVersion == null ) {
+        if (contentTypeVersion != null && acceptVersion == null) {
             throw new CompatibleApiException(
-                String.format(Locale.ROOT, "The Accept header must have request a version if the Content-Type version is requested." +
-                    "Accept=%s Content-Type=%s", acceptHeader, contentTypeHeader));
+                String.format(
+                    Locale.ROOT,
+                    "The Accept header must have request a version if the Content-Type version is requested." + "Accept=%s Content-Type=%s",
+                    acceptHeader,
+                    contentTypeHeader
+                )
+            );
         }
 
         // if both accept and content-type are sent , the version must match
         if (acceptVersion != null && contentTypeVersion != null && contentTypeVersion != acceptVersion) {
             throw new CompatibleApiException(
-                String.format(Locale.ROOT, "Content-Type and Accept version requests have to match. " +
-                        "Accept=%s Content-Type=%s", acceptHeader,
-                    contentTypeHeader));
+                String.format(
+                    Locale.ROOT,
+                    "Content-Type and Accept version requests have to match. " + "Accept=%s Content-Type=%s",
+                    acceptHeader,
+                    contentTypeHeader
+                )
+            );
         }
         return Version.fromString(Version.CURRENT.major - 1 + ".0.0");
     }

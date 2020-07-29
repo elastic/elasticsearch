@@ -21,10 +21,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.rest.RestRequest;
-
-import java.util.List;
-import java.util.Map;
 
 @FunctionalInterface
 public interface RestCompatibility {

@@ -81,7 +81,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, RestCompatibility restCompatibleFunction) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          RestCompatibility restCompatibleFunction) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         this.restCompatibleFunction = restCompatibleFunction;

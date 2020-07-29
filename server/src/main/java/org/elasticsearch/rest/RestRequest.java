@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -180,7 +179,7 @@ public class RestRequest implements ToXContent.Params {
         return restCompatibleFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"));
     }
 
-    private final String getSingleHeader(String name) {
+    private String getSingleHeader(String name) {
         //TODO: is this case sensitive ?
         List<String> values = headers.get(name);
         if (values != null && values.isEmpty() == false) {

@@ -191,7 +191,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
 
     static DiscoveryNode newNodeWithLegacyRoles(String id) {
         final Version version = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNode.PLUGGABLE_ROLES_VERSION));
+            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
         return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), version);
     }
 

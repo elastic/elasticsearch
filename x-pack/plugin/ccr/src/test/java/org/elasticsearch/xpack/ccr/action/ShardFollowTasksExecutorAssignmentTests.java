@@ -64,7 +64,7 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
 
     public void testNodeWithLegacyRolesOnly() {
         final Version oldVersion = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNode.PLUGGABLE_ROLES_VERSION));
+            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
         runAssignmentTest(
             newNode(Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), oldVersion),
             newNodes(

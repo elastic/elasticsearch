@@ -174,17 +174,20 @@ public class TreeInferenceModel implements InferenceModel {
         switch (targetType) {
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                Tuple<Integer, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     classificationProbability(value),
                     classificationLabels,
                     null,
                     classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
-                return new ClassificationInferenceResults(topClasses.v1(),
-                    classificationLabel(topClasses.v1(), classificationLabels),
+                final InferenceHelpers.TopClassificationValue classificationValue = topClasses.v1();
+                return new ClassificationInferenceResults(classificationValue.getValue(),
+                    classificationLabel(classificationValue.getValue(), classificationLabels),
                     topClasses.v2(),
                     InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, classificationLabels),
-                    config);
+                    config,
+                    classificationValue.getProbability(),
+                    classificationValue.getScore());
             case REGRESSION:
                 return new RegressionInferenceResults(value[0],
                     config,

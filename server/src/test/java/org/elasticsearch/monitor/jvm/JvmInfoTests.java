@@ -50,6 +50,32 @@ public class JvmInfoTests extends ESTestCase {
                                 !flagIsEnabled(argline, "UseConcMarkSweepGC"));
         return g1GCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
     }
+    
+    public void testUseParallelGC() {
+        // if we are running on HotSpot, and the test JVM was started
+        // with UseParallelGC, then JvmInfo should successfully report that
+        // ParallelGC is enabled
+        if (Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK")) {
+            assertEquals(Boolean.toString(isParallelGCEnabled()), JvmInfo.jvmInfo().useParallelGC());
+        } else {
+            assertEquals("unknown", JvmInfo.jvmInfo().useParallelGC());
+        }
+    }
+    
+    private boolean isParallelGCEnabled() {
+        final String argline = System.getProperty("tests.jvm.argline");
+        final boolean parallelGCEnabled = flagIsEnabled(argline, "UseParallelGC");
+        // for JDK 9 the default collector when no collector is specified is G1 GC
+        final boolean versionIsAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
+        final boolean noOtherCollectorSpecified =
+                argline == null ||
+                        (!flagIsEnabled(argline, "UseParNewGC") &&
+                                !flagIsEnabled(argline, "UseParallelGC") &&
+                                !flagIsEnabled(argline, "UseParallelOldGC") &&
+                                !flagIsEnabled(argline, "UseSerialGC") &&
+                                !flagIsEnabled(argline, "UseConcMarkSweepGC"));
+        return parallelGCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
+    }
 
     private boolean flagIsEnabled(String argline, String flag) {
         final boolean containsPositiveFlag = argline != null && argline.contains("-XX:+" + flag);

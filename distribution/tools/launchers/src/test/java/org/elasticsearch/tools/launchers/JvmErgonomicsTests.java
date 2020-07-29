@@ -101,6 +101,24 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         );
     }
 
+    public void testParallelGCNotSet() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.extractUseParallelGC(
+                JvmErgonomics.finalJvmOptions(Arrays.asList("-Xmx1g", "-XX:+UseG1GC")),1024
+            ),
+            equalTo(false)
+        );
+    }
+
+    public void testParallelGCSet() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.extractUseParallelGC(
+                JvmErgonomics.finalJvmOptions(Arrays.asList("-Xmx1g")),1024
+            ),
+            equalTo(true)
+        );
+    }
+
     public void testExtractSystemProperties() {
         Map<String, String> expectedSystemProperties = new HashMap<>();
         expectedSystemProperties.put("file.encoding", "UTF-8");

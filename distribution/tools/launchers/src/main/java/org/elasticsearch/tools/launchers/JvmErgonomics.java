@@ -59,12 +59,11 @@ final class JvmErgonomics {
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
-        // Use ParallelGC for heaps <= 4GB unless the user has explicitly set the garbage collector
-        JvmOption g1 = finalJvmOptions.get("UseG1GC");
-        if (heapSize <= 4 * 1024 * 1024 * 1024 && g1.getMandatoryValue().equals("true") && g1.isCommandLineOrigin() == false) {
+        final boolean useParallelGC = extractUseParallelGC(finalJvmOptions, heapSize);
+        if (useParallelGC) {
             ergonomicChoices.add("-XX:+UseParallelGC");
         }
-        System.out.println("HEre inn");
+
         return ergonomicChoices;
     }
 
@@ -150,6 +149,14 @@ final class JvmErgonomics {
 
     static long extractMaxDirectMemorySize(final Map<String, JvmOption> finalJvmOptions) {
         return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").getMandatoryValue());
+    }
+
+    // Use ParallelGC for heaps <= 4GB unless the user has explicitly set the garbage collector
+    static boolean extractUseParallelGC(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
+        JvmOption g1 = finalJvmOptions.get("UseG1GC");
+        boolean parallel =  (heapSize <= 4L << 30 && g1.getMandatoryValue().equals("true")
+          && g1.isCommandLineOrigin() == false);
+        return parallel;
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

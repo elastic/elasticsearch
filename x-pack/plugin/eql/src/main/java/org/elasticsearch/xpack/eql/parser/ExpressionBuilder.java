@@ -152,6 +152,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitValueExpressionDefault(ValueExpressionDefaultContext ctx) {
         Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
+        ZoneId zoneId = params.zoneId();
 
         PredicateContext predicate = ctx.predicate();
 
@@ -160,7 +161,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<Expression> container = expressions(predicate.expression());
-        Expression checkInSet = new In(source, expr, container);
+        Expression checkInSet = new In(source, expr, container, zoneId);
 
         return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }

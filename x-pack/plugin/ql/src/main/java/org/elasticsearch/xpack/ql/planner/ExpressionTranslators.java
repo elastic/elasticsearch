@@ -358,7 +358,18 @@ public final class ExpressionTranslators {
                     set.add(handler.convert(valueOf(e), dt));
                 }
 
-                q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
+                if (dt == DATETIME) {
+                    q = null;
+                    DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
+        
+                    for (Object o : set) {
+                        RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
+                                o, true, o, true, formatter.pattern(), in.zoneId());
+                        q = q == null ? right : new BoolQuery(in.source(), false, q, right);
+                    }
+                } else {
+                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
+                }
             } else {
                 q = new ScriptQuery(in.source(), in.asScript());
             }

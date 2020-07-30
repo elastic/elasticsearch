@@ -75,7 +75,7 @@ If `true`, this request cannot replace or update existing index templates. Defau
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-
+[role="child_attributes"]
 [[put-index-template-api-request-body]]
 ==== {api-request-body-title}
 
@@ -83,10 +83,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Required, array of strings)
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
-+
-NOTE: You cannot add data streams to an index alias.
 
 [xpack]#`data_stream`#::
 (Optional, object)
@@ -97,14 +93,22 @@ indices. If so, use an empty object as the argument: +
 Data streams require a matching index template with a `data_stream` object.
 See <<create-a-data-stream-template>>.
 
+`template`::
+(Optional, object)
+Template to be applied. It may optionally include an `aliases`, `mappings`, or
+`settings` configuration.
++
+.Properties of `template`
+[%collapsible%open]
+====
+include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
++
+NOTE: You cannot add data streams to an index alias.
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
-
-`template`::
-(Optional, object)
-This is the template to be applied, may optionally include a `mappings`,
-`settings`, or `aliases` configuration.
+====
 
 `composed_of`::
 (Optional, array of strings)

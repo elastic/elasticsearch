@@ -45,6 +45,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long primaryRejections;
     private final long replicaRejections;
     private final long memoryLimit;
+    private final long primaryQueueLag;
+    private final long replicaQueueLag;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
@@ -66,12 +68,21 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         } else {
             memoryLimit = -1L;
         }
+
+        // TODO: 7.10 after backport
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            primaryQueueLag = in.readVLong();
+            replicaQueueLag = in.readVLong();
+        } else {
+            primaryQueueLag = -1L;
+            replicaQueueLag = -1L;
+        }
     }
 
     public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
                                  long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
                                  long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit) {
+                                 long replicaRejections, long memoryLimit, long primaryQueueLag, long replicaQueueLag) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -84,6 +95,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
         this.memoryLimit = memoryLimit;
+        this.primaryQueueLag = primaryQueueLag;
+        this.replicaQueueLag = replicaQueueLag;
     }
 
     @Override
@@ -104,6 +117,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeVLong(memoryLimit);
+        }
+        // TODO: 7.10 after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVLong(primaryQueueLag);
+            out.writeVLong(replicaQueueLag);
         }
     }
 
@@ -189,6 +207,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(memoryLimit));
+        builder.endObject();
+        builder.startObject("queue_lag");
+        builder.startObject("current");
+        builder.field("primary", primaryQueueLag);
+        builder.field("replica", replicaQueueLag);
+        builder.endObject();
         builder.endObject();
         return builder.endObject();
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -62,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
@@ -213,7 +215,7 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
 
         @Override
         public String name() {
-            return "fake"; // defeats Lucene's is-spinning-disk check before it tries to obtain a filestore for an untracked file
+            return "fake"; // Lucene's is-spinning-disk check expects the device name here
         }
 
         @Override
@@ -307,6 +309,13 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
 
         public TestFileStore getTestFileStore(Path path) {
             final TestFileStore fileStore = trackedPaths.get(path);
+            if (fileStore == null && Constants.LINUX) {
+                // On Linux, Lucene obtains a filestore for the index in order to determine whether it's on a spinning disk or not
+                // so it can configure the merge scheduler accordingly
+                final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
+                assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
+                return trackedPaths.get(containingPaths.iterator().next());
+            }
             assertNotNull(path + " not tracked", fileStore);
             return fileStore;
         }

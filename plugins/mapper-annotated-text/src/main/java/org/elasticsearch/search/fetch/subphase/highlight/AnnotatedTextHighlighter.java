@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 
@@ -47,10 +46,9 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     @Override
     protected List<Object> loadFieldValues(MappedFieldType fieldType,
                                            Field field,
-                                           QueryShardContext context,
                                            HitContext hitContext,
                                            boolean forceSource) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext, forceSource);
+        List<Object> fieldValues = super.loadFieldValues(fieldType, field, hitContext, forceSource);
         String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
 
         AnnotatedText[] annotations = new AnnotatedText[fieldValuesAsString.length];

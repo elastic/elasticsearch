@@ -115,7 +115,7 @@ indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
 
-{es} does not support downgrades or forward compatibility across major versions.
+{es} does not support forward compatibility across major versions.
 For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 
 ifdef::include-xpack[]

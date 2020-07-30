@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -114,9 +115,15 @@ public class OutlierDetection implements DataFrameAnalysis {
         nNeighbors = in.readOptionalVInt();
         method = in.readBoolean() ? in.readEnum(Method.class) : null;
         featureInfluenceThreshold = in.readOptionalDouble();
-        computeFeatureInfluence = in.readBoolean();
-        outlierFraction = in.readDouble();
-        standardizationEnabled = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            computeFeatureInfluence = in.readBoolean();
+            outlierFraction = in.readDouble();
+            standardizationEnabled = in.readBoolean();
+        } else {
+            computeFeatureInfluence = true;
+            outlierFraction = 0.05;
+            standardizationEnabled = true;
+        }
     }
 
     @Override
@@ -137,10 +144,11 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         out.writeOptionalDouble(featureInfluenceThreshold);
 
-        out.writeBoolean(computeFeatureInfluence);
-        out.writeDouble(outlierFraction);
-        out.writeBoolean(standardizationEnabled);
-
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeBoolean(computeFeatureInfluence);
+            out.writeDouble(outlierFraction);
+            out.writeBoolean(standardizationEnabled);
+        }
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -94,6 +96,11 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
+    protected List<Version> bwcVersions() {
+        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
+    }
+
+    @Override
     protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance)
             .setSource(DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version))
@@ -106,6 +113,16 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (instance.getAnalysis() instanceof Classification) {
             builder.setAnalysis(ClassificationTests.mutateForVersion((Classification)instance.getAnalysis(), version));
+        }
+        if (version.before(Version.V_7_5_0)) {
+            builder.setAllowLazyStart(false);
+        }
+        if (version.before(Version.V_7_4_0)) {
+            builder.setDescription(null);
+        }
+        if (version.before(Version.V_7_3_0)) {
+            builder.setCreateTime(null);
+            builder.setVersion(null);
         }
         return builder.build();
     }
@@ -451,6 +468,24 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
     }
 
+    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsBeforeItWasIntroduced() throws IOException {
+        Regression regression = new Regression("foo");
+        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setVersion(Version.V_7_5_0)
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(regression)
+            .build();
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, not(containsString("randomize_seed")));
+        }
+    }
 
     public void testExtractJobIdFromDocId() {
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-foo"), equalTo("foo"));

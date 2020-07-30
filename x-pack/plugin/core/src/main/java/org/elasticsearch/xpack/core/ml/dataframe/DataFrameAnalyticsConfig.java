@@ -150,17 +150,30 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
         this.id = in.readString();
-        this.description = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            description = in.readOptionalString();
+        } else {
+            description = null;
+        }
         this.source = new DataFrameAnalyticsSource(in);
         this.dest = new DataFrameAnalyticsDest(in);
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
         this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::new);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        this.createTime = in.readOptionalInstant();
-        this.version = in.readBoolean() ? Version.readVersion(in) : null;
-        this.allowLazyStart = in.readBoolean();
-        this.maxNumThreads = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            createTime = in.readOptionalInstant();
+            version = in.readBoolean() ? Version.readVersion(in) : null;
+        } else {
+            createTime = null;
+            version = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            allowLazyStart = in.readBoolean();
+        } else {
+            allowLazyStart = false;
+        }
+        maxNumThreads = in.readVInt();
     }
 
     public String getId() {
@@ -251,21 +264,27 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeOptionalString(description);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeOptionalString(description);
+        }
         source.writeTo(out);
         dest.writeTo(out);
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeOptionalInstant(createTime);
-        if (version != null) {
-            out.writeBoolean(true);
-            Version.writeVersion(version, out);
-        } else {
-            out.writeBoolean(false);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalInstant(createTime);
+            if (version != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(version, out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
-        out.writeBoolean(allowLazyStart);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeBoolean(allowLazyStart);
+        }
         out.writeVInt(maxNumThreads);
     }
 

@@ -149,10 +149,18 @@ public class Classification implements DataFrameAnalysis {
         dependentVariable = in.readString();
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
-        classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
+        } else {
+            classAssignmentObjective = ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL;
+        }
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
-        randomizeSeed = in.readOptionalLong();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            randomizeSeed = in.readOptionalLong();
+        } else {
+            randomizeSeed = Randomness.get().nextLong();
+        }
     }
 
     public String getDependentVariable() {
@@ -193,10 +201,14 @@ public class Classification implements DataFrameAnalysis {
         out.writeString(dependentVariable);
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
-        out.writeEnum(classAssignmentObjective);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeEnum(classAssignmentObjective);
+        }
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
-        out.writeOptionalLong(randomizeSeed);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalLong(randomizeSeed);
+        }
     }
 
     @Override
@@ -212,7 +224,9 @@ public class Classification implements DataFrameAnalysis {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
-        builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
+        if (version.onOrAfter(Version.V_7_6_0)) {
+            builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
+        }
         builder.endObject();
         return builder;
     }

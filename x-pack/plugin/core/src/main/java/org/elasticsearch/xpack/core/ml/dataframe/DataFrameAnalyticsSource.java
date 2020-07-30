@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -76,7 +77,11 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public DataFrameAnalyticsSource(StreamInput in) throws IOException {
         index = in.readStringArray();
         queryProvider = QueryProvider.fromStream(in);
-        sourceFiltering = in.readOptionalWriteable(FetchSourceContext::new);
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            sourceFiltering = in.readOptionalWriteable(FetchSourceContext::new);
+        } else {
+            sourceFiltering = null;
+        }
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
@@ -90,7 +95,9 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(index);
         queryProvider.writeTo(out);
-        out.writeOptionalWriteable(sourceFiltering);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalWriteable(sourceFiltering);
+        }
     }
 
     @Override

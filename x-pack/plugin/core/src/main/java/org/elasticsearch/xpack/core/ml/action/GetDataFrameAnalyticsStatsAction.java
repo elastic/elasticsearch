@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -192,13 +193,26 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-
-                progress = in.readList(PhaseProgress::new);
-
-                dataCounts = new DataCounts(in);
-                memoryUsage = new MemoryUsage(in);
-                analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
-
+                if (in.getVersion().before(Version.V_7_4_0)) {
+                    progress = readProgressFromLegacy(state, in);
+                } else {
+                    progress = in.readList(PhaseProgress::new);
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    dataCounts = new DataCounts(in);
+                } else {
+                    dataCounts = null;
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    memoryUsage = new MemoryUsage(in);
+                } else {
+                    memoryUsage = null;
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
+                } else {
+                    analysisStats = null;
+                }
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
             }
@@ -329,12 +343,48 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                out.writeList(progress);
-                dataCounts.writeTo(out);
-                memoryUsage.writeTo(out);
-                out.writeOptionalNamedWriteable(analysisStats);
+                if (out.getVersion().before(Version.V_7_4_0)) {
+                    writeProgressToLegacy(out);
+                } else {
+                    out.writeList(progress);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    dataCounts.writeTo(out);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    memoryUsage.writeTo(out);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    out.writeOptionalNamedWriteable(analysisStats);
+                }
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
+            }
+
+            private void writeProgressToLegacy(StreamOutput out) throws IOException {
+                String targetPhase = null;
+                switch (state) {
+                    case ANALYZING:
+                        targetPhase = "analyzing";
+                        break;
+                    case REINDEXING:
+                        targetPhase = "reindexing";
+                        break;
+                    case STARTING:
+                    case STARTED:
+                    case STOPPED:
+                    case STOPPING:
+                    default:
+                        break;
+                }
+
+                Integer legacyProgressPercent = null;
+                for (PhaseProgress phaseProgress : progress) {
+                    if (phaseProgress.getPhase().equals(targetPhase)) {
+                        legacyProgressPercent = phaseProgress.getProgressPercent();
+                    }
+                }
+                out.writeOptionalInt(legacyProgressPercent);
             }
 
             @Override

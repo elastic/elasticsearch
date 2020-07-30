@@ -27,9 +27,7 @@ public enum DataFrameAnalyticsState implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        DataFrameAnalyticsState toWrite = this;
-
-        out.writeEnum(toWrite);
+        out.writeEnum(this);
     }
 
     @Override

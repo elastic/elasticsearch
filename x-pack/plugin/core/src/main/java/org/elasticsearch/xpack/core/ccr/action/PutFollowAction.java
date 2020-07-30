@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +41,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
+        private static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
         // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
         // PutFollowParameters class. But since two minor version are already released with duplicate follow parameters
@@ -48,6 +51,11 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         static {
             PARSER.declareString((putFollowParameters, value) -> putFollowParameters.remoteCluster = value, REMOTE_CLUSTER_FIELD);
             PARSER.declareString((putFollowParameters, value) -> putFollowParameters.leaderIndex = value, LEADER_INDEX_FIELD);
+            PARSER.declareObject(
+                (putFollowParameters, value) -> putFollowParameters.settings = value,
+                (p, c) -> Settings.fromXContent(p),
+                SETTINGS_FIELD
+            );
             FollowParameters.initParser(PARSER);
         }
 
@@ -60,12 +68,14 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             request.setFollowerIndex(followerIndex);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
+            request.setSettings(parameters.settings);
             request.setParameters(parameters);
             return request;
         }
 
         private String remoteCluster;
         private String leaderIndex;
+        private Settings settings = Settings.EMPTY;
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
@@ -95,6 +105,14 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         public void setLeaderIndex(String leaderIndex) {
             this.leaderIndex = leaderIndex;
+        }
+
+        public Settings getSettings() {
+            return settings;
+        }
+
+        public void setSettings(final Settings settings) {
+            this.settings = Objects.requireNonNull(settings);
         }
 
         public FollowParameters getParameters() {
@@ -156,6 +174,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                this.settings = Settings.readSettingsFromStream(in);
+            }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
         }
@@ -166,6 +187,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
         }
@@ -176,6 +200,13 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
+                if (settings.isEmpty() == false) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    {
+                        settings.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
                 parameters.toXContentFragment(builder);
             }
             builder.endObject();
@@ -204,6 +235,8 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
             private String remoteCluster;
             private String leaderIndex;
+            private Settings settings = Settings.EMPTY;
+
         }
 
     }

@@ -6,23 +6,32 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.Names.NULL_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -228,7 +237,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
 
-        Object nullValue = ((PointFieldMapper) fieldMapper).fieldType().nullValue();
+        Object nullValue = ((PointFieldMapper) fieldMapper).getNullValue();
         assertThat(nullValue, equalTo(new CartesianPoint(1, 2)));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
@@ -239,7 +248,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("location"), notNullValue());
-        BytesRef defaultValue = doc.rootDoc().getField("location").binaryValue();
+        BytesRef defaultValue = doc.rootDoc().getBinaryValue("location");
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -248,7 +257,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, equalTo(doc.rootDoc().getField("location").binaryValue()));
+        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("location")));
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -257,7 +266,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("location"))));
     }
 
     /**
@@ -294,5 +303,38 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
         ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(false));
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        AbstractGeometryFieldMapper<?, ?> mapper = new PointFieldMapper.Builder("field").build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
+        String wktPoint = "POINT (42.0 27.1)";
+        Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
+        String otherWktPoint = "POINT (30.0 50.0)";
+
+        // Test a single point in [x, y] array format.
+        sourceLookup.setSource(Collections.singletonMap("field", List.of(42.0, 27.1)));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a single point in "x, y" string format.
+        sourceLookup.setSource(Collections.singletonMap("field", "42.0,27.1"));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a list of points in [x, y] array format.
+        sourceLookup.setSource(Collections.singletonMap("field", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0))));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+
+        // Test a single point in well-known text format.
+        sourceLookup.setSource(Collections.singletonMap("field", "POINT (42.0 27.1)"));
+        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
     }
 }

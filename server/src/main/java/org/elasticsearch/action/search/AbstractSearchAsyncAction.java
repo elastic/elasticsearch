@@ -470,12 +470,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void onShardResult(Result result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        successfulOps.incrementAndGet();
-        results.consumeResult(result);
         hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
+        results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
+    }
+
+    private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {
+        successfulOps.incrementAndGet();
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
@@ -559,13 +562,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
         results.getSuccessfulResults().forEach((entry) -> {
-            try {
-                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
-            } catch (Exception inner) {
-                inner.addSuppressed(exception);
-                logger.trace("failed to release context", inner);
+            if (entry.getContextId() != null) {
+                try {
+                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                } catch (Exception inner) {
+                    inner.addSuppressed(exception);
+                    logger.trace("failed to release context", inner);
+                }
             }
         });
         listener.onFailure(exception);

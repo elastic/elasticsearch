@@ -28,8 +28,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -65,12 +63,10 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -114,18 +110,18 @@ public class IndicesModule extends AbstractModule {
         for (RangeType type : RangeType.values()) {
             mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
         }
-        mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
-        mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
+        mappers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanFieldMapper.PARSER);
+        mappers.put(BinaryFieldMapper.CONTENT_TYPE, BinaryFieldMapper.PARSER);
         DateFieldMapper.Resolution milliseconds = DateFieldMapper.Resolution.MILLISECONDS;
-        mappers.put(milliseconds.type(), new DateFieldMapper.TypeParser(milliseconds));
+        mappers.put(milliseconds.type(), DateFieldMapper.MILLIS_PARSER);
         DateFieldMapper.Resolution nanoseconds = DateFieldMapper.Resolution.NANOSECONDS;
-        mappers.put(nanoseconds.type(), new DateFieldMapper.TypeParser(nanoseconds));
+        mappers.put(nanoseconds.type(), DateFieldMapper.NANOS_PARSER);
         mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
-        mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
+        mappers.put(CompletionFieldMapper.CONTENT_TYPE, CompletionFieldMapper.PARSER);
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
 
@@ -140,6 +136,8 @@ public class IndicesModule extends AbstractModule {
     }
 
     private static final Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers = initBuiltInMetadataMappers();
+
+    private static Set<String> builtInMetadataFields = Collections.unmodifiableSet(builtInMetadataMappers.keySet());
 
     private static Map<String, MetadataFieldMapper.TypeParser> initBuiltInMetadataMappers() {
         Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers;
@@ -198,7 +196,7 @@ public class IndicesModule extends AbstractModule {
      * Returns a set containing all of the builtin metadata fields
      */
     public static Set<String> getBuiltInMetadataFields() {
-        return builtInMetadataMappers.keySet();
+        return builtInMetadataFields;
     }
 
     private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
@@ -248,10 +246,6 @@ public class IndicesModule extends AbstractModule {
      */
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
-    }
-
-    public Collection<Function<IndexSettings, Optional<EngineFactory>>> getEngineFactories() {
-        return Collections.emptyList();
     }
 
 }

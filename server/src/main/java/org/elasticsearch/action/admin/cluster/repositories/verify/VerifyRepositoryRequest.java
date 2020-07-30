@@ -29,9 +29,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Unregister repository request.
- * <p>
- * The unregister repository command just unregisters the repository. No data is getting deleted from the repository.
+ * Verify repository request.
  */
 public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositoryRequest> {
 

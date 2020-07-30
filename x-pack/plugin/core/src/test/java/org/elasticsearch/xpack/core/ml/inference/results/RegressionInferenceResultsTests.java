@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,5 +76,19 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
     @Override
     protected Writeable.Reader<RegressionInferenceResults> instanceReader() {
         return RegressionInferenceResults::new;
+    }
+
+    public void testToXContent() {
+        String resultsField = "ml.results";
+        RegressionInferenceResults result = new RegressionInferenceResults(1.0, resultsField);
+        String stringRep = Strings.toString(result);
+        String expected = "{\"" + resultsField + "\":1.0}";
+        assertEquals(expected, stringRep);
+
+        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
+        result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
+        stringRep = Strings.toString(result);
+        expected = "{\"" + resultsField + "\":1.0,\"feature_importance\":[{\"feature_name\":\"foo\",\"importance\":1.0}]}";
+        assertEquals(expected, stringRep);
     }
 }

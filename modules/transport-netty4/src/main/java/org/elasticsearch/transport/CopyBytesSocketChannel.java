@@ -59,7 +59,7 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
  * local buffer with a defined size.
  */
 @SuppressForbidden(reason = "Channel#write")
-public class CopyBytesSocketChannel extends NioSocketChannel {
+public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
 
     private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
         System.getProperty("es.transport.buffer.size", "1m"), "es.transport.buffer.size").getBytes());

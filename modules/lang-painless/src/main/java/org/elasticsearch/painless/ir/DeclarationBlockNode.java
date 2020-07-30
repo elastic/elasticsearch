@@ -21,12 +21,13 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class DeclarationBlockNode extends StatementNode {
+public class DeclarationBlockNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
@@ -40,12 +41,19 @@ public final class DeclarationBlockNode extends StatementNode {
         return declarationNodes;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitDeclarationBlock(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         for (DeclarationNode declarationNode : declarationNodes) {
-            declarationNode.write(classWriter, methodWriter, scopeTable);
+            declarationNode.write(classWriter, methodWriter, writeScope);
         }
     }
 }

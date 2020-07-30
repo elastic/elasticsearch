@@ -56,7 +56,7 @@ public class InternalAdjacencyMatrix
         public InternalBucket(StreamInput in) throws IOException {
             key = in.readOptionalString();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -196,12 +196,10 @@ public class InternalAdjacencyMatrix
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
             InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
             if(reducedBucket.docCount >= 1){
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 reducedBuckets.add(reducedBucket);
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reducedBucket));
             }
         }
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));
 
         InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());

@@ -118,10 +118,6 @@ public class User implements ToXContentObject {
         return authenticatedUser != null;
     }
 
-    public User withRoles(String[] newRoles) {
-        return new User(username, newRoles, fullName, email, metadata, enabled);
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

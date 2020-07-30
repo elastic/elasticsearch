@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,12 +16,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -32,7 +31,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     public enum Type {
         TERMS(0),
         HISTOGRAM(1),
-        DATE_HISTOGRAM(2);
+        DATE_HISTOGRAM(2),
+        GEOTILE_GRID(3);
 
         private final byte id;
 
@@ -52,6 +52,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
                     return HISTOGRAM;
                 case 2:
                     return DATE_HISTOGRAM;
+                case 3:
+                    return GEOTILE_GRID;
                 default:
                     throw new IllegalArgumentException("unknown type");
             }
@@ -64,18 +66,22 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     protected static final ParseField FIELD = new ParseField("field");
     protected static final ParseField SCRIPT = new ParseField("script");
+    protected static final ParseField MISSING_BUCKET = new ParseField("missing_bucket");
 
     protected final String field;
     protected final ScriptConfig scriptConfig;
+    protected final boolean missingBucket;
 
     static <T> void declareValuesSourceFields(AbstractObjectParser<? extends SingleGroupSource, T> parser, boolean lenient) {
         parser.declareString(optionalConstructorArg(), FIELD);
         parser.declareObject(optionalConstructorArg(), (p, c) -> ScriptConfig.fromXContent(p, lenient), SCRIPT);
+        parser.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
     }
 
-    public SingleGroupSource(final String field, final ScriptConfig scriptConfig) {
+    public SingleGroupSource(final String field, final ScriptConfig scriptConfig, final boolean missingBucket) {
         this.field = field;
         this.scriptConfig = scriptConfig;
+        this.missingBucket = missingBucket;
     }
 
     public SingleGroupSource(StreamInput in) throws IOException {
@@ -84,6 +90,11 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
             scriptConfig = in.readOptionalWriteable(ScriptConfig::new);
         } else {
             scriptConfig = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_10_0
+            missingBucket = in.readBoolean();
+        } else {
+            missingBucket = false;
         }
     }
 
@@ -102,6 +113,9 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         if (scriptConfig != null) {
             builder.field(SCRIPT.getPreferredName(), scriptConfig);
         }
+        if (missingBucket) {
+            builder.field(MISSING_BUCKET.getPreferredName(), missingBucket);
+        }
     }
 
     @Override
@@ -110,17 +124,14 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalWriteable(scriptConfig);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_10_0
+            out.writeBoolean(missingBucket);
+        }
     }
 
     public abstract Type getType();
 
     public abstract boolean supportsIncrementalBucketUpdate();
-
-    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    );
 
     public String getField() {
         return field;
@@ -128,6 +139,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public ScriptConfig getScriptConfig() {
         return scriptConfig;
+    }
+
+    public boolean getMissingBucket() {
+        return missingBucket;
     }
 
     @Override
@@ -142,16 +157,36 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(this.scriptConfig, that.scriptConfig);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.scriptConfig, that.scriptConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, scriptConfig);
+        return Objects.hash(field, scriptConfig, missingBucket);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * @return The preferred mapping type if it exists. Is nullable.
+     */
+    @Nullable
+    public String getMappingType() {
+        return null;
+    }
+
+    /**
+     * This will transform a composite aggregation bucket key into the desired format for indexing.
+     *
+     * @param key The bucket key for this group source
+     * @return the transformed bucket key for indexing
+     */
+    public Object transformBucketKey(Object key) {
+        return key;
     }
 }

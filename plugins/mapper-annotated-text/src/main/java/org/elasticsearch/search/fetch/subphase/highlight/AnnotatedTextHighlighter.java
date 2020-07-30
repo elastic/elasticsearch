@@ -28,16 +28,16 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AnnotatedTextHighlighter extends UnifiedHighlighter {
-    
+
     public static final String NAME = "annotated";
-    
+
     @Override
     protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
         return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, hitContext), hitContext);
@@ -68,7 +68,7 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected PassageFormatter getPassageFormatter(HitContext hitContext,SearchContextHighlight.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
         // Retrieve the annotations from the hitContext
         AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
         return new AnnotatedPassageFormatter(annotations, encoder);

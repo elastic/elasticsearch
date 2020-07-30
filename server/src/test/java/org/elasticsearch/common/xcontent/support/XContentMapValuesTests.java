@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.hasEntry;
@@ -159,6 +162,35 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
+    }
+
+    public void testExtractValueWithNullValue() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .nullField("other_field")
+            .array("array", "value1", null, "value2")
+            .startObject("object1")
+                .startObject("object2").nullField("field").endObject()
+            .endObject()
+            .startArray("object_array")
+                .startObject().nullField("field").endObject()
+                .startObject().field("field", "value").endObject()
+            .endArray()
+        .endObject();
+
+        Map<String, Object> map;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertEquals("value", XContentMapValues.extractValue("field", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("field.missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
+
+        assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
+        assertEquals(List.of("value1", "NULL", "value2"), XContentMapValues.extractValue("array", map, "NULL"));
+        assertEquals(List.of("NULL", "value"), XContentMapValues.extractValue("object_array.field", map, "NULL"));
+        assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
     }
 
     public void testExtractRawValue() throws Exception {
@@ -477,6 +509,79 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
         assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
+
+    @Override
+    public void testSimpleArrayOfObjectsExclusive() throws Exception {
+        //Empty arrays are preserved by XContentMapValues, they get removed only if explicitly excluded.
+        //See following tests around this specific behaviour
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
+    }
+
+    public void testArraySubFieldExclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        Map<String, String> object = new HashMap<>();
+        object.put("exclude", "bar");
+        array.add(object);
+        map.put("array", array);
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[0], new String[]{"array.exclude"});
+        assertTrue(filtered.containsKey("field"));
+        assertTrue(filtered.containsKey("array"));
+        List<?> filteredArray = (List<?>)filtered.get("array");
+        assertThat(filteredArray, hasSize(0));
+    }
+
+    public void testEmptyArraySubFieldsExclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        map.put("array", array);
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[0], new String[]{"array.exclude"});
+        assertTrue(filtered.containsKey("field"));
+        assertTrue(filtered.containsKey("array"));
+        List<?> filteredArray = (List<?>)filtered.get("array");
+        assertEquals(0, filteredArray.size());
+    }
+
+    public void testEmptyArraySubFieldsInclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        map.put("array", array);
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"array.include"}, new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertFalse(filtered.containsKey("array"));
+        }
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"array", "array.include"},
+                new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertTrue(filtered.containsKey("array"));
+            List<?> filteredArray = (List<?>)filtered.get("array");
+            assertEquals(0, filteredArray.size());
+        }
+    }
+
+    public void testEmptyObjectsSubFieldsInclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        map.put("object", new HashMap<>());
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"object.include"}, new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertFalse(filtered.containsKey("object"));
+        }
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"object", "object.include"},
+                new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertTrue(filtered.containsKey("object"));
+            Map<?, ?> filteredMap = (Map<?, ?>)filtered.get("object");
+            assertEquals(0, filteredMap.size());
+        }
     }
 
     public void testPrefix() {

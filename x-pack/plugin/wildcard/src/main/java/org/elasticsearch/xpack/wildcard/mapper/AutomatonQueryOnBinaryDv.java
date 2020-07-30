@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Query that runs an Automaton across all binary doc values. 
@@ -33,18 +34,19 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     private final String field;
     private final String matchPattern;
-    private final Automaton automaton;
+    private final Supplier<Automaton> automatonSupplier;
 
-    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
+    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Supplier<Automaton> automatonSupplier) {
         this.field = field;
         this.matchPattern = matchPattern;
-        this.automaton = automaton;
+        this.automatonSupplier = automatonSupplier;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                 
-        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
+        
+        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automatonSupplier.get());
         
         return new ConstantScoreWeight(this, boost) {
 
@@ -92,8 +94,11 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     @Override
     public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+          }        
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);
+        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);            
     }
 
     @Override

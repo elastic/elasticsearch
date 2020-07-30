@@ -130,7 +130,7 @@ public class DatafeedNodeSelector {
             String[] concreteIndices;
 
             try {
-                concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, index);
+                concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
                 if (concreteIndices.length == 0) {
                     return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
                         + index + "] does not exist, is closed, or is still initializing.", true);

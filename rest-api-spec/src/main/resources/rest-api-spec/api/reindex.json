@@ -52,10 +52,6 @@
       "max_docs":{
         "type":"number",
         "description":"Maximum number of documents to process (default: all documents)"
-      },
-      "prefer_v2_templates": {
-        "type": "boolean",
-        "description": "favor V2 templates instead of V1 templates during index creation"
       }
     },
     "body":{

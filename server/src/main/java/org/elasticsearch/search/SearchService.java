@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -85,6 +86,7 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -113,8 +115,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -633,6 +633,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             putContext(context);
+            // ensure that if we race against afterIndexRemoved, we free the context here.
+            // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
+            indicesService.indexServiceSafe(request.shardId().getIndex());
             success = true;
             return context;
         } finally {
@@ -913,21 +916,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
-            for (FetchDocValuesContext.FieldAndFormat format : source.docValueFields()) {
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
-                for (String fieldName: fieldNames) {
-                   docValueFields.add(new FetchDocValuesContext.FieldAndFormat(fieldName, format.format));
-                }
-            }
-            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
-            if (docValueFields.size() > maxAllowedDocvalueFields) {
-                throw new IllegalArgumentException(
-                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                        + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
-            }
-            context.docValuesContext(new FetchDocValuesContext(docValueFields));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService(), source.docValueFields());
+            context.docValuesContext(docValuesContext);
+        }
+        if (source.fetchFields() != null) {
+            String indexName = context.indexShard().shardId().getIndexName();
+            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
+                indexName, context.mapperService(), source.fetchFields());
+            context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
@@ -967,7 +963,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.stats() != null) {
             context.groupStats(source.stats());
         }
-        if (source.searchAfter() != null && source.searchAfter().length > 0) {
+        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             if (context.scrollContext() != null) {
                 throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
             }
@@ -1117,11 +1113,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // and we can afford false positives.
         final boolean hasRefreshPending = indexShard.hasRefreshPending();
         try (Engine.Searcher searcher = indexShard.acquireCanMatchSearcher()) {
-            final boolean aliasFilterCanMatch = request.getAliasFilter()
-                .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
+            final boolean aliasFilterCanMatch = request.getAliasFilter()
+                .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
             MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
             final boolean canMatch;

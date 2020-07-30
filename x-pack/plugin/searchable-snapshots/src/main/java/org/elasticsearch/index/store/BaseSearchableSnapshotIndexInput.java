@@ -136,12 +136,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
             || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
 
-            // Cache prewarming runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME + ']')
+            // Cache asynchronous fetching runs on a dedicated thread pool.
+            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
 
-            // Today processExistingRecoveries considers all shards and constructs a shard store snapshot on this thread, this needs
-            // addressing. TODO NORELEASE
-            || threadName.contains('[' + ThreadPool.Names.FETCH_SHARD_STORE + ']')
+            // Cache prewarming also runs on a dedicated thread pool.
+            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.

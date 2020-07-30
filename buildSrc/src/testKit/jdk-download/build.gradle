@@ -9,7 +9,7 @@ project.gradle.projectsEvaluated {
   repository.setUrl(fakeJdkRepo)
 }
 
-task numConfigurations {
+tasks.register("numConfigurations") {
   doLast {
     println "NUM CONFIGS: ${project.configurations.size()}"
   }

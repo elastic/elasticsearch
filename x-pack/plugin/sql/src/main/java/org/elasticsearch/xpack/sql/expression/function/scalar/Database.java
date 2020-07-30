@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class Database extends ConfigurationFunction {
+public class Database extends SqlConfigurationFunction {
 
     public Database(Source source, Configuration configuration) {
         super(source, configuration, DataTypes.KEYWORD);

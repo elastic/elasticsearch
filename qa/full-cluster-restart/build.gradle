@@ -74,6 +74,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 task testJar(type: Jar) {

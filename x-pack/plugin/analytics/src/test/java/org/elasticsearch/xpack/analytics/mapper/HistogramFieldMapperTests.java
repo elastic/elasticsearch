@@ -13,12 +13,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
@@ -26,13 +26,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
+public class HistogramFieldMapperTests extends FieldMapperTestCase<HistogramFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    }
 
     public void testParseValue() throws Exception {
         ensureGreen();
@@ -536,4 +542,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
+    @Override
+    protected HistogramFieldMapper.Builder newBuilder() {
+        return new HistogramFieldMapper.Builder("histo");
+    }
 }

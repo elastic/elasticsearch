@@ -32,11 +32,11 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Repl
  */
 public class Replace extends ScalarFunction {
 
-    private final Expression source, pattern, replacement;
+    private final Expression input, pattern, replacement;
 
-    public Replace(Source source, Expression src, Expression pattern, Expression replacement) {
-        super(source, Arrays.asList(src, pattern, replacement));
-        this.source = src;
+    public Replace(Source source, Expression input, Expression pattern, Expression replacement) {
+        super(source, Arrays.asList(input, pattern, replacement));
+        this.input = input;
         this.pattern = pattern;
         this.replacement = replacement;
     }
@@ -47,7 +47,7 @@ public class Replace extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -63,46 +63,46 @@ public class Replace extends ScalarFunction {
     @Override
     protected Pipe makePipe() {
         return new ReplaceFunctionPipe(source(), this,
-                Expressions.pipe(source),
+                Expressions.pipe(input),
                 Expressions.pipe(pattern),
                 Expressions.pipe(replacement));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Replace::new, source, pattern, replacement);
+        return NodeInfo.create(this, Replace::new, input, pattern, replacement);
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable()
+        return input.foldable()
                 && pattern.foldable()
                 && replacement.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), pattern.fold(), replacement.fold());
+        return doProcess(input.fold(), pattern.fold(), replacement.fold());
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate patternScript = asScript(pattern);
         ScriptTemplate replacementScript = asScript(replacement);
 
-        return asScriptFrom(sourceScript, patternScript, replacementScript);
+        return asScriptFrom(inputScript, patternScript, replacementScript);
     }
 
-    private ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate patternScript, ScriptTemplate replacementScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript, ScriptTemplate replacementScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "replace",
-                sourceScript.template(),
+                inputScript.template(),
                 patternScript.template(),
                 replacementScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params()).script(patternScript.params())
+                    .script(inputScript.params()).script(patternScript.params())
                     .script(replacementScript.params())
                     .build(), dataType());
     }

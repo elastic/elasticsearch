@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,13 +63,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     public CardinalityAggregator(
             String name,
-            ValuesSource valuesSource,
+            ValuesSourceConfig valuesSourceConfig,
             int precision,
             SearchContext context,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }

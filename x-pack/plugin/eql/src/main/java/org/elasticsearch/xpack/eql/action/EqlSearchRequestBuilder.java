@@ -30,23 +30,23 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
+    public EqlSearchRequestBuilder tiebreakerField(String tiebreakerField) {
+        request.tiebreakerField(tiebreakerField);
+        return this;
+    }
+
     public EqlSearchRequestBuilder eventCategoryField(String eventCategoryField) {
         request.eventCategoryField(eventCategoryField);
         return this;
     }
 
-    public EqlSearchRequestBuilder implicitJoinKeyField(String implicitJoinKeyField) {
-        request.implicitJoinKeyField(implicitJoinKeyField);
+    public EqlSearchRequestBuilder size(int size) {
+        request.size(size);
         return this;
     }
 
-    public EqlSearchRequestBuilder fetchSize(int size) {
-        request.fetchSize(size);
-        return this;
-    }
-
-    public EqlSearchRequestBuilder searchAfter(Object[] values) {
-        request.searchAfter(values);
+    public EqlSearchRequestBuilder fetchSize(int fetchSize) {
+        request.fetchSize(fetchSize);
         return this;
     }
 
@@ -55,4 +55,8 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
+    public EqlSearchRequestBuilder isCaseSensitive(boolean isCaseSensitive) {
+        request.isCaseSensitive(isCaseSensitive);
+        return this;
+    }
 }

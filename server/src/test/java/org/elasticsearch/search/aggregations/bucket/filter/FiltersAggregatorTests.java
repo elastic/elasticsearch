@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -45,10 +44,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUpTest() throws Exception {
         super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("field");
+        fieldType = new KeywordFieldMapper.KeywordFieldType("field");
     }
 
     public void testEmpty() throws Exception {
@@ -78,28 +74,28 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new Field("field", "foo", fieldType));
+        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "else", fieldType));
+        document.add(new Field("field", "else", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         // make sure we have more than one segment to test the merge
         indexWriter.commit();
-        document.add(new Field("field", "foo", fieldType));
+        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "bar", fieldType));
+        document.add(new Field("field", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "foobar", fieldType));
-        indexWriter.addDocument(document);
-        indexWriter.commit();
-        document.clear();
-        document.add(new Field("field", "something", fieldType));
+        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.commit();
         document.clear();
-        document.add(new Field("field", "foobar", fieldType));
+        document.add(new Field("field", "something", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        indexWriter.addDocument(document);
+        indexWriter.commit();
+        document.clear();
+        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.close();
 
@@ -152,7 +148,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), fieldType));
+            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }

@@ -186,7 +186,7 @@ def deb_common(config, name, extra: '')
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
-    install_command: 'apt-get install -y',
+    install_command: 'apt-get install -y --force-yes',
     extra: extra_with_lintian
   )
 end
@@ -194,7 +194,7 @@ end
 def ubuntu_docker(config)
   config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
-    apt-get install -y \
+    apt-get install -y --force-yes \
       apt-transport-https \
       ca-certificates \
       curl \
@@ -212,7 +212,7 @@ def ubuntu_docker(config)
 
     # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y --force-yes docker-ce docker-ce-cli containerd.io
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
@@ -227,7 +227,7 @@ end
 def deb_docker(config)
   config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
-    apt-get install -y \
+    apt-get install -y --force-yes \
       apt-transport-https \
       ca-certificates \
       curl \
@@ -245,7 +245,7 @@ def deb_docker(config)
 
     # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y --force-yes docker-ce docker-ce-cli containerd.io
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
@@ -491,22 +491,12 @@ JAVA
       rm -rf /tmp/bats
     }
 
-    cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
-export ZIP=/elasticsearch/distribution/zip/build/distributions
-export TAR=/elasticsearch/distribution/tar/build/distributions
-export RPM=/elasticsearch/distribution/rpm/build/distributions
-export DEB=/elasticsearch/distribution/deb/build/distributions
-export PACKAGING_TESTS=/project/build/packaging/tests
-VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
-Defaults   env_keep += "ZIP"
-Defaults   env_keep += "TAR"
-Defaults   env_keep += "RPM"
-Defaults   env_keep += "DEB"
-Defaults   env_keep += "PACKAGING_ARCHIVES"
-Defaults   env_keep += "PACKAGING_TESTS"
 Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "BATS_PLUGINS"
+Defaults   env_keep += "BATS_UPGRADE"
+Defaults   env_keep += "PACKAGE_NAME"
 Defaults   env_keep += "JAVA_HOME"
 Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS

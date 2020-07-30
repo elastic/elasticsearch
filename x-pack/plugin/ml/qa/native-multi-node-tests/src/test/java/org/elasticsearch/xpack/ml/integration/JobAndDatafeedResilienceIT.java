@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.junit.After;
 
 import java.util.Collections;
@@ -42,8 +42,8 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         putJob(job);
         openJob(job.getId());
 
-        client().prepareDelete(AnomalyDetectorsIndexFields.CONFIG_INDEX, Job.documentId(jobId)).get();
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndexFields.CONFIG_INDEX).get();
+        client().prepareDelete(MlConfigIndex.indexName(), Job.documentId(jobId)).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             CloseJobAction.Request request = new CloseJobAction.Request(jobId);
@@ -82,8 +82,8 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
 
-        client().prepareDelete(AnomalyDetectorsIndexFields.CONFIG_INDEX, DatafeedConfig.documentId(datafeedConfig.getId())).get();
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndexFields.CONFIG_INDEX).get();
+        client().prepareDelete(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedConfig.getId())).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedConfig.getId());
@@ -120,8 +120,8 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         putJob(job2);
         openJob(job2.getId());
 
-        client().prepareDelete(AnomalyDetectorsIndexFields.CONFIG_INDEX, Job.documentId(jobId1)).get();
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndexFields.CONFIG_INDEX).get();
+        client().prepareDelete(MlConfigIndex.indexName(), Job.documentId(jobId1)).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         List<GetJobsStatsAction.Response.JobStats> jobStats = client().execute(GetJobsStatsAction.INSTANCE,
             new GetJobsStatsAction.Request("*"))
@@ -175,8 +175,8 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         putDatafeed(datafeedConfig2);
         startDatafeed(datafeedConfig2.getId(), 0L, null);
 
-        client().prepareDelete(AnomalyDetectorsIndexFields.CONFIG_INDEX, DatafeedConfig.documentId(datafeedConfig1.getId())).get();
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndexFields.CONFIG_INDEX).get();
+        client().prepareDelete(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedConfig1.getId())).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         List<GetDatafeedsStatsAction.Response.DatafeedStats> dfStats = client().execute(GetDatafeedsStatsAction.INSTANCE,
             new GetDatafeedsStatsAction.Request("*"))

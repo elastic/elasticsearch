@@ -32,6 +32,9 @@ include-tagged::{doc-tests-file}[{api}-request]
 <6> An optional list of tags used to narrow the model search. A Trained Model
     can have many tags or none. The trained models in the response will
     contain all the provided tags.
+<7> Optional boolean value indicating if certain fields should be removed on
+    retrieval. This is useful for getting the trained model in a format that
+    can then be put into another cluster.
 
 include::../execution.asciidoc[]
 

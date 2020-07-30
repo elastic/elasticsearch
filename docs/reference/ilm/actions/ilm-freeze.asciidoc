@@ -6,13 +6,10 @@ Phases allowed: cold.
 
 <<frozen-indices, Freezes>> an index to minimize its memory footprint.
 
-[IMPORTANT]
-================================
- Freezing an index closes the index and reopens it within the same API call.
- This means that for a short time no primaries are allocated.
- The cluster will go red until the primaries are allocated.
- This limitation might be removed in the future.
-================================
+IMPORTANT: Freezing an index closes the index and reopens it within the same API call.
+This means that for a short time no primaries are allocated.
+The cluster will go red until the primaries are allocated.
+This limitation might be removed in the future.
 
 [[ilm-freeze-options]]
 ==== Options

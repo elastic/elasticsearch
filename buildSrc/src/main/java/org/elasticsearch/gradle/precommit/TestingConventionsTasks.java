@@ -26,6 +26,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SourceSet;
@@ -47,10 +48,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,8 +65,6 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private final NamedDomainObjectContainer<TestingConventionRule> naming;
 
-    private List<String> tasks = null;
-
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
@@ -80,7 +77,6 @@ public class TestingConventionsTasks extends DefaultTask {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
-            .filter(t -> tasks == null || tasks.contains(t.getName()))
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
     }
@@ -111,12 +107,8 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    public void naming(Closure<TestingConventionRule> action) {
+    public void naming(Closure<?> action) {
         naming.configure(action);
-    }
-
-    public void setTasks(String... tasks) {
-        this.tasks = Arrays.asList(tasks);
     }
 
     @Input
@@ -168,8 +160,10 @@ public class TestingConventionsTasks extends DefaultTask {
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
 
+            final Set<File> testSourceSetFiles = Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
+                .filter(entry -> testSourceSetFiles.containsAll(entry.getValue()))
                 .collect(
                     Collectors.toMap(
                         Map.Entry::getKey,
@@ -355,12 +349,8 @@ public class TestingConventionsTasks extends DefaultTask {
         return false;
     }
 
-    private FileCollection getTestsClassPath() {
-        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
-        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
-        // the classes these don't influence the checks done by this task.
-        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
-        // running the tests.
+    @Classpath
+    public FileCollection getTestsClassPath() {
         return Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath();
     }
 

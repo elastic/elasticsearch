@@ -5,7 +5,7 @@ The following pages provide detailed explanations of the various mapping
 parameters that are used by <<mapping-types,field mappings>>:
 
 
-The following mapping parameters are common to some or all field datatypes:
+The following mapping parameters are common to some or all field data types:
 
 * <<analyzer,`analyzer`>>
 * <<coerce,`coerce`>>

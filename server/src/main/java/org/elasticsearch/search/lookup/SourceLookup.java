@@ -21,6 +21,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -54,7 +55,11 @@ public class SourceLookup implements Map<String, Object> {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    // Scripting requires this method to be public. Using source()
+    // is not possible because certain checks use source == null as
+    // as a determination if source is enabled/disabled, but it should
+    // never be a null Map for scripting even when disabled.
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }
@@ -126,6 +131,22 @@ public class SourceLookup implements Map<String, Object> {
      */
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
+    }
+
+    /**
+     * For the provided path, return its value in the source.
+     *
+     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
+     * can be returned.
+     *
+     * @param path the value's path in the source.
+     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
+     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
+     *
+     * @return the value associated with the path in the source or 'null' if the path does not exist.
+     */
+    public Object extractValue(String path, @Nullable Object nullValue) {
+        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
     }
 
     public Object filter(FetchSourceContext context) {

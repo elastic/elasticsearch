@@ -1,0 +1,376 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Commands
+//
+
+// SHOW_FUNCTIONS
+showFunctions
+SHOW FUNCTIONS;
+
+    name:s       |    type:s
+AVG              |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
+MAX              |AGGREGATE
+MIN              |AGGREGATE      
+SUM              |AGGREGATE      
+KURTOSIS         |AGGREGATE
+MAD              |AGGREGATE
+PERCENTILE       |AGGREGATE
+PERCENTILE_RANK  |AGGREGATE
+SKEWNESS         |AGGREGATE
+STDDEV_POP       |AGGREGATE
+STDDEV_SAMP      |AGGREGATE
+SUM_OF_SQUARES   |AGGREGATE
+VAR_POP          |AGGREGATE
+VAR_SAMP         |AGGREGATE
+HISTOGRAM        |GROUPING
+CASE             |CONDITIONAL
+COALESCE         |CONDITIONAL
+GREATEST         |CONDITIONAL
+IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
+ISNULL           |CONDITIONAL
+LEAST            |CONDITIONAL
+NULLIF           |CONDITIONAL
+NVL              |CONDITIONAL
+CURDATE          |SCALAR
+CURRENT_DATE     |SCALAR
+CURRENT_TIME     |SCALAR
+CURRENT_TIMESTAMP|SCALAR
+CURTIME          |SCALAR
+DATEADD          |SCALAR
+DATEDIFF         |SCALAR
+DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
+DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
+DATE_DIFF        |SCALAR
+DATE_PARSE       |SCALAR
+DATE_PART        |SCALAR
+DATE_TRUNC       |SCALAR
+DAY              |SCALAR
+DAYNAME          |SCALAR
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
+DOW              |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
+HOUR_OF_DAY      |SCALAR         
+IDOW             |SCALAR
+ISODAYOFWEEK     |SCALAR
+ISODOW           |SCALAR
+ISOWEEK          |SCALAR
+ISOWEEKOFYEAR    |SCALAR
+ISO_DAY_OF_WEEK  |SCALAR
+ISO_WEEK_OF_YEAR |SCALAR
+IW               |SCALAR
+IWOY             |SCALAR
+MINUTE           |SCALAR         
+MINUTE_OF_DAY    |SCALAR         
+MINUTE_OF_HOUR   |SCALAR         
+MONTH            |SCALAR         
+MONTHNAME        |SCALAR         
+MONTH_NAME       |SCALAR         
+MONTH_OF_YEAR    |SCALAR         
+NOW              |SCALAR
+QUARTER          |SCALAR         
+SECOND           |SCALAR         
+SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMPDIFF    |SCALAR
+TIMESTAMP_ADD    |SCALAR
+TIMESTAMP_DIFF   |SCALAR
+TIME_PARSE       |SCALAR
+TODAY            |SCALAR
+WEEK             |SCALAR
+WEEK_OF_YEAR     |SCALAR         
+YEAR             |SCALAR         
+ABS              |SCALAR         
+ACOS             |SCALAR         
+ASIN             |SCALAR         
+ATAN             |SCALAR         
+ATAN2            |SCALAR         
+CBRT             |SCALAR         
+CEIL             |SCALAR         
+CEILING          |SCALAR         
+COS              |SCALAR         
+COSH             |SCALAR         
+COT              |SCALAR         
+DEGREES          |SCALAR         
+E                |SCALAR         
+EXP              |SCALAR         
+EXPM1            |SCALAR         
+FLOOR            |SCALAR         
+LOG              |SCALAR         
+LOG10            |SCALAR         
+MOD              |SCALAR         
+PI               |SCALAR         
+POWER            |SCALAR         
+RADIANS          |SCALAR         
+RAND             |SCALAR         
+RANDOM           |SCALAR         
+ROUND            |SCALAR         
+SIGN             |SCALAR         
+SIGNUM           |SCALAR         
+SIN              |SCALAR         
+SINH             |SCALAR         
+SQRT             |SCALAR         
+TAN              |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
+BIT_LENGTH       |SCALAR         
+CHAR             |SCALAR         
+CHARACTER_LENGTH |SCALAR         
+CHAR_LENGTH      |SCALAR         
+CONCAT           |SCALAR         
+INSERT           |SCALAR         
+LCASE            |SCALAR         
+LEFT             |SCALAR         
+LENGTH           |SCALAR         
+LOCATE           |SCALAR         
+LTRIM            |SCALAR         
+OCTET_LENGTH     |SCALAR         
+POSITION         |SCALAR         
+REPEAT           |SCALAR         
+REPLACE          |SCALAR         
+RIGHT            |SCALAR         
+RTRIM            |SCALAR         
+SPACE            |SCALAR         
+STARTS_WITH      |SCALAR
+SUBSTRING        |SCALAR
+TRIM             |SCALAR
+UCASE            |SCALAR
+CAST             |SCALAR
+CONVERT          |SCALAR
+DATABASE         |SCALAR
+USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
+SCORE            |SCORE
+;
+
+showFunctionsWithExactMatch
+SHOW FUNCTIONS LIKE 'ABS';
+
+    name:s      |    type:s
+ABS             |SCALAR
+;
+
+
+showFunctionsWithPatternWildcard
+SHOW FUNCTIONS LIKE 'A%';
+
+    name:s      |    type:s
+AVG             |AGGREGATE
+ABS             |SCALAR
+ACOS            |SCALAR
+ASIN            |SCALAR
+ATAN            |SCALAR
+ATAN2           |SCALAR
+ASCII           |SCALAR
+;
+
+showFunctionsWithPatternChar
+SHOW FUNCTIONS LIKE 'A__';
+
+    name:s      |    type:s
+AVG             |AGGREGATE
+ABS             |SCALAR
+;
+
+showFunctionsWithLeadingPattern
+SHOW FUNCTIONS LIKE '%DAY%';
+
+    name:s     |    type:s
+DAY            |SCALAR
+DAYNAME        |SCALAR
+DAYOFMONTH     |SCALAR
+DAYOFWEEK      |SCALAR
+DAYOFYEAR      |SCALAR
+DAY_NAME       |SCALAR
+DAY_OF_MONTH   |SCALAR
+DAY_OF_WEEK    |SCALAR
+DAY_OF_YEAR    |SCALAR
+HOUR_OF_DAY    |SCALAR         
+ISODAYOFWEEK   |SCALAR
+ISO_DAY_OF_WEEK|SCALAR
+MINUTE_OF_DAY  |SCALAR         
+TODAY          |SCALAR
+;
+
+showTables
+SHOW TABLES;
+
+       name    |  type |  kind   
+logs           |TABLE  |INDEX
+test_alias     |VIEW   |ALIAS
+test_alias_emp |VIEW   |ALIAS 
+test_emp       |TABLE  |INDEX  
+test_emp_copy  |TABLE  |INDEX  
+;
+
+showTablesSimpleLike
+SHOW TABLES LIKE 'test_emp';
+
+ name:s        | type:s| kind:s
+test_emp       |TABLE  |INDEX
+;
+
+showTablesMultiLike
+SHOW TABLES LIKE 'test_emp%';
+
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX     
+test_emp_copy  |TABLE  |INDEX     
+;
+
+showTablesIdentifier
+SHOW TABLES "test_emp";
+
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX
+;
+
+showTablesIdentifierPattern
+SHOW TABLES "test_e*,-test_emp";
+
+ name:s        |type:s |kind:s
+test_emp_copy  |TABLE  |INDEX
+;
+
+showTablesIdentifierPatternOnAliases
+SHOW TABLES "test*,-test_emp*";
+
+ name:s        | type:s | kind:s
+test_alias     |VIEW    |ALIAS          
+test_alias_emp |VIEW    |ALIAS          
+;
+
+// DESCRIBE
+
+describeSimpleLike
+DESCRIBE LIKE 'test_emp';
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+extra               |STRUCT         |object
+extra.info          |STRUCT         |object
+extra.info.gender   |VARCHAR        |keyword
+extra_gender        |VARCHAR        |keyword
+extra_no            |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+null_constant       |VARCHAR        |keyword
+salary              |INTEGER        |integer
+;
+
+describeMultiLike
+DESCRIBE LIKE 'test_emp%';
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+extra               |STRUCT         |object
+extra.info          |STRUCT         |object
+extra.info.gender   |VARCHAR        |keyword
+extra_gender        |VARCHAR        |keyword
+extra_no            |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+null_constant       |VARCHAR        |keyword
+salary              |INTEGER        |integer
+;
+
+describeSimpleIdentifier
+DESCRIBE "test_emp";
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
+;
+
+
+// NB: need to pursue how the resolution is done
+// should aliases be included or excluded?
+describeIncludeExcludeIdentifier-Ignore
+DESCRIBE "test_*,-test_alias*";
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
+;

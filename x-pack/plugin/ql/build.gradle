@@ -12,12 +12,13 @@ archivesBaseName = 'x-pack-ql'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 task testJar(type: Jar) {

@@ -41,6 +41,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -100,7 +101,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1","node1", "/foo/bar", 100, 4));
         builder.put("node2", new DiskUsage("node2","node2", "/foo/bar", 100, 30));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertFalse(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
 
@@ -109,7 +110,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder.put("node1", new DiskUsage("node1","node1", "/foo/bar", 100, 4));
         builder.put("node2", new DiskUsage("node2","node2", "/foo/bar", 100, 5));
         currentTime.addAndGet(randomLongBetween(60001, 120000));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertTrue(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
         IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2")).settings(Settings.builder()
@@ -145,7 +146,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1","node1", "/foo/bar", 100, 4));
         builder.put("node2", new DiskUsage("node2","node2", "/foo/bar", 100, 5));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertTrue(reroute.get());
         assertEquals(Collections.singleton("test_1"), indices.get());
     }
@@ -181,12 +182,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         // should not reroute when all disks are ok
         currentTime.addAndGet(randomLongBetween(0, 120000));
-        monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+        monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNull(listenerReference.get());
 
         // should reroute when one disk goes over the watermark
         currentTime.addAndGet(randomLongBetween(0, 120000));
-        monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
+        monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(clusterState);
 
@@ -194,20 +195,20 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             // should not re-route again within the reroute interval
             currentTime.addAndGet(randomLongBetween(0,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
-            monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+            monitor.onNewInfo(clusterInfo(allDisksOk));
             assertNull(listenerReference.get());
         }
 
         // should reroute again when one disk is still over the watermark
         currentTime.addAndGet(randomLongBetween(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
-        monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
+        monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
         final ActionListener<ClusterState> rerouteListener1 = listenerReference.getAndSet(null);
 
         // should not re-route again before reroute has completed
         currentTime.addAndGet(randomLongBetween(0, 120000));
-        monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+        monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNull(listenerReference.get());
 
         // complete reroute
@@ -217,21 +218,34 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             // should not re-route again within the reroute interval
             currentTime.addAndGet(randomLongBetween(0,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
-            monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+            monitor.onNewInfo(clusterInfo(allDisksOk));
             assertNull(listenerReference.get());
         }
 
         // should reroute again after the reroute interval
         currentTime.addAndGet(randomLongBetween(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
-        monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+        monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(null);
 
         // should not reroute again when it is not required
         currentTime.addAndGet(randomLongBetween(0, 120000));
-        monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+        monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNull(listenerReference.get());
+
+        // should reroute again when one disk has reserved space that pushes it over the high watermark
+        final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = ImmutableOpenMap.builder(1);
+        builder.put(new ClusterInfo.NodeAndPath("node1", "/foo/bar"),
+            new ClusterInfo.ReservedSpace.Builder().add(new ShardId("baz", "quux", 0), between(41, 100)).build());
+        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = builder.build();
+
+        currentTime.addAndGet(randomLongBetween(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
+        monitor.onNewInfo(clusterInfo(allDisksOk, reservedSpaces));
+        assertNotNull(listenerReference.get());
+        listenerReference.getAndSet(null).onResponse(null);
+
     }
 
     public void testAutoReleaseIndices() {
@@ -252,6 +266,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build(), allocation);
         assertThat(clusterState.getRoutingTable().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
+
+        final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpacesBuilder
+            = ImmutableOpenMap.builder();
+        final int reservedSpaceNode1 = between(0, 10);
+        reservedSpacesBuilder.put(new ClusterInfo.NodeAndPath("node1", "/foo/bar"),
+            new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode1).build());
+        final int reservedSpaceNode2 = between(0, 10);
+        reservedSpacesBuilder.put(new ClusterInfo.NodeAndPath("node2", "/foo/bar"),
+            new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode2).build());
+        ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = reservedSpacesBuilder.build();
 
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, () -> 0L,
@@ -275,8 +299,18 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indicesToMarkReadOnly.get());
+        assertNull(indicesToRelease.get());
+
+        // Reserved space is ignored when applying block
+        indicesToMarkReadOnly.set(null);
+        indicesToRelease.set(null);
+        builder = ImmutableOpenMap.builder();
+        builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(5, 90)));
+        builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(5, 90)));
+        monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
+        assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
@@ -313,17 +347,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 100)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
 
-        // When free disk on node1 and node2 goes above 10% high watermark, then only release index block
+        // When free disk on node1 and node2 goes above 10% high watermark then release index block, ignoring reserved space
         indicesToMarkReadOnly.set(null);
         indicesToRelease.set(null);
         builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(10, 100)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(10, 100)));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
         assertThat(indicesToRelease.get(), contains("test_2"));
 
@@ -332,7 +366,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         indicesToRelease.set(null);
         builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
 
@@ -345,7 +379,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             builder.put("node3", new DiskUsage("node3", "node3", "/foo/bar", 100, between(0, 100)));
         }
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
@@ -357,7 +391,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             builder.put("node3", new DiskUsage("node3", "node3", "/foo/bar", 100, between(0, 100)));
         }
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
@@ -369,7 +403,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             builder.put("node3", new DiskUsage("node3", "node3", "/foo/bar", 100, between(0, 100)));
         }
-        monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
+        monitor.onNewInfo(clusterInfo(builder.build()));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
     }
@@ -492,7 +526,6 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         assertSingleInfoMessage(monitor, aboveLowWatermark,
             "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded");
-
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor,
@@ -514,7 +547,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
 
         for (int i = between(1, 3); i >= 0; i--) {
-            monitor.onNewInfo(new ClusterInfo(diskUsages, null, null, null));
+            monitor.onNewInfo(clusterInfo(diskUsages));
         }
 
         mockAppender.assertAllExpectationsMatched();
@@ -564,10 +597,20 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
         Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
 
-        monitor.onNewInfo(new ClusterInfo(diskUsages, null, null, null));
+        monitor.onNewInfo(clusterInfo(diskUsages));
 
         mockAppender.assertAllExpectationsMatched();
         Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
         mockAppender.stop();
     }
+
+    private static ClusterInfo clusterInfo(ImmutableOpenMap<String, DiskUsage> diskUsages) {
+        return clusterInfo(diskUsages, ImmutableOpenMap.of());
+    }
+
+    private static ClusterInfo clusterInfo(ImmutableOpenMap<String, DiskUsage> diskUsages,
+                                           ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace) {
+        return new ClusterInfo(diskUsages, null, null, null, reservedSpace);
+    }
+
 }

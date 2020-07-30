@@ -373,7 +373,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        boolean simulateBanBeforeLeaving = randomBoolean();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         int blockedNodesCount = randomIntBetween(0, nodesCount - 1);
@@ -406,40 +405,51 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         assertThat(listTasksResponse.getTasks().size(), greaterThanOrEqualTo(blockOnNodes.size()));
 
         // Simulate the coordinating node leaving the cluster
-        DiscoveryNode[] discoveryNodes = new DiscoveryNode[testNodes.length - 1];
-        for (int i = 1; i < testNodes.length; i++) {
-            discoveryNodes[i - 1] = testNodes[i].discoveryNode();
-        }
-        DiscoveryNode master = discoveryNodes[0];
-        for (int i = 1; i < testNodes.length; i++) {
-            // Notify only nodes that should remain in the cluster
-            setState(testNodes[i].clusterService, ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
-        }
-
-        if (simulateBanBeforeLeaving) {
-            logger.info("--> Simulate issuing cancel request on the node that is about to leave the cluster");
-            // Simulate issuing cancel request on the node that is about to leave the cluster
-            CancelTasksRequest request = new CancelTasksRequest();
-            request.setReason("Testing Cancellation");
-            request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
-            // And send the cancellation request to a random node
-            CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
-            logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
-            // This node still thinks that's part of the cluster, so cancelling should look successful
-            if (response.getTasks().size() == 0) {
-                logger.error("!!!!");
+        if (randomBoolean()) {
+            DiscoveryNode[] discoveryNodes = new DiscoveryNode[testNodes.length - 1];
+            for (int i = 1; i < testNodes.length; i++) {
+                discoveryNodes[i - 1] = testNodes[i].discoveryNode();
             }
-            assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
-            assertThat(response.getTaskFailures().size(), lessThanOrEqualTo(1));
-            assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));
+            DiscoveryNode master = discoveryNodes[0];
+            for (int i = 1; i < testNodes.length; i++) {
+                // Notify only nodes that should remain in the cluster
+                setState(testNodes[i].clusterService,
+                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
+            }
+            if (randomBoolean()) {
+                logger.info("--> Simulate issuing cancel request on the node that is about to leave the cluster");
+                // Simulate issuing cancel request on the node that is about to leave the cluster
+                CancelTasksRequest request = new CancelTasksRequest();
+                request.setReason("Testing Cancellation");
+                request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
+                // And send the cancellation request to a random node
+                CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
+                logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
+                // This node still thinks that's part of the cluster, so cancelling should look successful
+                if (response.getTasks().size() == 0) {
+                    logger.error("!!!!");
+                }
+                assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
+                assertThat(response.getTaskFailures().size(), lessThanOrEqualTo(1));
+                assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));
+            }
         }
 
         for (int i = 1; i < testNodes.length; i++) {
             assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
         }
 
-        // Close the first node
-        testNodes[0].close();
+        if (randomBoolean()) {
+            testNodes[0].close();
+        } else {
+            for (TestNode blockOnNode : blockOnNodes) {
+                if (randomBoolean()) {
+                    testNodes[0].transportService.disconnectFromNode(blockOnNode.discoveryNode());
+                } else {
+                    testNodes[0].transportService.getConnection(blockOnNode.discoveryNode()).close();
+                }
+            }
+        }
 
         assertBusy(() -> {
             // Make sure that tasks are no longer running
@@ -451,7 +461,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         // Wait for clean up
         responseLatch.await();
-
     }
 
     public void testNonExistingTaskCancellation() throws Exception {

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,12 +48,19 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     private ValuesSource valuesSource;
     private int maxDocsPerValue;
 
-    DiversifiedBytesHashSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, Map<String, Object> metadata,
-            ValuesSource valuesSource,
-            int maxDocsPerValue) throws IOException {
+    DiversifiedBytesHashSamplerAggregator(
+        String name,
+        int shardSize,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        ValuesSourceConfig valuesSourceConfig,
+        int maxDocsPerValue
+    ) throws IOException {
         super(name, shardSize, factories, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.maxDocsPerValue = maxDocsPerValue;
     }
 

@@ -236,7 +236,8 @@ The `discovery-ec2` plugin can automatically set the `aws_availability_zone`
 node attribute to the availability zone of each node. This node attribute
 allows you to ensure that each shard has copies allocated redundantly across
 multiple availability zones by using the
-{ref}/allocation-awareness.html[Allocation Awareness] feature.
+{ref}/modules-cluster.html#shard-allocation-awareness[Allocation Awareness]
+feature.
 
 In order to enable the automatic definition of the `aws_availability_zone`
 attribute, set `cloud.node.auto_attributes` to `true`. For example:
@@ -327,8 +328,9 @@ labelled as `Moderate` or `Low`.
 
 * It is a good idea to distribute your nodes across multiple
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability
-zones] and use {ref}/allocation-awareness.html[shard allocation awareness] to
-ensure that each shard has copies in more than one availability zone.
+zones] and use {ref}/modules-cluster.html#shard-allocation-awareness[shard
+allocation awareness] to ensure that each shard has copies in more than one
+availability zone.
 
 * Do not span a cluster across regions. {es} expects that node-to-node
 connections within a cluster are reasonably reliable and offer high bandwidth

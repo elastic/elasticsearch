@@ -6,8 +6,8 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile 'com.google.jimfs:jimfs:1.1'
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation 'com.google.jimfs:jimfs:1.1'
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture"
 

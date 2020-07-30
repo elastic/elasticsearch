@@ -94,12 +94,12 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         } else if (bufferCount == 1) {
             return fromByteBuffer(buffers[0]);
         } else {
-            ByteBufferReference[] references = new ByteBufferReference[bufferCount];
+            BytesReference[] references = new BytesReference[bufferCount];
             for (int i = 0; i < bufferCount; ++i) {
-                references[i] = new ByteBufferReference(buffers[i]);
+                references[i] = fromByteBuffer(buffers[i]);
             }
 
-            return new CompositeBytesReference(references);
+            return CompositeBytesReference.of(references);
         }
     }
 
@@ -107,6 +107,9 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * Returns BytesReference composed of the provided ByteBuffer.
      */
     static BytesReference fromByteBuffer(ByteBuffer buffer) {
+        if (buffer.hasArray()) {
+            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        }
         return new ByteBufferReference(buffer);
     }
 

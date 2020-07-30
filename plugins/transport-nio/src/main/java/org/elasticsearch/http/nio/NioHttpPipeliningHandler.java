@@ -22,11 +22,12 @@ package org.elasticsearch.http.nio;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
+import org.elasticsearch.http.HttpRequest;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
@@ -37,7 +38,7 @@ import java.util.List;
 public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<NioHttpResponse, NettyListener> aggregator;
+    private final HttpPipeliningAggregator<NettyListener> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -53,22 +54,22 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
+        assert msg instanceof HttpRequest : "Invalid message type: " + msg.getClass();
+        HttpPipelinedRequest pipelinedRequest = aggregator.read((HttpRequest) msg);
         ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof NioHttpResponse : "Invalid message type: " + msg.getClass();
-        NioHttpResponse response = (NioHttpResponse) msg;
+        assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
+        HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
         boolean success = false;
         try {
             NettyListener listener = NettyListener.fromChannelPromise(promise);
-            List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
+            List<Tuple<HttpPipelinedResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
             success = true;
-            for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
-                ctx.write(responseToWrite.v1(), responseToWrite.v2());
+            for (Tuple<HttpPipelinedResponse, NettyListener> responseToWrite : readyResponses) {
+                ctx.write(responseToWrite.v1().getDelegateRequest(), responseToWrite.v2());
             }
         } catch (IllegalStateException e) {
             ctx.channel().close();
@@ -81,11 +82,11 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<NioHttpResponse, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<HttpPipelinedResponse, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<NioHttpResponse, NettyListener> inflightResponse : inflightResponses) {
+            for (Tuple<HttpPipelinedResponse, NettyListener> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {

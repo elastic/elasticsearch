@@ -69,7 +69,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "painless", "params.count / params.total + doc['constant']", params), null, null);
             innerShardOperation(r, scriptService, null);
         });
-        assertThat(e.getCause().getMessage(), equalTo("variable [doc] is not defined"));
+        assertThat(e.getCause().getMessage(), equalTo("cannot resolve symbol [doc]"));
     }
 
     public void testFilterExecutionContext() throws IOException {

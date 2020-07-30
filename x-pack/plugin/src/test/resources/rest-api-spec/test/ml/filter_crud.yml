@@ -9,7 +9,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       allowed_warnings:
-        - "index [.ml-meta] matches multiple v1 templates [.ml-meta, global], v2 index templates will only match a single index template"
+        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
       index:
         index: .ml-meta
         id: filter_imposter-filter
@@ -325,7 +325,7 @@ setup:
         index: ".ml-meta"
   - do:
       allowed_warnings:
-        - "index [.ml-meta] matches multiple v1 templates [.ml-meta, global], v2 index templates will only match a single index template"
+        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
       indices.create:
         index: ".ml-meta"
 

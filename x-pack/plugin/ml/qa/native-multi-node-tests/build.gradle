@@ -3,11 +3,12 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ml'), configuration: 'runtime')
-  testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:ingest-common')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ml'))
+  testImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: xpackModule('data-streams'))
 }
 
 // location for keys and certificates

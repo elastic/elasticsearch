@@ -392,15 +392,23 @@ public class RoundingTests extends ESTestCase {
             long interval = unit.toMillis(unitCount);
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
-            long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long mainDate = randomDate();
             if (randomBoolean()) {
                 mainDate = nastyDate(mainDate, tz, interval);
             }
             long min = mainDate - 2 * interval;
             long max = mainDate + 2 * interval;
 
+            /*
+             * Prepare a rounding with one extra interval of range because
+             * in the tests far below we call round(round(min)). The first
+             * round might spit out a time below the min if min is near a
+             * daylight savings time transition. So we request an extra big
+             * range just in case.
+             */
+            Rounding.Prepared prepared = rounding.prepare(min - interval, max);
+
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
-            Rounding.Prepared prepared = rounding.prepare(min, max);
             Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
             for (int d = 0; d < 1000; d++) {
                 long date = dateBetween(min, max);

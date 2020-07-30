@@ -332,5 +332,4 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         // subclasses will override this with a real implementation if you can sort on a descendant
         throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
     }
-
 }

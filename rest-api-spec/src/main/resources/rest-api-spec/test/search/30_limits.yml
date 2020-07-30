@@ -26,13 +26,33 @@ setup:
         from: 10000
 
 ---
-"Request with negative from value":
+"Request with negative from value url parameter":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: waiting for backport
+
   - do:
-      catch:      /\[from\] parameter cannot be negative/
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
       search:
         rest_total_hits_as_int: true
         index: test_1
-        from: -2
+        from: -1
+
+---
+"Request with negative from value in body":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: waiting for backport
+
+  - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          from: -1
 
 ---
 "Request window limits with scroll":

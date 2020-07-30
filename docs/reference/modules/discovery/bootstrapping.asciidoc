@@ -94,7 +94,7 @@ match exactly.
 
 ==================================================
 
-[float]
+[discrete]
 ==== Choosing a cluster name
 
 The <<cluster.name,`cluster.name`>> setting enables you to create multiple
@@ -104,7 +104,7 @@ will only form a cluster from nodes that all have the same cluster name. The
 default value for the cluster name is `elasticsearch`, but it is recommended to
 change this to reflect the logical name of the cluster.
 
-[float]
+[discrete]
 ==== Auto-bootstrapping in development mode
 
 If the cluster is running with a completely default configuration then it will

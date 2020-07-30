@@ -608,7 +608,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("long_field", 4L)
                 .field("float_field", 5.0f)
                 .field("double_field", 6.0d)
-                .field("date_field", DateFormatter.forPattern("dateOptionalTime").format(date))
+                .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
                 .field("boolean_field", true)
                 .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
                 .endObject()).get();
@@ -640,7 +640,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchHit.getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchHit.getFields().get("float_field").getValue(), equalTo((Object) 5.0f));
         assertThat(searchHit.getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        String dateTime = DateFormatter.forPattern("dateOptionalTime").format(date);
+        String dateTime = DateFormatter.forPattern("date_optional_time").format(date);
         assertThat(searchHit.getFields().get("date_field").getValue(), equalTo((Object) dateTime));
         assertThat(searchHit.getFields().get("boolean_field").getValue(), equalTo((Object) Boolean.TRUE));
         assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text" .getBytes("UTF8"))));
@@ -659,7 +659,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
-        assertThat(searchResponse.getHits().getAt(0).field("_routing").isMetadataField(), equalTo(true));
         assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
     }
 
@@ -735,7 +734,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField(field).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
@@ -820,7 +818,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("long_field", 4L)
                 .field("float_field", 5.0f)
                 .field("double_field", 6.0d)
-                .field("date_field", DateFormatter.forPattern("dateOptionalTime").format(date))
+                .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
                 .field("boolean_field", true)
                 .field("binary_field", new byte[] {42, 100})
                 .field("ip_field", "::1")
@@ -857,7 +855,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
+                equalTo(DateFormatter.forPattern("date_optional_time").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
@@ -882,7 +880,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
+                equalTo(DateFormatter.forPattern("date_optional_time").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
@@ -1187,7 +1185,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
         assertThat(fields.get("field1"), nullValue());
-        assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
 }

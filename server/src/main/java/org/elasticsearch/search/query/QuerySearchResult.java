@@ -234,6 +234,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasProfileResults;
     }
 
+    public void consumeAll() {
+        if (hasProfileResults()) {
+            consumeProfileResult();
+        }
+        if (hasConsumedTopDocs() == false) {
+            consumeTopDocs();
+        }
+        if (hasAggs()) {
+            consumeAggs();
+        }
+    }
+
     /**
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
@@ -316,7 +328,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
-            aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);
+            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
         }
         if (in.readBoolean()) {
             suggest = new Suggest(in);

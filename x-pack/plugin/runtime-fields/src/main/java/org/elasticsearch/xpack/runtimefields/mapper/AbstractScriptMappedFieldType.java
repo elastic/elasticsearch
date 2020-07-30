@@ -23,6 +23,7 @@ import org.elasticsearch.script.Script;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -140,5 +141,22 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
                     + "] is set to [false]."
             );
         }
+    }
+
+    /**
+     * The format that this field should use. The default implementation is
+     * {@code null} because most fields don't support formats.
+     */
+    protected String format() {
+        return null;
+    }
+
+    /**
+     * The locale that this field's format should use. The default
+     * implementation is {@code null} because most fields don't
+     * support formats.
+     */
+    protected Locale formatLocale() {
+        return null;
     }
 }

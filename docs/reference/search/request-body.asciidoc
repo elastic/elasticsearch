@@ -108,9 +108,15 @@ executing a distributed search across the whole cluster and gathering all the
 results.
 
 
-include::request/docvalue-fields.asciidoc[]
+[[request-body-search-docvalue-fields]]
+==== Doc value fields
 
-include::request/collapse.asciidoc[]
+See <<docvalue-fields>>.
+
+[[request-body-search-collapse]]
+==== Field collapsing
+
+See <<collapse-search-results>>.
 
 [[request-body-search-highlighting]]
 ==== Highlighting
@@ -144,7 +150,10 @@ include::request/search-type.asciidoc[]
 
 See <<sort-search-results>>.
 
-include::request/source-filtering.asciidoc[]
+[[request-body-search-source-filtering]]
+==== Source filtering
+
+See <<source-filtering>>.
 
 include::request/stored-fields.asciidoc[]
 

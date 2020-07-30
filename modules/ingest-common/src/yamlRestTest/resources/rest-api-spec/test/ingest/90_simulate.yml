@@ -546,11 +546,15 @@ teardown:
   - match: { docs.0.processor_results.0.tag: "setstatus-1" }
   - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
   - match: { docs.0.processor_results.0.doc._source.status: 200 }
+  - match: { docs.0.processor_results.0.status: "success" }
+  - match: { docs.0.processor_results.0.processor_type: "set" }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
   - match: { docs.0.processor_results.1.ignored_error.error.type: "illegal_argument_exception" }
   - match: { docs.0.processor_results.1.ignored_error.error.reason: "field [foofield] doesn't exist" }
   - match: { docs.0.processor_results.1.doc._source.field1: "123.42 400 <foo>" }
   - match: { docs.0.processor_results.1.doc._source.status: 200 }
+  - match: { docs.0.processor_results.1.status: "error_ignored" }
+  - match: { docs.0.processor_results.1.processor_type: "rename" }
 
 ---
 "Test verbose simulate with ignore_failure and no exception thrown":
@@ -816,19 +820,27 @@ teardown:
 - length: { docs.0.processor_results: 4 }
 - match: { docs.0.processor_results.0.tag: "gunna_fail" }
 - match: { docs.0.processor_results.0.error.reason: "field [foo1] doesn't exist" }
+- match: { docs.0.processor_results.0.status: "error" }
+- match: { docs.0.processor_results.0.processor_type: "rename" }
 - match: { docs.0.processor_results.1.tag: "failed1" }
 - match: { docs.0.processor_results.1.doc._source.failed1: "failed1" }
 - match: { docs.0.processor_results.1.doc._ingest.on_failure_processor_tag: "gunna_fail" }
+- match: { docs.0.processor_results.1.status: "success" }
+- match: { docs.0.processor_results.1.processor_type: "set" }
 - match: { docs.0.processor_results.2.tag: "gunna_fail_again" }
 - match: { docs.0.processor_results.2.error.reason: "field [foo2] doesn't exist" }
+- match: { docs.0.processor_results.2.status: "error" }
+- match: { docs.0.processor_results.2.processor_type: "rename" }
 - match: { docs.0.processor_results.3.tag: "failed2" }
 - match: { docs.0.processor_results.3.doc._source.failed1: "failed1" }
 - match: { docs.0.processor_results.3.doc._source.failed2: "failed2" }
 - match: { docs.0.processor_results.3.doc._ingest.on_failure_processor_tag: "gunna_fail_again" }
+- match: { docs.0.processor_results.3.status: "success" }
+- match: { docs.0.processor_results.3.processor_type: "set" }
 
 
 ---
-"Test simulate with provided pipeline definition with tag and description in processors":
+"Test simulate with pipeline with conditional and skipped and dropped":
   - do:
       ingest.simulate:
         verbose: true
@@ -844,6 +856,16 @@ teardown:
                     "field" : "field2",
                     "value" : "_value"
                   }
+                },
+                {
+                  "drop" : {
+                    "if": "false"
+                  }
+                },
+                {
+                  "drop" : {
+                     "if": "true"
+                   }
                 }
               ]
             },
@@ -858,11 +880,20 @@ teardown:
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_results: 1 }
+  - length: { docs.0.processor_results: 3 }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
   - match: { docs.0.processor_results.0.description: "processor_description" }
   - match: { docs.0.processor_results.0.tag: "processor_tag" }
-
+  - match: { docs.0.processor_results.0.status: "success" }
+  - match: { docs.0.processor_results.0.processor_type: "set" }
+  - match: { docs.0.processor_results.1.status: "skipped" }
+  - match: { docs.0.processor_results.1.processor_type: "drop" }
+  - match: { docs.0.processor_results.1.if.condition: "false" }
+  - match: { docs.0.processor_results.1.if.result: false }
+  - match: { docs.0.processor_results.2.status: "dropped" }
+  - match: { docs.0.processor_results.2.processor_type: "drop" }
+  - match: { docs.0.processor_results.2.if.condition: "true" }
+  - match: { docs.0.processor_results.2.if.result: true }
 ---
 "Test simulate with provided pipeline that does not exist":
   - do:

@@ -552,11 +552,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-            T aggregationBuilder,
-            Query query,
-            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<V> verify,
-            MappedFieldType... fieldTypes) throws IOException {
+        T aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<V> verify,
+        MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);

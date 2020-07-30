@@ -96,7 +96,7 @@ public abstract class InnerHitContextBuilder {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
                 FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
+                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));
             }

@@ -28,4 +28,4 @@ tasks.named("check").configure {
   dependsOn(bwcTestSnapshots)
 }
 
-test.enabled = false
+tasks.findByName("test")?.enabled = false

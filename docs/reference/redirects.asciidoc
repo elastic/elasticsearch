@@ -963,6 +963,7 @@ See <<run-an-es-search>>.
 
 [role="exclude",id="how-highlighters-work-internally"]
 === How highlighters work internally
+
 See <<how-es-highlighters-work-internally>>.
 
 ////
@@ -992,14 +993,17 @@ See <<paginate-search-results>>.
 
 [role="exclude",id="request-body-search-highlighting"]
 ==== Highlighting
+
 See <<highlighting>>.
 
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
+
 See <<how-es-highlighters-work-internally>>.
 
 [role="exclude",id="request-body-search-sort"]
 ==== Sort
+
 See <<sort-search-results>>.
 
 [role="exclude",id="request-body-search-source-filtering"]

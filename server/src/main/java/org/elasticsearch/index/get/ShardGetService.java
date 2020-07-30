@@ -325,4 +325,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
     }
+
+    public long getCostFactor() {
+        return (long) getEWMA.getAverage();
+    }
 }

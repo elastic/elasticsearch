@@ -1002,7 +1002,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getGetCostFactor() {
-        return 0;
+        return getService.getCostFactor();
     }
 
     public SearchStats searchStats(String... groups) {

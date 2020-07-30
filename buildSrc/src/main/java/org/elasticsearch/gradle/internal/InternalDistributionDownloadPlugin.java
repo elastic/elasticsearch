@@ -136,12 +136,15 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
-
         switch (distribution.getType()) {
             case ARCHIVE:
-                projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
-                    ? "-zip"
-                    : "-tar");
+                if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
+                    projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                        ? "-zip"
+                        : "-tar");
+                } else {
+                    projectName = distribution.getFlavor().equals(ElasticsearchDistribution.Flavor.DEFAULT) ? "zip" : "oss-zip";
+                }
                 break;
 
             case DOCKER:

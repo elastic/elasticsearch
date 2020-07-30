@@ -58,10 +58,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.TestUtils;
@@ -86,6 +88,7 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -548,6 +551,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
+                final Path shardDir;
+                try {
+                    shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
                 final CacheService cacheService = TestUtils.createDefaultCacheService();
                 releasables.add(cacheService);
@@ -567,6 +577,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         () -> 0L,
                         cacheService,
                         cacheDir,
+                        shardPath,
                         threadPool
                     )
                 ) {
@@ -637,6 +648,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
+            final Path shardDir;
+            try {
+                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
             final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             try (
@@ -655,6 +673,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
+                    shardPath,
                     threadPool
                 )
             ) {

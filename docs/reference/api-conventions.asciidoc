@@ -229,9 +229,9 @@ separated list of filters expressed with the dot notation:
 
 [source,console]
 --------------------------------------------------
-GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+GET /_search?q=kimchy&filter_path=took,hits.hits._id,hits.hits._score
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -259,7 +259,7 @@ of a field's name:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.stat*
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -268,7 +268,7 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "twitter": {"state": "open"}
+      "my-index-000001": {"state": "open"}
     }
   }
 }
@@ -282,7 +282,7 @@ of every segment with this request:
 --------------------------------------------------
 GET /_cluster/state?filter_path=routing_table.indices.**.state
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -291,7 +291,7 @@ Responds:
 {
   "routing_table": {
     "indices": {
-      "twitter": {
+      "my-index-000001": {
         "shards": {
           "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
@@ -307,7 +307,7 @@ It is also possible to exclude one or more fields by prefixing the filter with t
 --------------------------------------------------
 GET /_count?filter_path=-_shards
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -326,7 +326,7 @@ inclusive filters:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
 --------------------------------------------------
-// TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\nPUT my-index-000003\nPUT logstash-2016.01\n/]
 
 Responds:
 
@@ -335,9 +335,9 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "index-1" : {"state" : "open"},
-      "index-2" : {"state" : "open"},
-      "index-3" : {"state" : "open"}
+      "my-index-000001" : {"state" : "open"},
+      "my-index-000002" : {"state" : "open"},
+      "my-index-000003" : {"state" : "open"}
     }
   }
 }
@@ -384,46 +384,46 @@ The `flat_settings` flag affects rendering of the lists of settings. When the
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=true
+GET my-index-000001/_settings?flat_settings=true
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings": {
       "index.number_of_replicas": "1",
       "index.number_of_shards": "1",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.provided_name" : "twitter"
+      "index.provided_name" : "my-index-000001"
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
-// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=false
+GET my-index-000001/_settings?flat_settings=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings" : {
       "index" : {
         "number_of_replicas": "1",
@@ -433,15 +433,15 @@ Returns:
         "version": {
           "created": ...
         },
-        "provided_name" : "twitter"
+        "provided_name" : "my-index-000001"
       }
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
 
 By default `flat_settings` is set to `false`.
 
@@ -578,7 +578,7 @@ invalid `size` parameter to the `_search` API:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me
+POST /my-index-000001/_search?size=surprise_me
 ----------------------------------------------------------------------
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
@@ -610,7 +610,7 @@ But if you set `error_trace=true`:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me&error_trace=true
+POST /my-index-000001/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // TEST[catch:bad_request]
 

@@ -21,7 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 
 public class InetAddressesTests extends ESTestCase {
     public void testForStringBogusInput() {
@@ -128,9 +130,18 @@ public class InetAddressesTests extends ESTestCase {
         assertTrue(InetAddresses.isInetAddress(ipStr));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60332")
-    public void testForStringIPv6WithScopeIdInput() throws UnknownHostException {
-        String ipStr = "0:0:0:0:0:0:0:1%lo";
+    public void testForStringIPv6WithScopeIdInput() throws java.io.IOException {
+        final Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        String scopeId = null;
+        while (interfaces.hasMoreElements()) {
+            final NetworkInterface nint = interfaces.nextElement();
+            if (nint.isLoopback()) {
+                scopeId = nint.getName();
+                break;
+            }
+        }
+        assertNotNull(scopeId);
+        String ipStr = "0:0:0:0:0:0:0:1%" + scopeId;
         InetAddress ipv6Addr = InetAddress.getByName(ipStr);
         assertEquals(ipv6Addr, InetAddresses.forString(ipStr));
         assertTrue(InetAddresses.isInetAddress(ipStr));

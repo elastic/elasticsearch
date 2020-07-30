@@ -44,6 +44,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.ScriptStringFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptKeywordMappedFieldType ft = build("append_param", Map.of("param", "-suffix"));
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                ScriptStringFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {

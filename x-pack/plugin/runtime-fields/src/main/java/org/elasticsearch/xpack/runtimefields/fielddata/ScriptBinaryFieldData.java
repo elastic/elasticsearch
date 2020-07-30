@@ -11,56 +11,23 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
-import java.io.IOException;
-
-public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData> {
-
-    public static class Builder implements IndexFieldData.Builder {
-        private final String name;
-        private final StringScriptFieldScript.LeafFactory leafFactory;
-
-        public Builder(String name, StringScriptFieldScript.LeafFactory leafFactory) {
-            this.name = name;
-            this.leafFactory = leafFactory;
-        }
-
-        @Override
-        public ScriptBinaryFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptBinaryFieldData(name, leafFactory);
-        }
-    }
-
+public abstract class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData> {
     private final String fieldName;
-    private final StringScriptFieldScript.LeafFactory leafFactory;
 
-    private ScriptBinaryFieldData(String fieldName, StringScriptFieldScript.LeafFactory leafFactory) {
+    protected ScriptBinaryFieldData(String fieldName) {
         this.fieldName = fieldName;
-        this.leafFactory = leafFactory;
     }
 
     @Override
     public String getFieldName() {
         return fieldName;
-    }
-
-    @Override
-    public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
     }
 
     @Override
@@ -70,11 +37,6 @@ public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryF
         } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
-    }
-
-    @Override
-    public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptBinaryLeafFieldData(new ScriptBinaryDocValues(leafFactory.newInstance(context)));
     }
 
     @Override
@@ -97,23 +59,7 @@ public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryF
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
-    public static class ScriptBinaryLeafFieldData implements LeafFieldData {
-        private final ScriptBinaryDocValues scriptBinaryDocValues;
-
-        ScriptBinaryLeafFieldData(ScriptBinaryDocValues scriptBinaryDocValues) {
-            this.scriptBinaryDocValues = scriptBinaryDocValues;
-        }
-
-        @Override
-        public ScriptDocValues<?> getScriptValues() {
-            return new ScriptDocValues.Strings(getBytesValues());
-        }
-
-        @Override
-        public SortedBinaryDocValues getBytesValues() {
-            return scriptBinaryDocValues;
-        }
-
+    public abstract class ScriptBinaryLeafFieldData implements LeafFieldData {
         @Override
         public long ramBytesUsed() {
             return 0;

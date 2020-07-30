@@ -11,10 +11,10 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.List;
 
-public final class ScriptBinaryDocValues extends SortingBinaryDocValues {
+public final class ScriptStringDocValues extends SortingBinaryDocValues {
     private final StringScriptFieldScript script;
 
-    ScriptBinaryDocValues(StringScriptFieldScript script) {
+    ScriptStringDocValues(StringScriptFieldScript script) {
         this.script = script;
     }
 

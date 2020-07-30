@@ -79,6 +79,28 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
         assertEquals("A number is required; received [z]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Insert(EMPTY, l("foobar"), l(1), l(-1), l("baz")).makePipe().asProcessor().process(null));
-        assertEquals("A positive number is required for [length]; received [-1]", siae.getMessage());
+        assertEquals("[length] must be in the interval [0..2147483647], but was [-1]", siae.getMessage());
+    }
+    
+    public void testInsertInputsOutOfRange() {
+        assertEquals("baroobar", new Insert(EMPTY, l("foobar"), l(-2147483647), l(1), l("bar")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Insert(EMPTY, l("foobarbar"), l(-2147483648), l(1), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals("[start] must be in the interval [-2147483647..2147483647], but was [-2147483648]", siae.getMessage());
+    
+        assertEquals("foobar", new Insert(EMPTY, l("foobar"), l(2147483647), l(1), l("bar")).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Insert(EMPTY, l("foobar"), l(2147483648L), l(1), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals("[start] must be in the interval [-2147483647..2147483647], but was [2147483648]", siae.getMessage());
+    
+        assertEquals("barfoobar", new Insert(EMPTY, l("foobar"), l(1), l(0), l("bar")).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Insert(EMPTY, l("foobar"), l(1), l(-1), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals("[length] must be in the interval [0..2147483647], but was [-1]", siae.getMessage());
+    
+        assertEquals("bar", new Insert(EMPTY, l("foobar"), l(1), l(2147483647), l("bar")).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Insert(EMPTY, l("foobar"), l(1), l(2147483648L), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals("[length] must be in the interval [0..2147483647], but was [2147483648]", siae.getMessage());
     }
 }

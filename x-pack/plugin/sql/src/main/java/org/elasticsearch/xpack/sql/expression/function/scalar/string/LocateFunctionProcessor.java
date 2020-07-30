@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,13 +57,9 @@ public class LocateFunctionProcessor implements Processor {
         if (!(pattern instanceof String || pattern instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
-        if (start != null && !(start instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
-        }
-    
-        if (start != null && ((((Number) start).longValue() > Integer.MAX_VALUE) || (((Number) start).longValue() - 1 < Integer.MIN_VALUE))) {
-            throw new SqlIllegalArgumentException("[start] must be in the interval [-2147483647..2147483647], but was ["
-                    + ((Number) start).longValue() + "]");
+        
+        if (start != null) {
+            Check.isNumberOutOfRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
         }
         
         String stringInput = input instanceof Character ? input.toString() : (String) input;

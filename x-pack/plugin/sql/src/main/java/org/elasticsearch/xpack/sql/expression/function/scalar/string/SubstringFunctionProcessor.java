@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,22 +54,9 @@ public class SubstringFunctionProcessor implements Processor {
         if (start == null || length == null) {
             return input;
         }
-        if (!(start instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
-        }
-        if (!(length instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received [{}]", length);
-        }
         
-        if ((((Number) length).longValue() > Integer.MAX_VALUE) || (((Number) length).longValue() < 0) ) {
-            throw new SqlIllegalArgumentException("[length] must be in the interval [0..2147483647], but was ["
-                    + ((Number) length).longValue() + "]");
-        }
-    
-        if ((((Number) start).longValue() > Integer.MAX_VALUE) || (((Number) start).longValue() - 1 < Integer.MIN_VALUE)) {
-            throw new SqlIllegalArgumentException("[start] must be in the interval [-2147483647..2147483647], but was ["
-                    + ((Number) start).longValue() + "]");
-        }
+        Check.isNumberOutOfRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+        Check.isNumberOutOfRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
         return StringFunctionUtils.substring(input instanceof Character ? input.toString() : (String) input,
                 ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation

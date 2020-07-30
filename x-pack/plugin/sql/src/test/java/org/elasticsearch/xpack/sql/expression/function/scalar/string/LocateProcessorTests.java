@@ -68,4 +68,16 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
                 () -> new Locate(EMPTY, l("foobarbar"), l("bar"), l('c')).makePipe().asProcessor().process(null));
         assertEquals("A number is required; received [c]", siae.getMessage());
     }
+    
+    public void testLocateFunctionInputsOutOfRange() {
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-2147483647)).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l(-2147483648)).makePipe().asProcessor().process(null));
+        assertEquals("[start] must be in the interval [-2147483647..2147483647], but was [-2147483648]", siae.getMessage());
+    
+        assertEquals(0, new Locate(EMPTY, l("bar"), l("foobarbar"), l(2147483647)).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l(2147483648L)).makePipe().asProcessor().process(null));
+        assertEquals("[start] must be in the interval [-2147483647..2147483647], but was [2147483648]", siae.getMessage());
+    }
 }

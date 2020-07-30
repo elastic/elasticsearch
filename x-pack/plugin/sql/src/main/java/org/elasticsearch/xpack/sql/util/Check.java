@@ -36,4 +36,14 @@ public abstract class Check {
             throw new SqlIllegalArgumentException(message, values);
         }
     }
+    
+    public static void isNumberOutOfRange(Object object, String objectName, Long from, Long to) {
+        if (!(object instanceof Number)) {
+            throw new SqlIllegalArgumentException("A number is required; received [{}]", object);
+        }
+        if (((Number) object).longValue() > to || ((Number) object).longValue() < from) {
+            throw new SqlIllegalArgumentException("[{}] must be in the interval [{}..{}], but was [{}]", 
+                    objectName, from, to, ((Number) object).longValue());
+        }
+    }
 }

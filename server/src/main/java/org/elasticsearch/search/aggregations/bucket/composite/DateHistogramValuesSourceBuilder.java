@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -87,7 +88,7 @@ public class DateHistogramValuesSourceBuilder
     private long offset = 0;
 
     public DateHistogramValuesSourceBuilder(String name) {
-        super(name, ValueType.DATE);
+        super(name);
     }
 
     protected DateHistogramValuesSourceBuilder(StreamInput in) throws IOException {
@@ -295,6 +296,11 @@ public class DateHistogramValuesSourceBuilder
                 );
             })
         );
+    }
+
+    @Override
+    protected ValuesSourceType getDefaultValuesSourceType() {
+        return CoreValuesSourceType.DATE;
     }
 
     @Override

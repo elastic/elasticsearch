@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -51,12 +50,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private String format = null;
 
     CompositeValuesSourceBuilder(String name) {
-        this(name, null);
-    }
-
-    CompositeValuesSourceBuilder(String name, ValueType valueType) {
         this.name = name;
-        this.valueType = valueType;
     }
 
     CompositeValuesSourceBuilder(StreamInput in) throws IOException {
@@ -277,9 +271,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext,
                                                                 ValuesSourceConfig config) throws IOException;
 
-    protected ValuesSourceType getDefaultValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
-    }
+    protected abstract ValuesSourceType getDefaultValuesSourceType();
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext,

@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -97,7 +98,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     private double interval = 0;
 
     public HistogramValuesSourceBuilder(String name) {
-        super(name, ValueType.DOUBLE);
+        super(name);
     }
 
     protected HistogramValuesSourceBuilder(StreamInput in) throws IOException {
@@ -150,6 +151,11 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         }
         this.interval = interval;
         return this;
+    }
+
+    @Override
+    protected ValuesSourceType getDefaultValuesSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override

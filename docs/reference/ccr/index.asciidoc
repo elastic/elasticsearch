@@ -3,16 +3,127 @@
 [[xpack-ccr]]
 == {ccr-cap}
 
-The {ccr} (CCR) feature enables replication of indices in remote clusters to a
-local cluster. This functionality can be used in some common production use
-cases:
+Use {ccr} (CCR) to enable replication of indices in remote clusters to a
+local cluster. {ccr-cap} enables several use cases within the Elastic Stack:
 
-* Disaster recovery in case a primary cluster fails. A secondary cluster can
-  serve as a hot backup
-* Geo-proximity so that reads can be served locally
-* Prevent search load from interfering with indexing by offloading search to a secondary cluster
+* *Disaster recovery* in case a primary cluster fails, with a secondary
+cluster serving as a hot backup
+* *Data locality* to serve reads locally and reduce costly latency
+* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
 
-This guide provides an overview of {ccr}:
+{ccr-cap} is done on an index-by-index basis, so replication is
+configured at the index level. For each configured replica, there is a
+replication source index called the _leader index_ and a replication target
+index called the _follower index_.
+
+The following points are important concepts regarding {ccr}:
+
+* Replication is active-passive. While the leader index
+can directly be written into, the follower index can not directly receive
+writes.
+* Replication is driven by the follower index. This model simplifies
+state management on the leader index and means
+that {ccr} does not interfere with indexing on the leader index.
+* Replication is pull-based. The cluster performing this pull is called
+the _local cluster_, and the cluster being replicated is called the
+_remote cluster_.
+
+[discrete]
+[[ccr-replication-mechanics]]
+=== Replication mechanics
+Although you configure {ccr} replication at the index level, {es}
+achieves replication at the shard level. When a follower index is created,
+each shard in that index pulls changes form its corresponding shard in the
+leader index, which means that a follower index has the same number of
+shards as its leader index. All operations are replicated by the follower, so that operations to create, update, or delete a document are replicated.
+These requests can be served from any copy of the leader shard (primary or
+replica).
+
+When a follower shard sends a read request, the leader shard responds with
+any new operations, limited by the read parameters that you establish when
+configuring the follower index. If no new operations are available, the
+leader shard waits up to the configured timeout for new operations. If the
+timeout elapses, the leader shard responds to the follower shard that there
+are no new operations. The follower shard updates shard statistics and
+immediately sends another read request to the leader shard. This
+communication model ensures that network connections between the remote
+cluster and the local cluster are continually in use, avoiding forceful
+termination from an external sources such as a firewall.
+
+If a read request fails, the cause of the failure is inspected. If the
+cause of the failure is deemed to be recoverable (such as a network
+failure), the follower shard enters into a retry loop. Otherwise, the
+follower shard pauses until you resume it, either through {kib} or by
+using the <<ccr-post-resume-follow,resume follower API>>.
+
+When a follower shard receives operations from the leader shard, it places
+those operations in a write buffer. The follower shard uses the write buffer
+to submit bulk write requests within the shard. If the write buffer exceeds
+its configured limits, no additional read requests are sent. This configuration
+provides a back-pressure against read requests, allowing the follower shard
+to resume sending read requests when the write buffer is no longer full.
+
+To manage how operations are replicated from the leader index, you can
+configure settings when creating the follower index in {kib}, or use the
+<<ccr-put-follow,create follower API>>.
+
+The follower index automatically retrieves some updates applied to the leader
+index, while other updates are retrieved as needed:
+
+[cols="3"]
+|===
+h| Update type h| Automatic  h| As needed
+| Alias        | {yes-icon} | {no-icon}
+| Mapping      | {no-icon}  | {yes-icon}
+| Settings     | {no-icon}  | {yes-icon}
+|===
+
+The follower index automatically retrieves alias updates. Mapping updates and
+settings updates are retrieved as needed by the follower index. For example,
+changing the number of replicas on the leader index is not replicated by the
+follower index, so that setting might not be retrieved.
+
+NOTE: You cannot manually modify the mapping or alias of a follower index.
+
+If you apply a non-dynamic settings change to the leader index that is
+needed by the follower index, the follower index closes itself, applies the
+settings update, and then re-opens itself. The follower index is unavailable
+for reads and cannot replicate writes during this cycle.
+
+[discrete]
+[[remote-recovery]]
+=== Remote recovery process
+When you create a follower index, you cannot use it until it is fully
+initialized. The _remote recovery_ process builds a new copy of a shard on a
+follower node by copying data from the primary shard in the leader cluster.
+
+{es} uses this remote recovery process to bootstrap a follower index using the
+data from the leader index. This process provides the follower with a copy of
+the current state of the leader index, even if a complete history of changes
+is not available on the leader due to Lucene segment merging.
+
+Remote recovery is a network intensive process that transfers all of the Lucene
+segment files from the leader cluster to the follower cluster. The follower
+requests that a recovery session be initiated on the primary shard in the
+leader cluster. The follower then requests file chunks concurrently from the
+leader. By default, the process concurrently requests five, large `1Mb` file
+chunks. This default behavior is designed to support leader and follower
+clusters with high network latency between them.
+
+You can modify dynamic <<ccr-recovery-settings,remote recovery settings>> to
+rate-limit the transmitted data and manage the resources consumed by remote
+recoveries.
+
+Use the <<cat-recovery,recovery API>> on the follower cluster to obtain
+information about an in-progress remote recovery. Because {es} implements
+remote recoveries using the <<snapshot-restore,snapshot and restore>>
+infrastructure, running remote recoveries are labelled as type
+`snapshot` in the recovery API.
+
+[discrete]
+[[ccr-learn-more]]
+This following sections provide more information about how to configure
+and use {ccr}:
 
 * <<ccr-overview>>
 * <<ccr-requirements>>
@@ -25,5 +136,4 @@ include::overview.asciidoc[]
 include::requirements.asciidoc[]
 include::auto-follow.asciidoc[]
 include::getting-started.asciidoc[]
-include::remote-recovery.asciidoc[]
 include::upgrading.asciidoc[]

@@ -3,7 +3,6 @@
 [[ccr-overview]]
 === Overview
 
-
 {ccr-cap} is done on an index-by-index basis. Replication is
 configured at the index level. For each configured replication there is a
 replication source index called the _leader index_ and a replication target
@@ -20,11 +19,9 @@ that {ccr} does not interfere with indexing on the leader index.
 In {ccr}, the cluster performing this pull is known as the _local cluster_. The
 cluster being replicated is known as the _remote cluster_.
 
-==== Prerequisites
+==== Version compatibility
 
-* {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
-
-* The {es} version of the local cluster must be **the same as or newer** than
+The {es} version of the local cluster must be **the same as or newer** than
 the remote cluster. If newer, the versions must also be compatible as outlined
 in the following matrix.
 
@@ -76,70 +73,6 @@ POST /follower_index/_ccr/pause_follow
 // TEARDOWN
 
 //////////////////////////
-
-
-==== The mechanics of replication
-
-While replication is managed at the index level, replication is performed at the
-shard level. When a follower index is created, it is automatically
-configured to have an identical number of shards as the leader index. A follower
-shard task in the follower index pulls from the corresponding leader shard in
-the leader index by sending read requests for new operations. These read
-requests can be served from any copy of the leader shard (primary or replicas).
-
-For each read request sent by the follower shard task, if there are new
-operations available on the leader shard, the leader shard responds with
-operations limited by the read parameters that you established when you
-configured the follower index. If there are no new operations available on the
-leader shard, the leader shard waits up to a configured timeout for new
-operations. If new operations occur within that timeout, the leader shard
-immediately responds with those new operations. Otherwise, if the timeout
-elapses, the leader shard replies that there are no new operations. The
-follower shard task updates some statistics and immediately sends another read
-request to the leader shard. This ensures that the network connections between
-the remote cluster and the local cluster are continually being used so as to
-avoid forceful termination by an external source (such as a firewall).
-
-If a read request fails, the cause of the failure is inspected. If the
-cause of the failure is deemed to be a failure that can be recovered from (for 
-example, a network failure), the follower shard task enters into a retry
-loop. Otherwise, the follower shard task is paused and requires user
-intervention before it can be resumed with the
-{ref}/ccr-post-resume-follow.html[resume follower API].
-
-When operations are received by the follower shard task, they are placed in a
-write buffer. The follower shard task manages this write buffer and submits
-bulk write requests from this write buffer to the follower shard.  The write
-buffer and these write requests are managed by the write parameters that you 
-established when you configured the follower index.  The write buffer serves as
-back-pressure against read requests. If the write buffer exceeds its configured
-limits, no additional read requests are sent by the follower shard task. The
-follower shard task resumes sending read requests when the write buffer no
-longer exceeds its configured limits.
-
-NOTE: The intricacies of how operations are replicated from the leader are
-governed by settings that you can configure when you create the follower index
-in {kib} or by using the {ref}/ccr-put-follow.html[create follower API].
-
-Mapping updates applied to the leader index are automatically retrieved
-as-needed by the follower index. It is not possible to manually modify the
-mapping of a follower index.
-
-Settings updates applied to the leader index that are needed by the follower
-index are automatically retrieved as-needed by the follower index. Not all
-settings updates are needed by the follower index. For example, changing the
-number of replicas on the leader index is not replicated by the follower index.
-
-Alias updates applied to the leader index are automatically retrieved by the
-follower index. It is not possible to manually modify an alias of a follower
-index.
-
-NOTE: If you apply a non-dynamic settings change to the leader index that is
-needed by the follower index, the follower index will go through a cycle of
-closing itself, applying the settings update, and then re-opening itself. The
-follower index will be unavailable for reads and not replicating writes
-during this cycle.
-
 
 ==== Inspecting the progress of replication
 

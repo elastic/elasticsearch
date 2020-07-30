@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-=== Getting started with {ccr}
+=== Configure {ccr}
 
-This getting-started guide for {ccr} shows you how to:
+Use this guide to configure {ccr}:
 
-* <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote
-  cluster>>
+* <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
 * <<ccr-getting-started-leader-index,Create a leader index>> in a remote cluster
+* Enable soft deletes on leader indices
 * <<ccr-getting-started-follower-index,Create a follower index>> that replicates
   a leader index
 * <<ccr-getting-started-auto-follow,Automatically create follower indices>>

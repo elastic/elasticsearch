@@ -141,7 +141,6 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
-    private final boolean isSystem;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -159,8 +158,7 @@ public final class IndexModule {
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
             final BooleanSupplier allowExpensiveQueries,
             final IndexNameExpressionResolver expressionResolver,
-            final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-            final boolean isSystem) {
+            final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -170,7 +168,6 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.isSystem = isSystem;
     }
 
     /**
@@ -445,7 +442,7 @@ public final class IndexModule {
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
-                valuesSourceRegistry, recoveryStateFactory, isSystem);
+                valuesSourceRegistry, recoveryStateFactory);
             success = true;
             return indexService;
         } finally {

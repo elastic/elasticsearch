@@ -181,8 +181,7 @@ public class IndexModuleTests extends ESTestCase {
                 Collections.emptyMap(),
                 () -> true,
                 new IndexNameExpressionResolver(),
-                Collections.emptyMap(),
-                randomBoolean());
+                Collections.emptyMap());
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -203,7 +202,7 @@ public class IndexModuleTests extends ESTestCase {
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories,
-            () -> true, new IndexNameExpressionResolver(), Collections.emptyMap(), randomBoolean());
+            () -> true, new IndexNameExpressionResolver(), Collections.emptyMap());
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -519,8 +518,7 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(),
-            recoveryStateFactories,
-            randomBoolean());
+            recoveryStateFactories);
 
         final IndexService indexService = newIndexService(module);
 
@@ -540,7 +538,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private static IndexModule createIndexModule(IndexSettings indexSettings, AnalysisRegistry emptyAnalysisRegistry) {
         return new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
-            new IndexNameExpressionResolver(), Collections.emptyMap(), randomBoolean());
+            new IndexNameExpressionResolver(), Collections.emptyMap());
     }
 
     class CustomQueryCache implements QueryCache {

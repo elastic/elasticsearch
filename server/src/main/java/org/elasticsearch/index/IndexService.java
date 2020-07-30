@@ -150,7 +150,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final boolean isSystem;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -179,8 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BooleanSupplier allowExpensiveQueries,
             IndexNameExpressionResolver expressionResolver,
             ValuesSourceRegistry valuesSourceRegistry,
-            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-            boolean isSystem) {
+            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -240,7 +238,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
-        this.isSystem = isSystem;
         updateFsyncTaskIfNecessary();
     }
 
@@ -482,8 +479,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService,
-                    isSystem);
+                    circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);

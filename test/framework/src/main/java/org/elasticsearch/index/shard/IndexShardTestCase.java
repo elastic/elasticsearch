@@ -398,8 +398,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     Arrays.asList(listeners),
                     globalCheckpointSyncer,
                     retentionLeaseSyncer,
-                    breakerService,
-                    randomBoolean());
+                    breakerService);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {

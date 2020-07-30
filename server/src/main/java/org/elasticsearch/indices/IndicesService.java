@@ -643,8 +643,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories,
-            isSystemIndex(indexMetadata));
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -670,10 +669,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 this::isIdFieldDataEnabled,
                 valuesSourceRegistry
         );
-    }
-
-    private boolean isSystemIndex(IndexMetadata indexMetadata) {
-        return indexMetadata.isSystem();
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
@@ -719,8 +714,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories,
-            isSystemIndex(indexMetadata));
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

@@ -6,7 +6,7 @@ task buildUbiDockerBuildContext(type: Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
-  archiveBaseName = "elasticsearch-ubi7"
+  archiveBaseName = "elasticsearch-ubi8"
   with dockerBuildContext(Architecture.X64, false, true, false)
 }
 

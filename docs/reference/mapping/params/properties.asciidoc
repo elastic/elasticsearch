@@ -15,7 +15,7 @@ field, and a `nested` field:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": { <1>
@@ -36,7 +36,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1 <4>
+PUT my-index-000001/_doc/1 <4>
 {
   "region": "US",
   "manager": {
@@ -72,7 +72,7 @@ notation_:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {

@@ -83,7 +83,7 @@ could use the following template:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -113,7 +113,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
@@ -137,7 +137,7 @@ fields:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -155,7 +155,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "long_num": "5", <1>
   "long_text": "foo" <2>
@@ -191,7 +191,7 @@ top-level `full_name` field, except for the `middle` field:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -209,7 +209,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "name": {
     "first":  "John",
@@ -226,7 +226,7 @@ field `name.title`, which can't be mapped as text:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "name": {
     "first":  "Paul",
@@ -251,7 +251,7 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -278,7 +278,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "english": "Some English text", <1>
   "count":   5 <2>
@@ -303,7 +303,7 @@ you will have to search on the exact same value that was indexed.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -331,7 +331,7 @@ before 5.0):
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -356,7 +356,7 @@ disable the storage of these scoring factors in the index and save some space.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -394,7 +394,7 @@ maybe gain some indexing speed:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [

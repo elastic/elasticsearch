@@ -515,6 +515,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
         if (Objects.equals(this.nullValue, other.nullValue) == false) {
@@ -562,6 +567,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         if (mappedFieldType.hasDocValues() == false) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
     }
 
     @Override

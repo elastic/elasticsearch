@@ -67,8 +67,11 @@ if (System.getProperty('idea.active') == 'true') {
         }
         compiler {
           parallelCompilation = true
+          processHeapSize = 2048
+          addNotNullAssertions = false
           javac {
             generateDeprecationWarnings = false
+            preferTargetJDKCompiler = false
           }
         }
         runConfigurations {

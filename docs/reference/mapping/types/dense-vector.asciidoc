@@ -18,7 +18,7 @@ You index a dense vector as an array of floats.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -33,13 +33,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_text" : "text1",
   "my_vector" : [0.5, 10, 6]
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_text" : "text2",
   "my_vector" : [-0.5, 10, 10]

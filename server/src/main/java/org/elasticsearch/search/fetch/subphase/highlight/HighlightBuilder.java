@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +92,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * a {@link FieldOptions} with default settings
      */
-    static final FieldOptions defaultOptions = new SearchContextHighlight.FieldOptions.Builder()
+    static final FieldOptions defaultOptions = new SearchHighlightContext.FieldOptions.Builder()
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
@@ -273,9 +273,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return PARSER.apply(p, new HighlightBuilder());
     }
 
-    public SearchContextHighlight build(QueryShardContext context) throws IOException {
+    public SearchHighlightContext build(QueryShardContext context) throws IOException {
         // create template global options that are later merged with any partial field options
-        final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+        final SearchHighlightContext.FieldOptions.Builder globalOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
         globalOptionsBuilder.encoder(this.encoder);
         transferOptions(this, globalOptionsBuilder, context);
 
@@ -283,9 +283,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         globalOptionsBuilder.merge(defaultOptions);
 
         // create field options
-        Collection<org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field> fieldOptions = new ArrayList<>();
+        Collection<SearchHighlightContext.Field> fieldOptions = new ArrayList<>();
         for (Field field : this.fields) {
-            final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+            final SearchHighlightContext.FieldOptions.Builder fieldOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
             fieldOptionsBuilder.fragmentOffset(field.fragmentOffset);
             if (field.matchedFields != null) {
                 Set<String> matchedFields = new HashSet<>(field.matchedFields.length);
@@ -293,10 +293,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
             transferOptions(field, fieldOptionsBuilder, context);
-            fieldOptions.add(new SearchContextHighlight.Field(field.name(), fieldOptionsBuilder
+            fieldOptions.add(new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder
                     .merge(globalOptionsBuilder.build()).build()));
         }
-        return new SearchContextHighlight(fieldOptions);
+        return new SearchHighlightContext(fieldOptions);
     }
 
     /**
@@ -309,7 +309,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void transferOptions(AbstractHighlighterBuilder highlighterBuilder,
-            SearchContextHighlight.FieldOptions.Builder targetOptionsBuilder, QueryShardContext context) throws IOException {
+                                        SearchHighlightContext.FieldOptions.Builder targetOptionsBuilder,
+                                        QueryShardContext context) throws IOException {
         if (highlighterBuilder.preTags != null) {
             targetOptionsBuilder.preTags(highlighterBuilder.preTags);
         }

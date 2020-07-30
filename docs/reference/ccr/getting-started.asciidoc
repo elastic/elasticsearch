@@ -5,12 +5,12 @@
 
 Use this guide to configure {ccr}:
 
-* <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
-* <<ccr-getting-started-leader-index,Create a leader index>> in a remote cluster
-* Enable soft deletes on leader indices
-* <<ccr-getting-started-follower-index,Create a follower index>> that replicates
-  a leader index
-* <<ccr-getting-started-auto-follow,Automatically create follower indices>>
+. <<ccr-getting-started-security,Configure security roles>>
+. <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
+. <<ccr-getting-started-leader-index,Create a leader index in a remote cluster>>
+. **Enable soft deletes on leader indices**
+. <<ccr-getting-started-follower-index,Create a follower index that replicates a leader index>>
+. <<ccr-getting-started-auto-follow,Automatically create follower indices>>
 
 
 [[ccr-getting-started-before-you-begin]]
@@ -18,30 +18,29 @@ Use this guide to configure {ccr}:
 . {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
   on your local and remote clusters.
 
-. Obtain a license that includes the {ccr} features. See
-  https://www.elastic.co/subscriptions[subscriptions] and
-  {kibana-ref}/managing-licenses.html[License management].
+. Obtain a   https://www.elastic.co/subscriptions[license] that includes the
+{ccr} features. You can enable {ccr} features in {kib} through
+{kibana-ref}/managing-licenses.html[License management].
 
-. If the Elastic {security-features} are enabled in your local and remote
-  clusters, you need a user that has appropriate authority to perform the steps
-  in this tutorial.
-+
---
 [[ccr-getting-started-security]]
+==== Configure security roles
 The {ccr} features use cluster privileges and built-in roles to make it easier
 to control which users have authority to manage {ccr}.
 
-By default, you can perform all of the steps in this tutorial by
-using the built-in `elastic` user. However, a password must be set for this user
-before the user can do anything. For information about how to set that password,
-see <<security-getting-started>>.
+If the Elastic {security-features} are enabled in your local and remote
+clusters, you need a user that has appropriate authority to perform the steps
+in this tutorial.
 
-If you are performing these steps in a production environment, take extra care
-because the `elastic` user has the `superuser` role and you could inadvertently
-make significant changes.
+By default, you can perform all steps in this tutorial by
+using the built-in `elastic` user. However, you must <<get-started-built-in-users,set a password>> for this
+user before proceeding
+
+IMPORTANT: If you are performing these steps in a production environment, take
+extra care because the `elastic` user has the `superuser` role and you could
+inadvertently make significant changes.
 
 Alternatively, you can assign the appropriate privileges to a user ID of your
-choice. On the remote cluster that contains the leader index, a user will need
+choice. On the remote cluster that contains the leader index, a user must have
 the `read_ccr` cluster privilege and `monitor` and `read` privileges on the
 leader index.
 
@@ -79,17 +78,32 @@ If you are managing
 <<ccr-getting-started-remote-cluster,connecting to the remote cluster>> via the
 cluster update settings API, you will also need a user with the `all` cluster
 privilege.
---
-
 
 [[ccr-getting-started-remote-cluster]]
 ==== Connecting to a remote cluster
 
-The {ccr} features require that you
-{ref}/modules-remote-clusters.html[connect your local cluster to a remote
-cluster]. In this tutorial, we will connect our local cluster to a remote
-cluster with the cluster alias `leader`.
+The {ccr} features require that you connect your local cluster to a
+<<modules-remote-clusters,remote cluster>>. In this tutorial, you connect your
+local cluster to a remote cluster with the cluster alias `leader`.
 
+Add a {kibana-ref}/working-remote-clusters.html[remote cluster] in {kib}:
+
+. Open a browser to access {kib} on your _remote_ cluster.
+. From the {kib} menu, select *Management -> Stack Management*.
+. Under *Data*, select *Remote Clusters* to access the Remote Clusters
+page.
+. Choose *Add a remote cluster*.
+. Enter `leader` as the name for the remote cluster.
+. Enter an IP address or host name, followed by the transport port of the
+remote cluster.
+. Click *Save*.
+
+[role="screenshot"]
+image::images/remote-clusters.png["The Remote Clusters page in {kib}"]
+
+[%collapsible]
+.Use the API
+====
 [source,console]
 --------------------------------------------------
 PUT /_cluster/settings
@@ -147,22 +161,21 @@ remote cluster.
     alias `leader`
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
-
-Alternatively, you can {kibana-ref}/working-remote-clusters.html[manage remote clusters] from {kib}:
-
-. From the {kib} menu, select *Management -> Stack Management*.
-. Under *Data*, select *Remote Clusters* to access the Remote Clusters
-page.
-
-[role="screenshot"]
-image::images/remote-clusters.png["The Remote Clusters page in {kib}"]
-
+====
 
 [[ccr-getting-started-leader-index]]
 ==== Creating a leader index
 
-In the following example, we will create a leader index in the remote cluster:
+Create a leader index in your remote cluster using {kib}:
 
+. Open a browser to access {kib} on your _remote_ cluster.
+. From the {kib} menu, select *Management -> Dev Tools*.
+. Copy the following example into the Console to create a leader index named
+`server-metrics` in your remote cluster:
++
+[%collapsible]
+.Leader index example
+====
 [source,console]
 --------------------------------------------------
 PUT /server-metrics
@@ -201,16 +214,39 @@ PUT /server-metrics
 }
 --------------------------------------------------
 // TEST[continued]
-
+====
 
 [[ccr-getting-started-follower-index]]
 ==== Creating a follower index
 
-Follower indices are created with the {ref}/ccr-put-follow.html[create follower
-API]. When you create a follower index, you must reference the
+When you create a {kibana-ref}/managing-cross-cluster-replication.html#_create_specific_follower_indices[follower index], you
+must reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> and the
 <<ccr-getting-started-leader-index,leader index>> that you created in the remote
 cluster.
+
+. Open a browser to access {kib} on your _local_ cluster.
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+. Choose the *Follower indices* tab.
+. Click *Create a follower index*.
+  . Choose the remote cluster containing the index you want to replicate.
+  . Enter the name of the leader index, which is `leader` if you are following
+  the tutorial.
+  . Enter a name for your follower index.
+  . Click *Create* to create the follower index.
+
+[role="screenshot"]
+image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-put-follow,create follower API>> to create follower indices.
+When you create a follower index, you must reference the
+<<ccr-getting-started-remote-cluster,remote cluster>> and the
+<<ccr-getting-started-leader-index,leader index>> that you created in the
+remote cluster.
 
 [source,console]
 --------------------------------------------------
@@ -245,15 +281,6 @@ documents replicated in the follower index. You can
 inspect the status of replication using the
 {ref}/ccr-get-follow-stats.html[get follower stats API].
 
-Alternatively, you can {kibana-ref}/managing-cross-cluster-replication.html#_create_specific_follower_indices[manage follower indices] using {kib}:
-
-. From the {kib} menu, click *Management -> Stack Management*.
-. Under *Data*, select *Cross Cluster Replication*.
-. Choose the *Follower indices* tab.
-
-[role="screenshot"]
-image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
-
 //////////////////////////
 
 [source,console]
@@ -267,7 +294,7 @@ POST /server-metrics-copy/_ccr/unfollow
 // TEST[continued]
 
 //////////////////////////
-
+====
 
 [[ccr-getting-started-auto-follow]]
 ==== Automatically create follower indices

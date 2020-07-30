@@ -122,6 +122,7 @@ infrastructure, running remote recoveries are labelled as type
 
 [discrete]
 [[ccr-learn-more]]
+=== Learn more
 This following sections provide more information about how to configure
 and use {ccr}:
 

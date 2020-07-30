@@ -1001,8 +1001,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return internalIndexingStats.deleteCostFactor();
     }
 
-    public void getGetCostFactor() {
-
+    public long getGetCostFactor() {
+        return 0;
     }
 
     public SearchStats searchStats(String... groups) {

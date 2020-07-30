@@ -47,6 +47,9 @@ public class IndexingPressure {
     private final AtomicLong primaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
 
+    private final AtomicLong primaryQueueLag = new AtomicLong(0);
+    private final AtomicLong replicaQueueLag = new AtomicLong(0);
+
     private final long primaryAndCoordinatingLimits;
     private final long replicaLimits;
 
@@ -111,6 +114,11 @@ public class IndexingPressure {
         };
     }
 
+    public Releasable markPrimaryOperationQueued(long costFactor) {
+        this.primaryQueueLag.getAndAdd(costFactor);
+        return () -> this.primaryQueueLag.getAndAdd(-costFactor);
+    }
+
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
         long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
@@ -124,6 +132,11 @@ public class IndexingPressure {
         }
         totalReplicaBytes.getAndAdd(bytes);
         return () -> this.currentReplicaBytes.getAndAdd(-bytes);
+    }
+
+    public Releasable markReplicaOperationQueued(long costFactor) {
+        this.replicaQueueLag.getAndAdd(costFactor);
+        return () -> this.replicaQueueLag.getAndAdd(-costFactor);
     }
 
     public long getCurrentCombinedCoordinatingAndPrimaryBytes() {

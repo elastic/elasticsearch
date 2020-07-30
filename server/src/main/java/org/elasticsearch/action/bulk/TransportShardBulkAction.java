@@ -78,6 +78,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -138,6 +139,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }), listener, threadPool
         );
+    }
+
+    @Override
+    protected Stream<DocWriteRequest<?>> primaryOperations(BulkShardRequest request) {
+        return Stream.of(request.items()).map(i -> i.request());
     }
 
     @Override
@@ -421,6 +427,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
+    }
+
+    @Override
+    protected Stream<DocWriteRequest<?>> replicaOperations(BulkShardRequest request) {
+        return Stream.of(request.items()).map(BulkItemRequest::request);
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -165,10 +167,19 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+        final long estimatedCostFactor = getEstimatedCostFactor(primaryOperations(request), primary);
+        final Releasable releasable = indexingPressure.markPrimaryOperationQueued(estimatedCostFactor);
         threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
+                releasable.close();
                 dispatchedShardOperationOnPrimary(request, primary, listener);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                releasable.close();
+                super.onRejection(e);
             }
 
             @Override
@@ -190,10 +201,19 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        final long estimatedCostFactor = getEstimatedCostFactor(replicaOperations(request), replica);
+        final Releasable releasable = indexingPressure.markReplicaOperationQueued(estimatedCostFactor);
         threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
+                releasable.close();
                 dispatchedShardOperationOnReplica(request, replica, listener);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                releasable.close();
+                super.onRejection(e);
             }
 
             @Override
@@ -201,6 +221,21 @@ public abstract class TransportWriteAction<
                 return true;
             }
         });
+    }
+
+    private long getEstimatedCostFactor(Stream<DocWriteRequest<?>> operations, IndexShard shard) {
+        final long indexCostFactor = shard.getIndexCostFactor();
+        final long deleteCostFactor = shard.getDeleteCostFactor();
+        final long getCostFactor = shard.getGetCostFactor();
+        return operations.mapToLong(r -> {
+            if (r instanceof DeleteRequest) {
+                return deleteCostFactor;
+            } else if (r instanceof UpdateRequest) {
+                return indexCostFactor + getCostFactor;
+            } else {
+                return indexCostFactor;
+            }
+        }).sum();
     }
 
     protected abstract void dispatchedShardOperationOnReplica(

@@ -1,4 +1,3 @@
-import java.nio.file.Path
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
 import org.elasticsearch.gradle.LoggedExec
@@ -6,6 +5,9 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+
+import java.nio.file.Path
+import java.security.MessageDigest
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -78,9 +80,37 @@ RUN curl --retry 8 -S -L \\
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
-    'source_elasticsearch': sourceElasticsearch.trim(),
-    'version'             : VersionProperties.elasticsearch
+    'source_elasticsearch': sourceElasticsearch,
+    'version'             : VersionProperties.elasticsearch,
+    'version_hash'        : ubi ? getChecksum(configurations.dockerSource.singleFile) : ''
   ]
+}
+
+private static String getChecksum(File file) {
+  MessageDigest digest = MessageDigest.getInstance("SHA-512")
+
+  FileInputStream fis = new FileInputStream(file)
+  byte[] byteArray = new byte[1024]
+  int bytesCount = 0
+
+  //Read file data and update in message digest
+  while ((bytesCount = fis.read(byteArray)) != -1) {
+    digest.update(byteArray, 0, bytesCount)
+  }
+
+  fis.close()
+
+  //Get the hash's bytes
+  byte[] bytes = digest.digest()
+
+  //This bytes[] has bytes in decimal format;
+  //Convert it to hexadecimal format
+  StringBuilder sb = new StringBuilder()
+  for (int i = 0; i < bytes.length; i++) {
+    sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1))
+  }
+
+  return sb.toString()
 }
 
 private static String buildPath(final Architecture architecture, final boolean oss) {

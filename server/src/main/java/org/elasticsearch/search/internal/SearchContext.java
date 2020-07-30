@@ -54,8 +54,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -161,9 +160,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchExtBuilder getSearchExt(String name);
 
-    public abstract SearchContextHighlight highlight();
+    public abstract SearchHighlightContext highlight();
 
-    public abstract void highlight(SearchContextHighlight highlight);
+    public abstract void highlight(SearchHighlightContext highlight);
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
@@ -340,10 +339,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract long keepAlive();
 
     public abstract void keepAlive(long keepAlive);
-
-    public SearchLookup lookup() {
-        return getQueryShardContext().lookup();
-    }
 
     public abstract DfsSearchResult dfsResult();
 

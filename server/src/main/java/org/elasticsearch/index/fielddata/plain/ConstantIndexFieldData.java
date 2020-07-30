@@ -147,10 +147,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public void clear() {
-    }
-
-    @Override
     public final LeafOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }

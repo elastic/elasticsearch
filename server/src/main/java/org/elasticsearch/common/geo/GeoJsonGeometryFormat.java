@@ -19,19 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "geojson";
@@ -66,17 +59,6 @@ public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
 
     @Override
     public Object toXContentAsObject(Geometry geometry) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
-            StreamInput input = BytesReference.bytes(builder).streamInput();
-
-            try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
-                return parser.map();
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return GeoJson.toMap(geometry);
     }
 }

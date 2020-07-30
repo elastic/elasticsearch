@@ -86,11 +86,6 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
             Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
 
-    /**
-     * Clears any resources associated with this field data.
-     */
-    void clear();
-
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)

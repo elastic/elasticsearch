@@ -31,7 +31,7 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
+ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean local, Project p ->
   String classifier
   if (local || ubi) {
     switch (architecture) {
@@ -82,7 +82,7 @@ RUN curl --retry 8 -S -L \\
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': sourceElasticsearch,
     'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : ubi ? getChecksum(configurations.dockerSource.singleFile) : ''
+    'version_hash'        : ubi ? getChecksum(p.configurations.dockerSource.singleFile) : ''
   ]
 }
 
@@ -122,9 +122,9 @@ private static String taskName(final String prefix, final Architecture architect
 }
 
 project.ext {
-  dockerBuildContext = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
+  dockerBuildContext = { Architecture architecture, boolean oss, boolean ubi, boolean local, Project p ->
     copySpec {
-      final Map<String,String> varExpansions = expansions(architecture, oss, ubi, local)
+      final Map<String,String> varExpansions = expansions(architecture, oss, ubi, local, p)
       final Path projectDir = project.projectDir.toPath()
 
       if (ubi) {
@@ -164,12 +164,12 @@ project.ext {
 
 void addCopyDockerContextTask(final Architecture architecture, final boolean oss) {
   task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
-    expansions(architecture, oss, false, true).findAll { it.key != 'build_date' }.each { k, v ->
+    expansions(architecture, oss, false, true, project).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
     into buildPath(architecture, oss)
 
-    with dockerBuildContext(architecture, oss, false, true)
+    with dockerBuildContext(architecture, oss, false, true, project)
 
     if (architecture == Architecture.AARCH64) {
       if (oss) {
@@ -300,6 +300,16 @@ if (tasks.findByName("composePull")) {
  * that they can be easily reloaded, for example into a VM for distribution testing
  */
 subprojects { Project subProject ->
+  if (subProject.name.endsWith('-context')) {
+    configurations {
+      dockerSource
+    }
+
+    dependencies {
+      dockerSource project(path: ":distribution:archives:linux-tar")
+    }
+  }
+
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 

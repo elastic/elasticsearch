@@ -93,6 +93,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
 
         IndicesAccessControl indicesAccessControl = context.getTransient(
                 AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        assert indicesAccessControl != null;
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
             return weight;

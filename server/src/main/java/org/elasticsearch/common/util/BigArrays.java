@@ -58,15 +58,10 @@ public class BigArrays {
 
         long newSize;
         if (minTargetSize < pageSize) {
-            newSize = ArrayUtil.oversize((int)minTargetSize, bytesPerElement);
+            newSize = Math.min(ArrayUtil.oversize((int) minTargetSize, bytesPerElement), pageSize);
         } else {
-            newSize = minTargetSize + (minTargetSize >>> 3);
-        }
-
-        if (newSize > pageSize) {
-            // round to a multiple of pageSize
-            newSize = newSize - (newSize % pageSize) + pageSize;
-            assert newSize % pageSize == 0;
+            final long pages = (minTargetSize + pageSize - 1) / pageSize; // ceil(minTargetSize/pageSize)
+            newSize = pages * pageSize;
         }
 
         return newSize;
@@ -811,4 +806,3 @@ public class BigArrays {
         return resize(array, newSize);
     }
 }
-

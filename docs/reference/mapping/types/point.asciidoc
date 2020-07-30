@@ -17,7 +17,7 @@ There are four ways that a point may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -28,7 +28,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Point as an object",
   "location": { <1>
@@ -37,20 +37,20 @@ PUT my_index/_doc/1
   }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text": "Point as a string",
   "location": "41.12,-71.34" <2>
 }
 
 
-PUT my_index/_doc/4
+PUT my-index-000001/_doc/4
 {
   "text": "Point as an array",
   "location": [41.12, -71.34] <3>
 }
 
-PUT my_index/_doc/5
+PUT my-index-000001/_doc/5
 {
   "text": "Point as a WKT POINT primitive",
   "location" : "POINT (41.12 -71.34)" <4>

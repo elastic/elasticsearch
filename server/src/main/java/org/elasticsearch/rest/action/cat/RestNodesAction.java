@@ -175,8 +175,12 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count",
+            "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
-        table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size",
+            "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
             "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("request_cache.hit_count",
@@ -365,6 +369,8 @@ public class RestNodesAction extends AbstractCatAction {
             QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
+            table.addCell(fcStats == null ? null : fcStats.getHitCount());
+            table.addCell(fcStats == null ? null : fcStats.getMissCount());
 
             RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());

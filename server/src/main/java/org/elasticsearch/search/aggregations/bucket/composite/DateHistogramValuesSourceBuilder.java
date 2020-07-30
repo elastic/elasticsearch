@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsum
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -80,7 +79,7 @@ public class DateHistogramValuesSourceBuilder
                 return ZoneOffset.ofHours(p.intValue());
             }
         }, new ParseField("time_zone"), ObjectParser.ValueType.LONG);
-        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
+        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
 
     private ZoneId timeZone = null;

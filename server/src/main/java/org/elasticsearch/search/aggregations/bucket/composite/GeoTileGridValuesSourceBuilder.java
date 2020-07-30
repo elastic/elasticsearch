@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -57,7 +56,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         PARSER.declareInt(GeoTileGridValuesSourceBuilder::precision, new ParseField("precision"));
         PARSER.declareField(((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
             GeoBoundingBox.BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
-        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
+        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
 
     static GeoTileGridValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {

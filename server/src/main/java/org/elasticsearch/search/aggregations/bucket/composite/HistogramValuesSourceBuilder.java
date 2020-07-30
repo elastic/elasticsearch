@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -52,7 +51,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     static {
         PARSER = new ObjectParser<>(HistogramValuesSourceBuilder.TYPE);
         PARSER.declareDouble(HistogramValuesSourceBuilder::interval, Histogram.INTERVAL_FIELD);
-        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
+        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
     static HistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramValuesSourceBuilder(name), null);

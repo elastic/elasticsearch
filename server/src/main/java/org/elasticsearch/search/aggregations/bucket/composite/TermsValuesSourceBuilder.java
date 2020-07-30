@@ -51,8 +51,9 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     private static final ObjectParser<TermsValuesSourceBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(TermsValuesSourceBuilder.TYPE);
-        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, null);
+        CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
+
     static TermsValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new TermsValuesSourceBuilder(name), null);
     }
@@ -117,14 +118,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                         } else {
                             final LongUnaryOperator rounding;
-                            if (vs instanceof RoundingValuesSource) {
-                                // TODO: I'm pretty sure we can't get a RoundingValuesSource here.  This was copy/pasta from the old,
-                                //       global logic in CompositeValuesSourceConfig, which could have had a rounding values source.
-                                //       Now that path should be covered in DateHistogramValuesSourceBuilder
-                                rounding = ((RoundingValuesSource) vs)::round;
-                            } else {
-                                rounding = LongUnaryOperator.identity();
-                            }
+                            rounding = LongUnaryOperator.identity();
                             return new LongValuesSource(
                                 bigArrays,
                                 compositeValuesSourceConfig.fieldType(),
@@ -137,9 +131,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             );
                         }
 
-                    });
-                    });
-
+                    }
+                );
+            }
+        );
 
         builder.registerComposite(
             TYPE,

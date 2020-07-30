@@ -212,6 +212,11 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         }
 
         @Override
+        public String name() {
+            return "fake"; // defeats Lucene's is-spinning-disk check before it tries to obtain a filestore for an untracked file
+        }
+
+        @Override
         public long getTotalSpace() throws IOException {
             final long totalSpace = this.totalSpace;
             if (totalSpace == -1) {

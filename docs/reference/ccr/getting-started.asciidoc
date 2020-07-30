@@ -148,12 +148,14 @@ remote cluster.
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
 
-Alternatively, you can manage remote clusters on the
-*Management / Elasticsearch / Remote Clusters* page in {kib}:
+Alternatively, you can {kibana-ref}/working-remote-clusters.html[manage remote clusters] from {kib}:
+
+. From the {kib} menu, select *Management -> Stack Management*.
+. Under *Data*, select *Remote Clusters* to access the Remote Clusters
+page.
 
 [role="screenshot"]
-image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
-
+image::images/remote-clusters.png["The Remote Clusters page in {kib}"]
 
 
 [[ccr-getting-started-leader-index]]
@@ -243,6 +245,15 @@ documents replicated in the follower index. You can
 inspect the status of replication using the
 {ref}/ccr-get-follow-stats.html[get follower stats API].
 
+Alternatively, you can {kibana-ref}/managing-cross-cluster-replication.html#_create_specific_follower_indices[manage follower indices] using {kib}:
+
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+. Choose the *Follower indices* tab.
+
+[role="screenshot"]
+image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
+
 //////////////////////////
 
 [source,console]
@@ -312,8 +323,13 @@ DELETE /_ccr/auto_follow/beats
 
 //////////////////////////
 
-Alternatively, you can manage auto-follow patterns on the
-*Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
+Alternatively, you can manage auto-follow patterns from {kib}:
+
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+. Choose the *Auto-follow patterns* tab.
 
 [role="screenshot"]
-image::images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]
+image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
+
+See {kibana-ref}/managing-cross-cluster-replication.html#_create_follower_indices_from_an_auto_follow_pattern[Create follower indices from an auto-follow pattern] for more information.

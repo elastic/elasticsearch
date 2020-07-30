@@ -138,9 +138,9 @@ POST /my-index-000001/_cache/clear?fields=foo,bar   <1>
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_cache/clear
+POST /my-index-000001,my-index-000002/_cache/clear
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[clear-cache-api-all-ex]]

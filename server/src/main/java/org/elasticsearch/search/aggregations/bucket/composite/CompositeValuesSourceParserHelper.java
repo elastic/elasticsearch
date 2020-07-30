@@ -44,7 +44,7 @@ public class CompositeValuesSourceParserHelper {
             new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
-        objectParser.declareField(VB::valueType, p -> {
+        objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),

@@ -590,7 +590,8 @@ teardown:
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_results: 4 }
+  - length: { docs.0.processor_results: 2 }
+  - length: { docs.0.processor_results.0: 4 }
   - match: { docs.0.processor_results.0.tag: "setstatus-1" }
   - match: { docs.0.processor_results.0.status: "success" }
   - match: { docs.0.processor_results.0.processor_type: "set" }
@@ -861,3 +862,30 @@ teardown:
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
   - match: { docs.0.processor_results.0.description: "processor_description" }
   - match: { docs.0.processor_results.0.tag: "processor_tag" }
+
+---
+"Test simulate with provided pipeline that does not exist":
+  - do:
+      catch: bad_request
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "pipeline": {
+                     "name": "____pipeline_doesnot_exist___"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {}
+              }
+            ]
+          }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [____pipeline_doesnot_exist___]" }

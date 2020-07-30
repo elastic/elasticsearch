@@ -6,6 +6,7 @@ dependencies {
 }
 
 unitTest {
+    systemProperty 'java.locale.providers','SPI,COMPAT'
     systemProperty 'tests.security.manager', 'false'
     include '**/*Tests.class'
 }

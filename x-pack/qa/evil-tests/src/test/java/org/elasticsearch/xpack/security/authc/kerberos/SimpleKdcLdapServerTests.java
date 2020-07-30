@@ -51,9 +51,6 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
     }
 
     public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException, ParseException {
-        assumeFalse("Java 15-ea causes issues with this test, see https://github.com/elastic/elasticsearch/issues/57749",
-            JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0);
-
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);

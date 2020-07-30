@@ -8,9 +8,9 @@ Flushes one or more data streams or indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_flush
+POST /my-index-000001/_flush
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[flush-api-request]]

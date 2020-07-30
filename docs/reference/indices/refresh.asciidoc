@@ -9,9 +9,9 @@ backing indices.
 
 [source,console]
 ----
-POST /twitter/_refresh
+POST /my-index-000001/_refresh
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[refresh-api-request]]

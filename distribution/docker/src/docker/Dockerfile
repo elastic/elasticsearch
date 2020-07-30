@@ -9,23 +9,27 @@
   can also comment out blocks, like this one. See:
 
   https://docs.groovy-lang.org/latest/html/api/groovy/text/SimpleTemplateEngine.html
+
+  We use control-flow tags in this file to conditionally render the content. The
+  layout/presentation here has been adjusted so that it looks reasonable when rendered,
+  at the slight expense of how it looks here.
 */ %>
 ################################################################################
 # Build stage 0 `builder`:
-# Extract elasticsearch artifact
+# Extract Elasticsearch artifact
 ################################################################################
+<% if (is_ubi) { %>
+ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
+ARG BASE_IMAGE=redhat/ubi/ubi8
+ARG BASE_TAG=8.2
 
-FROM ${base_image} AS builder
+FROM \${BASE_REGISTRY}/\${BASE_IMAGE}:\${BASE_TAG} AS builder
 
-# Ensure some requires tools are installed. They may not be on some minimal base images.
-# We run ${package_manager} commands in a loop, in order to prevent transient repository access errors
-# from failing the build. We only loop on failure, using \$exit_code to track success or failure.
-RUN for iter in {1..10}; do \\
-        ${package_manager} install --setopt=tsflags=nodocs -y tar gzip && \\
-        exit_code=0 && break || \\
-            exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10 ; \\
-    done; \\
-    (exit \$exit_code)
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /tini
+<% } else { %>
+FROM centos:7 AS builder
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -45,9 +49,8 @@ RUN set -eux ; \\
     curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /tini ; \\
-    chmod +x /tini
-
+    mv \${tini_bin} /tini
+<% } %>
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
@@ -57,31 +60,25 @@ RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs
-COPY config/elasticsearch.yml config/log4j2.properties config/
+COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 ################################################################################
-# Build stage 1 (the actual elasticsearch image):
+# Build stage 1 (the actual Elasticsearch image):
+#
 # Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
-
-FROM ${base_image}
-
+<% if (is_ubi) { %>
+FROM \${BASE_REGISTRY}/\${BASE_IMAGE}:\${BASE_TAG} AS builder
+<% } else { %>
+FROM centos:7
+<% } %>
 ENV ELASTIC_CONTAINER true
 
-COPY --from=builder --chown=0:0 /tini /tini
-
-# We run ${package_manager} commands in a loop, in order to prevent transient repository access errors
-# from failing the build. We only loop on failure, using \$exit_code to track success or failure.
-RUN for iter in {1..10}; do \\
-        ${package_manager} update --setopt=tsflags=nodocs -y && \\
-        ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
-        ${package_manager} clean all && \\
-        exit_code=0 && break || \\
-            exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10 ; \\
-    done; \\
-    (exit \$exit_code)
+RUN yum update --setopt=tsflags=nodocs -y && \\
+    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
+    yum clean all
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
@@ -90,6 +87,8 @@ RUN groupadd -g 1000 elasticsearch && \\
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=0:0 /tini /tini
+RUN chmod +x /tini
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
@@ -98,8 +97,7 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-
+COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
@@ -133,8 +131,9 @@ USER elasticsearch:root
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
-
+<% if (is_ubi) { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
+<% } %>
 ################################################################################
 # End of multi-stage Dockerfile
 ################################################################################

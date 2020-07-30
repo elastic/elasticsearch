@@ -590,12 +590,16 @@ teardown:
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_results: 2 }
+  - length: { docs.0.processor_results: 4 }
   - match: { docs.0.processor_results.0.tag: "setstatus-1" }
+  - match: { docs.0.processor_results.0.status: "success" }
+  - match: { docs.0.processor_results.0.processor_type: "set" }
   - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
   - match: { docs.0.processor_results.0.doc._source.status: 200 }
-  - length: { docs.0.processor_results.1: 2 }
+  - length: { docs.0.processor_results.1: 4 }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
+  - match: { docs.0.processor_results.1.status: "success" }
+  - match: { docs.0.processor_results.1.processor_type: "rename" }
   - match: { docs.0.processor_results.1.doc._source.new_status: 200 }
 
 ---
@@ -710,7 +714,8 @@ teardown:
             {
               "set": {
                 "field": "pipeline0",
-                "value": true
+                "value": true,
+                "description" : "first_set"
               }
             },
             {
@@ -731,16 +736,25 @@ teardown:
           ]
         }
 - length: { docs: 1 }
-- length: { docs.0.processor_results: 3 }
+- length: { docs.0.processor_results: 5 }
 - match: { docs.0.processor_results.0.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.0.status: "success" }
+- match: { docs.0.processor_results.0.processor_type: "set" }
+- match: { docs.0.processor_results.0.description: "first_set" }
 - is_false: docs.0.processor_results.0.doc._source.pipeline1
 - is_false: docs.0.processor_results.0.doc._source.pipeline2
-- match: { docs.0.processor_results.1.doc._source.pipeline0: true }
-- match: { docs.0.processor_results.1.doc._source.pipeline1: true }
-- is_false: docs.0.processor_results.1.doc._source.pipeline2
+- match: { docs.0.processor_results.1.doc: null }
+- match: { docs.0.processor_results.1.status: "success" }
+- match: { docs.0.processor_results.1.processor_type: "pipeline" }
 - match: { docs.0.processor_results.2.doc._source.pipeline0: true }
 - match: { docs.0.processor_results.2.doc._source.pipeline1: true }
-- match: { docs.0.processor_results.2.doc._source.pipeline2: true }
+- is_false: docs.0.processor_results.2.doc._source.pipeline2
+- match: { docs.0.processor_results.3.doc: null }
+- match: { docs.0.processor_results.3.status: "success" }
+- match: { docs.0.processor_results.3.processor_type: "pipeline" }
+- match: { docs.0.processor_results.4.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.4.doc._source.pipeline1: true }
+- match: { docs.0.processor_results.4.doc._source.pipeline2: true }
 
 ---
 "Test verbose simulate with true conditional and on failure":

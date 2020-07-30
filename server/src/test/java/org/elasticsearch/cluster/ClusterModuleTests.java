@@ -65,9 +65,23 @@ import java.util.function.Supplier;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
-    private ClusterService clusterService = new ClusterService(Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-    private ThreadPool threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
+    private ClusterService clusterService;
+    private ThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
+        clusterService = new ClusterService(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        threadPool.shutdown();
+        clusterService.close();
+    }
 
     static class FakeAllocationDecider extends AllocationDecider {
         protected FakeAllocationDecider() {

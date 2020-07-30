@@ -106,7 +106,11 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                client().prepareIndex(indices[i]).setId(Integer.toString(j)).setSource("{\"field\":" + j + "}", XContentType.JSON).execute().actionGet();
+                client().prepareIndex(indices[i])
+                    .setId(Integer.toString(j))
+                    .setSource("{\"field\":" + j + "}", XContentType.JSON)
+                    .execute()
+                    .actionGet();
             }
         }
 

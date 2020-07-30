@@ -95,7 +95,7 @@ See <<create-a-data-stream-template>>.
 
 `template`::
 (Optional, object)
-Template to be applied. It may optionally include an `aliases, `mappings`, or
+Template to be applied. It may optionally include an `aliases`, `mappings`, or
 `settings` configuration.
 +
 .Properties of `template`

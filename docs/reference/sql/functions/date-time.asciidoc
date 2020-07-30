@@ -795,7 +795,7 @@ If the 1st argument is of type `time`, then pattern specified by the 2nd argumen
 
 [NOTE]
 Format specifier `F` will be working similar to format specifier `f`.
-It will return the fractional part of seconds, and the number of digits will be same as of the number of `F` s provided as input (upto 9 digits).
+It will return the fractional part of seconds, and the number of digits will be same as of the number of `Fs` provided as input (up to 9 digits).
 Result will contain `0` appended in the end to match with number of `F` provided.
 e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`.
 

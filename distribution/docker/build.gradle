@@ -114,25 +114,11 @@ private static String getChecksum(File file) {
 }
 
 private static String buildPath(final Architecture architecture, final boolean oss) {
-  String prefix = ""
-  if (architecture == Architecture.AARCH64) {
-    prefix += "aarch64-"
-  }
-  if (oss) {
-    prefix += "oss-"
-  }
-  return "build/${prefix}docker"
+  return "build/${architecture == Architecture.AARCH64 ? 'aarch64-' : ''}${oss ? 'oss-' : ''}docker"
 }
 
 private static String taskName(final String prefix, final Architecture architecture, final boolean oss, final String suffix) {
-  String infix = ""
-  if (architecture == Architecture.AARCH64) {
-    infix += "Aarch64"
-  }
-  if (oss) {
-    infix += "Oss"
-  }
-  return prefix + infix + suffix
+  return "${prefix}${architecture == Architecture.AARCH64 ? 'Aarch64' : ''}${oss ? 'Oss' : ''}${suffix}"
 }
 
 project.ext {

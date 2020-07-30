@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -212,8 +211,10 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
+    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
+
     public final void writeShort(short v) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         buffer[0] = (byte) (v >> 8);
         buffer[1] = (byte) v;
         writeBytes(buffer, 0, 2);
@@ -223,7 +224,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes an int as four bytes.
      */
     public void writeInt(int i) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         buffer[0] = (byte) (i >> 24);
         buffer[1] = (byte) (i >> 16);
         buffer[2] = (byte) (i >> 8);
@@ -238,7 +239,7 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         int index = 0;
         while ((i & ~0x7F) != 0) {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
@@ -252,7 +253,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a long as eight bytes.
      */
     public void writeLong(long i) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         buffer[0] = (byte) (i >> 56);
         buffer[1] = (byte) (i >> 48);
         buffer[2] = (byte) (i >> 40);
@@ -290,7 +291,7 @@ public abstract class StreamOutput extends OutputStream {
      * {@link #writeVLong(long)} instead.
      */
     void writeVLongNoCheck(long i) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         int index = 0;
         while ((i & ~0x7F) != 0) {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
@@ -308,7 +309,7 @@ public abstract class StreamOutput extends OutputStream {
      * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
      */
     public void writeZLong(long i) throws IOException {
-        final byte[] buffer = Streams.getTemporaryBuffer();
+        final byte[] buffer = scratch.get();
         int index = 0;
         // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
         long value = BitUtil.zigZagEncode(i);
@@ -406,7 +407,7 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeString(String str) throws IOException {
         final int charCount = str.length();
-        byte[] buffer = Streams.getTemporaryBuffer();
+        byte[] buffer = scratch.get();
         int offset = 0;
         writeVInt(charCount);
         for (int i = 0; i < charCount; i++) {

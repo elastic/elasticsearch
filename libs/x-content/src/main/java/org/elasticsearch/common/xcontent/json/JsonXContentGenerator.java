@@ -365,7 +365,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            Streams.doCopy(stream, os, Streams.getTemporaryBuffer());
+            Streams.doCopy(stream, os);
             writeEndRaw();
         }
     }
@@ -482,7 +482,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         Objects.requireNonNull(out, "No OutputStream specified");
         boolean success = false;
         try {
-            Streams.doCopy(in, out, Streams.getTemporaryBuffer());
+            Streams.doCopy(in, out);
             success = true;
         } finally {
             if (success) {

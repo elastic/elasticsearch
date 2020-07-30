@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -250,7 +249,7 @@ public class XContentFactory {
                 }
             } while (Character.isWhitespace((char) current));
             // now guess the content type off the next GUESS_HEADER_LENGTH bytes including the current byte
-            final byte[] firstBytes = Streams.getTemporaryBuffer();
+            final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
             firstBytes[0] = (byte) current;
             int read = 1;
             while (read < GUESS_HEADER_LENGTH) {

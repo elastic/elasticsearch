@@ -284,15 +284,11 @@ public class Pivot implements Function {
     public SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder) {
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
 
-        config.getGroupConfig()
-            .getGroups()
-            .values()
-            // TODO change once we allow missing_buckets
-            .forEach(src -> {
-                if (src.getField() != null) {
-                    existsClauses.must(QueryBuilders.existsQuery(src.getField()));
-                }
-            });
+        config.getGroupConfig().getGroups().values().forEach(src -> {
+            if (src.getMissingBucket() == false && src.getField() != null) {
+                existsClauses.must(QueryBuilders.existsQuery(src.getField()));
+            }
+        });
 
         return searchSourceBuilder.query(existsClauses).size(0).trackTotalHits(true);
     }

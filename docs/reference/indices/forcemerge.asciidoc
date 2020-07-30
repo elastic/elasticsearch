@@ -149,9 +149,9 @@ POST /my-index-000001/_forcemerge
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_forcemerge
+POST /my-index-000001,my-index-000002/_forcemerge
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[forcemerge-api-all-ex]]

@@ -181,7 +181,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
             MapperParsingException.class,
             () -> createIndex("test", Settings.EMPTY, mapping(runtimeType, b -> b.field("format", "yyyy-MM-dd")))
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: format not supported by runtime_type [" + runtimeType + "]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: format can not be specified for runtime_type [" + runtimeType + "]"));
     }
 
     public void testNonDateWithLocale() throws IOException {
@@ -190,7 +190,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
             MapperParsingException.class,
             () -> createIndex("test", Settings.EMPTY, mapping(runtimeType, b -> b.field("locale", "en_GB")))
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: locale not supported by runtime_type [" + runtimeType + "]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: locale can not be specified for runtime_type [" + runtimeType + "]"));
     }
 
     public void testFieldCaps() throws Exception {

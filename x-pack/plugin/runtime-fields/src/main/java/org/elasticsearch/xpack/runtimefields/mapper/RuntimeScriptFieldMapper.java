@@ -242,10 +242,10 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
         private void formatAndLocaleNotSupported() {
             if (format.getValue() != null) {
-                throw new IllegalArgumentException("format not supported by runtime_type [" + runtimeType.getValue() + "]");
+                throw new IllegalArgumentException("format can not be specified for runtime_type [" + runtimeType.getValue() + "]");
             }
             if (locale.getValue() != null) {
-                throw new IllegalArgumentException("locale not supported by runtime_type [" + runtimeType.getValue() + "]");
+                throw new IllegalArgumentException("locale can not be specified for runtime_type [" + runtimeType.getValue() + "]");
             }
         }
     }

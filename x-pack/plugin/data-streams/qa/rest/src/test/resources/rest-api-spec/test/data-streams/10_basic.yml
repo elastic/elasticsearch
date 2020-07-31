@@ -124,17 +124,22 @@ setup:
 
   - do:
       indices.create_data_stream:
-        name: new-ds-1
+        name: simple-data-stream1
   - is_true: acknowledged
 
   - do:
       catch: bad_request
       indices.create_data_stream:
-        name: new-ds-1
+        name: simple-data-stream1
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "resource_already_exists" }
+  - match: { error.root_cause.0.type: "resource_already_exists_exception" }
   - match: { error.root_cause.0.reason: "data_stream [simple-data-stream1] already exists" }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
 
 ---
 "Get data stream":

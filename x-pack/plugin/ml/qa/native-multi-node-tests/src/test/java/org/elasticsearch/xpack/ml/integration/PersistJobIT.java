@@ -94,7 +94,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         openJob(jobId);
 
         // advance time
-        long lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd().getTime();
+        long lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         FlushJobAction.Request advanceTimeRequest = new FlushJobAction.Request(jobId);
         advanceTimeRequest.setAdvanceTime(String.valueOf(lastFinalizedBucketEnd + BUCKET_SPAN_SECONDS * 1000));
         advanceTimeRequest.setCalcInterim(false);

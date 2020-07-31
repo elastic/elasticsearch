@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -361,7 +362,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(updateParams.getFilter().getId());
             executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
                 getFilterResponse -> filterListener.onResponse(getFilterResponse.getFilters().results().get(0)),
-                handler::accept
+                handler
             ));
         }
     }
@@ -426,7 +427,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     e -> closeHandler.accept(e, true)
                 ));
             },
-            e -> closeHandler.accept(e, true));
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof InvalidAliasNameException) {
+                    String msg = "Detected a problem with your setup of machine learning, the state index alias ["
+                        + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        + "] exists as index but must be an alias.";
+                    logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
+                    auditor.error(jobId, msg);
+                    setJobState(jobTask, JobState.FAILED, msg, e2 -> closeHandler.accept(e, true));
+                } else {
+                    closeHandler.accept(e, true);
+                }
+            }
+        );
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(

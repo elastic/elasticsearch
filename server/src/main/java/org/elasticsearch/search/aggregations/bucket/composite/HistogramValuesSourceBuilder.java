@@ -118,7 +118,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            final MappedFieldType fieldType = config.fieldType();
             return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order(),
                 missingBucket(), script() != null);
         } else {

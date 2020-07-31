@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -94,7 +95,7 @@ public final class TimeSeriesRestDriver {
 
     public static void indexDocument(RestClient client, String indexAbstractionName, boolean refresh) throws IOException {
         Request indexRequest = new Request("POST", indexAbstractionName + "/_doc" + (refresh ? "?refresh" : ""));
-        indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+        indexRequest.setEntity(new StringEntity("{\"@timestamp\": \"2020-12-12\"}", ContentType.APPLICATION_JSON));
         Response response = client.performRequest(indexRequest);
         logger.info(response.getStatusLine());
     }
@@ -124,7 +125,7 @@ public final class TimeSeriesRestDriver {
         StringEntity templateJSON = new StringEntity(
             String.format(Locale.ROOT, "{\n" +
                 "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
+                "  \"data_stream\": {},\n" +
                 "  \"template\": %s\n" +
                 "}", indexPattern, Strings.toString(builder)),
             ContentType.APPLICATION_JSON);
@@ -187,4 +188,20 @@ public final class TimeSeriesRestDriver {
                 .endObject()));
         client.performRequest(request);
     }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getOnlyIndexSettings(RestClient client, String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings");
+        request.addParameter("flat_settings", "true");
+        Response response = client.performRequest(request);
+        try (InputStream is = response.getEntity().getContent()) {
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            Map<String, Object> indexSettings = (Map<String, Object>) responseMap.get(index);
+            if (indexSettings == null) {
+                return Collections.emptyMap();
+            }
+            return (Map<String, Object>) indexSettings.get("settings");
+        }
+    }
+
 }

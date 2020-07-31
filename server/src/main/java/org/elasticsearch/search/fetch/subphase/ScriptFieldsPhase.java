@@ -30,10 +30,8 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
@@ -43,9 +41,6 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
         if (context.hasScriptFields() == false) {
             return;
         }
-
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         int lastReaderId = -1;
         FieldScript[] leafScripts = null;

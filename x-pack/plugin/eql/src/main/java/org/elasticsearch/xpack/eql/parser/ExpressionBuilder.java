@@ -75,7 +75,12 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
-        return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+        try {
+            return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+        } catch (ClassCastException ex) {
+            Source source = source(ctx);
+            throw new ParsingException(source, "Unsupported join key ", source.text());
+        }
     }
 
     @Override

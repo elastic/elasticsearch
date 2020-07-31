@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -65,8 +64,9 @@ public class FakeStringFieldMapper extends FieldMapper {
         @Override
         public FakeStringFieldMapper build(BuilderContext context) {
             return new FakeStringFieldMapper(
-                fieldType, new FakeStringFieldType(name),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                fieldType,
+                new FakeStringFieldType(name, new TextSearchInfo(fieldType, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -86,18 +86,9 @@ public class FakeStringFieldMapper extends FieldMapper {
     public static final class FakeStringFieldType extends StringFieldType {
 
 
-        public FakeStringFieldType(String name) {
-            super(name, true, true, Collections.emptyMap());
+        public FakeStringFieldType(String name, TextSearchInfo textSearchInfo) {
+            super(name, true, true, textSearchInfo, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
-            setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
-        }
-
-        protected FakeStringFieldType(FakeStringFieldType ref) {
-            super(ref);
-        }
-
-        public FakeStringFieldType clone() {
-            return new FakeStringFieldType(this);
         }
 
         @Override
@@ -116,8 +107,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     protected FakeStringFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(mappedFieldType.name(), fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
@@ -140,6 +131,11 @@ public class FakeStringFieldMapper extends FieldMapper {
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        return value.toString();
     }
 
     @Override

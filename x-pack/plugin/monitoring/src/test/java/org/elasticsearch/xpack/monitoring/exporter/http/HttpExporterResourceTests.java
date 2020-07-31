@@ -735,7 +735,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         when(state.metadata()).thenReturn(metadata);
         when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
 
         final HttpEntity entity =
                 new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);

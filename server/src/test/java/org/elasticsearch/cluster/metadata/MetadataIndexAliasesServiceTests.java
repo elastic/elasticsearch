@@ -37,9 +37,11 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
@@ -84,7 +86,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // Remove the alias from it while adding another one
         before = after;
         after = service.applyAliasActions(before, Arrays.asList(
-                new AliasAction.Remove(index, "test"),
+                new AliasAction.Remove(index, "test", null),
                 new AliasAction.Add(index, "test_2", null, null, null, null, null)));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         alias = after.metadata().getIndicesLookup().get("test_2");
@@ -95,10 +97,50 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Now just remove on its own
         before = after;
-        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2")));
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
         assertAliasesVersionIncreased(index, before, after);
+    }
+
+    public void testMustExist() {
+        // Create a state with a single index
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+
+        // Add an alias to it
+        ClusterState after = service.applyAliasActions(before, singletonList(new AliasAction.Add(index, "test", null, null, null, null,
+            null)));
+        IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Remove the alias from it with mustExist == true while adding another one
+        before = after;
+        after = service.applyAliasActions(before, Arrays.asList(
+            new AliasAction.Remove(index, "test", true),
+            new AliasAction.Add(index, "test_2", null, null, null, null, null)));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        alias = after.metadata().getIndicesLookup().get("test_2");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Now just remove on its own
+        before = after;
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        assertNull(after.metadata().getIndicesLookup().get("test_2"));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Show that removing non-existing alias with mustExist == true fails
+        final ClusterState finalCS = after;
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));
+        assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
     }
 
     public void testMultipleIndices() {
@@ -183,7 +225,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // now perform a remove and add for each alias which is idempotent, the resulting aliases are unchanged
         final var removeAndAddActions = new ArrayList<AliasAction>(2 * length);
         for (final var aliasName : aliasNames) {
-            removeAndAddActions.add(new AliasAction.Remove(index, aliasName));
+            removeAndAddActions.add(new AliasAction.Remove(index, aliasName, null));
             removeAndAddActions.add(new AliasAction.Add(index, aliasName, null, null, null, null, null));
         }
         final ClusterState afterRemoveAndAddAlias = service.applyAliasActions(afterAddingAlias, removeAndAddActions);
@@ -445,6 +487,24 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 () -> applyHiddenAliasMix(before, randomFrom(false, null), true));
             assertThat(exception.getMessage(), startsWith("alias [alias] has is_hidden set to true on indices ["));
         }
+    }
+
+    public void testAliasesForDataStreamBackingIndicesNotSupported() {
+        String dataStreamName = "foo-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex()))))
+            .build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
+            singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
+        assertThat(exception.getMessage(), is("The provided index [ .ds-foo-stream-000001] is a backing index belonging to data stream " +
+            "[foo-stream]. Data streams and their backing indices don't support alias operations."));
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

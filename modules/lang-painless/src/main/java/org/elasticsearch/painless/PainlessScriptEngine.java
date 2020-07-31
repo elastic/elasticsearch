@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -141,12 +141,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         });
 
-        ScriptRoot scriptRoot = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
+        ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
 
         if (context.statefulFactoryClazz != null) {
-            return generateFactory(loader, context, generateStatefulFactory(loader, context, scriptRoot), scriptRoot);
+            return generateFactory(loader, context, generateStatefulFactory(loader, context, scriptScope), scriptScope);
         } else {
-            return generateFactory(loader, context, WriterConstants.CLASS_TYPE, scriptRoot);
+            return generateFactory(loader, context, WriterConstants.CLASS_TYPE, scriptScope);
         }
     }
 
@@ -169,7 +169,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private <T> Type generateStatefulFactory(
         Loader loader,
         ScriptContext<T> context,
-        ScriptRoot scriptRoot
+        ScriptScope scriptScope
     ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
@@ -251,7 +251,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.returnValue();
         adapter.endMethod();
 
-        writeNeedsMethods(context.statefulFactoryClazz, writer, scriptRoot.getUsedVariables());
+        writeNeedsMethods(context.statefulFactoryClazz, writer, scriptScope.getUsedVariables());
         writer.visitEnd();
 
         loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
@@ -268,7 +268,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
      * @param classType The type to be instaniated in the newFactory or newInstance method.  Depends
      *                  on whether a {@link ScriptContext#statefulFactoryClazz} is specified.
-     * @param scriptRoot the {@link ScriptRoot} used to do the compilation
+     * @param scriptScope the {@link ScriptScope} used to do the compilation
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
@@ -276,7 +276,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Loader loader,
         ScriptContext<T> context,
         Type classType,
-        ScriptRoot scriptRoot
+        ScriptScope scriptScope
     ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
@@ -328,7 +328,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.returnValue();
         adapter.endMethod();
 
-        writeNeedsMethods(context.factoryClazz, writer, scriptRoot.getUsedVariables());
+        writeNeedsMethods(context.factoryClazz, writer, scriptScope.getUsedVariables());
 
         String methodName = "isResultDeterministic";
         org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(methodName,
@@ -337,7 +337,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
             writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
         deterAdapter.visitCode();
-        deterAdapter.push(scriptRoot.isDeterministic());
+        deterAdapter.push(scriptScope.isDeterministic());
         deterAdapter.returnValue();
         deterAdapter.endMethod();
 
@@ -374,14 +374,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    ScriptRoot compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
+    ScriptScope compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
         final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<ScriptRoot>() {
+            return AccessController.doPrivileged(new PrivilegedAction<ScriptScope>() {
                 @Override
-                public ScriptRoot run() {
+                public ScriptScope run() {
                     String name = scriptName == null ? source : scriptName;
                     return compiler.compile(loader, name, source, compilerSettings);
                 }

@@ -47,6 +47,11 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public boolean blobExists(String blobName) throws IOException {
+        return delegate.blobExists(blobName);
+    }
+
+    @Override
     public InputStream readBlob(String blobName) throws IOException {
         return delegate.readBlob(blobName);
     }

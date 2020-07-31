@@ -33,14 +33,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -70,9 +67,6 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         if (context.docValuesContext() == null) {
             return;
         }
-
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
             String field = fieldAndFormat.field;

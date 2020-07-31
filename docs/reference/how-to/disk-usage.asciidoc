@@ -1,7 +1,7 @@
 [[tune-for-disk-usage]]
 == Tune for disk usage
 
-[float]
+[discrete]
 === Disable the features you do not need
 
 By default Elasticsearch indexes and adds doc values to most fields so that they
@@ -86,7 +86,7 @@ PUT index
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[default-dynamic-string-mapping]]
 === Don't use default dynamic string mappings
 
@@ -121,20 +121,20 @@ PUT index
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 === Watch your shard size
 
 Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with fewer primary shards, creating fewer indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
 
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 
-[float]
+[discrete]
 [[disable-source]]
 === Disable `_source`
 
 The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
 
-[float]
+[discrete]
 [[best-compression]]
 === Use `best_compression`
 
@@ -142,19 +142,19 @@ The `_source` and stored fields can easily take a non negligible amount of disk
 space. They can be compressed more aggressively by using the `best_compression`
 <<index-codec,codec>>.
 
-[float]
+[discrete]
 === Force Merge
 
 Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
 
 The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
 
-[float]
+[discrete]
 === Shrink Index
 
 The <<indices-shrink-index,Shrink API>> allows you to reduce the number of shards in an index. Together with the Force Merge API above, this can significantly reduce the number of shards and segments of an index.
 
-[float]
+[discrete]
 === Use the smallest numeric type that is sufficient
 
 The type that you pick for <<number,numeric data>> can have a significant impact
@@ -164,7 +164,7 @@ stored in a `scaled_float` if appropriate or in the smallest type that fits the
 use-case: using `float` over `double`, or `half_float` over `float` will help
 save storage.
 
-[float]
+[discrete]
 === Use index sorting to colocate similar documents
 
 When Elasticsearch stores `_source`, it compresses multiple documents at once
@@ -178,7 +178,7 @@ to the index. If you enabled <<index-modules-index-sorting,index sorting>>
 then instead they are compressed in sorted order. Sorting documents with similar
 structure, fields, and values together should improve the compression ratio.
 
-[float]
+[discrete]
 === Put fields in the same order in documents
 
 Due to the fact that multiple documents are compressed together into blocks,

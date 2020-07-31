@@ -39,6 +39,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -62,6 +63,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
@@ -120,7 +122,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
-        final Settings settings = Settings.EMPTY;
+        final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
     }
@@ -134,7 +136,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
-        final Settings settings = Settings.builder().put(key, maxContentLength + "b").build();
+        final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
         runExpectHeaderTest(
                 settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
@@ -145,7 +147,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+        Settings settings = createSettings();
+        runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
     private void runExpectHeaderTest(
@@ -161,6 +164,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
         };
@@ -197,7 +202,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+        Settings initialSettings = createSettings();
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(initialSettings, networkService, bigArrays, threadPool,
                 xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -222,6 +228,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError();
             }
 
@@ -243,10 +250,10 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
         if (randomBoolean()) {
             maxInitialLineLength = httpMaxInitialLineLengthSetting.getDefault(Settings.EMPTY).bytesAsInt();
-            settings = Settings.EMPTY;
+            settings = createSettings();
         } else {
             maxInitialLineLength = randomIntBetween(1, 8192);
-            settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
+            settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
@@ -280,6 +287,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError();
             }
 
@@ -287,12 +295,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
 
         };
 
-        final Settings settings = Settings.builder()
+        final Settings settings = createBuilderWithPort()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
 
@@ -339,6 +349,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -346,12 +357,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
         };
 
-        Settings settings = Settings.builder()
+        Settings settings = createBuilderWithPort()
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
             .build();
 
@@ -383,5 +396,13 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         } finally {
             group.shutdownGracefully().await();
         }
+    }
+
+    private Settings createSettings() {
+        return createBuilderWithPort().build();
+    }
+
+    private Settings.Builder createBuilderWithPort() {
+        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
     }
 }

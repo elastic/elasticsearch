@@ -46,4 +46,24 @@ setup:
   - match: { aggregations.histo_avg.value:  0.3125}
 
 
+---
+"Histogram over histograms":
 
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: "latency"
+                interval: 0.3
+
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 20 }
+  - match: { aggregations.histo.buckets.1.key: 0.3 }
+  - match: { aggregations.histo.buckets.1.doc_count: 60 }

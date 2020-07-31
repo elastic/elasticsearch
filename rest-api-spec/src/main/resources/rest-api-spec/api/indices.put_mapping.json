@@ -50,6 +50,11 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "write_index_only":{
+        "type":"boolean",
+        "default":false,
+        "description":"When true, applies mappings only to the write index of an alias or data stream"
       }
     },
     "body":{

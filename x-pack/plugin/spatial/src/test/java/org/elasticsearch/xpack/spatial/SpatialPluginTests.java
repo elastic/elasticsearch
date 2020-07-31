@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
@@ -63,7 +64,7 @@ public class SpatialPluginTests extends ESTestCase {
                     License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
                     ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                         () -> supplier.build(null, null, null, 0, null,
-                            0,0,  null, null, false, null));
+                            0,0,  null, null, CardinalityUpperBound.NONE, null));
                     assertThat(exception.getMessage(),
                         equalTo("current license is non-compliant for [" + builderName + " aggregation on geo_shape fields]"));
                 }

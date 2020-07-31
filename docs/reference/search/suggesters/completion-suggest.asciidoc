@@ -28,16 +28,16 @@ which indexes the field values for fast completions.
 --------------------------------------------------
 PUT music
 {
-    "mappings": {
-        "properties" : {
-            "suggest" : {
-                "type" : "completion"
-            },
-            "title" : {
-                "type": "keyword"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "suggest": {
+        "type": "completion"
+      },
+      "title": {
+        "type": "keyword"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -84,10 +84,10 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 --------------------------------------------------
 PUT music/_doc/1?refresh
 {
-    "suggest" : {
-        "input": [ "Nevermind", "Nirvana" ],
-        "weight" : 34
-    }
+  "suggest" : {
+    "input": [ "Nevermind", "Nirvana" ],
+    "weight" : 34
+  }
 }
 --------------------------------------------------
 // TEST
@@ -120,16 +120,16 @@ You can index multiple suggestions for a document as follows:
 --------------------------------------------------
 PUT music/_doc/1?refresh
 {
-    "suggest" : [
-        {
-            "input": "Nevermind",
-            "weight" : 10
-        },
-        {
-            "input": "Nirvana",
-            "weight" : 3
-        }
-    ]
+  "suggest": [
+    {
+      "input": "Nevermind",
+      "weight": 10
+    },
+    {
+      "input": "Nirvana",
+      "weight": 3
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -158,14 +158,14 @@ documents once deleted are never shown. This request:
 --------------------------------------------------
 POST music/_search?pretty
 {
-    "suggest": {
-        "song-suggest" : {
-            "prefix" : "nir", <1>
-            "completion" : { <2>
-                "field" : "suggest" <3>
-            }
-        }
+  "suggest": {
+    "song-suggest": {
+      "prefix": "nir",        <1>
+      "completion": {         <2>
+          "field": "suggest"  <3>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -226,16 +226,16 @@ filtering but using suggest on the `_search` endpoint does:
 --------------------------------------------------
 POST music/_search
 {
-    "_source": "suggest", <1>
-    "suggest": {
-        "song-suggest" : {
-            "prefix" : "nir",
-            "completion" : {
-                "field" : "suggest", <2>
-                "size" : 5 <3>
-            }
-        }
+  "_source": "suggest",     <1>
+  "suggest": {
+    "song-suggest": {
+      "prefix": "nir",
+      "completion": {
+        "field": "suggest", <2>
+        "size": 5           <3>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -249,38 +249,38 @@ Which should look like:
 [source,console-result]
 --------------------------------------------------
 {
-    "took": 6,
-    "timed_out": false,
-    "_shards" : {
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
+  "took": 6,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 0,
+      "relation": "eq"
     },
-    "hits": {
-        "total" : {
-            "value": 0,
-            "relation": "eq"
-        },
-        "max_score" : null,
-        "hits" : []
-    },
-    "suggest": {
-        "song-suggest" : [ {
-            "text" : "nir",
-            "offset" : 0,
-            "length" : 3,
-            "options" : [ {
-                "text" : "Nirvana",
-                "_index": "music",
-                "_id": "1",
-                "_score": 1.0,
-                "_source": {
-                    "suggest": ["Nevermind", "Nirvana"]
-                }
-            } ]
-        } ]
-    }
+    "max_score": null,
+    "hits": []
+  },
+  "suggest": {
+    "song-suggest": [ {
+        "text": "nir",
+        "offset": 0,
+        "length": 3,
+        "options": [ {
+            "text": "Nirvana",
+            "_index": "music",
+            "_id": "1",
+            "_score": 1.0,
+            "_source": {
+              "suggest": [ "Nevermind", "Nirvana" ]
+            }
+          } ]
+      } ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
@@ -316,15 +316,15 @@ When set, this option filters out documents with duplicate suggestions from the 
 --------------------------------------------------
 POST music/_search?pretty
 {
-    "suggest": {
-        "song-suggest" : {
-            "prefix" : "nor",
-            "completion" : {
-                "field" : "suggest",
-                "skip_duplicates": true
-            }
-        }
+  "suggest": {
+    "song-suggest": {
+      "prefix": "nor",
+      "completion": {
+        "field": "suggest",
+        "skip_duplicates": true
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -341,17 +341,17 @@ you can have a typo in your search and still get results back.
 --------------------------------------------------
 POST music/_search?pretty
 {
-    "suggest": {
-        "song-suggest" : {
-            "prefix" : "nor",
-            "completion" : {
-                "field" : "suggest",
-                "fuzzy" : {
-                    "fuzziness" : 2
-                }
-            }
+  "suggest": {
+    "song-suggest": {
+      "prefix": "nor",
+      "completion": {
+        "field": "suggest",
+        "fuzzy": {
+          "fuzziness": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -399,14 +399,14 @@ you can express a prefix as a regular expression
 --------------------------------------------------
 POST music/_search?pretty
 {
-    "suggest": {
-        "song-suggest" : {
-            "regex" : "n[ever|i]r",
-            "completion" : {
-                "field" : "suggest"
-            }
-        }
+  "suggest": {
+    "song-suggest": {
+      "regex": "n[ever|i]r",
+      "completion": {
+        "field": "suggest"
+      }
     }
+  }
 }
 --------------------------------------------------
 

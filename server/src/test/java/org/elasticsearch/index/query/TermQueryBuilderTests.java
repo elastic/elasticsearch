@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -164,6 +165,18 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseAndSerializeBigInteger() throws IOException {
+        String json = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"foo\" : {\n" +
+                "      \"value\" : 80315953321748200608\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        QueryBuilder parsedQuery = parseQuery(json);
+        assertSerialization(parsedQuery);
     }
 
     public void testTypeField() throws IOException {

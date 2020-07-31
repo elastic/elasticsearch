@@ -35,12 +35,11 @@
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
- * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
- * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
+ * {@link org.elasticsearch.painless.node.EBooleanComp} - Represents a boolean expression.
+ * {@link org.elasticsearch.painless.node.EBooleanConstant} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
- * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)
  * {@link org.elasticsearch.painless.node.EDecimal} - Represents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
  * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference (non-capturing).

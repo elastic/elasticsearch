@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -65,7 +66,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             AutoDateHistogramAggregationBuilder.NAME);
@@ -76,7 +77,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         Function<Rounding, Rounding.Prepared> roundingPreparer =
                 config.getValuesSource().roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
         return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
-                roundingPreparer, config, searchContext, parent, collectsFromSingleBucket, metadata);
+                roundingPreparer, config, searchContext, parent, cardinality, metadata);
     }
 
     @Override
@@ -92,7 +93,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             config,
             searchContext,
             parent,
-            false,
+            CardinalityUpperBound.NONE,
             metadata
         );
     }

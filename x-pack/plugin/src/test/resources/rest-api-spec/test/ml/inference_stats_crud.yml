@@ -96,6 +96,46 @@ setup:
               }
             ]
           }
+  # automatically create concrete index so shards get allocated
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        body: >
+          {
+          }
+  # reference and then de-reference a model to flush the stats
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ingest.put_pipeline:
+        id: "regression-model-pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-unused-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ingest.delete_pipeline:
+        id: "regression-model-pipeline-2"
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.health:
+        wait_for_status: yellow
+        index: .ml-stats*
 ---
 "Test get stats given missing trained model":
 
@@ -123,7 +163,6 @@ setup:
   - match: { trained_model_stats: [] }
 ---
 "Test get stats given trained models":
-
   - do:
       ml.get_trained_models_stats:
         model_id: "a-unused-regression-model"

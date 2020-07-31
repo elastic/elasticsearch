@@ -25,7 +25,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-
+import groovy.io.FileType
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -106,8 +106,8 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 tasks.withType(AbstractArchiveTask).configureEach {
   dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
-  destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
+  destinationDirectory = file("${subdir}/build/distributions")
+  archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
 Closure commonZipConfig = {
@@ -145,7 +145,7 @@ tasks.register('buildOssNoJdkWindowsZip', Zip) {
 }
 
 Closure commonTarConfig = {
-  extension = 'tar.gz'
+  archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   dirMode 0755
   fileMode 0644
@@ -243,6 +243,13 @@ subprojects {
       project.delete(archiveExtractionDir)
       archiveExtractionDir.mkdirs()
     }
+    // common sanity checks on extracted archive directly as part of checkExtraction
+    doLast {
+      // check no plain class files are packaged
+      archiveExtractionDir.eachFileRecurse (FileType.FILES) { file ->
+        assert file.name.endsWith(".class") == false
+      }
+    }
   }
   tasks.named('check').configure { dependsOn checkExtraction }
   if (project.name.contains('tar')) {
@@ -329,12 +336,6 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.rest-test'
 
   group = "org.elasticsearch.distribution.integ-test-zip"
-
-  restResources {
-    restTests {
-      includeCore '*'
-    }
-  }
 
   integTest {
     dependsOn assemble

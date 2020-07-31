@@ -25,7 +25,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result expectedResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -40,7 +40,7 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -56,7 +56,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason_ack");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -71,7 +71,7 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -84,7 +84,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -97,7 +97,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.WATCHER)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.WATCHER)).thenReturn(false);
         ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());

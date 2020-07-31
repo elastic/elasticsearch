@@ -128,7 +128,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(columnInfo("plain", "constant_keyword_field", "constant_keyword", JDBCType.VARCHAR, Integer.MAX_VALUE))
+            Arrays.asList(columnInfo("plain", "constant_keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE))
         );
         expected.put("rows", singletonList(singletonList(value)));
         assertResponse(expected, runSql("SELECT constant_keyword_field FROM test"));

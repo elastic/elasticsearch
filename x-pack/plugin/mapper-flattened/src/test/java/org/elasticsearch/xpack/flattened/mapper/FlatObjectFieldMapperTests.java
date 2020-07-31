@@ -9,23 +9,30 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
@@ -35,6 +42,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -367,7 +377,8 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
 
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
 
         expectThrows(MapperParsingException.class, () ->
             newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
@@ -430,7 +441,8 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
 
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
 
         ParsedDocument newParsedDoc = newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");
@@ -493,14 +505,29 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
-        assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
         KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fieldType("field.key");
-        assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
     }
 
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        FlatObjectFieldMapper mapper = new FlatObjectFieldMapper.Builder("field").build(context);
+        assertEquals(sourceValue, mapper.parseSourceValue(sourceValue, null));
+
+        FlatObjectFieldMapper nullValueMapper = new FlatObjectFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+    }
 }

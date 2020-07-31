@@ -633,6 +633,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 
+    public void testGroupByWithRepeatedAliases() {
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY 1, 2");
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY int, keyword");
+    }
+
     public void testHavingOnColumn() {
         assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING int > 2"));
@@ -1020,6 +1025,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testProjectUnresolvedAliasInFilter() {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInFilter() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
     }
 
     public void testGeoShapeInWhereClause() {

@@ -86,26 +86,12 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, Collections.emptyMap());
-        }
-
-        protected NestedPathFieldType(NestedPathFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NestedPathFieldType(this);
+            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return NAME;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            return true;
         }
 
         @Override
@@ -115,7 +101,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     private NestedPathFieldMapper(Settings settings) {
-        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings), settings);
+        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings));
     }
 
     @Override

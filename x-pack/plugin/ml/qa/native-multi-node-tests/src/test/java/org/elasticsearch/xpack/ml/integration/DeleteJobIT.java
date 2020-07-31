@@ -6,16 +6,11 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -28,13 +23,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
-import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
 
 public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
@@ -87,6 +79,13 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(2);
     }
 
+    public void testDeletingMultipleJobsInOneRequestIsImpossible() {
+        String jobIdA = "delete-multiple-jobs-a";
+        String jobIdB = "delete-multiple-jobs-b";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> deleteJob(jobIdA + "," + jobIdB));
+        assertThat(e.getMessage(), containsString("Invalid job_id"));
+    }
+
     private void runJob(String jobId, String datafeedId) throws Exception {
         Detector.Builder detector = new Detector.Builder().setFunction("count");
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
@@ -118,26 +117,8 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
                 .source(xContentBuilder)
+                .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
-    }
-
-    private void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws Exception {
-        // Refresh the annotations index so that recently indexed annotation docs are visible.
-        client().admin().indices().prepareRefresh(AnnotationIndex.INDEX_NAME)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .execute()
-            .actionGet();
-
-        SearchRequest searchRequest =
-            new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        List<Annotation> annotations = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
-                annotations.add(Annotation.fromXContent(parser, null));
-            }
-        }
-        assertThat("Hits were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
     }
 }

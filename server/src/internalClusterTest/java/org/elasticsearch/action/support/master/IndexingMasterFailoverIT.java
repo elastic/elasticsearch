@@ -25,15 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
@@ -103,13 +98,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         barrier.await();
 
         // interrupt communication between master and other nodes in cluster
-        String master = internalCluster().getMasterName();
-        Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-        otherNodes.remove(master);
-
-        NetworkDisruption partition = new NetworkDisruption(
-            new TwoPartitions(Collections.singleton(master), otherNodes),
-            new NetworkDisconnect());
+        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

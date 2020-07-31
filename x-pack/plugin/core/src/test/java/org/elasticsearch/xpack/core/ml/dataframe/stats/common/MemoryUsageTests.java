@@ -44,7 +44,13 @@ public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
     }
 
     public static MemoryUsage createRandom() {
-        return new MemoryUsage(randomAlphaOfLength(10), Instant.now(), randomNonNegativeLong());
+        return new MemoryUsage(
+            randomAlphaOfLength(10),
+            Instant.now(),
+            randomNonNegativeLong(),
+            randomBoolean() ? null : randomFrom(MemoryUsage.Status.values()),
+            randomBoolean() ? null : randomNonNegativeLong()
+        );
     }
 
     @Override
@@ -60,6 +66,6 @@ public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
     public void testZeroUsage() {
         MemoryUsage memoryUsage = new MemoryUsage("zero_usage_job");
         String asJson = Strings.toString(memoryUsage);
-        assertThat(asJson, equalTo("{\"peak_usage_bytes\":0}"));
+        assertThat(asJson, equalTo("{\"peak_usage_bytes\":0,\"status\":\"ok\"}"));
     }
 }

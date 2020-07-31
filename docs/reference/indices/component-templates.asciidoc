@@ -58,14 +58,16 @@ Use the PUT component template API to create or update a component template.
 
 // tag::component-template-def[]
 Component templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, and
-<<indices-aliases,aliases>> that you can automatically apply when creating new indices. On their own
-component templates are not matched or applied to an index, instead they are used in the
-`composed_of` definition of an <<indices-templates,index template>> to make up the final index
-configuration.
+<<indices-aliases,aliases>> that you can automatically apply when creating new data streams and indices. On their own
+component templates are not matched or applied to a data stream or index, instead they are used in the
+`composed_of` definition of an <<indices-templates,index template>>.
 // end::component-template-def[]
 
-Component templates are only used during index creation. Changes to component templates do not
-affect existing indices. Settings and mappings specified in <<indices-create-index, create index>>
+Component templates are only used during index creation. For data streams, this
+includes data stream creation and the creation of a stream's backing indices.
+Changes to component templates do not
+affect existing indices, including a stream's backing indices.
+Settings and mappings specified in <<indices-create-index, create index>>
 API requests and <<indices-templates,index templates>> override any settings or mappings specified
 in a component template.
 
@@ -101,6 +103,8 @@ This is the template to be applied, may optionally include a `mappings`,
 `settings`, or `aliases` configuration.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
++
+NOTE: You cannot add data streams to an index alias.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
@@ -150,9 +154,9 @@ actual index name that the template gets applied to, during index creation.
 [[applying-component-templates]]
 ===== Applying component templates
 
-Component templates on their own don't apply or interact with indices at all. In order for them to
-be effective, they must be used as part of index template's `composed_of` field to take effect. See
-the <<indices-templates,index templates>> documentation for more information.
+Component templates on their own don't apply or interact with data streams or indices at all.
+To take effect, they must be used as part of an index template's `composed_of` field. See
+the <<indices-templates,index templates>>.
 
 [[component-templates-version]]
 ===== Component template versioning
@@ -233,9 +237,10 @@ GET /_component_template/template_1
 [[get-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
-+
-To return all component templates, omit this parameter or use a value of `*`.
+`<component-template>`
+(Required, string)
+Comma-separated list of component template names used to limit the request.
+Wildcard (`*`) expressions are supported.
 
 
 [[get-component-template-api-query-params]]

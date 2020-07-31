@@ -24,11 +24,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -48,6 +52,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -127,7 +132,13 @@ public class AggregatorFactories {
                                     + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
                         }
 
-                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
+                        try {
+                            aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
+                        } catch (NamedObjectNotFoundException ex) {
+                            String message = String.format(Locale.ROOT, "Unknown aggregation type [%s]%s", fieldName,
+                                SuggestingErrorOnUnknown.suggest(fieldName, ex.getCandidates()));
+                            throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
+                        }
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
@@ -173,16 +184,15 @@ public class AggregatorFactories {
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that {@link Aggregator}s created by this method will
+     *                    be asked to collect.
      */
-    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent) throws IOException {
+    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
+                throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            // TODO: sometimes even sub aggregations always get called with bucket 0, eg. if
-            // you have a terms agg under a top-level filter agg. We should have a way to
-            // propagate the fact that only bucket 0 will be collected with single-bucket
-            // aggs
-            final boolean collectsFromSingleBucket = false;
-            Aggregator factory = factories[i].create(searchContext, parent, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(searchContext, parent, cardinality);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -196,9 +206,11 @@ public class AggregatorFactories {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
-            // top-level aggs only get called with bucket 0
-            final boolean collectsFromSingleBucket = true;
-            Aggregator factory = factories[i].create(searchContext, null, collectsFromSingleBucket);
+            /*
+             * Top level aggs only collect from owningBucketOrd 0 which is
+             * *exactly* what CardinalityUpperBound.ONE *means*.  
+             */
+            Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -490,21 +502,17 @@ public class AggregatorFactories {
             Builder newBuilder = new Builder();
 
             for (AggregationBuilder builder : aggregationBuilders) {
-                AggregationBuilder result = AggregationBuilder.rewriteAggregation(builder, context);
-                if (result != builder) {
-                    changed = true;
-                }
+                AggregationBuilder result = Rewriteable.rewrite(builder, context);
                 newBuilder.addAggregator(result);
+                changed |= result != builder;
+            }
+            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+                PipelineAggregationBuilder result = Rewriteable.rewrite(builder, context);
+                newBuilder.addPipelineAggregator(result);
+                changed |= result != builder;
             }
 
-            if (changed) {
-                for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
-                    newBuilder.addPipelineAggregator(builder);
-                }
-                return newBuilder;
-            } else {
-                return this;
-            }
+            return changed ? newBuilder : this;
         }
 
         /**

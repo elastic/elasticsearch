@@ -77,7 +77,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             // This is needed because the after values are parsed even when there are no values to process.
             vs = ValuesSource.Bytes.WithOrdinals.EMPTY;
         }
-        final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+        final MappedFieldType fieldType = config.fieldType();
         final DocValueFormat format;
         if (format() == null && fieldType instanceof DateFieldMapper.DateFieldType) {
             // defaults to the raw format on date fields (preserve timestamp as longs).

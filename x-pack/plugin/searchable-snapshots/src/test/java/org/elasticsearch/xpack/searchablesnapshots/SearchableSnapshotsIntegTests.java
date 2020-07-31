@@ -11,8 +11,12 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,9 +29,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -41,19 +48,24 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -63,6 +75,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -89,16 +102,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
 
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        populateIndex(indexName, 10_000);
 
         final TotalHits originalAllHits = internalCluster().client()
             .prepareSearch(indexName)
@@ -129,8 +133,16 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        ensureGreen(indexName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertShardFolders(indexName, false);
+
+        final boolean deletedBeforeMount = randomBoolean();
+        if (deletedBeforeMount) {
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        } else {
+            assertAcked(client().admin().indices().prepareClose(indexName));
+        }
 
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
@@ -191,9 +203,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+        ensureGreen(restoredIndexName);
+        assertShardFolders(restoredIndexName, true);
 
-        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        if (deletedBeforeMount) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        } else if (indexName.equals(restoredIndexName) == false) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareAliases()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
+                    .addAlias(restoredIndexName, aliasName)
+            );
+        }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
 
@@ -279,6 +304,32 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     }
 
+    private void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
+        final Index restoredIndex = resolveIndex(indexName);
+        final String customDataPath = resolveCustomDataPath(indexName);
+        final ShardId shardId = new ShardId(restoredIndex, 0);
+        boolean shardFolderFound = false;
+        for (String node : internalCluster().getNodeNames()) {
+            final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
+            if (shardPath != null && Files.exists(shardPath.getDataPath())) {
+                shardFolderFound = true;
+                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
+
+                assertTrue(Files.exists(shardPath.resolveTranslog()));
+                try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
+                    final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
+                    if (snapshotDirectory) {
+                        assertEquals(2L, translogFiles);
+                    } else {
+                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                    }
+                }
+            }
+        }
+        assertTrue("no shard folder found", shardFolderFound);
+    }
+
     public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -361,16 +412,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
-        final boolean useRateLimits = randomBoolean();
-        if (useRateLimits) {
-            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(10, ByteSizeUnit.KB));
-        } else {
-            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
-        }
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repositorySettings)
-        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
@@ -391,6 +432,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .collect(Collectors.toList())
         );
         refresh(indexName);
+        forceMerge();
+
+        final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
+        final boolean useRateLimits = randomBoolean();
+        if (useRateLimits) {
+            // we compute the min across all the max shard sizes by node in order to
+            // trigger the rate limiter in all nodes. We could just use the min shard size
+            // but that would make this test too slow.
+            long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(rateLimitInBytes, ByteSizeUnit.BYTES));
+        } else {
+            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+        }
+        assertAcked(
+            client().admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repositorySettings)
+        );
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -435,16 +492,30 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
+    private Map<String, Long> getMaxShardSizeByNodeInBytes(String indexName) {
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(indexName).get();
+        IndexStats indexStats = indicesStats.getIndex(indexName);
+        Map<String, Long> maxShardSizeByNode = new HashMap<>();
+        for (ShardStats shard : indexStats.getShards()) {
+            long sizeInBytes = shard.getStats().getStore().getSizeInBytes();
+            if (sizeInBytes > 0) {
+                maxShardSizeByNode.compute(
+                    shard.getShardRouting().currentNodeId(),
+                    (nodeId, maxSize) -> Math.max(maxSize == null ? 0L : maxSize, sizeInBytes)
+                );
+            }
+        }
+
+        return maxShardSizeByNode;
+    }
+
     public void testMountedSnapshotHasNoReplicasByDefault() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
+        createRepo(fsRepoName);
 
         final int dataNodesCount = internalCluster().numDataNodes();
         final Settings.Builder originalIndexSettings = Settings.builder();
@@ -459,19 +530,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit
             );
         }
-        assertAcked(prepareCreate(indexName, originalIndexSettings));
-        ensureGreen(indexName);
-
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 100); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        createAndPopulateIndex(indexName, originalIndexSettings);
 
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()

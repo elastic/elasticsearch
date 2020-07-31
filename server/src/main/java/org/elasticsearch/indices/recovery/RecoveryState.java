@@ -712,7 +712,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         protected final Map<String, FileDetail> fileDetails = new HashMap<>();
         protected boolean complete;
 
-        RecoveryFilesDetails() {
+        public RecoveryFilesDetails() {
         }
 
         RecoveryFilesDetails(StreamInput in) throws IOException {

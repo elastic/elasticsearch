@@ -5,12 +5,16 @@ With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
+*You do not need to convert joda-time date formats on indices created in {es} 6.8
+before upgrading to {es} 7.7 or newer*
+However you will have to make sure mappings for newly created indices are using
+java-time patterns.
+Note: {es} 7.0-7.6 does not work with joda-time patterns. It was fixed in {es} 7.7
+see: {es-pull}52555[#52555]
+
 [discrete]
 [[java-time-convert-date-formats]]
 === Convert date formats
-
-*You do not need to convert joda-time date formats on indices created in v6.*
-However you will have to make sure mappings for newly created indices are using java-time patterns.
 
 You can start using java-time patterns in {es} 6.8 by prefixing java-time
 date formats with an `8`.

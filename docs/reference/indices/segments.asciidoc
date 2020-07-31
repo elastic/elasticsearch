@@ -9,9 +9,9 @@ segments in index shards.
 
 [source,console]
 ----
-GET /twitter/_segments
+GET /my-index-000001/_segments
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-segments-api-request]]

@@ -9,7 +9,7 @@ when the alias's existing index meets a condition you provide.
 
 [source,console]
 ----
-POST /alias1/_rollover/twitter
+POST /alias1/_rollover/my-index-000002
 {
   "conditions": {
     "max_age":   "7d",
@@ -184,8 +184,8 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"my-index-000001"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created

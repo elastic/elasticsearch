@@ -129,7 +129,7 @@ NOTE: This parameter does *not* override the
 
 [source,console]
 ----
-POST /twitter/_forcemerge
+POST /my-index-000001/_forcemerge
 ----
 // TEST[continued]
 

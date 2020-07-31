@@ -97,11 +97,6 @@ public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryF
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
-    @Override
-    public void clear() {
-
-    }
-
     public static class ScriptBinaryLeafFieldData implements LeafFieldData {
         private final ScriptBinaryDocValues scriptBinaryDocValues;
 

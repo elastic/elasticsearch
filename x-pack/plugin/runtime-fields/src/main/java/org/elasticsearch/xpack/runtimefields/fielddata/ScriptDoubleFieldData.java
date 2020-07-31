@@ -80,9 +80,6 @@ public final class ScriptDoubleFieldData extends IndexNumericFieldData {
         return true;
     }
 
-    @Override
-    public void clear() {}
-
     public static class ScriptDoubleLeafFieldData extends LeafDoubleFieldData {
         private final ScriptDoubleDocValues scriptDoubleDocValues;
 

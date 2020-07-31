@@ -80,9 +80,6 @@ public final class ScriptDateFieldData extends IndexNumericFieldData {
         return true;
     }
 
-    @Override
-    public void clear() {}
-
     public static class ScriptDateLeafFieldData extends LeafLongFieldData {
         private final ScriptLongDocValues scriptLongDocValues;
 

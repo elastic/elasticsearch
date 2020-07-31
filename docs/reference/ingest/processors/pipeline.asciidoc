@@ -72,7 +72,7 @@ from the outer pipeline:
 
 [source,console]
 --------------------------------------------------
-PUT /myindex/_doc/1?pipeline=pipelineB
+PUT /my-index-000001/_doc/1?pipeline=pipelineB
 {
   "field": "value"
 }
@@ -84,7 +84,7 @@ Response from the index request:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "myindex",
+  "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
   "result": "created",

@@ -24,14 +24,11 @@ If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `machine_learning_admin`
-* `kibana_admin` (UI only)
-
-
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-* cluster: `monitor` (UI only)
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+For more information, see <<built-in-roles>>, <<security-privileges>>, and
+{ml-docs-setup-privileges}.
 
 [[ml-start-dfanalytics-desc]]
 == {api-description-title}

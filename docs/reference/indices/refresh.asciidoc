@@ -9,9 +9,9 @@ backing indices.
 
 [source,console]
 ----
-POST /twitter/_refresh
+POST /my-index-000001/_refresh
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[refresh-api-request]]
@@ -93,9 +93,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_refresh
+POST /my-index-000001,my-index-000002/_refresh
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[refresh-api-all-ex]]

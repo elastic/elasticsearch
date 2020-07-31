@@ -10,10 +10,10 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
-GET /twitter/_alias/alias1
+GET /my-index-000001/_alias/alias1
 ----
-// TEST[setup:twitter]
-// TEST[s/^/PUT twitter\/_alias\/alias1\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
 
 
 [[get-alias-api-request]]

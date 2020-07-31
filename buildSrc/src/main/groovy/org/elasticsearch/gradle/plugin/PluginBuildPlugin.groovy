@@ -67,7 +67,9 @@ class PluginBuildPlugin implements Plugin<Project> {
 
         createIntegTestTask(project)
         createBundleTasks(project, extension)
-        project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
+        project.tasks.named("integTest").configure {
+            it.dependsOn(project.tasks.named("bundlePlugin"))
+        }
         if (isModule) {
             project.testClusters.integTest.module(project.tasks.bundlePlugin.archiveFile)
         } else {
@@ -80,7 +82,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 if (project.findProject(":modules:${pluginName}") != null) {
                     project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
                     project.testClusters.integTest.module(
-                        project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
+                            project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
                     )
                 }
             }
@@ -101,15 +103,15 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
 
             Map<String, String> properties = [
-                'name'                : extension1.name,
-                'description'         : extension1.description,
-                'version'             : extension1.version,
-                'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
-                'javaVersion'         : project.targetCompatibility as String,
-                'classname'           : extension1.classname,
-                'extendedPlugins'     : extension1.extendedPlugins.join(','),
-                'hasNativeController' : extension1.hasNativeController,
-                'requiresKeystore'    : extension1.requiresKeystore
+                    'name'                : extension1.name,
+                    'description'         : extension1.description,
+                    'version'             : extension1.version,
+                    'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
+                    'javaVersion'         : project.targetCompatibility as String,
+                    'classname'           : extension1.classname,
+                    'extendedPlugins'     : extension1.extendedPlugins.join(','),
+                    'hasNativeController' : extension1.hasNativeController,
+                    'requiresKeystore'    : extension1.requiresKeystore
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
@@ -142,7 +144,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
         project.configurations.getByName('default')
-            .extendsFrom(project.configurations.getByName('runtimeClasspath'))
+                .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)
@@ -235,7 +237,7 @@ class PluginBuildPlugin implements Plugin<Project> {
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
             from project.configurations.runtimeClasspath - project.configurations.getByName(
-                CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME
+                    CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME
             )
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging

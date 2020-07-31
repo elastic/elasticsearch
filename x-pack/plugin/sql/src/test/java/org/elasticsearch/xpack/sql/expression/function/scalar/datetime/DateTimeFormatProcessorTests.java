@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
@@ -220,7 +221,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd HH:mm:ss.ffffffff t"), zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals("+1000", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
-        assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("+10", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("K"), zoneId).makePipe().asProcessor().process(null));
 
@@ -229,7 +230,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
 
         zoneId = ZoneId.of("America/Sao_Paulo");
         assertEquals("-0300", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
-        assertEquals("BRT", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("-03", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals(
             "America/Sao_Paulo",
             new Format(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null)
@@ -241,5 +242,44 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
                 .asProcessor()
                 .process(null)
         );
+
+        assertEquals(
+            "10:11",
+            new Format(Source.EMPTY, l(time(10, 11, 22, 123456789), TIME), l("H:m"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+
+        assertEquals(
+            "21:9",
+            new Format(Source.EMPTY, l(time(21, 11, 22, 123456789), TIME), l("H:h"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            "2-02",
+            new Format(Source.EMPTY, l(time(21, 11, 2, 123456789), TIME), l("s-ss"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+
+        assertEquals("9-09-Sep-September",
+            new Format(Source.EMPTY, dateTime, l("M-MM-MMM-MMMM"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
+
+        assertEquals("arr: 3:10 PM",
+            new Format(Source.EMPTY, dateTime, l("'arr:' h:m t"), zoneId).makePipe()
+                .asProcessor()
+                .process(null))
+        ;
+        assertEquals("-03/-0300/-03:00",
+            new Format(Source.EMPTY, dateTime, l("z/zz/zzz"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
+        assertEquals("3", new Format(Source.EMPTY, dateTime, l("d"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("01-2001-02001",
+            new Format(Source.EMPTY, l(dateTime(2001, 9, 3, 18, 10, 37, 123456789)),
+                l("yy-yyyy-yyyyy"), zoneId).makePipe().asProcessor().process(null));
     }
 }

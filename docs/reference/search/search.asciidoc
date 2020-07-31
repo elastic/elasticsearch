@@ -95,8 +95,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
 
 `ignore_throttled`::
@@ -153,7 +153,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
@@ -179,8 +179,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -316,8 +316,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
 
 [[request-body-search-query]]
@@ -345,8 +345,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -422,7 +422,7 @@ Identifier for the search and its <<scroll-search-context,search context>>.
 +
 You can use this scroll ID with the <<scroll-api,scroll API>> to retrieve the
 next batch of search results for the request. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.

@@ -50,7 +50,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
@@ -293,7 +292,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                try (OutputStream out = Channels.newOutputStream(new WritableByteChannel() {
+                org.elasticsearch.core.internal.io.Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+
                     @SuppressForbidden(reason = "channel is based on a socket")
                     @Override
                     public int write(final ByteBuffer src) throws IOException {
@@ -309,9 +309,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     public void close() throws IOException {
                         SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                     }
-                })) {
-                    org.elasticsearch.core.internal.io.Streams.doCopy(inputStream, out, buffer);
-                }
+                }), buffer);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one

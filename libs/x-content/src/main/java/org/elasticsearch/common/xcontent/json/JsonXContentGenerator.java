@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
@@ -350,7 +349,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         } else {
             writeStartRaw(name);
             flush();
-            copyStream(content, os);
+            Streams.copy(content, os, false);
             writeEndRaw();
         }
     }
@@ -365,7 +364,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            Streams.doCopy(stream, os);
+            Streams.copy(stream, os);
             writeEndRaw();
         }
     }
@@ -467,29 +466,5 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public boolean isClosed() {
         return generator.isClosed();
-    }
-
-    /**
-     * Copy the contents of the given InputStream to the given OutputStream.
-     * Closes both streams when done.
-     *
-     * @param in  the stream to copy from
-     * @param out the stream to copy to
-     * @throws IOException in case of I/O errors
-     */
-    private static void copyStream(InputStream in, OutputStream out) throws IOException {
-        Objects.requireNonNull(in, "No InputStream specified");
-        Objects.requireNonNull(out, "No OutputStream specified");
-        boolean success = false;
-        try {
-            Streams.doCopy(in, out);
-            success = true;
-        } finally {
-            if (success) {
-                IOUtils.close(in, out);
-            } else {
-                IOUtils.closeWhileHandlingException(in, out);
-            }
-        }
     }
 }

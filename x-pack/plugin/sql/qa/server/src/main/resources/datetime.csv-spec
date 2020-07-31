@@ -1028,6 +1028,16 @@ FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
 05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
 ;
 
+selectFormatWithLength
+schema::format_datetime:s|length:i
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) AS length;
+
+    format_datetime     | length
+------------------------+----------------
+ 05/04/2020 11:22:33.12 | 22
+;
+
 selectFormatWithField
 schema::birth_date:ts|format_birth_date1:s|format_birth_date2:s
 SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2

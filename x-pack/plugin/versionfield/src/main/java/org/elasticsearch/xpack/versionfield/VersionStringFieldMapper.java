@@ -491,11 +491,11 @@ public class VersionStringFieldMapper extends FieldMapper {
         return value.toString();
     }
 
-    private static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
+    public static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
-            return "version_semver";
+            return "version";
         }
 
         @Override

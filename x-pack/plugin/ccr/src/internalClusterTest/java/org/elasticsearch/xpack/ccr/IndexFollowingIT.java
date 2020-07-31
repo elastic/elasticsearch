@@ -254,9 +254,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         AtomicBoolean isRunning = new AtomicBoolean(true);
 
         // Concurrently index new docs with mapping changes
-        int numFields = between(50, 200);
+        int numFields = between(10, 20);
         Thread thread = new Thread(() -> {
-            int numDocs = between(100, 1000);
+            int numDocs = between(10, 200);
             for (int i = 0; i < numDocs; i++) {
                 if (isRunning.get() == false) {
                     break;

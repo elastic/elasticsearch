@@ -17,6 +17,7 @@ all documents in the source.
 
 The destination must exist and should be configured as wanted before calling `_reindex`.
 Reindex does not copy the settings from the source or its associated template.
+Reindex also does not apply index templates matching the destination.
 
 Mappings, shard counts, replicas, and so on must be configured ahead of time.
 =================================================

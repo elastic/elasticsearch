@@ -7,10 +7,16 @@ if your cluster is impacted and, if so, prepare for the upgrade.
 
 *You do not need to convert joda-time date formats on indices created in {es} 6.8
 before upgrading to {es} 7.7 or newer*
+
 However you will have to make sure mappings for newly created indices are using
 java-time patterns.
 Note: {es} 7.0-7.6 does not work with joda-time patterns. It was fixed in {es} 7.7
 see: {es-pull}52555[#52555]
+
+You need to update your pipelines or templates, because creating new indices with
+joda-time patterns in mappings is not allowed.
+<<java-time-migration-update-ingest-pipelines>>
+<<java-time-migration-update-index-templates>>
 
 [discrete]
 [[java-time-convert-date-formats]]

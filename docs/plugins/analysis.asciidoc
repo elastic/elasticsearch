@@ -18,7 +18,7 @@ transliteration.
 
 <<analysis-kuromoji,Kuromoji>>::
 
-Advanced analysis of Japanese using the http://www.atilika.org/[Kuromoji analyzer].
+Advanced analysis of Japanese using the https://www.atilika.org/[Kuromoji analyzer].
 
 <<analysis-nori,Nori>>::
 

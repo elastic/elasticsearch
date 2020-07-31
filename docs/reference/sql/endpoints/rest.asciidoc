@@ -98,7 +98,7 @@ s|Description
 
 |cbor
 |application/cbor
-|http://cbor.io/[Concise Binary Object Representation]
+|https://cbor.io/[Concise Binary Object Representation]
 
 |smile
 |application/smile

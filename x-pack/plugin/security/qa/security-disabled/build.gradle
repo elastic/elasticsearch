@@ -1,9 +1,4 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
-/*
  * This QA project tests the security plugin when security is explicitlt disabled.
  * It is intended to cover security functionality which is supposed to
  * function in a specific way even if security is disabled on the cluster

@@ -38,6 +38,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
@@ -67,13 +71,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.TestUtils;
+import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -558,6 +565,23 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     throw new UncheckedIOException(e);
                 }
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+                final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
+                final RecoveryState recoveryState = new RecoveryState(
+                    TestShardRouting.newShardRouting(
+                        shardId,
+                        discoveryNode.getId(),
+                        true,
+                        ShardRoutingState.INITIALIZING,
+                        new RecoverySource.SnapshotRecoverySource(
+                            UUIDs.randomBase64UUID(),
+                            new Snapshot("_repo", snapshotId),
+                            Version.CURRENT,
+                            indexId
+                        )
+                    ),
+                    discoveryNode,
+                    null
+                );
                 final Path cacheDir = createTempDir();
                 final CacheService cacheService = TestUtils.createDefaultCacheService();
                 releasables.add(cacheService);
@@ -567,6 +591,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
+                        new NoopBlobStoreCacheService(),
+                        "_repo",
                         snapshotId,
                         indexId,
                         shardId,
@@ -581,7 +607,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         threadPool
                     )
                 ) {
-                    final boolean loaded = snapshotDirectory.loadSnapshot();
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState);
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", snapshotDirectory.snapshot(), sameInstance(snapshot));
                     assertThat("BlobContainer should be loaded", snapshotDirectory.blobContainer(), sameInstance(blobContainer));
@@ -655,12 +681,31 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 throw new UncheckedIOException(e);
             }
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+            final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
+            final RecoveryState recoveryState = new RecoveryState(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    discoveryNode.getId(),
+                    true,
+                    ShardRoutingState.INITIALIZING,
+                    new RecoverySource.SnapshotRecoverySource(
+                        UUIDs.randomBase64UUID(),
+                        new Snapshot("_repo", snapshotId),
+                        Version.CURRENT,
+                        indexId
+                    )
+                ),
+                discoveryNode,
+                null
+            );
             final Path cacheDir = createTempDir();
             final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
                     () -> snapshot,
+                    new NoopBlobStoreCacheService(),
+                    "_repo",
                     snapshotId,
                     indexId,
                     shardId,
@@ -678,7 +723,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 )
             ) {
 
-                final boolean loaded = directory.loadSnapshot();
+                final boolean loaded = directory.loadSnapshot(recoveryState);
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));
                 assertThat("BlobContainer should be loaded", directory.blobContainer(), sameInstance(blobContainer));
@@ -731,7 +776,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
             );
         }
     }

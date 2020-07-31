@@ -9,11 +9,15 @@ package org.elasticsearch.index.store.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
+import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
@@ -28,12 +32,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
@@ -136,6 +143,58 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
+        // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
+        // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
+        if (length == CodecUtil.footerLength()) {
+            // we're comparing the global position (file pointer + offset) with the total file length (not the length of the index input
+            // which can be a slice) so the following code only applies when reading the footer of non-sliced index inputs (we're asserting
+            // that we are not reading from a clone as it would be surprising that Lucene uses a slice to verify the footer of a .cfs file)
+            if (position == fileInfo.length() - length) {
+                logger.trace("reading footer of file [{}] at position [{}], bypassing all caches", fileInfo.physicalName(), position);
+                b.put(checksumToBytesArray(fileInfo.checksum()));
+                assert b.remaining() == 0L;
+                assert isClone == false;
+                return; // TODO we should add this to DirectBlobContainerIndexInput too.
+            }
+        }
+
+        final List<Tuple<Long, Integer>> regions;
+
+        // We prefer to use the index cache if the recovery is not done yet
+        if (directory.isRecoveryDone() == false) {
+            // We try to use the snapshot blob cache if:
+            // - we're reading the first N bytes of the file
+            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
+            // - the file is small enough to be fully cached in the blob cache
+            final boolean canBeFullyCached = (fileInfo.length() <= (BlobStoreCacheService.DEFAULT_SIZE * 2));
+
+            if (canBeFullyCached || isStartOfFile) {
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
+                if (cachedBlob != null) {
+                    logger.trace(
+                        "reading [{}] bytes of file [{}] at position [{}] using index cache",
+                        length,
+                        fileInfo.physicalName(),
+                        position
+                    );
+                    b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
+                    return;
+                }
+            }
+
+            // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested so
+            // we compute the regions of the file we would like to have the next time. The regions are expressed as tuple of
+            // {position, length} where position is relative to the file.
+            if (canBeFullyCached) {
+                // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
+                regions = List.of(Tuple.tuple(0L, Math.toIntExact(fileInfo.length())));
+            } else {
+                regions = List.of(Tuple.tuple(0L, BlobStoreCacheService.DEFAULT_SIZE));
+            }
+        } else {
+            regions = List.of();
+        }
+
         int totalBytesRead = 0;
         while (totalBytesRead < length) {
             final long pos = position + totalBytesRead;
@@ -159,7 +218,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             read = readCacheFile(channel, pos, b);
                         }
                         return read;
-                    }, this::writeCacheFile, directory.cacheFetchAsyncExecutor()).get();
+                    },
+                        (channel, from, to, progressUpdater) -> writeCacheFile(channel, from, to, progressUpdater, regions, logger),
+                        directory.cacheFetchAsyncExecutor()
+                    ).get();
                 }
             } catch (final Exception e) {
                 if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
@@ -346,8 +408,14 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return bytesRead;
     }
 
-    private void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
-        throws IOException {
+    private void writeCacheFile(
+        final FileChannel fc,
+        final long start,
+        final long end,
+        final Consumer<Long> progressUpdater,
+        final List<Tuple<Long, Integer>> cacheableRegions,
+        final Logger logger
+    ) throws IOException {
         assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
@@ -357,7 +425,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long bytesCopied = 0L;
         long remaining = end - start;
         final long startTimeNanos = stats.currentTimeNanos();
-        try (InputStream input = openInputStream(start, length)) {
+        try (InputStream input = openInputStream(start, length, cacheableRegions, directory::putCachedBlob, logger)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, start, end, remaining, cacheFileReference);
                 positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));

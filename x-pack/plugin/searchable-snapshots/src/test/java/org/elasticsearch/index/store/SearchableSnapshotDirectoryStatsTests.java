@@ -9,7 +9,12 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +27,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.cache.TestUtils;
+import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -199,7 +207,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = directory.getStats(fileName);
 
                 // account for internal buffered reads
-                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE;
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -316,7 +324,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = (long) BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE;
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -381,7 +389,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.readBytes(readBuffer, 0, size);
 
                     // BufferedIndexInput tries to read as much bytes as possible
-                    final long bytesRead = Math.min(BufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
+                    final long bytesRead = Math.min(BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE, input.length() - randomPosition);
                     lastReadPosition = randomPosition + bytesRead;
                     totalBytesRead += bytesRead;
                     minBytesRead = (bytesRead < minBytesRead) ? bytesRead : minBytesRead;
@@ -608,6 +616,23 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             throw new UncheckedIOException(e);
         }
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
+        final RecoveryState recoveryState = new RecoveryState(
+            TestShardRouting.newShardRouting(
+                shardId,
+                discoveryNode.getId(),
+                true,
+                ShardRoutingState.INITIALIZING,
+                new RecoverySource.SnapshotRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    new Snapshot("_repo", snapshotId),
+                    Version.CURRENT,
+                    indexId
+                )
+            ),
+            discoveryNode,
+            null
+        );
         final Path cacheDir = createTempDir();
 
         try (
@@ -615,6 +640,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
+                new NoopBlobStoreCacheService(),
+                "_repo",
                 snapshotId,
                 indexId,
                 shardId,
@@ -637,7 +664,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            final boolean loaded = directory.loadSnapshot();
+            final boolean loaded = directory.loadSnapshot(recoveryState);
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());

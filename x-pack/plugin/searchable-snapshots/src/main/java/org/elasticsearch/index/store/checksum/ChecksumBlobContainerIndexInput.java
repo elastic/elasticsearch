@@ -131,14 +131,18 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
      * @throws IOException if something goes wrong when creating the {@link ChecksumBlobContainerIndexInput}
      */
     public static ChecksumBlobContainerIndexInput create(String name, long length, String checksum, IOContext context) throws IOException {
+        return new ChecksumBlobContainerIndexInput(name, length, checksumToBytesArray(checksum), context);
+    }
+
+    public static byte[] checksumToBytesArray(String checksum) throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        try (IndexOutput output = new ByteBuffersIndexOutput(out, "tmp", name)) {
+        try (IndexOutput output = new ByteBuffersIndexOutput(out, "footerChecksumToBytesArray", "tmp")) {
             // reverse CodecUtil.writeFooter()
             output.writeInt(CodecUtil.FOOTER_MAGIC);
             output.writeInt(0);
             output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
             output.close();
-            return new ChecksumBlobContainerIndexInput(name, length, out.toArrayCopy(), context);
+            return out.toArrayCopy();
         }
     }
 }

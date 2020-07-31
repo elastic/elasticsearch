@@ -1223,6 +1223,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":
+            case ".snapshot-blob-cache":
                 return true;
             default:
                 return false;

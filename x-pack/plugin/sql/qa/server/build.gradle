@@ -33,15 +33,12 @@ dependencies {
   testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
 }
 
-/* disable unit tests because these are all integration tests used
- * other qa projects. */
-test.enabled = false
-
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
-
-// just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
-thirdPartyAudit.enabled = false
+// this is just a test fixture used by other projects and not in production
+['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}
 
 subprojects {
   if (subprojects.isEmpty()) {

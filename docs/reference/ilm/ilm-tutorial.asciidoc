@@ -37,7 +37,7 @@ IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin,
 lifecycle policies are set up automatically.
 You do not need to take any other actions.
 You can modify the default policies through
-{kibana-ref}/example-using-index-lifecycle-policy.html[{kib} Management]
+<<example-using-index-lifecycle-policy,{kib} Management>>
 or the {ilm-init} APIs.
 
 [discrete]

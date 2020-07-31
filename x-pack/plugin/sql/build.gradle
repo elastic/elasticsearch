@@ -84,7 +84,7 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
 
-task cleanGenerated(type: Delete) {
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -93,8 +93,8 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn cleanGenerated
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -109,8 +109,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/SqlBase.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)

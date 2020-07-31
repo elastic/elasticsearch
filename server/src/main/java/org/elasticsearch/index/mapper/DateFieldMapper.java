@@ -466,6 +466,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
             // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            // TODO maybe aggs should force millis because lots so of other places want nanos?
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }

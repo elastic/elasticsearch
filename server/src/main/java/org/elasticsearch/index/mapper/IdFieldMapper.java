@@ -211,12 +211,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
                                 Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
-
-                        @Override
-                        public void clear() {
-                            fieldData.clear();
-                        }
-
                     };
                 }
             };

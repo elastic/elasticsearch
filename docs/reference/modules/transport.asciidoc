@@ -1,18 +1,12 @@
 [[modules-transport]]
 === Transport
 
-The transport networking layer is used for internal communication between nodes
-within the cluster. Each call that goes from one node to the other uses
-the transport layer (for example, when an HTTP GET request is processed
-by one node, and should actually be processed by another node that holds
-the data).
-
-The transport mechanism is completely asynchronous in nature, meaning
-that there is no blocking thread waiting for a response. The benefit of
-using asynchronous communication is first solving the
-http://en.wikipedia.org/wiki/C10k_problem[C10k problem], as well as
-being the ideal solution for scatter (broadcast) / gather operations such
-as search in Elasticsearch.
+Clients send requests to your {es} cluster over <<modules-http,HTTP>>, but the
+node that receives a client request cannot always handle it alone and must
+normally pass it on to other nodes for further processing. It does this using
+the transport networking layer. The transport layer is used for all internal
+communication between nodes within a cluster, and also for all communication
+with the nodes of a <<modules-remote-clusters,remote cluster>>.
 
 [[transport-settings]]
 ==== Transport settings
@@ -137,17 +131,18 @@ configured, and defaults otherwise to `transport.tcp.reuse_address`.
 [[long-lived-connections]]
 ===== Long-lived idle connections
 
-Elasticsearch opens a number of long-lived TCP connections between each pair of
-nodes in the cluster, and some of these connections may be idle for an extended
-period of time. Nonetheless, Elasticsearch requires these connections to remain
-open, and it can disrupt the operation of the cluster if any inter-node
-connections are closed by an external influence such as a firewall. It is
-important to configure your network to preserve long-lived idle connections
-between Elasticsearch nodes, for instance by leaving `tcp.keep_alive` enabled
-and ensuring that the keepalive interval is shorter than any timeout that might
+A transport connection between two nodes is made up of a number of long-lived
+TCP connections, some of which may be idle for an extended period of time.
+Nonetheless, Elasticsearch requires these connections to remain open, and it
+can disrupt the operation of your cluster if any inter-node connections are
+closed by an external influence such as a firewall. It is important to
+configure your network to preserve long-lived idle connections between
+Elasticsearch nodes, for instance by leaving `tcp.keep_alive` enabled and
+ensuring that the keepalive interval is shorter than any timeout that might
 cause idle connections to be closed, or by setting `transport.ping_schedule` if
-keepalives cannot be configured.
-
+keepalives cannot be configured. Devices which drop connections when they reach
+a certain age are a common source of problems to Elasticsearch clusters, and
+must not be used.
 
 [[request-compression]]
 ===== Request compression

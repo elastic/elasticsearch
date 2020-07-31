@@ -2196,6 +2196,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new Index(index, uuid);
     }
 
+    public static String resolveCustomDataPath(String index) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
+        return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
+    }
+
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }

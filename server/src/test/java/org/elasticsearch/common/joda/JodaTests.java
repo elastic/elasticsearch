@@ -37,11 +37,10 @@ public class JodaTests extends ESTestCase {
         assertEquals(formatter1.pattern(), "basic_t_time");
         assertEquals(formatter1.zone(), ZoneOffset.UTC);
 
-        DateFormatter formatter2 = Joda.forPattern("basicTTime");
-        assertEquals(formatter2.pattern(), "basicTTime");
+        DateFormatter formatter2 = Joda.forPattern("basic_t_time");
+        assertEquals(formatter2.pattern(), "basic_t_time");
         assertEquals(formatter2.zone(), ZoneOffset.UTC);
-        assertWarnings("Camel case format name basicTTime is deprecated and will be removed in a future version. " +
-            "Use snake case name basic_t_time instead.");
+
         DateTime dt = new DateTime(2004, 6, 9, 10, 20, 30, 40, DateTimeZone.UTC);
         assertEquals("T102030.040Z", formatter1.formatJoda(dt));
         assertEquals("T102030.040Z", formatter1.formatJoda(dt));

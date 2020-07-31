@@ -299,6 +299,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 }
                 IndexRequest indexRequest = new IndexRequest(indexOrAlias)
                     .id(progressDocId)
+                    .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     LOGGER.debug("[{}] Persisting progress is: {}", jobId, stats.get().getProgress());

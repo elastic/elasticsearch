@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -25,13 +26,22 @@ import static org.hamcrest.Matchers.equalTo;
 public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
+        return randomDateHistogramGroupSource(Version.CURRENT);
+    }
+
+    public static DateHistogramGroupSource randomDateHistogramGroupSource(Version version) {
         String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        ScriptConfig scriptConfig = randomBoolean() ? null : ScriptConfigTests.randomScriptConfig();
+        ScriptConfig scriptConfig = version.onOrAfter(Version.V_7_7_0)
+            ? randomBoolean() ? null : ScriptConfigTests.randomScriptConfig()
+            : null;
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+
         DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
             dateHistogramGroupSource = new DateHistogramGroupSource(
                 field,
                 scriptConfig,
+                missingBucket,
                 new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(randomTimeValue(1, 100, "d", "h", "ms", "s", "m"))),
                 randomBoolean() ? randomZone() : null
             );
@@ -39,6 +49,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
             dateHistogramGroupSource = new DateHistogramGroupSource(
                 field,
                 scriptConfig,
+                missingBucket,
                 new DateHistogramGroupSource.CalendarInterval(
                     new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w", "M", "q", "y"))
                 ),
@@ -48,9 +59,13 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
 
         return dateHistogramGroupSource;
     }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60464")
+    public void testBackwardsSerialization72() throws IOException {
+        // version 7.7 introduced scripts, so test before that
+        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
+            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_7_0)
+        );
 
-    public void testBackwardsSerialization() throws IOException {
-        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_2_0);
             groupSource.writeTo(output);
@@ -82,6 +97,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
             field,
             null,
+            randomBoolean(),
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
             null
         );
@@ -104,6 +120,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
             field,
             null,
+            randomBoolean(),
             new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),
             null
         );

@@ -89,7 +89,7 @@ the probability that each document is an outlier.
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver 
     operating characteristic) score and optionally the curve. Default value is 
-    {"includes_curve": false}.
+    {"include_curve": false}.
     
   `confusion_matrix`:::
     (Optional, object) Set the different thresholds of the {olscore} at where
@@ -163,6 +163,11 @@ belongs.
 
   `accuracy`:::
     (Optional, object) Accuracy of predictions (per-class and overall).
+
+  `auc_roc`:::
+    (Optional, object) The AUC ROC (area under the curve of the receiver
+    operating characteristic) score and optionally the curve. Default value is
+    {"include_curve": false}.
 
   `multiclass_confusion_matrix`:::
     (Optional, object) Multiclass confusion matrix.

@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection.actualIsTrueQuery;
 
@@ -66,12 +68,18 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
     }
 
     @Override
+    public Set<String> getRequiredFields() {
+        return Set.of(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
+    }
+
+    @Override
     public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                  String actualField,
-                                                                                  String predictedProbabilityField) {
+                                                                                  EvaluationFields fields) {
         if (result != null) {
             return Tuple.tuple(List.of(), List.of());
         }
+        String actualField = fields.getActualField();
+        String predictedProbabilityField = fields.getPredictedProbabilityField();
         return Tuple.tuple(aggsAt(actualField, predictedProbabilityField), List.of());
     }
 

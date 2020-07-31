@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
@@ -120,9 +122,15 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     }
 
     @Override
+    public Set<String> getRequiredFields() {
+        return Set.of(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+    }
+
+    @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        String actualField,
-                                                                                        String predictedField) {
+                                                                                        EvaluationFields fields) {
+        String actualField = fields.getActualField();
+        String predictedField = fields.getPredictedField();
         if (topActualClassNames.get() == null && actualClassesCardinality.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(

@@ -392,7 +392,11 @@ public class Classification implements DataFrameAnalysis {
             return additionalProperties;
         }
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
-        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
+        additionalProperties.put(
+            resultsFieldName + ".top_classes",
+            Map.of(
+                "type", ObjectMapper.NESTED_CONTENT_TYPE,
+                "properties", Map.of("class_name", dependentVariableMapping)));
         return additionalProperties;
     }
 

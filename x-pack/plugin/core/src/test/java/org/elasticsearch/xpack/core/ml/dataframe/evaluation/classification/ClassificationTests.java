@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -33,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
@@ -64,7 +67,13 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     PrecisionTests.createRandom(),
                     RecallTests.createRandom(),
                     MulticlassConfusionMatrixTests.createRandom()));
-        return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+        return new Classification(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            metrics.isEmpty() ? null : metrics);
     }
 
     @Override
@@ -84,7 +93,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     public void testConstructor_GivenEmptyMetrics() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", "bar", Collections.emptyList()));
+            () -> new Classification("foo", "bar", "baz", "baz2", "baz3", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[classification] must have one or more metrics"));
     }
 
@@ -101,7 +110,53 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        Classification evaluation = new Classification("act", "pred", Arrays.asList(new MulticlassConfusionMatrix()));
+        Classification evaluation = new Classification("act", "pred", null, null, null, Arrays.asList(new MulticlassConfusionMatrix()));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithProbabilityField() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(QueryBuilders.existsQuery("pred"))
+                .filter(QueryBuilders.existsQuery("pred_prob"))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        Classification evaluation =
+            new Classification("act", "pred", null, null, "pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithNestedProbabilityField() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(QueryBuilders.existsQuery("pred"))
+                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results"), ScoreMode.None))
+                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("pred_class"), ScoreMode.None))
+                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("pred_prob"), ScoreMode.None))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        Classification evaluation =
+            new Classification("act", "pred", "results", "pred_class", "pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
@@ -114,7 +169,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         EvaluationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
         EvaluationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
 
-        Classification evaluation = new Classification("act", "pred", Arrays.asList(metric1, metric2, metric3, metric4));
+        Classification evaluation = new Classification("act", "pred", null, null, null, Arrays.asList(metric1, metric2, metric3, metric4));
         assertThat(metric1.getResult(), isEmpty());
         assertThat(metric2.getResult(), isEmpty());
         assertThat(metric3.getResult(), isEmpty());
@@ -199,9 +254,13 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
+        public Set<String> getRequiredFields() {
+            return Set.of(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+        }
+
+        @Override
         public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                      String actualField,
-                                                                                      String predictedField) {
+                                                                                      EvaluationFields fields) {
             return Tuple.tuple(List.of(), List.of());
         }
 

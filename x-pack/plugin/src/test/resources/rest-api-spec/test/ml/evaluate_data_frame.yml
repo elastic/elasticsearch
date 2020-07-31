@@ -1,6 +1,15 @@
 setup:
 
   - do:
+      indices.create:
+        index: utopia
+        body:
+          mappings:
+            properties:
+              ml.top_classes:
+                type: nested
+
+  - do:
       index:
         index: utopia
         body:  >
@@ -14,7 +23,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.9},
+              {"class_name": "cat", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -31,7 +44,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   - do:
@@ -48,7 +65,11 @@ setup:
             "classification_field_act": "mouse",
             "classification_field_pred": "mouse",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.3},
+              {"class_name": "dog", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -65,7 +86,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.6},
+              {"class_name": "dog", "class_probability": 0.3}
+            ]
           }
 
   - do:
@@ -82,7 +107,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.7},
+              {"class_name": "cat", "class_probability": 0.3}
+            ]
           }
 
   - do:
@@ -99,7 +128,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.9},
+              {"class_name": "cat", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -116,7 +149,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   - do:
@@ -133,7 +170,11 @@ setup:
             "classification_field_act": "mouse",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   # This document misses the required fields and should be ignored
@@ -443,7 +484,7 @@ setup:
 ---
 "Test outlier_detection given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, outlier_score\] fields/
+      catch: /No documents found containing all the required fields \[missing, outlier_score\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -459,7 +500,7 @@ setup:
 ---
 "Test outlier_detection given missing predicted_probability_field":
   - do:
-      catch: /No documents found containing both \[is_outlier, missing\] fields/
+      catch: /No documents found containing all the required fields \[is_outlier, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -598,7 +639,155 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "metrics": { }
+                "metrics": {}
+              }
+            }
+          }
+---
+"Test classification auc_roc with missing results_nested_field":
+  - do:
+      catch: /\[classification\] must define \[results_nested_field\] as required by the following metrics \[auc_roc\]/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc with missing predicted_class_name_field":
+  - do:
+      catch: /\[classification\] must define \[predicted_class_name_field\] as required by the following metrics \[auc_roc\]/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc with missing predicted_probability_field":
+  - do:
+      catch: /\[classification\] must define \[predicted_probability_field\] as required by the following metrics \[auc_roc\]/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc with missing class_name":
+  - do:
+      # TODO: Revisit this error message as it does not give any clue about which field is missing
+      catch: /Failed to build \[auc_roc\] after last required field arrived/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {}
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc given actual_field is never equal to fish":
+  - do:
+      catch: /\[auc_roc\] requires at least one actual_field to have the value \[fish\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc":
+  - do:
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "cat"
+                  }
+                }
+              }
+            }
+          }
+  - match: { classification.auc_roc.score: 0.8050111095212122 }
+  - is_false: classification.auc_roc.curve
+---
+"Test classification accuracy with missing predicted_field":
+  - do:
+      catch: /\[classification\] must define \[predicted_field\] as required by the following metrics \[accuracy\]/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_probability_field": "outlier_score",
+                "metrics": { "accuracy": {} }
               }
             }
           }
@@ -785,7 +974,7 @@ setup:
 ---
 "Test classification given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, classification_field_pred.keyword\] fields/
+      catch: /No documents found containing all the required fields \[missing, classification_field_pred.keyword\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -801,7 +990,7 @@ setup:
 ---
 "Test classification given missing predicted_field":
   - do:
-      catch: /No documents found containing both \[classification_field_act.keyword, missing\] fields/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -932,7 +1121,7 @@ setup:
 ---
 "Test regression given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, regression_field_pred\] fields/
+      catch: /No documents found containing all the required fields \[missing, regression_field_pred\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -948,7 +1137,7 @@ setup:
 ---
 "Test regression given missing predicted_field":
   - do:
-      catch: /No documents found containing both \[regression_field_act, missing\] fields/
+      catch: /No documents found containing all the required fields \[regression_field_act, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {

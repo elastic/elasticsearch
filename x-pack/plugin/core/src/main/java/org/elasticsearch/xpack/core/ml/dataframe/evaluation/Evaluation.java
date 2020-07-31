@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -25,7 +26,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Defines an evaluation
@@ -38,14 +41,9 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     String getName();
 
     /**
-     * Returns the field containing the actual value
+     * Returns the collection of fields required by evaluation
      */
-    String getActualField();
-
-    /**
-     * Returns the field containing the predicted value
-     */
-    String getPredictedField();
+    EvaluationFields getFields();
 
     /**
      * Returns the list of metrics to evaluate
@@ -59,6 +57,22 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", getName());
         }
         Collections.sort(metrics, Comparator.comparing(EvaluationMetric::getName));
+        for (Tuple<String, String> requiredField : getFields().listAll()) {
+            String fieldDescriptor = requiredField.v1();
+            String field = requiredField.v2();
+            if (field == null) {
+                String metricNamesString =
+                    metrics.stream()
+                        .filter(m -> m.getRequiredFields().contains(fieldDescriptor))
+                        .map(EvaluationMetric::getName)
+                        .collect(joining(", "));
+                if (metricNamesString.isEmpty() == false) {
+                    throw ExceptionsHelper.badRequestException(
+                        "[{}] must define [{}] as required by the following metrics [{}]",
+                        getName(), fieldDescriptor, metricNamesString);
+                }
+            }
+        }
         return metrics;
     }
 
@@ -70,16 +84,40 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
         Objects.requireNonNull(userProvidedQueryBuilder);
         BoolQueryBuilder boolQuery =
             QueryBuilders.boolQuery()
-                // Verify existence of required fields
-                .filter(QueryBuilders.existsQuery(getActualField()))
-                .filter(QueryBuilders.existsQuery(getPredictedField()))
-                // Apply user-provided query
-                .filter(userProvidedQueryBuilder);
+                // Verify existence of the actual field (which is always required)
+                .filter(QueryBuilders.existsQuery(getFields().getActualField()));
+        if (getFields().getPredictedField() != null) {
+            // Verify existence of the predicted field if required for this evaluation
+            boolQuery.filter(QueryBuilders.existsQuery(getFields().getPredictedField()));
+        }
+        if (getFields().getResultsNestedField() != null) {
+            // Verify existence of the results nested field if required for this evaluation
+            QueryBuilder resultsNestedFieldExistsQuery = QueryBuilders.existsQuery(getFields().getResultsNestedField());
+            boolQuery.filter(QueryBuilders.nestedQuery(getFields().getResultsNestedField(), resultsNestedFieldExistsQuery, ScoreMode.None));
+        }
+        if (getFields().getPredictedClassNameField() != null) {
+            // Verify existence of the predicted class name field if required for this evaluation
+            QueryBuilder classNameFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassNameField());
+            boolQuery.filter(QueryBuilders.nestedQuery(getFields().getResultsNestedField(), classNameFieldExistsQuery, ScoreMode.None));
+        }
+        if (getFields().getPredictedProbabilityField() != null) {
+            // Verify existence of the predicted probability field if required for this evaluation
+            QueryBuilder probabilityFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedProbabilityField());
+            // predicted probability field may be either nested (just like in case of classification evaluation) or non-nested (just like
+            // in case of outlier detection evaluation). Here we support both modes.
+            if (getFields().getResultsNestedField() != null) {
+                boolQuery.filter(
+                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), probabilityFieldExistsQuery, ScoreMode.None));
+            } else {
+                boolQuery.filter(probabilityFieldExistsQuery);
+            }
+        }
+        // Apply user-provided query
+        boolQuery.filter(userProvidedQueryBuilder);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(boolQuery);
         for (EvaluationMetric metric : getMetrics()) {
             // Fetch aggregations requested by individual metrics
-            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs =
-                metric.aggs(parameters, getActualField(), getPredictedField());
+            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs = metric.aggs(parameters, getFields());
             aggs.v1().forEach(searchSourceBuilder::aggregation);
             aggs.v2().forEach(searchSourceBuilder::aggregation);
         }
@@ -93,8 +131,12 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     default void process(SearchResponse searchResponse) {
         Objects.requireNonNull(searchResponse);
         if (searchResponse.getHits().getTotalHits().value == 0) {
-            throw ExceptionsHelper.badRequestException(
-                "No documents found containing both [{}, {}] fields", getActualField(), getPredictedField());
+            String requiredFieldsString =
+                getFields().listAll().stream()
+                    .map(Tuple::v2)
+                    .filter(Objects::nonNull)
+                    .collect(joining(", "));
+            throw ExceptionsHelper.badRequestException("No documents found containing all the required fields [{}]", requiredFieldsString);
         }
         for (EvaluationMetric metric : getMetrics()) {
             metric.process(searchResponse.getAggregations());
@@ -117,6 +159,6 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             .map(EvaluationMetric::getResult)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .collect(Collectors.toList());
+            .collect(toList());
     }
 }

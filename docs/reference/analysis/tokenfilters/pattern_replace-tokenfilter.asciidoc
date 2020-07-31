@@ -7,7 +7,7 @@
 Uses a regular expression to match and replace token substrings.
 
 The `pattern_replace` filter uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
 regular expression syntax]. By default, the filter replaces matching
 substrings with an empty substring (`""`).
 
@@ -22,7 +22,7 @@ A poorly-written regular expression may run slowly or return a
 StackOverflowError, causing the node running the expression to exit suddenly.
 
 Read more about
-http://www.regular-expressions.info/catastrophic.html[pathological regular
+https://www.regular-expressions.info/catastrophic.html[pathological regular
 expressions and how to avoid them].
 ====
 
@@ -108,7 +108,7 @@ in each token. Defaults to `true`.
 `pattern`::
 (Required, string)
 Regular expression, written in
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
 regular expression syntax]. The filter replaces token substrings matching this
 pattern with the substring in the `replacement` parameter.
 

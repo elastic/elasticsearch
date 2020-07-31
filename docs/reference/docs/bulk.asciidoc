@@ -107,7 +107,7 @@ Perl::
 
 Python::
 
-    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+    See https://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
 
 JavaScript::
 

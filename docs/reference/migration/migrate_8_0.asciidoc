@@ -34,6 +34,7 @@ coming[8.0.0]
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_threadpool_changes>>
 * <<breaking_80_transport_changes>>
+* <<breaking_80_java_time_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -49,7 +50,7 @@ Elasticsearch 8.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 7.0.
 
 *Impact* +
-Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x. 
+Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x.
 ====
 
 .REST API endpoints containing `_xpack` have been removed.

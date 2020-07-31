@@ -60,9 +60,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
                     );
                 }
-
             }
         });
-
     }
 }

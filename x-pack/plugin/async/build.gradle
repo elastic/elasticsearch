@@ -3,9 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -25,5 +22,7 @@ dependencyLicenses {
   ignoreSha 'x-pack-core'
 }
 
+//no tests
+test.enabled = false
 integTest.enabled = false
 

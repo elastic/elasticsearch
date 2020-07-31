@@ -48,7 +48,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     private final ValuesSourceType valuesSourceType;
     private final IndexFieldDataCache cache;
     protected final CircuitBreakerService breakerService;
-    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    protected final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
     protected AbstractIndexOrdinalsFieldData(
         String fieldName,

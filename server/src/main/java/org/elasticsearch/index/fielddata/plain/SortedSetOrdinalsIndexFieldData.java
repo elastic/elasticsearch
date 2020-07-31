@@ -73,7 +73,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     }
 
     private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
-    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
     public SortedSetOrdinalsIndexFieldData(
         IndexFieldDataCache cache,
@@ -83,7 +82,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) {
         super(fieldName, valuesSourceType, cache, breakerService, scriptFunction);
-        this.scriptFunction = scriptFunction;
     }
 
     @Override

@@ -144,6 +144,11 @@ include::request/script-fields.asciidoc[]
 
 See <<scroll-search-results>>.
 
+[[_clear_scroll_api]]
+===== Clear scroll API
+
+See <<clear-scroll-api>>.
+
 [[request-body-search-search-after]]
 ==== Search After
 

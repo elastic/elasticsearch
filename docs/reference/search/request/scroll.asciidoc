@@ -152,8 +152,8 @@ GET /_nodes/stats/indices/search
 ---------------------------------------
 
 [discrete]
-[[_clear_scroll_api]]
-==== Clear scroll API
+[[clear-scroll]]
+==== Clear scroll
 
 Search context are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the

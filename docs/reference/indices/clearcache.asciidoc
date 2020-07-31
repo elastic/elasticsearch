@@ -8,9 +8,9 @@ Clears caches for one or more indices.
 
 [source,console]
 ----
-POST /twitter/_cache/clear
+POST /my-index-000001/_cache/clear
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[clear-cache-api-request]]
@@ -99,9 +99,9 @@ by setting the following query parameters to `true`:
 
 [source,console]
 ----
-POST /twitter/_cache/clear?fielddata=true  <1>
-POST /twitter/_cache/clear?query=true      <2>
-POST /twitter/_cache/clear?request=true    <3>
+POST /my-index-000001/_cache/clear?fielddata=true  <1>
+POST /my-index-000001/_cache/clear?query=true      <2>
+POST /my-index-000001/_cache/clear?request=true    <3>
 ----
 // TEST[continued]
 
@@ -119,7 +119,7 @@ use the `fields` query parameter.
 
 [source,console]
 ----
-POST /twitter/_cache/clear?fields=foo,bar   <1>
+POST /my-index-000001/_cache/clear?fields=foo,bar   <1>
 ----
 // TEST[continued]
 
@@ -131,9 +131,9 @@ POST /twitter/_cache/clear?fields=foo,bar   <1>
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_cache/clear
+POST /my-index-000001,my-index-000002/_cache/clear
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[clear-cache-api-all-ex]]

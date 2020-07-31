@@ -13,11 +13,11 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 POST /_aliases
 {
   "actions" : [
-    { "add" : { "index" : "twitter", "alias" : "alias1" } }
+    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
   ]
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[indices-aliases-api-request]]

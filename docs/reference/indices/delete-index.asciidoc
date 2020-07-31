@@ -8,9 +8,9 @@ Deletes an existing index.
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter
+DELETE /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[delete-index-api-request]]

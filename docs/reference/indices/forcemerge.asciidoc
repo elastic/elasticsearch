@@ -8,9 +8,9 @@ Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
 
 [source,console]
 ----
-POST /twitter/_forcemerge
+POST /my-index-000001/_forcemerge
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[forcemerge-api-request]]
@@ -129,7 +129,7 @@ NOTE: This parameter does *not* override the
 
 [source,console]
 ----
-POST /twitter/_forcemerge
+POST /my-index-000001/_forcemerge
 ----
 // TEST[continued]
 
@@ -165,10 +165,9 @@ its shards can be force-merged to a single segment.
 
 [source,console]
 --------------------------------------------------
-POST /logs-000001/_forcemerge?max_num_segments=1
+POST /my-index-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/logs-000001/twitter/]
+// TEST[setup:my_index]
 
 This can be a good idea because single-segment shards can sometimes use simpler
 and more efficient data structures to perform searches.

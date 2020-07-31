@@ -12,8 +12,8 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 ----
 HEAD /_alias/alias1
 ----
-// TEST[setup:twitter]
-// TEST[s/^/PUT twitter\/_alias\/alias1\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
 
 
 [[alias-exists-api-request]]

@@ -117,6 +117,26 @@ setup:
   - match: { error.root_cause.0.reason: "data_stream [invalid-data-stream#-name] must not contain '#'" }
 
 ---
+"Create existing data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: new-ds-1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: new-ds-1
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "resource_already_exists" }
+  - match: { error.root_cause.0.reason: "data_stream [simple-data-stream1] already exists" }
+
+---
 "Get data stream":
   - skip:
       version: " - 7.8.99"

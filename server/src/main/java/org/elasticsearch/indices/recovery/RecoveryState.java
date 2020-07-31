@@ -746,7 +746,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (params.paramAsBoolean("detailed", true)) {
+            if (params.paramAsBoolean("detailed", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (FileDetail file : values()) {
                     file.toXContent(builder, params);

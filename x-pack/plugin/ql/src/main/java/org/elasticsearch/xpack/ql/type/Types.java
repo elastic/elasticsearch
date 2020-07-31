@@ -21,7 +21,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 
 public abstract class Types {
 
@@ -91,8 +90,6 @@ public abstract class Types {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
-            } else if (esDataType == WILDCARD) {
-                field = new WildcardEsField(name);
             } else if (esDataType == CONSTANT_KEYWORD) {
                 field = new ConstantKeywordEsField(name);
             } else if (esDataType == DATETIME) {

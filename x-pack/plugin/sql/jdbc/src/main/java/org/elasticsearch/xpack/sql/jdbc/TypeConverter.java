@@ -215,7 +215,6 @@ final class TypeConverter {
             case TEXT:
             case KEYWORD:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 return v; // These types are already represented correctly in JSON
             case BYTE:
                 return ((Number) v).byteValue(); // Parser might return it as integer or long - need to update to the correct type
@@ -330,7 +329,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 return Boolean.valueOf((String) val);
             default:
                 return failConversion(val, columnType, typeString, Boolean.class);
@@ -354,7 +352,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Byte.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -383,7 +380,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Short.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -411,7 +407,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Integer.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -444,7 +439,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Long.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -473,7 +467,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Float.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -501,7 +494,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return Double.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -568,7 +560,6 @@ final class TypeConverter {
             case KEYWORD:
             case TEXT:
             case CONSTANT_KEYWORD:
-            case WILDCARD:
                 try {
                     return new BigDecimal((String) val);
                 } catch (NumberFormatException nfe) {

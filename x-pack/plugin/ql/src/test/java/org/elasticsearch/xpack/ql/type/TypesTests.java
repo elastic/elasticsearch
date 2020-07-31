@@ -21,7 +21,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -141,7 +140,7 @@ public class TypesTests extends ESTestCase {
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
         assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
-        assertThat(fields.get("wildcard").getDataType(), is(WILDCARD));
+        assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
     public void testMultiFieldTooManyOptions() {
@@ -156,7 +155,7 @@ public class TypesTests extends ESTestCase {
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
         assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
-        assertThat(fields.get("wildcard").getDataType(), is(WILDCARD));
+        assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
     public void testNestedDoc() {

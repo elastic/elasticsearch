@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
@@ -64,11 +63,8 @@ public final class DataTypeConverter {
             if (left == TEXT || right == TEXT) {
                 return TEXT;
             }
-            if (left == KEYWORD || right == KEYWORD) {
+            if (left == KEYWORD) {
                 return KEYWORD;
-            }
-            if (left == CONSTANT_KEYWORD) {
-                return CONSTANT_KEYWORD;
             }
             return right;
         }
@@ -128,7 +124,7 @@ public final class DataTypeConverter {
             return DefaultConverter.TO_NULL;
         }
         // proper converters
-        if (to == KEYWORD || to == TEXT || to == WILDCARD || to == CONSTANT_KEYWORD) {
+        if (to == KEYWORD || to == TEXT || to == CONSTANT_KEYWORD) {
             return conversionToString(from);
         }
         if (to == LONG) {

@@ -18,19 +18,18 @@
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
-<% if (is_ubi) { %>
-ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
-ARG BASE_IMAGE=redhat/ubi/ubi8
-ARG BASE_TAG=8.2
+${build_args}
 
-FROM \${BASE_REGISTRY}/\${BASE_IMAGE}:\${BASE_TAG} AS builder
-
+FROM ${base_image} AS builder
+<% if (variant == 'ubi_minimal') { %>
+# Install required packages to extract the Elasticsearch distribution
+RUN ${package_manager} install -y tar gzip
+<% } %>
+<% if (variant == 'ubi') { %>
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 COPY tini /tini
 <% } else { %>
-FROM centos:7 AS builder
-
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 #
@@ -69,16 +68,14 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
-<% if (is_ubi) { %>
-FROM \${BASE_REGISTRY}/\${BASE_IMAGE}:\${BASE_TAG} AS builder
-<% } else { %>
-FROM centos:7
-<% } %>
+FROM ${base_image}
+
 ENV ELASTIC_CONTAINER true
 
-RUN yum update --setopt=tsflags=nodocs -y && \\
-    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
-    yum clean all
+RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
+    ${package_manager} install --setopt=tsflags=nodocs -y \\
+      nc shadow-utils zip unzip <%= variant == 'ubi_minimal' ? 'findutils' : '' %> && \\
+    ${package_manager} clean all
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
@@ -131,7 +128,7 @@ USER elasticsearch:root
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
-<% if (is_ubi) { %>
+<% if (variant == 'ubi') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
 <% } %>
 ################################################################################

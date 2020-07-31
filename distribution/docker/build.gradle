@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
+import org.elasticsearch.gradle.Variant
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
@@ -8,6 +9,7 @@ import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.util.stream.Collectors
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -31,18 +33,15 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
+ext.expansions = { Architecture architecture, Variant variant, boolean local ->
   String classifier
-  if (local || ubi) {
-    switch (architecture) {
-      case Architecture.AARCH64:
-        classifier = "linux-aarch64"
-        break
-      case Architecture.X64:
-        classifier = "linux-x86_64"
-        break
-      default:
-        throw new IllegalArgumentException("Unrecognized architecture [" + architecture + "], must be one of (aarch64|x64)")
+  if (local || variant == Variant.UBI) {
+    if (architecture == Architecture.AARCH64) {
+      classifier = "linux-aarch64"
+    } else if (architecture == Architecture.X64) {
+      classifier = "linux-x86_64"
+    } else {
+      throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
   } else {
     /* When sourcing the Elasticsearch build remotely, the same Dockerfile needs
@@ -51,7 +50,24 @@ ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean 
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+  final String elasticsearch = "elasticsearch-${variant == Variant.OSS ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+
+  String buildArgs = '#'
+  if (variant == Variant.UBI) {
+    buildArgs = """
+ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
+ARG BASE_IMAGE=redhat/ubi/ubi8
+ARG BASE_TAG=8.2
+ARG TARBALL=${elasticsearch}
+"""
+  }
+
+  String baseImage = 'centos:7'
+  if (variant == Variant.UBI) {
+    baseImage = '${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG} AS builder'
+  } else if (variant == Variant.UBI_MINIMAL) {
+    baseImage = 'registry.access.redhat.com/ubi8/ubi-minimal:8.2'
+  }
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
@@ -60,11 +76,8 @@ ext.expansions = { Architecture architecture, boolean oss, boolean ubi, boolean 
   String sourceElasticsearch
   if (local) {
     sourceElasticsearch = "COPY ${elasticsearch} /opt/elasticsearch.tar.gz"
-  } else if (ubi) {
-    sourceElasticsearch = """
-ARG TARBALL=${elasticsearch}
-COPY \${TARBALL} /opt/elasticsearch.tar.gz
-"""
+  } else if (variant == Variant.UBI) {
+    sourceElasticsearch = 'COPY ${TARBALL} /opt/elasticsearch.tar.gz'
   } else {
     sourceElasticsearch = """
 RUN curl --retry 8 -S -L \\
@@ -74,15 +87,18 @@ RUN curl --retry 8 -S -L \\
   }
 
   return [
-    'is_ubi'              : ubi,
-    'bin_dir'             : ubi ? 'scripts' : 'bin',
-    'config_dir'          : ubi ? 'scripts' : 'config',
+    'base_image'          : baseImage,
+    'bin_dir'             : variant == Variant.UBI ? 'scripts' : 'bin',
+    'build_args'          : buildArgs,
     'build_date'          : BuildParams.buildDate,
+    'config_dir'          : variant == Variant.UBI ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
-    'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
+    'license'             : variant == Variant.OSS ? 'Apache-2.0' : 'Elastic-License',
+    'package_manager'     : variant == Variant.UBI_MINIMAL ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
+    'variant'             : variant.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : ubi ? getChecksum(configurations.dockerSource.singleFile) : ''
+    'version_hash'        : variant == Variant.UBI ? getChecksum(configurations.dockerSource.singleFile) : ''
   ]
 }
 
@@ -113,21 +129,23 @@ private static String getChecksum(File file) {
   return sb.toString()
 }
 
-private static String buildPath(final Architecture architecture, final boolean oss) {
-  return "build/${architecture == Architecture.AARCH64 ? 'aarch64-' : ''}${oss ? 'oss-' : ''}docker"
+private static String buildPath(Architecture architecture, Variant variant) {
+  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().replace('_', '-') + '-'
+  return "build/${architecture == Architecture.AARCH64 ? 'aarch64-' : ''}${variantString}docker"
 }
 
-private static String taskName(final String prefix, final Architecture architecture, final boolean oss, final String suffix) {
-  return "${prefix}${architecture == Architecture.AARCH64 ? 'Aarch64' : ''}${oss ? 'Oss' : ''}${suffix}"
+private static String taskName(String prefix, Architecture architecture, Variant variant, String suffix) {
+  String variantString = variant == Variant.DEFAULT ? '' : variant.name().tokenize("_")*.toLowerCase()*.capitalize().join()
+  return "${prefix}${architecture == Architecture.AARCH64 ? 'Aarch64' : ''}${variantString}${suffix}"
 }
 
 project.ext {
-  dockerBuildContext = { Architecture architecture, boolean oss, boolean ubi, boolean local ->
+  dockerBuildContext = { Architecture architecture, Variant variant, boolean local ->
     copySpec {
-      final Map<String,String> varExpansions = expansions(architecture, oss, ubi, local)
+      final Map<String,String> varExpansions = expansions(architecture, variant, local)
       final Path projectDir = project.projectDir.toPath()
 
-      if (ubi) {
+      if (variant == Variant.UBI) {
         into('scripts') {
           from projectDir.resolve("src/docker/bin")
           from(projectDir.resolve("src/docker/config")) {
@@ -149,7 +167,7 @@ project.ext {
          */
           duplicatesStrategy = DuplicatesStrategy.INCLUDE
           from projectDir.resolve("src/docker/config")
-          if (oss) {
+          if (variant == Variant.OSS) {
             from projectDir.resolve("src/docker/config/oss")
           }
         }
@@ -162,23 +180,23 @@ project.ext {
   }
 }
 
-void addCopyDockerContextTask(final Architecture architecture, final boolean oss) {
-  task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
-    expansions(architecture, oss, false, true).findAll { it.key != 'build_date' }.each { k, v ->
+void addCopyDockerContextTask(Architecture architecture, Variant variant) {
+  task(taskName("copy", architecture, variant, "DockerContext"), type: Sync) {
+    expansions(architecture, variant, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into buildPath(architecture, oss)
+    into buildPath(architecture, variant)
 
-    with dockerBuildContext(architecture, oss, false, true)
+    with dockerBuildContext(architecture, variant, true)
 
     if (architecture == Architecture.AARCH64) {
-      if (oss) {
+      if (variant == Variant.OSS) {
         from configurations.aarch64OssDockerSource
       } else {
         from configurations.aarch64DockerSource
       }
     } else {
-      if (oss) {
+      if (variant == Variant.OSS) {
         from configurations.ossDockerSource
       } else {
         from configurations.dockerSource
@@ -254,23 +272,24 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
-void addBuildDockerImage(final Architecture architecture, final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", architecture, oss, "DockerImage"), type: DockerBuildTask) {
-    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, "DockerContext"))
+void addBuildDockerImage(Architecture architecture, Variant variant) {
+  final Task buildDockerImageTask = task(taskName("build", architecture, variant, "DockerImage"), type: DockerBuildTask) {
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, variant, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
-    if (oss) {
+    if (variant == Variant.OSS) {
       tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
         "elasticsearch-oss:test"
       ]
     } else {
+      String suffix = variant == Variant.UBI ? '-ubi8' : variant == Variant.UBI_MINIMAL ? '-ubi8-minimal' : ''
       tags = [
-        "elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
-        "elasticsearch:test",
+        "elasticsearch${suffix}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${suffix}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full${suffix}:${VersionProperties.elasticsearch}",
+        "elasticsearch${suffix}:test",
       ]
     }
   }
@@ -278,13 +297,13 @@ void addBuildDockerImage(final Architecture architecture, final boolean oss) {
   assemble.dependsOn(buildDockerImageTask)
 }
 
-// Note that the build process for UBI is different enough that
-// we only provide a task for generating the build context, not actually
-// building the image. See the `ubi-docker-build-context` sub-project.
 for (final Architecture architecture : Architecture.values()) {
-  for (final boolean oss : [false, true]) {
-    addCopyDockerContextTask(architecture, oss)
-    addBuildDockerImage(architecture, oss)
+  for (Variant variant : Variant.values()) {
+    if (architecture != Architecture.X64 && variant == Variant.UBI) {
+      continue
+    }
+    addCopyDockerContextTask(architecture, variant)
+    addBuildDockerImage(architecture, variant)
   }
 }
 
@@ -305,10 +324,15 @@ subprojects { Project subProject ->
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     final boolean oss = subProject.name.contains('oss-')
+    // We don't export UBI at the moment
+    final Variant variant = oss ? Variant.OSS : Variant.DEFAULT
 
-    def exportTaskName = taskName("export", architecture, oss, "DockerImage")
-    def buildTaskName = taskName("build", architecture, oss, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${architecture == Architecture.AARCH64 ? '-aarch64' : ''}${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+    final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+    final String suffix = oss ? '-oss' : ''
+
+    def exportTaskName = taskName("export", architecture, variant, "DockerImage")
+    def buildTaskName = taskName("build", architecture, variant, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${arch}${suffix}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
@@ -317,7 +341,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${oss ? '-oss' : ''}:test"
+        "elasticsearch${suffix}:test"
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
@@ -326,7 +350,7 @@ subprojects { Project subProject ->
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'
-      name "elasticsearch${architecture == Architecture.AARCH64 ? '-aarch64' : ''}${oss ? '-oss' : ''}"
+      name "elasticsearch${arch}${suffix}"
       builtBy exportTaskName
     }
 

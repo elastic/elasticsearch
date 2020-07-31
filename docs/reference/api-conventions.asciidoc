@@ -542,7 +542,7 @@ Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
 using the `fuzziness` parameter.
 
 When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
-http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
+{wikipedia}/Levenshtein_distance[Levenshtein Edit Distance]
 -- the number of one character changes that need to be made to one string to
 make it the same as another string.
 

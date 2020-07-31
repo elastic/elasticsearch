@@ -63,7 +63,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-task createServiceAccountFile() {
+tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(1024)
@@ -133,6 +133,6 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-task gcsThirdPartyTest {
-  dependsOn integTest
+tasks.register("gcsThirdPartyTest")  {
+  dependsOn "integTest"
 }

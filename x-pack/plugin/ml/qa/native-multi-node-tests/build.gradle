@@ -16,7 +16,7 @@ File keystoreDir = new File(project.buildDir, 'keystore')
 File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+tasks.register("copyKeyCerts", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -24,10 +24,10 @@ task copyKeyCerts(type: Copy) {
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+tasks.named("processTestResources").configure { dependsOn("copyKeyCerts") }
 
 integTest {
-  dependsOn copyKeyCerts
+  dependsOn "copyKeyCerts"
   runner {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each

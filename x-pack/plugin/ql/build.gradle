@@ -21,17 +21,18 @@ configurations {
   testArtifacts.extendsFrom testImplementation
 }
 
-task testJar(type: Jar) {
+TaskProvider testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }
 
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives jar
+  archives tasks.named("jar")
   testArtifacts testJar
 }
 
-
 // disable integration tests for now
-integTest.enabled = false
+tasks.named("integTest").configure {
+  enabled = false
+}

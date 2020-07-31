@@ -48,8 +48,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final BucketOrder order;
     protected final boolean keyed;
     protected final long minDocCount;
-    protected final double minBound;
-    protected final double maxBound;
+    protected final DoubleBounds extendedBounds;
     protected final DoubleBounds hardBounds;
     protected final LongKeyedBucketOrds bucketOrds;
 
@@ -61,8 +60,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         DocValueFormat formatter,
         SearchContext context,
@@ -80,8 +78,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.formatter = formatter;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
@@ -100,7 +97,10 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
 
                 EmptyBucketInfo emptyBucketInfo = null;
                 if (minDocCount == 0) {
-                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+                    emptyBucketInfo = new EmptyBucketInfo(interval, offset,
+                        extendedBounds == null || extendedBounds.getMin() == null ? Double.POSITIVE_INFINITY : extendedBounds.getMin(),
+                        extendedBounds == null || extendedBounds.getMax() == null ? Double.NEGATIVE_INFINITY : extendedBounds.getMax(),
+                        buildEmptySubAggregations());
                 }
                 return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
             });
@@ -110,7 +110,10 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {
-            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset,
+                extendedBounds == null || extendedBounds.getMin() == null ? Double.POSITIVE_INFINITY : extendedBounds.getMin(),
+                extendedBounds == null || extendedBounds.getMax() == null ? Double.NEGATIVE_INFINITY : extendedBounds.getMax(),
+                buildEmptySubAggregations());
         }
         return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }

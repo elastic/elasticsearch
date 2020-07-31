@@ -70,6 +70,15 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
      * Construct with bounds.
      */
     public DoubleBounds(Double min, Double max) {
+        if (min != null && Double.isFinite(min) == false) {
+            throw new IllegalArgumentException("min bound must be finite, got: " + min);
+        }
+        if (max != null && Double.isFinite(max) == false) {
+            throw new IllegalArgumentException("max bound must be finite, got: " + max);
+        }
+        if (max != null && min != null && max < min) {
+            throw new IllegalArgumentException("max bound [" + max + "] must be greater than min bound [" + min + "]");
+        }
         this.min = min;
         this.max = max;
     }
@@ -123,6 +132,14 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
 
     public Double getMax() {
         return max;
+    }
+
+    public double getEffectiveMin() {
+        return min != null ? min : Double.POSITIVE_INFINITY;
+    }
+
+    public Double getEffectiveMax() {
+        return max != null ? max : Double.NEGATIVE_INFINITY;
     }
 
     public boolean contain(double value) {

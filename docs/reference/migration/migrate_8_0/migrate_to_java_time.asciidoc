@@ -1,5 +1,5 @@
 [discrete]
-[[breaking_70_java_time_changes]]
+[[breaking_80_java_time_changes]]
 [[migrate-to-java-time]]
 === Java time migration guide
 

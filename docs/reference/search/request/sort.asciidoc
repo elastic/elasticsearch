@@ -46,7 +46,7 @@ GET /my-index-000001/_search
 
 NOTE: `_doc` has no real use-case besides being the most efficient sort order.
 So if you don't care about the order in which documents are returned, then you
-should sort by `_doc`. This especially helps when <<request-body-search-scroll,scrolling>>.
+should sort by `_doc`. This especially helps when <<scroll-search-results,scrolling>>.
 
 [discrete]
 === Sort Values

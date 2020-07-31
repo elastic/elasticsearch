@@ -48,7 +48,7 @@ DELETE /_index_template/foo_data_stream
 
 [source,console]
 ----
-GET /_resolve/index/twitter*
+GET /_resolve/index/my-index-*
 ----
 
 [[resolve-index-api-request]]

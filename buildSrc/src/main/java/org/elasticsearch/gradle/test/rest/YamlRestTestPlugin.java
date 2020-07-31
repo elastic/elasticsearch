@@ -29,9 +29,9 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupRunnerTask;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupTask;
 
 /**
@@ -54,20 +54,18 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         // setup the yamlRestTest task
-        RestIntegTestTask yamlRestTestTask = setupTask(project, SOURCE_SET_NAME);
-
-        // setup the runner task
-        setupRunnerTask(project, yamlRestTestTask, yamlTestSourceSet);
+        TaskProvider<RestIntegTestTask> yamlRestTestTask = setupTask(project, yamlTestSourceSet);
 
         // setup the dependencies
         setupDependencies(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
-        project.getTasks().withType(CopyRestApiTask.class, copyRestApiTask -> {
-            copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
-            project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
-        });
-        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> { copyRestTestTask.sourceSetName = SOURCE_SET_NAME; });
+        project.getTasks()
+            .withType(CopyRestApiTask.class)
+            .configureEach(copyRestApiTask -> { copyRestApiTask.sourceSetName = SOURCE_SET_NAME; });
+        project.getTasks()
+            .named(yamlTestSourceSet.getProcessResourcesTaskName())
+            .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

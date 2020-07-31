@@ -28,9 +28,9 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupRunnerTask;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupTask;
 
 /**
@@ -51,10 +51,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         // setup the javaRestTest task
-        RestIntegTestTask javaRestTestTask = setupTask(project, SOURCE_SET_NAME);
-
-        // setup the runner task
-        setupRunnerTask(project, javaRestTestTask, javaTestSourceSet);
+        TaskProvider<RestIntegTestTask> javaRestTestTask = setupTask(project, javaTestSourceSet);
 
         // setup dependencies
         setupDependencies(project, javaTestSourceSet);

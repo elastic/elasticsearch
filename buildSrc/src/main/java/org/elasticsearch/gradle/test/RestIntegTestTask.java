@@ -116,18 +116,4 @@ public class RestIntegTestTask extends Test implements TestClustersAware {
             }
         }
     }
-
-    // public void runner(Action<? super RestTestRunnerTask> configure) {
-    // runner.configure(configure);
-    // }
-
-    // @Internal
-    // public TaskProvider<RestTestRunnerTask> getRunner() {
-    // return runner;
-    // }
-    //
-    // public void setRunner(TaskProvider<RestTestRunnerTask> runner) {
-    // this.runner = runner;
-    // super.dependsOn(runner);
-    // }
 }

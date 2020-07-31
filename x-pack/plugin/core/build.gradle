@@ -154,12 +154,14 @@ restResources {
   }
 }
 
-testClusters.yamlRestTest {
-  testDistribution = 'default'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+tasks.named("yamlRestTest").configure {
+  testClusters.yamlRestTest {
+    testDistribution = 'default'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    keystore 'bootstrap.password', 'x-pack-test-password'
+    user username: "x_pack_rest_user", password: "x-pack-test-password"
+  }
 }
 
 tasks.named("testingConventions").configure { enabled = false }

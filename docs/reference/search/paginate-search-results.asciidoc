@@ -1,7 +1,7 @@
 [[paginate-search-results]]
 == Paginate search results
 
-By default, the search API returns the top 10 matching documents.
+By default, the <<search-search,search API>> returns the top 10 matching documents.
 
 To paginate through a larger set of results, you can use the search API's `size`
 and `from` parameters. The `size` parameter is the number of matching documents

@@ -1,0 +1,45 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-managing]]
+=== Manage {ccr}
+Use the following information to manage {ccr} tasks, such as inspecting
+replication progress, pausing and resuming replication, and terminating
+replication.
+
+[[ccr-inspect-progress]]
+==== Inspecting replication progress
+
+[%collapsible]
+.Use the API
+====
+You can inspect the progress of replication at the shard level with the
+<<ccr-get-follow-stats,get follower stats API>>. This API gives you
+insight into the read and writes managed by the follower shard task. It also
+reports read exceptions that can be retried and fatal exceptions that require
+user intervention.
+====
+
+[[ccr-pause-replication]]
+==== Pausing and resuming replication
+
+[%collapsible]
+.Use the API
+====
+You can pause replication with the
+<<ccr-post-pause-follow,pause follower API>> and then later resume
+replication with the <<ccr-post-resume-follow,resume follower API>>.
+Using these APIs in tandem enables you to adjust the read and write parameters
+on the follower shard task if your initial configuration is not suitable for
+your use case.
+====
+
+[[ccr-terminate-replication]]
+==== Terminating replication
+
+[%collapsible]
+.Use the API
+====
+You can terminate replication with the
+<<ccr-post-unfollow,unfollow API>>. This API converts a follower index
+to a regular (non-follower) index.
+====

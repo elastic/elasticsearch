@@ -1644,14 +1644,6 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        FormatNames formatName = FormatNames.forName(input);
-        if (formatName != null && formatName.isCamelCase(input)) {
-            String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
-                "Use snake case name {} instead.";
-            deprecationLogger.getOrCompute()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
-        }
-
         if (FormatNames.ISO8601.matches(input)) {
             return ISO_8601;
         } else if (FormatNames.BASIC_DATE.matches(input)) {

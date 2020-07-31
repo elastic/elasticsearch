@@ -118,9 +118,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public void clear() {}
-
-    @Override
     public long ramBytesUsed() {
         return memorySizeInBytes;
     }
@@ -210,9 +207,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new IllegalArgumentException("only supported on numeric fields");
         }
-
-        @Override
-        public void clear() {}
 
         @Override
         public long ramBytesUsed() {

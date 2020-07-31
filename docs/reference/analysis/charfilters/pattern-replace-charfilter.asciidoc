@@ -52,7 +52,7 @@ replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -75,7 +75,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "My credit card is 123-456-789"
@@ -102,7 +102,7 @@ camelCase words to be queried individually:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -136,7 +136,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "The fooBarBaz method"
@@ -203,12 +203,12 @@ the length of the original text:
 
 [source,console]
 ----------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "The fooBarBaz method"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -245,7 +245,7 @@ The output from the above is:
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

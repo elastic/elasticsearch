@@ -39,6 +39,7 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -69,7 +70,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, TestDeprecationPlugin.class);
+        return Arrays.asList(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, TestDeprecationPlugin.class);
     }
 
     @Override
@@ -107,7 +108,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                client().prepareIndex(indices[i])
+                client().prepareIndex(indices[i], "type")
                     .setId(Integer.toString(j))
                     .setSource("{\"field\":" + j + "}", XContentType.JSON)
                     .execute()

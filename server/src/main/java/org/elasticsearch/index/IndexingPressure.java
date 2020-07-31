@@ -155,6 +155,14 @@ public class IndexingPressure {
         return currentReplicaBytes.get();
     }
 
+    public long getPrimaryQueueLag() {
+        return primaryQueueLag.get();
+    }
+
+    public long getReplicaQueueLag() {
+        return replicaQueueLag.get();
+    }
+
     public IndexingPressureStats stats() {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),

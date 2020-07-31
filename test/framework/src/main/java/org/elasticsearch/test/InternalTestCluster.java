@@ -1186,6 +1186,16 @@ public final class InternalTestCluster extends TestCluster {
                     throw new AssertionError("pending replica write bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
+                final long primaryQueueLag = indexingPressure.getPrimaryQueueLag();
+                if (primaryQueueLag > 0) {
+                    throw new AssertionError("primary queue lage [" + primaryQueueLag + "] on node ["
+                        + nodeAndClient.name + "].");
+                }
+                final long replicaQueueLag = indexingPressure.getReplicaQueueLag();
+                if (replicaQueueLag > 0) {
+                    throw new AssertionError("replica queue lag [" + replicaQueueLag + "] on node ["
+                        + nodeAndClient.name + "].");
+                }
             }
         }, 60, TimeUnit.SECONDS);
     }

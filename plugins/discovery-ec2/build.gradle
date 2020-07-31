@@ -53,7 +53,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from('config/discovery-ec2') {
     into 'config'
   }
@@ -97,7 +97,7 @@ tasks.register("writeTestJavaPolicy") {
   }
 }
 
-test {
+tasks.named("test").configure {
   dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
@@ -143,9 +143,7 @@ tasks.named("thirdPartyAudit").configure {
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
-          'org.apache.log.Logger'
-  )
-  ignoreMissingClasses(
+          'org.apache.log.Logger',
           'javax.xml.bind.DatatypeConverter',
           'javax.xml.bind.JAXBContext'
   )

@@ -69,7 +69,7 @@ configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
 }
-def testJar = tasks.register("testJar", Jar) {
+TaskProvider testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }

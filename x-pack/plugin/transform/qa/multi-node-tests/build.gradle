@@ -21,7 +21,7 @@ tasks.register("copyKeyCerts", Copy) {
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn("copyKeyCerts")
+tasks.named("processTestResources").configure { dependsOn("copyKeyCerts") }
 
 tasks.named("integTest").configure { dependsOn "copyKeyCerts" }
 

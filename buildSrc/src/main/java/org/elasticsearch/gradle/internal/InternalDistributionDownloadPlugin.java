@@ -102,6 +102,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
 
             case DOCKER:
+            case UBI:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
                 break;
@@ -133,6 +134,10 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             projectName += "oss-";
         }
 
+        if (distribution.getType() == ElasticsearchDistribution.Type.UBI) {
+            projectName += "ubi-";
+        }
+
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
@@ -145,6 +150,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
 
             case DOCKER:
+            case UBI:
                 projectName += "docker" + archString + "-export";
                 break;
 

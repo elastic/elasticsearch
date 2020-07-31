@@ -74,13 +74,13 @@ ENV ELASTIC_CONTAINER true
 
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip unzip <%= variant == 'ubi_minimal' ? 'findutils' : '' %> && \\
+      nc shadow-utils zip unzip <%= variant == 'ubi_minimal' ? 'findutils procps-ng' : '' %> && \\
     ${package_manager} clean all
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chmod 0775 /usr/share/elasticsearch && \\
-    chgrp 0 /usr/share/elasticsearch
+    chown -R 1000:0 /usr/share/elasticsearch
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch

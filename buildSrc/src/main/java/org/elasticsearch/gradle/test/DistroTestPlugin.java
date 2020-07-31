@@ -160,9 +160,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // auto-detection doesn't work.
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = distribution.getType() != Type.DOCKER
-
-                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
+                        boolean shouldExecute = distribution.isDocker() || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             t.dependsOn(vmTask);
@@ -183,6 +181,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
 
         lifecyleTasks.put(Type.DOCKER, project.getTasks().register(taskPrefix + ".docker"));
+        lifecyleTasks.put(Type.UBI, project.getTasks().register(taskPrefix + ".ubi"));
         lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(Type.DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));
@@ -349,7 +348,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     ) {
         return project.getTasks().register(destructiveDistroTestTaskName(distribution), Test.class, t -> {
             // Disable Docker distribution tests unless a Docker installation is available
-            t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
+            t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
             // Only run tests for the current architecture
             t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
@@ -388,25 +387,35 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
+            for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER, Type.UBI)) {
                 for (Flavor flavor : Flavor.values()) {
                     for (boolean bundledJdk : Arrays.asList(true, false)) {
-                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        // Also we'll never publish an ARM (aarch64) build without a bundled JDK.
-                        boolean skip = bundledJdk == false && (type == Type.DOCKER || architecture == Architecture.AARCH64);
-
-                        if (skip == false) {
-                            addDistro(
-                                distributions,
-                                architecture,
-                                type,
-                                null,
-                                flavor,
-                                bundledJdk,
-                                VersionProperties.getElasticsearch(),
-                                currentDistros
-                            );
+                        if (bundledJdk == false) {
+                            // We'll never publish an ARM (aarch64) build without a bundled JDK.
+                            if (architecture == Architecture.AARCH64) {
+                                continue;
+                            }
+                            // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
+                            if (type == Type.DOCKER || type == Type.UBI) {
+                                continue;
+                            }
                         }
+
+                        // We don't publish the OSS distribution on UBI
+                        if (type == Type.UBI && flavor == Flavor.OSS) {
+                            continue;
+                        }
+
+                        addDistro(
+                            distributions,
+                            architecture,
+                            type,
+                            null,
+                            flavor,
+                            bundledJdk,
+                            VersionProperties.getElasticsearch(),
+                            currentDistros
+                        );
                     }
                 }
 
@@ -457,6 +466,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Configuration packagingConfig = project.getConfigurations().create(DISTRIBUTIONS_CONFIGURATION);
         List<Configuration> distroConfigs = currentDistros.stream()
             .filter(d -> d.getType() != Type.DOCKER)
+            .filter(d -> d.getType() != Type.UBI)
             .map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingConfig.setExtendsFrom(distroConfigs);
@@ -484,6 +494,9 @@ public class DistroTestPlugin implements Plugin<Project> {
         if (distributions.findByName(name) != null) {
             return;
         }
+
+        boolean isDocker = type == Type.DOCKER || type == Type.UBI;
+
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
             d.setFlavor(flavor);
@@ -491,7 +504,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (type == Type.ARCHIVE) {
                 d.setPlatform(platform);
             }
-            if (type != Type.DOCKER) {
+            if (isDocker == false) {
                 d.setBundledJdk(bundledJdk);
             }
             d.setVersion(version);
@@ -499,7 +512,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         // Allow us to gracefully omit building Docker distributions if Docker is not available on the system.
         // In such a case as we can't build the Docker images we'll simply skip the corresponding tests.
-        if (type == Type.DOCKER) {
+        if (isDocker) {
             distro.setFailIfUnavailable(false);
         }
 

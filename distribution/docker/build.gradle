@@ -324,15 +324,16 @@ subprojects { Project subProject ->
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     final boolean oss = subProject.name.contains('oss-')
-    // We don't export UBI at the moment
-    final Variant variant = oss ? Variant.OSS : Variant.DEFAULT
+    final boolean ubi = subProject.name.contains('ubi-')
+    final Variant variant = oss ? Variant.OSS : ubi ? Variant.UBI_MINIMAL : Variant.DEFAULT
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String suffix = oss ? '-oss' : ''
+    final String extension = ubi ? 'ubi.tar' : 'docker.tar'
 
     def exportTaskName = taskName("export", architecture, variant, "DockerImage")
     def buildTaskName = taskName("build", architecture, variant, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${arch}${suffix}_test.${VersionProperties.elasticsearch}.docker.tar"
+    def tarFile = "${parent.projectDir}/build/elasticsearch${arch}${suffix}_test.${VersionProperties.elasticsearch}.${extension}"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
@@ -346,7 +347,7 @@ subprojects { Project subProject ->
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
 
-    exportDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
+    exportDockerImageTask.onlyIf { Architecture.current() == architecture }
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'

@@ -38,6 +38,8 @@ public class Distribution {
             this.packaging = Packaging.TAR;
         } else if (filename.endsWith(".docker.tar")) {
             this.packaging = Packaging.DOCKER;
+        } else if (filename.endsWith(".ubi.tar")) {
+            this.packaging = Packaging.UBI;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -65,7 +67,7 @@ public class Distribution {
     }
 
     public boolean isDocker() {
-        return packaging == Packaging.DOCKER;
+        return packaging == Packaging.DOCKER || packaging == Packaging.UBI;
     }
 
     public enum Packaging {
@@ -74,7 +76,8 @@ public class Distribution {
         ZIP(".zip", Platforms.WINDOWS),
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
-        DOCKER(".docker.tar", Platforms.isDocker());
+        DOCKER(".docker.tar", Platforms.isDocker()),
+        UBI(".ubi.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;
@@ -85,6 +88,10 @@ public class Distribution {
         Packaging(String extension, boolean compatible) {
             this.extension = extension;
             this.compatible = compatible;
+        }
+
+        public boolean isDocker() {
+            return this == DOCKER || this == UBI;
         }
     }
 

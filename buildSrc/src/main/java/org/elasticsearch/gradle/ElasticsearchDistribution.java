@@ -50,7 +50,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         ARCHIVE,
         RPM,
         DEB,
-        DOCKER;
+        DOCKER,
+        // This is a different flavour of Docker image
+        UBI;
 
         @Override
         public String toString() {
@@ -59,6 +61,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
         public boolean shouldExtract() {
             switch (this) {
+                case UBI:
                 case DEB:
                 case DOCKER:
                 case RPM:
@@ -188,6 +191,11 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return bundledJdk.getOrElse(true);
     }
 
+    public boolean isDocker() {
+        final Type type = this.type.get();
+        return type == Type.DOCKER || type == Type.UBI;
+    }
+
     public void setBundledJdk(Boolean bundledJdk) {
         this.bundledJdk.set(bundledJdk);
     }
@@ -230,9 +238,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     @Override
     public TaskDependency getBuildDependencies() {
         // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (getType() == Type.DOCKER
-            && getFailIfUnavailable() == false
-            && dockerSupport.get().getDockerAvailability().isAvailable == false) {
+        if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
             return task -> Collections.emptySet();
         }
 
@@ -271,7 +277,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return;
         }
 
-        if (getType() != Type.DOCKER && failIfUnavailable.get() == false) {
+        if (isDocker() == false && failIfUnavailable.get() == false) {
             throw new IllegalArgumentException(
                 "failIfUnavailable cannot be 'false' on elasticsearch distribution [" + name + "] of type [" + getType() + "]"
             );
@@ -288,7 +294,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [" + getType() + "]"
                 );
             }
-            if (getType() == Type.DOCKER && bundledJdk.isPresent()) {
+            if (isDocker() && bundledJdk.isPresent()) {
                 throw new IllegalArgumentException(
                     "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [docker]"
                 );

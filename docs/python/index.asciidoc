@@ -5,22 +5,22 @@
 Official low-level client for Elasticsearch. Its goal is to provide common
 ground for all Elasticsearch-related code in Python; because of this it tries
 to be opinion-free and very extendable. The full documentation is available at
-http://elasticsearch-py.readthedocs.org/
+https://elasticsearch-py.readthedocs.org/
 
 .Elasticsearch DSL
 ************************************************************************************
 For a more high level client library with more limited scope, have a look at
-http://elasticsearch-dsl.readthedocs.org/[elasticsearch-dsl] - a more pythonic library
+https://elasticsearch-dsl.readthedocs.org/[elasticsearch-dsl] - a more pythonic library
 sitting on top of `elasticsearch-py`.
 
 It provides a more convenient and idiomatic way to write and manipulate
-http://elasticsearch-dsl.readthedocs.org/en/latest/search_dsl.html[queries]. It
+https://elasticsearch-dsl.readthedocs.org/en/latest/search_dsl.html[queries]. It
 stays close to the Elasticsearch JSON DSL, mirroring its terminology and
 structure while exposing the whole range of the DSL from Python either directly
 using defined classes or a queryset-like expressions.
 
 It also provides an optional
-http://elasticsearch-dsl.readthedocs.org/en/latest/persistence.html#doctype[persistence
+https://elasticsearch-dsl.readthedocs.org/en/latest/persistence.html#doctype[persistence
 layer] for working with documents as Python objects in an ORM-like fashion:
 defining mappings, retrieving and saving documents, wrapping the document data
 in user-defined classes.
@@ -114,7 +114,7 @@ The client's features include:
 * pluggable architecture
 
 The client also contains a convenient set of
-http://elasticsearch-py.readthedocs.org/en/master/helpers.html[helpers] for
+https://elasticsearch-py.readthedocs.org/en/master/helpers.html[helpers] for
 some of the more engaging tasks like bulk indexing and reindexing.
 
 
@@ -126,7 +126,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+    https://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,

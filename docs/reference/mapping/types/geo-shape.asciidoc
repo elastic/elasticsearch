@@ -156,7 +156,7 @@ triangular mesh (see <<geoshape-indexing-approach>>).
 Multiple PrefixTree implementations are provided:
 
 * GeohashPrefixTree - Uses
-http://en.wikipedia.org/wiki/Geohash[geohashes] for grid squares.
+{wikipedia}/Geohash[geohashes] for grid squares.
 Geohashes are base32 encoded strings of the bits of the latitude and
 longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and
@@ -164,7 +164,7 @@ adds 5 bits of precision to the geohash. A geohash represents a
 rectangular area and has 32 sub rectangles. The maximum number of levels
 in Elasticsearch is 24; the default is 9.
 * QuadPrefixTree - Uses a
-http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
+{wikipedia}/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
@@ -254,8 +254,8 @@ Geo-shape queries on geo-shapes implemented with PrefixTrees will not be execute
 [discrete]
 ==== Input Structure
 
-Shapes can be represented using either the http://www.geojson.org[GeoJSON]
-or http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+Shapes can be represented using either the http://geojson.org[GeoJSON]
+or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
 to Elasticsearch types:
 
@@ -356,7 +356,7 @@ House to the US Capitol Building.
 
 [discrete]
 [[geo-polygon]]
-===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
+===== http://geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
@@ -418,7 +418,7 @@ ambiguous polygons around the dateline and poles are possible.
 https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
 outer polygon must be counterclockwise and interior shapes must be clockwise,
 which agrees with the Open Geospatial Consortium (OGC)
-http://www.opengeospatial.org/standards/sfa[Simple Feature Access]
+https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
 specification for vertex ordering.
 
 Elasticsearch accepts both clockwise and counterclockwise polygons if they
@@ -467,7 +467,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multipoint]]
-===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
@@ -496,7 +496,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multilinestring]]
-===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
@@ -527,7 +527,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multipolygon]]
-===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
+===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 

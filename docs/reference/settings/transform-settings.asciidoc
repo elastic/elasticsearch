@@ -17,7 +17,7 @@ The dynamic settings can also be updated across a cluster with the
 TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
 file.
 
-[float]
+[discrete]
 [[general-transform-settings]]
 ==== General {transforms} settings
 

@@ -62,7 +62,8 @@ See <<request-body-search-explain>>.
 
 [role="exclude",id="search-request-collapse"]
 === Collapse parameter for request body search API
-See <<request-body-search-collapse>>.
+
+See <<collapse-search-results>>.
 
 [role="exclude",id="search-request-from-size"]
 === From and size parameters for request body search API
@@ -126,11 +127,12 @@ See <<request-body-search-search-type>>.
 
 [role="exclude",id="search-request-sort"]
 === Sort parameter for request body search API
-See <<request-body-search-sort>>.
+See <<sort-search-results>>.
 
 [role="exclude",id="search-request-source-filtering"]
 === Source filtering parameter for request body search API
-See <<request-body-search-source-filtering>>.
+
+See <<source-filtering>>.
 
 [role="exclude",id="search-request-stored-fields"]
 === Stored fields parameter for request body search API
@@ -902,6 +904,26 @@ Tribe node functionality has been removed in favor of {ccs}. See
 
 See <<release-highlights>>.
 
+[role="exclude",id="sql-settings"]
+=== SQL access settings in Elasticsearch
+
+The `xpack.sql.enabled` setting has been deprecated. SQL access is always enabled.
+
+[role="exclude",id="indices-templates"]
+=== Index templates [[getting]]
+
+See <<index-templates>>. 
+
+[role="exclude",id="run-a-search"]
+=== Run a search
+
+See <<run-an-es-search>>. 
+
+[role="exclude",id="how-highlighters-work-internally"]
+=== How highlighters work internally
+
+See <<how-es-highlighters-work-internally>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -912,26 +934,38 @@ For search API reference documentation, see <<search-search>>.
 
 For search examples, see <<run-a-search>>.
 
-[role="exclude",id="request-body-search-from-size"]
-==== From / size
-
-See <<paginate-search-results>>.
-
-[role="exclude",id="request-body-search-source-filtering"]
-==== Source filtering
-
-See <<source-filtering, source filtering>>.
-
 [role="exclude",id="request-body-search-docvalue-fields"]
 ==== Doc value fields
 
 See <<docvalue-fields, doc value fields>>.
 
+[role="exclude",id="request-body-search-collapse"]
+==== Field collapsing
+
+See <<collapse-search-results>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+
 [role="exclude",id="request-body-search-highlighting"]
 ==== Highlighting
+
 See <<highlighting>>.
 
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
-See <<how-highlighters-work-internally>>.
+
+See <<how-es-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-sort"]
+==== Sort
+
+See <<sort-search-results>>.
+
+[role="exclude",id="request-body-search-source-filtering"]
+==== Source filtering
+
+See <<source-filtering>>.
 ////

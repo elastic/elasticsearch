@@ -296,7 +296,7 @@ analyzer>>.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -486,7 +486,7 @@ only shingles are included in the output.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

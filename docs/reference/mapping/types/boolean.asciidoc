@@ -20,7 +20,7 @@ For example:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -31,12 +31,12 @@ PUT my_index
   }
 }
 
-POST my_index/_doc/1
+POST my-index-000001/_doc/1
 {
   "is_published": "true" <1>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -56,17 +56,17 @@ return `1` and `0`:
 
 [source,console]
 --------------------------------------------------
-POST my_index/_doc/1
+POST my-index-000001/_doc/1
 {
   "is_published": true
 }
 
-POST my_index/_doc/2
+POST my-index-000001/_doc/2
 {
   "is_published": false
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "aggs": {
     "publish_state": {

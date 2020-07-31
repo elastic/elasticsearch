@@ -222,8 +222,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void validate() {
-            if (validator != null && isSet) {
-                validator.accept(value);
+            if (validator != null) {
+                validator.accept(getValue());
             }
         }
 

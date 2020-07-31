@@ -7,7 +7,7 @@ meta information about fields such as units
 
 [source,console]
 ------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

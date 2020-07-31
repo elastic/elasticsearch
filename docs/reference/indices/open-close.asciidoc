@@ -116,13 +116,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[open-index-api-example]]
 ==== {api-examples-title}
 
-The following request re-opens a closed index named `my_index`.
+The following request re-opens a closed index named `my-index-000001`.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
 
 The API returns the following response:
 

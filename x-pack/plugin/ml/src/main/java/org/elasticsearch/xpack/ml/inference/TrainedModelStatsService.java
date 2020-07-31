@@ -174,7 +174,7 @@ public class TrainedModelStatsService {
         if (stats.isEmpty()) {
             return;
         }
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest().requireAlias(true);
         stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         if (bulkRequest.requests().isEmpty()) {

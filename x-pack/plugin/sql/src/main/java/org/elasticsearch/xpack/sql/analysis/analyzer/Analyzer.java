@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -181,7 +181,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                              // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
                              || Objects.equals(u.name(), attribute.qualifiedName()));
                 if (match) {
-                    matches.add(attribute.withLocation(u.source()));
+                    matches.add(attribute);
                 }
             }
         }
@@ -192,16 +192,21 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return handleSpecialFields(u, matches.get(0), allowCompound);
+            // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
+            return handleSpecialFields(u, matches.get(0).withLocation(u.source()), allowCompound);
         }
 
-        return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
-                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
-                 matches.stream()
-                 .map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"")
-                 .sorted()
-                 .collect(toList())
-                );
+        List<String> refs = matches.stream()
+            .sorted((a, b) -> {
+                int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
+                int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
+                return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.qualifiedName().compareTo(b.qualifiedName()));
+            })
+            .map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" +
+                (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()) + "]")
+            .collect(toList());
+        return u.withUnresolvedMessage("Reference [" + u.qualifiedName() + "] is ambiguous (to disambiguate use quotes or qualifiers); " +
+            "matches any of " + refs);
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
@@ -327,22 +332,31 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Aggregate(a.source(), a.child(), a.groupings(),
                             expandProjections(a.aggregates(), a.child()));
                 }
-                // if the grouping is unresolved but the aggs are, use the former to resolve the latter
-                // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY
+                // if the grouping is unresolved but the aggs are, use the latter to resolve the former.
+                // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY.
                 // e.g. SELECT x AS a ... GROUP BY a
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+                    List<Tuple<Attribute, Expression>> resolvedAliases = Expressions.aliases(a.aggregates());
 
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
-                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved.keySet());
+                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping,
+                                resolvedAliases.stream().map(Tuple::v1).collect(toList()));
                             if (maybeResolved != null) {
                                 changed = true;
-                                // use the matched expression (not its attribute)
-                                grouping = resolved.get(maybeResolved);
+                                if (maybeResolved.resolved()) {
+                                    grouping = resolvedAliases.stream()
+                                        .filter(t -> t.v1().equals(maybeResolved))
+                                        // use the matched expression (not its attribute)
+                                        .map(Tuple::v2)
+                                        .findAny()
+                                        .get(); // there should always be exactly one match
+                                } else {
+                                    grouping = maybeResolved;
+                                }
                             }
                         }
                         newGroupings.add(grouping);

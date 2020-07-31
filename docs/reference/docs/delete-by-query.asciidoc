@@ -410,7 +410,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[docs-delete-by-query-manual-slice]]
 ===== Slice manually
 
@@ -482,7 +482,7 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[docs-delete-by-query-automatic-slice]]
 ===== Use automatic slicing
 
@@ -565,7 +565,7 @@ being deleted.
 * Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
-[float]
+[discrete]
 [[docs-delete-by-query-rethrottle]]
 ===== Change throttling for a request
 
@@ -657,7 +657,7 @@ and `wait_for_completion=false` was set on it then it'll come back with
 you to delete that document.
 
 
-[float]
+[discrete]
 [[docs-delete-by-query-cancel-task-api]]
 ===== Cancel a delete by query operation
 

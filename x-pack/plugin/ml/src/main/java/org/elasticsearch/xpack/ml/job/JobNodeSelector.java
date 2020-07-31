@@ -81,7 +81,7 @@ public class JobNodeSelector {
 
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
                                                                int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed) {
-       // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
+        // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
         boolean allocateByMemory = isMemoryTrackerRecentlyRefreshed;
         if (isMemoryTrackerRecentlyRefreshed == false) {

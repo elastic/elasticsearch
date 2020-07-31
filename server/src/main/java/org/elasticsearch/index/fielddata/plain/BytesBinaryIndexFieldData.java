@@ -58,11 +58,6 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         throw new IllegalArgumentException("can't sort on binary field");
     }

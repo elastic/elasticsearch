@@ -44,11 +44,6 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         throw new IllegalArgumentException("can't sort on the vector field");
     }

@@ -29,7 +29,7 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -61,7 +61,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private FetchSourceContext fetchSourceContext;
     private FetchDocValuesContext docValuesContext;
     private FetchFieldsContext fetchFieldsContext;
-    private SearchContextHighlight highlight;
+    private SearchHighlightContext highlight;
 
     private boolean explain;
     private boolean trackScores;
@@ -98,12 +98,12 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContextHighlight highlight() {
+    public SearchHighlightContext highlight() {
         return highlight;
     }
 
     @Override
-    public void highlight(SearchContextHighlight highlight) {
+    public void highlight(SearchHighlightContext highlight) {
         this.highlight = highlight;
     }
 

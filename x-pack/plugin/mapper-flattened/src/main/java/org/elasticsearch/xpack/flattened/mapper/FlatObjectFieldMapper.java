@@ -375,11 +375,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public void clear() {
-            delegate.clear();
-        }
-
-        @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
             return new KeyedFlatObjectLeafFieldData(key, fieldData);

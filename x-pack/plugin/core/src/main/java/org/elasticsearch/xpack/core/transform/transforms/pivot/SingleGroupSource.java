@@ -91,7 +91,7 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         } else {
             scriptConfig = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_10_0
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             missingBucket = in.readBoolean();
         } else {
             missingBucket = false;
@@ -124,7 +124,7 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalWriteable(scriptConfig);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_10_0
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(missingBucket);
         }
     }

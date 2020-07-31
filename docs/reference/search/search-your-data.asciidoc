@@ -1,11 +1,35 @@
-[[run-a-search]]
+[[search-your-data]]
+= Search your data
+
+[[search-query]]
+A _search query_, or _query_, is a request for information about data in 
+{es} data streams or indices.
+
+You can think of a query as a question, written in a way {es} understands.
+Depending on your data, you can use a query to get answers to questions like:
+
+* What processes on my server take longer than 500 milliseconds to respond?
+* What users on my network ran `regsvr32.exe` within the last week?
+* How many of my products have a price greater than $20?
+* What pages on my website contain a specific word or phrase?
+
+A _search_ consists of one or more queries that are combined and sent to {es}.
+Documents that match a search's queries are returned in the _hits_, or
+_search results_, of the response.
+
+A search may also contain additional information used to better process its
+queries. For example, a search may be limited to a specific index or only return
+a specific number of results.
+
+[discrete]
+[[run-an-es-search]]
 == Run a search
 
 You can use the <<search-search,search API>> to search data stored in
 {es} data streams or indices.
 
 The API can run two types of searches, depending on how you provide
-<<search-query,queries>>:
+queries:
 
 <<run-uri-search,URI searches>>::
   Queries are provided through a query parameter. URI searches tend to be
@@ -267,9 +291,10 @@ GET /*/_search
 ----
 
 include::request/from-size.asciidoc[]
-
 include::search-fields.asciidoc[]
-
+include::request/collapse.asciidoc[]
 include::request/highlighting.asciidoc[]
-
 include::request/sort.asciidoc[]
+include::{es-repo-dir}/async-search.asciidoc[]
+include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]
+include::{es-repo-dir}/search/near-real-time.asciidoc[]

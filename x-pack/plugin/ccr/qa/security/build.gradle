@@ -9,7 +9,7 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task resolve {
+tasks.register("resolve") {
   doLast {
     configurations.testCompileClasspath.files.each {
       println it

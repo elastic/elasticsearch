@@ -24,7 +24,7 @@ include::indices/index-templates.asciidoc[]
 
 include::data-streams/data-streams.asciidoc[]
 
-include::search/index.asciidoc[]
+include::search/search-your-data.asciidoc[]
 
 include::query-dsl.asciidoc[]
 

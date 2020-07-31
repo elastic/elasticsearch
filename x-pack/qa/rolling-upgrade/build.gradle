@@ -25,7 +25,7 @@ forbiddenPatterns {
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-task copyTestNodeKeyMaterial(type: Copy) {
+tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
     'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
   into outputDir
@@ -91,7 +91,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
-    dependsOn copyTestNodeKeyMaterial
+    dependsOn "copyTestNodeKeyMaterial"
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")

@@ -24,7 +24,7 @@ public class HistogramGroupSourceTests extends AbstractSerializingTestCase<Histo
         ScriptConfig scriptConfig = version.onOrAfter(Version.V_7_7_0)
             ? randomBoolean() ? null : ScriptConfigTests.randomScriptConfig()
             : null;
-        boolean missingBucket = version.onOrAfter(Version.V_8_0_0) ? randomBoolean() : false; // todo: V_7_10_0
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
         return new HistogramGroupSource(field, scriptConfig, missingBucket, interval);
     }

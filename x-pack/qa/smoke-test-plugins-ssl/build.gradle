@@ -14,7 +14,7 @@ dependencies {
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
@@ -31,7 +31,7 @@ File clientKey = file("$keystoreDir/testclient.pem")
 File clientCert = file("$keystoreDir/testclient.crt")
 
 // Add keystores to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from('./') {
     include '*.crt', '*.pem', '*.jks'
   }
@@ -83,7 +83,7 @@ ext.expansions = [
   'expected.plugins.count': pluginsCount
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from(sourceSets.test.resources.srcDirs) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'

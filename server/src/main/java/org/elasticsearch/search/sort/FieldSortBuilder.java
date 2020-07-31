@@ -338,6 +338,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         final SortField field;
+        boolean isNanosecond = false;
         if (numericType != null) {
             if (fieldData instanceof IndexNumericFieldData == false) {
                 throw new QueryShardException(context,
@@ -348,8 +349,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+            if (fieldData instanceof IndexNumericFieldData) {
+                isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+            }
         }
-        return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        if (isNanosecond) {
+            format = DocValueFormat.withNanosecondResolution(format);
+        }
+        return new SortFieldAndFormat(field, format);
     }
 
     public boolean canRewriteToMatchNone() {

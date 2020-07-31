@@ -23,6 +23,7 @@ import org.elasticsearch.script.Script;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -67,12 +68,29 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
 
     public abstract Query termsQuery(List<?> values, QueryShardContext context);
 
-    public abstract Query rangeQuery(
+    @Override
+    public final Query rangeQuery(
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
         ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        QueryShardContext context
+    ) {
+        if (relation == ShapeRelation.DISJOINT) {
+            String message = "Field [%s] of type [%s] with runtime type [%s] does not support DISJOINT ranges";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName(), runtimeType()));
+        }
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context);
+    }
+
+    protected abstract Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
         QueryShardContext context

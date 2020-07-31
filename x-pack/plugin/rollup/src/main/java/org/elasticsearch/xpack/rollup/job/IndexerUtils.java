@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * These utilities are used to convert agg responses into a set of rollup documents.
  * They are extracted out as static classes mainly to make testing easier.
  */
-class IndexerUtils {
+public class IndexerUtils {
     private static final Logger logger = LogManager.getLogger(IndexerUtils.class);
 
     /**

@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -380,6 +381,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteRollupJobAction.INSTANCE,
                 GetRollupJobsAction.INSTANCE,
                 GetRollupCapsAction.INSTANCE,
+                // rollupV2
+                RollupV2Action.INSTANCE,
                 // ILM
                 DeleteLifecycleAction.INSTANCE,
                 GetLifecycleAction.INSTANCE,
@@ -543,7 +546,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         RollupJobStatus::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
-                // Transforms
+            // Transforms
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TransformField.TASK_NAME),
                         TransformTaskParams::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TransformField.TASK_NAME),

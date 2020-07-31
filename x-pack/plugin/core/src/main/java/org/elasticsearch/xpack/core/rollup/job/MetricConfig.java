@@ -50,8 +50,8 @@ public class MetricConfig implements Writeable, ToXContentObject {
     public static final ParseField SUM = new ParseField("sum");
     public static final ParseField AVG = new ParseField("avg");
     public static final ParseField VALUE_COUNT = new ParseField("value_count");
+    public static final String NAME = "metrics";
 
-    static final String NAME = "metrics";
     private static final String FIELD = "field";
     private static final String METRICS = "metrics";
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
@@ -84,7 +84,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         this.metrics = metrics;
     }
 
-    MetricConfig(final StreamInput in) throws IOException {
+    public MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readStringList();
     }

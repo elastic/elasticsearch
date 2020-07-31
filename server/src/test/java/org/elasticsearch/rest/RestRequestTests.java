@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -94,7 +95,7 @@ public class RestRequestTests extends ESTestCase {
         when (httpRequest.getHeaders()).thenReturn(
             Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson"))));
         final RestRequest request =
-                RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class));
+                RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class), RestCompatibility.CURRENT_VERSION);
         assertFalse(request.isContentConsumed());
         try {
             consumer.accept(request);
@@ -265,7 +266,7 @@ public class RestRequestTests extends ESTestCase {
 
         private ContentRestRequest(RestRequest restRequest) {
             super(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-                restRequest.getHttpRequest(), restRequest.getHttpChannel());
+                restRequest.getHttpRequest(), restRequest.getHttpChannel(), RestCompatibility.CURRENT_VERSION);
             this.restRequest = restRequest;
         }
 

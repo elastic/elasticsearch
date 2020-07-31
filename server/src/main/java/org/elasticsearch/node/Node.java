@@ -512,14 +512,14 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService,
-                getRestCompatibleFunction());
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService
+            );
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
-                networkService, restController, clusterService.getClusterSettings());
+                networkService, restController, clusterService.getClusterSettings(), getRestCompatibleFunction());
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .map(Plugin::getIndexTemplateMetadataUpgrader)

@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -59,7 +58,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService, RestCompatibility.CURRENT_VERSION);
+        new NoneCircuitBreakerService(), usageService);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -91,7 +90,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         RestController restController = new RestController(Collections.emptySet(),
-                null, null, circuitBreakerService, usageService, RestCompatibility.CURRENT_VERSION);
+                null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {

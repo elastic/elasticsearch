@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -91,7 +92,7 @@ public class Netty4BadRequestTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
         try (HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
             xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new SharedGroupFactory(Settings.EMPTY))) {
+            new SharedGroupFactory(Settings.EMPTY), RestCompatibility.CURRENT_VERSION)) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 

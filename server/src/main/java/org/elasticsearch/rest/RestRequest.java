@@ -76,18 +76,29 @@ public class RestRequest implements ToXContent.Params {
     private boolean contentConsumed = false;
 
     private final long requestId;
+    private RestCompatibility restCompatibilityFunction;
 
     public boolean isContentConsumed() {
         return contentConsumed;
     }
 
+    // for testing
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
-        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,RestCompatibility restCompatibilityFunction) {
+        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet(), restCompatibilityFunction);
+    }
+
+    protected RestRequest(RestRequest restRequest) {
+        this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
+            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId(),restRequest.getRestCompatibilityFunction());
+    }
+
+    private RestCompatibility getRestCompatibilityFunction() {
+        return restCompatibilityFunction;
     }
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
+                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId, RestCompatibility restCompatibilityFunction) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -104,12 +115,10 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+        this.restCompatibilityFunction = restCompatibilityFunction;
     }
 
-    protected RestRequest(RestRequest restRequest) {
-        this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId());
-    }
+
 
     /**
      * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
@@ -127,14 +136,16 @@ public class RestRequest implements ToXContent.Params {
      * @param xContentRegistry the content registry
      * @param httpRequest      the http request
      * @param httpChannel      the http channel
+     * @param restCompatibleFunction xx
      * @throws BadParameterException      if the parameters can not be decoded
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+    public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel,
+                                      RestCompatibility restCompatibleFunction) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
         return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+            requestIdGenerator.incrementAndGet(),restCompatibleFunction);
     }
 
     private static Map<String, String> params(final String uri) {
@@ -166,18 +177,19 @@ public class RestRequest implements ToXContent.Params {
      * @param xContentRegistry the content registry
      * @param httpRequest      the http request
      * @param httpChannel      the http channel
+     * @param restCompatibleFunction cx
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
-                                                       HttpChannel httpChannel) {
+                                                       HttpChannel httpChannel, RestCompatibility restCompatibleFunction) {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+            requestIdGenerator.incrementAndGet(), restCompatibleFunction);
     }
 
-    public Version getRequestedCompatibility(RestCompatibility restCompatibleFunction) {
-        //TODO why not header() ?
-        return restCompatibleFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"), hasContent());
+    public Version getCompatibleVersion() {
+        //TODO why not header() instead of getSingleHeader?
+        return restCompatibilityFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"), hasContent());
     }
 
     private String getSingleHeader(String name) {

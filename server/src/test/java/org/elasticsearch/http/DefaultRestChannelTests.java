@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -188,7 +189,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
@@ -216,7 +217,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
@@ -237,7 +238,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
@@ -291,7 +292,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
         }
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
 
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -323,7 +324,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");
             }
-        }, httpChannel);
+        }, httpChannel, RestCompatibility.CURRENT_VERSION);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
@@ -360,7 +361,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 throw new IllegalArgumentException("test");
             }
-        }, httpChannel);
+        }, httpChannel, RestCompatibility.CURRENT_VERSION);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
@@ -391,7 +392,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 //            httpRequest.headers().add(HttpHeaderNames.ORIGIN, originValue);
 //        }
 //        httpRequest.headers().add(HttpHeaderNames.HOST, host);
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
 
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         RestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, httpHandlingSettings,

@@ -23,7 +23,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +47,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller = new RestController(Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService(), RestCompatibility.CURRENT_VERSION);
+            new UsageService());
     }
 
     /**

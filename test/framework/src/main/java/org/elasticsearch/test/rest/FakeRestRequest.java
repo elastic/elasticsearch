@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -45,7 +46,7 @@ public class FakeRestRequest extends RestRequest {
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
                             HttpChannel httpChannel) {
-        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
+        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel, RestCompatibility.CURRENT_VERSION);
     }
 
     private static class FakeHttpRequest implements HttpRequest {

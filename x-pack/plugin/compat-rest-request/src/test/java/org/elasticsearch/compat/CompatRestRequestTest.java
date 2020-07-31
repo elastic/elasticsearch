@@ -278,7 +278,7 @@ public class CompatRestRequestTest extends ESTestCase {
             builder.withContent(new BytesArray(body), null);
         }
         FakeRestRequest request = builder.build();
-        Version version = request.getRequestedCompatibility(plugin::getCompatibleVersion);
+        Version version = request.getCompatibleVersion();
         return Tuple.tuple(request, version);
     }
 

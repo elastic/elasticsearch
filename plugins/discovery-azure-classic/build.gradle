@@ -72,7 +72,7 @@ String host = InetAddress.getLoopbackAddress().getHostAddress()
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
 // generate the keystore
-task createKey(type: LoggedExec) {
+TaskProvider createKey = tasks.register("createKey", LoggedExec) {
   doFirst {
     project.delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
@@ -91,9 +91,9 @@ task createKey(type: LoggedExec) {
     '-storepass', 'keypass'
 }
 //no unit tests
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 // add keystore to test classpath: it expects it there
-processInternalClusterTestResources {
+tasks.named("processInternalClusterTestResources").configure {
   from createKey
 }
 
@@ -110,7 +110,9 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
@@ -147,7 +149,7 @@ thirdPartyAudit.ignoreMissingClasses(
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreJarHellWithJDK(
+  ignoreJarHellWithJDK(
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',
     'javax.xml.bind.ContextFinder',
@@ -251,14 +253,15 @@ if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.ValidationEventCollector'
   )
 } else {
-  thirdPartyAudit.ignoreMissingClasses(
-    'javax.activation.ActivationDataFlavor',
-    'javax.activation.DataContentHandler',
-    'javax.activation.DataHandler',
-    'javax.activation.DataSource',
-    'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap',
-    'javax.activation.MimeType',
-    'javax.activation.MimeTypeParseException',
-  )
+    ignoreMissingClasses(
+            'javax.activation.ActivationDataFlavor',
+            'javax.activation.DataContentHandler',
+            'javax.activation.DataHandler',
+            'javax.activation.DataSource',
+            'javax.activation.FileDataSource',
+            'javax.activation.FileTypeMap',
+            'javax.activation.MimeType',
+            'javax.activation.MimeTypeParseException',
+    )
+  }
 }

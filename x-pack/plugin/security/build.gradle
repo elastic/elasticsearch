@@ -145,13 +145,13 @@ configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
 }
-task testJar(type: Jar) {
+TaskProvider testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
-  archives jar
+  archives tasks.named('jar')
   testArtifacts testJar
 }
 

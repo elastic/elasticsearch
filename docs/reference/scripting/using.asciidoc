@@ -234,7 +234,7 @@ entire query. Just provide the stored template's ID and the template parameters.
 This is useful when you want to run a commonly used query quickly and without
 mistakes.
 
-Search templates use the http://mustache.github.io/mustache.5.html[mustache
+Search templates use the https://mustache.github.io/mustache.5.html[mustache
 templating language]. See <<search-template>> for more information and examples.
 
 [discrete]

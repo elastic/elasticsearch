@@ -162,7 +162,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         index("{\"wildcard_field\":\"" + wildcard + "\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", Arrays.asList(columnInfo("plain", "wildcard_field", "wildcard", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("columns", Arrays.asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         expected.put("rows", singletonList(singletonList(ignoreAbove ? null : wildcard)));
         assertResponse(expected, runSql("SELECT wildcard_field FROM test"));
     }

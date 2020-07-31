@@ -17,7 +17,7 @@ The plugin provides a repository type named `s3` which may be used when creating
 a repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
 IAM Role] or
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
 IAM Role] credentials for authentication. The only mandatory setting is the
 bucket name:
 
@@ -117,7 +117,7 @@ settings belong in the `elasticsearch.yml` file.
 
     The S3 service endpoint to connect to. This defaults to `s3.amazonaws.com`
     but the
-    http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS
+    https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS
     documentation] lists alternative S3 endpoints. If you are using an
     <<repository-s3-compatible-services,S3-compatible service>> then you should
     set this to the service's endpoint.
@@ -278,7 +278,7 @@ include::repository-shared-settings.asciidoc[]
 
     Minimum threshold below which the chunk is uploaded using a single request.
     Beyond this threshold, the S3 repository will use the
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS
     Multipart Upload API] to split the chunk into several parts, each of
     `buffer_size` length, and to upload each part in its own request. Note that
     setting a buffer size lower than `5mb` is not allowed since it will prevent
@@ -290,7 +290,7 @@ include::repository-shared-settings.asciidoc[]
 `canned_acl`::
 
     The S3 repository supports all
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3
     canned ACLs] : `private`, `public-read`, `public-read-write`,
     `authenticated-read`, `log-delivery-write`, `bucket-owner-read`,
     `bucket-owner-full-control`. Defaults to `private`.  You could specify a
@@ -308,7 +308,7 @@ include::repository-shared-settings.asciidoc[]
     the storage class of existing objects.  Due to the extra complexity with the
     Glacier class lifecycle, it is not currently supported by the plugin.  For
     more information about the different classes, see
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
     Storage Classes Guide]
 
 NOTE: The option of defining client settings in the repository settings as

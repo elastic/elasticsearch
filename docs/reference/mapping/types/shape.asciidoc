@@ -96,7 +96,7 @@ precision floats for the vertex values so accuracy is guaranteed to the same pre
 [discrete]
 ==== Input Structure
 
-Shapes can be represented using either the https://www.geojson.org[GeoJSON]
+Shapes can be represented using either the http://geojson.org[GeoJSON]
 or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
 to Elasticsearch types:
@@ -131,7 +131,7 @@ typically use the colloquial latitude, longitude (Y, X) ordering.
 
 [[point-shape]]
 [discrete]
-===== https://geojson.org/geojson-spec.html#id2[Point]
+===== http://geojson.org/geojson-spec.html#id2[Point]
 
 A point is a single coordinate in cartesian `x, y` space. It may represent the
 location of an item of interest in a virtual world or projected space. The
@@ -160,7 +160,7 @@ POST /example/_doc
 
 [discrete]
 [[linestring]]
-===== https://geojson.org/geojson-spec.html#id3[LineString]
+===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
 specifying only two points, the `linestring` will represent a straight
@@ -190,7 +190,7 @@ POST /example/_doc
 
 [discrete]
 [[polygon]]
-===== https://www.geojson.org/geojson-spec.html#id4[Polygon]
+===== http://geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
@@ -277,7 +277,7 @@ POST /example/_doc
 
 [discrete]
 [[multipoint]]
-===== https://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
@@ -306,7 +306,7 @@ POST /example/_doc
 
 [discrete]
 [[multilinestring]]
-===== https://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
@@ -337,7 +337,7 @@ POST /example/_doc
 
 [discrete]
 [[multipolygon]]
-===== https://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
+===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 
@@ -368,7 +368,7 @@ POST /example/_doc
 
 [discrete]
 [[geometry_collection]]
-===== https://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
+===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:
 

@@ -164,7 +164,7 @@ adds 5 bits of precision to the geohash. A geohash represents a
 rectangular area and has 32 sub rectangles. The maximum number of levels
 in Elasticsearch is 24; the default is 9.
 * QuadPrefixTree - Uses a
-https://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
+{wikipedia}/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
@@ -254,7 +254,7 @@ Geo-shape queries on geo-shapes implemented with PrefixTrees will not be execute
 [discrete]
 ==== Input Structure
 
-Shapes can be represented using either the https://www.geojson.org[GeoJSON]
+Shapes can be represented using either the http://geojson.org[GeoJSON]
 or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
 to Elasticsearch types:
@@ -294,7 +294,7 @@ use the colloquial latitude, longitude (Y, X).
 
 [[geo-point-type]]
 [discrete]
-===== https://geojson.org/geojson-spec.html#id2[Point]
+===== http://geojson.org/geojson-spec.html#id2[Point]
 
 A point is a single geographic coordinate, such as the location of a
 building or the current position given by a smartphone's Geolocation
@@ -323,7 +323,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-linestring]]
-===== https://geojson.org/geojson-spec.html#id3[LineString]
+===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
 specifying only two points, the `linestring` will represent a straight
@@ -356,7 +356,7 @@ House to the US Capitol Building.
 
 [discrete]
 [[geo-polygon]]
-===== https://www.geojson.org/geojson-spec.html#id4[Polygon]
+===== http://geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
@@ -467,7 +467,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multipoint]]
-===== https://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
@@ -496,7 +496,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multilinestring]]
-===== https://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
@@ -527,7 +527,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-multipolygon]]
-===== https://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
+===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 
@@ -558,7 +558,7 @@ POST /example/_doc
 
 [discrete]
 [[geo-geometry_collection]]
-===== https://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
+===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:
 

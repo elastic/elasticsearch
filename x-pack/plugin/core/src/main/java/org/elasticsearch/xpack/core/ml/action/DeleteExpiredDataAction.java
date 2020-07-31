@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -70,16 +69,9 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                this.requestsPerSecond = in.readOptionalFloat();
-                this.timeout = in.readOptionalTimeValue();
-            } else {
-                this.requestsPerSecond = null;
-                this.timeout = null;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-                jobId = in.readOptionalString();
-            }
+            this.requestsPerSecond = in.readOptionalFloat();
+            this.timeout = in.readOptionalTimeValue();
+            this.jobId = in.readOptionalString();
         }
 
         public Float getRequestsPerSecond() {
@@ -137,13 +129,9 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                out.writeOptionalFloat(requestsPerSecond);
-                out.writeOptionalTimeValue(timeout);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                out.writeOptionalString(jobId);
-            }
+            out.writeOptionalFloat(requestsPerSecond);
+            out.writeOptionalTimeValue(timeout);
+            out.writeOptionalString(jobId);
         }
     }
 

@@ -4,7 +4,7 @@
 <titleabbrev>Scroll</titleabbrev>
 ++++
 
-Retrieves the next batch of results for a <<request-body-search-scroll,scrolling
+Retrieves the next batch of results for a <<scroll-search-results,scrolling
 search>>.
 
 ////
@@ -48,7 +48,7 @@ deprecated:[7.0.0]
 ==== {api-description-title}
 
 You can use the scroll API to retrieve large sets of results from a single
-<<request-body-search-scroll,scrolling search>> request.
+<<scroll-search-results,scrolling search>> request.
 
 The scroll API requires a scroll ID. To get a scroll ID, submit a
 <<search-search,search API>> request that includes an argument for the
@@ -63,7 +63,7 @@ next batch of results for the request.
 You can also use the scroll API to specify a new `scroll` parameter that extends
 or shortens the retention period for the search context.
 
-See <<request-body-search-scroll>>.
+See <<scroll-search-results>>.
 
 IMPORTANT: Results from a scrolling search reflect the state of the index at the
 time of the initial search request. Subsequent indexing or document changes only
@@ -86,7 +86,7 @@ the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This value overrides the duration set by the original search API request's
 `scroll` parameter.
@@ -118,7 +118,7 @@ Defaults to `false`.
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This value overrides the duration set by the original search API request's
 `scroll` parameter.

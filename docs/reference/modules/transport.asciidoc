@@ -1,7 +1,6 @@
 [[modules-transport]]
 === Transport
 
-
 Clients send requests to your {es} cluster over <<modules-http,HTTP>>, but the
 node that receives a client request cannot always handle it alone and must
 normally pass it on to other nodes for further processing. It does this using

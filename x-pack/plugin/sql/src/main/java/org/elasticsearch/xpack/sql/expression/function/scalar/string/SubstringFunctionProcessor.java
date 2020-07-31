@@ -55,8 +55,8 @@ public class SubstringFunctionProcessor implements Processor {
             return input;
         }
         
-        Check.isNumberOutOfRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
-        Check.isNumberOutOfRange(length, "length", 0L, (long) Integer.MAX_VALUE);
+        Check.isFixedNumberAndInRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+        Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
         return StringFunctionUtils.substring(input instanceof Character ? input.toString() : (String) input,
                 ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation

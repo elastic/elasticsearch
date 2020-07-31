@@ -59,7 +59,7 @@ public class LocateFunctionProcessor implements Processor {
         }
         
         if (start != null) {
-            Check.isNumberOutOfRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+            Check.isFixedNumberAndInRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
         }
         
         String stringInput = input instanceof Character ? input.toString() : (String) input;

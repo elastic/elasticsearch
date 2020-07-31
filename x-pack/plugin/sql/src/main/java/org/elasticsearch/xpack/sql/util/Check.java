@@ -37,13 +37,13 @@ public abstract class Check {
         }
     }
     
-    public static void isNumberOutOfRange(Object object, String objectName, Long from, Long to) {
-        if (!(object instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received [{}]", object);
+    public static void isFixedNumberAndInRange(Object object, String objectName, Long from, Long to) {
+        if ((object instanceof Number) == false) {
+            throw new SqlIllegalArgumentException("A number is required for [{}]; received [{}]", objectName, object.getClass());
         }
         if (((Number) object).longValue() > to || ((Number) object).longValue() < from) {
-            throw new SqlIllegalArgumentException("[{}] must be in the interval [{}..{}], but was [{}]", 
-                    objectName, from, to, ((Number) object).longValue());
+            throw new SqlIllegalArgumentException("[{}] has the value [{}] out of allowed range [{}..{}]", 
+                    objectName, ((Number) object).longValue(), from, to);
         }
     }
 }

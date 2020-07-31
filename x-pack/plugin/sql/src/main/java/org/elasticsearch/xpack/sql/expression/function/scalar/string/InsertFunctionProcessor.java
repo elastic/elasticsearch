@@ -63,8 +63,8 @@ public class InsertFunctionProcessor implements Processor {
             return input;
         }
     
-        Check.isNumberOutOfRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
-        Check.isNumberOutOfRange(length, "length", 0L, (long) Integer.MAX_VALUE);
+        Check.isFixedNumberAndInRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+        Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;

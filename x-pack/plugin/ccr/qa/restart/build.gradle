@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -33,7 +33,7 @@ testClusters.'follow-cluster' {
   nameCustomization = { 'follow' }
 }
 
-task followClusterRestartTest(type: RestTestRunnerTask) {
+task followClusterRestartTest(type: StandaloneRestIntegTestTask) {
   dependsOn tasks.'follow-cluster'
   useCluster testClusters.'leader-cluster'
   useCluster testClusters.'follow-cluster'

@@ -78,9 +78,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             }
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, SnapshotsInProgress.completed(shards.values()) ?
-                randomFrom(State.values()) : randomFrom(State.STARTED, State.INIT, State.ABORTED), indices, dataStreams, startTime,
-                repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+        return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams,
+                startTime, repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override
@@ -109,9 +108,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             for (int i = 0; i < entries.size(); i++) {
                 if (randomBoolean()) {
                     final Entry entry = entries.get(i);
-                    entries.set(i, entry.fail(entry.shards(),
-                            SnapshotsInProgress.completed(entry.shards().values()) ?
-                                    randomFrom(State.values()) : randomFrom(State.STARTED, State.INIT, State.ABORTED), entry.failure()));
+                    entries.set(i, entry.fail(entry.shards(), randomState(entry.shards()), entry.failure()));
                 }
             }
         }
@@ -138,5 +135,10 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
         return SnapshotsInProgress.of(entries);
+    }
+
+    public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+        return SnapshotsInProgress.completed(shards.values())
+                ? randomFrom(State.SUCCESS, State.FAILED) : randomFrom(State.STARTED, State.INIT, State.ABORTED);
     }
 }

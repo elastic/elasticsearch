@@ -159,7 +159,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             shards.keysIt().forEachRemaining(s -> indexNamesInShards.add(s.getIndexName()));
             assert indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
-            assert (state.completed() && completed(shards.values())) || state.completed() == false
+            final boolean shardsCompleted = completed(shards.values());
+            assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
                 : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
             return true;
         }
@@ -171,6 +172,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     userMetadata, version);
         }
 
+        /**
+         * Create a new instance by aborting this instance. Moving all in-progress shards to {@link ShardState#ABORTED} if assigned to a
+         * data node or to {@link ShardState#FAILED} if not assigned to any data node.
+         * If the instance had no in-progress shard snapshots assigned to data nodes it's moved to state {@link State#SUCCESS}, otherwise
+         * it's moved to state {@link State#ABORTED}.
+         *
+         * @return aborted snapshot entry
+         */
         public Entry abort() {
             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
             boolean completed = true;

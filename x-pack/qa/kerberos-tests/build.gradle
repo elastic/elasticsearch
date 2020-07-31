@@ -41,7 +41,7 @@ testClusters.integTest {
   user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
 }
 
-task copyKeytabToGeneratedResources(type: Copy) {
+tasks.register("copyKeytabToGeneratedResources", Copy) {
   from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
   into "$buildDir/generated-resources/keytabs"
   dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture

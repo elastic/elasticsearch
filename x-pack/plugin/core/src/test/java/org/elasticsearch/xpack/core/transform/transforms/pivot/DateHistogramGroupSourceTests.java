@@ -59,11 +59,11 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
 
         return dateHistogramGroupSource;
     }
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60464")
+
     public void testBackwardsSerialization72() throws IOException {
         // version 7.7 introduced scripts, so test before that
         DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
-            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_7_0)
+            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_6_2)
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {

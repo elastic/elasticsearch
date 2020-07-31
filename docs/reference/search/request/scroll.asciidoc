@@ -152,7 +152,7 @@ GET /_nodes/stats/indices/search
 ---------------------------------------
 
 [discrete]
-[[clear-scroll]]
+[[_clear_scroll_api]]
 ==== Clear scroll API
 
 Search context are automatically removed when the `scroll` timeout has been

@@ -150,7 +150,7 @@ PUT _template/template_1
     "alias1" : {},
     "alias2" : {
       "filter" : {
-        "term" : {"user" : "kimchy" }
+        "term" : {"user.id" : "kimchy" }
       },
       "routing" : "kimchy"
     },

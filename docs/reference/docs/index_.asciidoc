@@ -191,7 +191,7 @@ creation of indices. It does not affect the creation of data streams.
 PUT _cluster/settings
 {
   "persistent": {
-    "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
+    "action.auto_create_index": "my-index-000001,index10,-index1*,+ind*" <1>
   }
 }
 
@@ -210,7 +210,7 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 
-<1> Allow auto-creation of indices called `twitter` or `index10`, block the
+<1> Allow auto-creation of indices called `my-index-000001` or `index10`, block the
 creation of indices that match the pattern `index1*`, and allow creation of
 any other indices that match the `ind*` pattern. Patterns are matched in
 the order specified.
@@ -238,11 +238,13 @@ the document.
 
 [source,console]
 --------------------------------------------------
-POST twitter/_doc/
+POST my-index-000001/_doc/
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -256,7 +258,7 @@ The API returns the following result:
     "failed": 0,
     "successful": 2
   },
-  "_index": "twitter",
+  "_index": "my-index-000001",
   "_id": "W0tpsmIBdwcYyG50zbta",
   "_version": 1,
   "_seq_no": 0,
@@ -287,11 +289,13 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_doc?routing=kimchy
+POST my-index-000001/_doc?routing=kimchy
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -412,11 +416,13 @@ to 5 minutes:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?timeout=5m
+PUT my-index-000001/_doc/1?timeout=5m
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -441,9 +447,11 @@ conflict will occur and the index operation will fail. For example:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?version=2&version_type=external
+PUT my-index-000001/_doc/1?version=2&version_type=external
 {
-  "message" : "elasticsearch now has versioning support, double cool!"
+  "user": {
+    "id": "elkbee"
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -495,15 +503,17 @@ primary and replica shards to diverge.
 [[docs-index-api-example]]
 ==== {api-examples-title}
 
-Insert a JSON document into the `twitter` index with an `_id` of 1:
+Insert a JSON document into the `my-index-000001` index with an `_id` of 1:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1
+PUT my-index-000001/_doc/1
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -517,7 +527,7 @@ The API returns the following result:
     "failed": 0,
     "successful": 2
   },
-  "_index": "twitter",
+  "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
   "_seq_no": 0,
@@ -527,28 +537,32 @@ The API returns the following result:
 --------------------------------------------------
 // TESTRESPONSE[s/"successful": 2/"successful": 1/]
 
-Use the `_create` resource to index a document into the `twitter` index if
+Use the `_create` resource to index a document into the `my-index-000001` index if
 no document with that ID exists:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_create/1
+PUT my-index-000001/_create/1
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
-Set the `op_type` parameter to _create_ to index a document into the `twitter`
+Set the `op_type` parameter to _create_ to index a document into the `my-index-000001`
 index if no document with that ID exists:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?op_type=create
+PUT my-index-000001/_doc/1?op_type=create
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------

@@ -62,7 +62,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(TestClustersPlugin)
         project.pluginManager.apply(RepositoriesSetupPlugin)
 
-        project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
+        project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
         ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
         ElasticsearchJavaPlugin.configureCompile(project)

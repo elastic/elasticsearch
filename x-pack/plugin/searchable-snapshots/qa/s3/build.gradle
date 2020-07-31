@@ -75,6 +75,6 @@ testClusters.integTest {
   }
 }
 
-task s3ThirdPartyTest {
-  dependsOn integTest
+tasks.register("s3ThirdPartyTest") {
+  dependsOn "integTest"
 }

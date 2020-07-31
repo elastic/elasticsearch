@@ -6,6 +6,9 @@ dependencies {
 }
 
 unitTest {
+    if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+        systemProperty 'java.locale.providers', 'COMPAT'
+    }
     systemProperty 'tests.security.manager', 'false'
     include '**/*Tests.class'
 }

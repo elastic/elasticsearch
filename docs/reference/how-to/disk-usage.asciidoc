@@ -186,8 +186,9 @@ it is more likely to find longer duplicate strings in those `_source` documents
 if fields always occur in the same order.
 
 [discrete]
-=== Rolling up historical data
+[[roll-up-historical-data]]
+=== Roll up historical data
 
-Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of archiving massive amounts of data. Retention periods are thus driven by financial realities rather than by the usefulness of extensive historical data.
-
-The Elastic Stack data <<xpack-rollup,rollup>> features provide a means to summarize and store historical data so that it can still be used for analysis, but at a fraction of the storage cost of raw data.
+Keeping older data can useful for later analysis but is often avoided due to storage costs. 
+You can use data rollups to summarize and store historical data for later 
+at a fraction of the raw data's storage cost. See <<xpack-rollup>>.

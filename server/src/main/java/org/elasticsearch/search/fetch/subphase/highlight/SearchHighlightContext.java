@@ -30,30 +30,26 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class SearchContextHighlight {
+public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
+    private final boolean globalForceSource;
 
-    private boolean globalForceSource = false;
+    public SearchHighlightContext(Collection<Field> fields) {
+        this(fields, false);
+    }
 
-    public SearchContextHighlight(Collection<Field> fields) {
+    public SearchHighlightContext(Collection<Field> fields, boolean globalForceSource) {
         assert fields != null;
-        this.fields = new LinkedHashMap<String, Field>(fields.size());
+        this.fields = new LinkedHashMap<>(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
+        this.globalForceSource = globalForceSource;
     }
 
     public Collection<Field> fields() {
         return fields.values();
-    }
-
-    public void globalForceSource(boolean globalForceSource) {
-        this.globalForceSource = globalForceSource;
-    }
-
-    boolean globalForceSource() {
-        return this.globalForceSource;
     }
 
     public boolean forceSource(Field field) {

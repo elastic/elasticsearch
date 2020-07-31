@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -22,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -125,6 +129,49 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(),
                    lessThanOrEqualTo(allDataUsedForTraining));
+    }
+
+    public void testSimultaneousExplainSameConfig() throws IOException {
+
+        final int simultaneousInvocationCount = 10;
+
+        String sourceIndex = "test-simultaneous-explain";
+        RegressionIT.indexData(sourceIndex, 100, 0);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("dfa-simultaneous-explain-" + sourceIndex)
+            .setSource(new DataFrameAnalyticsSource(new String[]{sourceIndex},
+                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                null))
+            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().build(),
+                null,
+                100.0,
+                null,
+                null,
+                null))
+            .buildForExplain();
+
+        List<ActionFuture<ExplainDataFrameAnalyticsAction.Response>> futures = new ArrayList<>();
+
+        for (int i = 0; i < simultaneousInvocationCount; ++i) {
+            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new PutDataFrameAnalyticsAction.Request(config)));
+        }
+
+        ExplainDataFrameAnalyticsAction.Response previous = null;
+        for (ActionFuture<ExplainDataFrameAnalyticsAction.Response> future : futures) {
+            // The main purpose of this test is that actionGet() here will throw an exception
+            // if any of the simultaneous calls returns an error due to interaction between
+            // the many estimation processes that get run
+            ExplainDataFrameAnalyticsAction.Response current = future.actionGet(10000);
+            if (previous != null) {
+                // A secondary check the test can perform is that the multiple invocations
+                // return the same result (but it was failures due to unwanted interactions
+                // that caused this test to be written)
+                assertEquals(previous, current);
+            }
+            previous = current;
+        }
     }
 
     @Override

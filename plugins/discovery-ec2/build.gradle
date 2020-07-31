@@ -53,13 +53,13 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from('config/discovery-ec2') {
     into 'config'
   }
 }
 
-task writeTestJavaPolicy {
+tasks.register("writeTestJavaPolicy") {
   doLast {
     final File tmp = file("${buildDir}/tmp")
     if (tmp.exists() == false && tmp.mkdirs() == false) {
@@ -97,8 +97,8 @@ task writeTestJavaPolicy {
   }
 }
 
-test {
-  dependsOn writeTestJavaPolicy
+tasks.named("test").configure {
+  dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 
@@ -111,41 +111,40 @@ test {
   }
 }
 
-check {
+tasks.named("check").configure {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
-  'com.amazonaws.jmespath.JmesPathExpression',
-  'com.amazonaws.jmespath.JmesPathField',
-  'com.amazonaws.jmespath.JmesPathFlatten',
-  'com.amazonaws.jmespath.JmesPathIdentity',
-  'com.amazonaws.jmespath.JmesPathLengthFunction',
-  'com.amazonaws.jmespath.JmesPathLiteral',
-  'com.amazonaws.jmespath.JmesPathProjection',
-  'com.amazonaws.jmespath.JmesPathSubExpression',
-  'com.amazonaws.jmespath.ObjectMapperSingleton',
-  'com.amazonaws.jmespath.OpGreaterThan',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger'
-)
-
-thirdPartyAudit.ignoreMissingClasses(
-  'javax.xml.bind.DatatypeConverter',
-  'javax.xml.bind.JAXBContext'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
+          'com.amazonaws.jmespath.JmesPathExpression',
+          'com.amazonaws.jmespath.JmesPathField',
+          'com.amazonaws.jmespath.JmesPathFlatten',
+          'com.amazonaws.jmespath.JmesPathIdentity',
+          'com.amazonaws.jmespath.JmesPathLengthFunction',
+          'com.amazonaws.jmespath.JmesPathLiteral',
+          'com.amazonaws.jmespath.JmesPathProjection',
+          'com.amazonaws.jmespath.JmesPathSubExpression',
+          'com.amazonaws.jmespath.ObjectMapperSingleton',
+          'com.amazonaws.jmespath.OpGreaterThan',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.xml.bind.DatatypeConverter',
+          'javax.xml.bind.JAXBContext'
+  )
+}

@@ -16,7 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.cache.TestUtils;
@@ -28,7 +30,9 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -597,6 +601,14 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final Path shardDir;
+        try {
+            shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        final Path cacheDir = createTempDir();
 
         try (
             CacheService ignored = cacheService;
@@ -609,7 +621,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 indexSettings,
                 statsCurrentTimeNanos,
                 cacheService,
-                createTempDir(),
+                cacheDir,
+                shardPath,
                 threadPool
             ) {
                 @Override

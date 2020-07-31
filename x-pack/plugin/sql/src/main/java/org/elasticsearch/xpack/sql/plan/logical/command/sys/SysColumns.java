@@ -127,27 +127,29 @@ public class SysColumns extends Command {
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, ActionListener.wrap(esIndices -> {
-                List<List<?>> rows = new ArrayList<>();
-                for (EsIndex esIndex : esIndices) {
-                    fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
-                }
-
-                listener.onResponse(of(session, rows));
-            }, listener::onFailure));
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, session.configuration().filter(),
+                ActionListener.wrap(esIndices -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    for (EsIndex esIndex : esIndices) {
+                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                    }
+    
+                    listener.onResponse(of(session, rows));
+                }, listener::onFailure));
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
-                List<List<?>> rows = new ArrayList<>();
-                // populate the data only when a target is found
-                if (r.isValid()) {
-                    EsIndex esIndex = r.get();
-                    fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
-                }
-
-                listener.onResponse(of(session, rows));
-            }, listener::onFailure));
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, session.configuration().filter(),
+                ActionListener.wrap(r -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    // populate the data only when a target is found
+                    if (r.isValid()) {
+                        EsIndex esIndex = r.get();
+                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                    }
+    
+                    listener.onResponse(of(session, rows));
+                }, listener::onFailure));
         }
     }
 

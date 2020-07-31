@@ -511,9 +511,9 @@ public class SysColumnsTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
 
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }

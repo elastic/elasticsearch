@@ -139,9 +139,15 @@ include::request/rescore.asciidoc[]
 
 include::request/script-fields.asciidoc[]
 
-include::request/scroll.asciidoc[]
+[[request-body-search-scroll]]
+==== Scroll
 
-include::request/search-after.asciidoc[]
+See <<scroll-search-results>>.
+
+[[request-body-search-search-after]]
+==== Search After
+
+See <<search-after>>.
 
 include::request/search-type.asciidoc[]
 

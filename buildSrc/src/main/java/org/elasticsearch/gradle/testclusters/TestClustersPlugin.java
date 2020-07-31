@@ -25,6 +25,9 @@ import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -55,8 +58,13 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply(JdkDownloadPlugin.class);
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        if (BuildParams.isInternal()) {
+            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
+        } else {
+            project.getPlugins().apply(DistributionDownloadPlugin.class);
+        }
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);

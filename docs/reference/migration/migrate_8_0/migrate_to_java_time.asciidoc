@@ -1,6 +1,5 @@
 [discrete]
 [[breaking_80_java_time_changes]]
-[[migrate-to-java-time]]
 === Java time migration guide
 
 With 7.0, {es} switched from joda time to java time for date-related parsing,

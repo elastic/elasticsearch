@@ -9,12 +9,11 @@ if your cluster is impacted and, if so, prepare for the upgrade.
 [[java-time-convert-date-formats]]
 === Convert date formats
 
-You do not need to convert joda-time date formats on indices created in v6.
-However you will have to make sure newly created mappings are using java-time patterns.
+*You do not need to convert joda-time date formats on indices created in v6.*
+However you will have to make sure mappings for newly created indices are using java-time patterns.
 
 You can start using java-time patterns in {es} 6.8 by prefixing java-time
 date formats with an `8`.
-
 For example, you can change the date format `YYYY-MM-dd` to `8yyyy-MM-dd` to
 indicate the date format uses java time.
 

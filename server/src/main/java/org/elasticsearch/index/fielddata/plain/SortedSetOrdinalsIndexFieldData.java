@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -71,8 +69,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
             return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, scriptFunction);
         }
     }
-
-    private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
 
     public SortedSetOrdinalsIndexFieldData(
         IndexFieldDataCache cache,

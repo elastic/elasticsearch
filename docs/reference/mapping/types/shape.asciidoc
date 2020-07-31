@@ -19,7 +19,7 @@ You can query documents using this type using
 ==== Mapping Options
 
 Like the <<geo-shape, geo_shape>> field type, the `shape` field mapping maps
-https://www.geojson.org[GeoJSON] or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+http://geojson.org[GeoJSON] or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) geometry objects to the shape type. To enable it, users must explicitly map
 fields to the shape type.
 

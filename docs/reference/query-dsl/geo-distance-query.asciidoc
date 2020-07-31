@@ -100,7 +100,7 @@ GET /my_locations/_search
 ===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
-conform with https://geojson.org/[GeoJSON].
+conform with http://geojson.org/[GeoJSON].
 
 [source,console]
 --------------------------------------------------

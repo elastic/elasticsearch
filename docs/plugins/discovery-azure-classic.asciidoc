@@ -139,7 +139,7 @@ about your nodes.
 
 Before starting, you need to have:
 
-* A https://www.windowsazure.com/[Windows Azure account]
+* A https://azure.microsoft.com/en-us/[Windows Azure account]
 * OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
   2014` doesn't seem to create a valid keypair for ssh. FWIW,
  `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 14.04 LTS is known to work.

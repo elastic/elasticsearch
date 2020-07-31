@@ -48,7 +48,7 @@ whole system to swap in emergency conditions.
 ==== Enable `bootstrap.memory_lock`
 
 Another option is to use
-https://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on
+http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on
 Linux/Unix systems, or
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock]
 on Windows, to try to lock the process address space into RAM, preventing any

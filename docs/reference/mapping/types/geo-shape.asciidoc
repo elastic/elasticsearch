@@ -156,7 +156,7 @@ triangular mesh (see <<geoshape-indexing-approach>>).
 Multiple PrefixTree implementations are provided:
 
 * GeohashPrefixTree - Uses
-https://en.wikipedia.org/wiki/Geohash[geohashes] for grid squares.
+{wikipedia}/Geohash[geohashes] for grid squares.
 Geohashes are base32 encoded strings of the bits of the latitude and
 longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and

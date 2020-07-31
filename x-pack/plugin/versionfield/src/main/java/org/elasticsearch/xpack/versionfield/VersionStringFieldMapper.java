@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -24,7 +23,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -365,17 +363,12 @@ public class VersionStringFieldMapper extends FieldMapper {
             // point query on the 16byte prefix
             Query pointPrefixQuery = BinaryPoint.newRangeQuery(name(), lowerBytes, upperBytes);
 
-            Query termQuery = new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : lower,
-                upperTerm == null ? null : upper,
-                includeLower,
-                includeUpper
-            );
+            ValidationOnSortedDv validationQuery = new ValidationOnSortedDv(name(), lower, upper, includeLower, includeUpper);
 
-            return new BooleanQuery.Builder().add(new BooleanClause(pointPrefixQuery, Occur.MUST))
-                .add(new BooleanClause(termQuery, Occur.MUST))
-                .build();
+            BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
+            qBuilder.add(pointPrefixQuery, Occur.MUST);
+            qBuilder.add(validationQuery, Occur.MUST);
+            return qBuilder.build();
         }
     }
 

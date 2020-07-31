@@ -531,12 +531,17 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             .setId("2")
             .setSource(jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject())
             .get();
+        client().prepareIndex(indexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().array("version", "2.1.0", "2.2.0", "5.99.0").endObject())
+            .get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         SearchResponse response = client().prepareSearch(indexName).addSort("version", SortOrder.ASC).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(3, response.getHits().getTotalHits().value);
         assertEquals("1", response.getHits().getAt(0).getId());
         assertEquals("2", response.getHits().getAt(1).getId());
+        assertEquals("3", response.getHits().getAt(2).getId());
 
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "3.0.0")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
@@ -551,6 +556,9 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1, response.getHits().getTotalHits().value);
 
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("1.5.0")).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(3, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("5.0.0").to("6.0.0")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 }

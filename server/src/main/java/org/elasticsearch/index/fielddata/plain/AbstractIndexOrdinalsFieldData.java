@@ -115,7 +115,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(
             indexReader,
             this,

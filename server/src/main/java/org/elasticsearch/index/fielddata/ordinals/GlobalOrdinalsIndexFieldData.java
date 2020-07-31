@@ -92,7 +92,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
@@ -183,7 +183,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             return this;
         }
 

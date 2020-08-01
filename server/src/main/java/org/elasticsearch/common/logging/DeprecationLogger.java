@@ -144,7 +144,7 @@ public class DeprecationLogger {
     private static final String WARNING_PREFIX =
             String.format(
                     Locale.ROOT,
-                    "299 Elasticsearch-%s%s-%s",
+                    "299 Elasticsearch-%s%s-%s \"\"",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
                     Build.CURRENT.shortHash());

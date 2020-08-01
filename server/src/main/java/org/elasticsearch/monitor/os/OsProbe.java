@@ -92,7 +92,7 @@ public class OsProbe {
         try {
             final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
             if (freeMem < 0) {
-                logger.warn("OS reported a negative free memory value [{}]", freeMem);
+                logger.debug("OS reported a negative free memory value [{}]", freeMem);
                 return 0;
             }
             return freeMem;
@@ -113,7 +113,7 @@ public class OsProbe {
         try {
             final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
-                logger.warn("OS reported a negative total memory value [{}]", totalMem);
+                logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
             return totalMem;
@@ -134,7 +134,7 @@ public class OsProbe {
         try {
             final long mem = (long) getFreeSwapSpaceSize.invoke(osMxBean);
             if (mem < 0) {
-                logger.warn("OS reported a negative free swap space size [{}]", mem);
+                logger.debug("OS reported a negative free swap space size [{}]", mem);
                 return 0;
             }
             return mem;
@@ -155,7 +155,7 @@ public class OsProbe {
         try {
             final long mem = (long) getTotalSwapSpaceSize.invoke(osMxBean);
             if (mem < 0) {
-                logger.warn("OS reported a negative total swap space size [{}]", mem);
+                logger.debug("OS reported a negative total swap space size [{}]", mem);
                 return 0;
             }
             return mem;

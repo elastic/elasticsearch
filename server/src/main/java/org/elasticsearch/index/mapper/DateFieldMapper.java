@@ -53,6 +53,7 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -268,6 +269,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
@@ -438,6 +440,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
             // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            // TODO maybe aggs should force millis because lots so of other places want nanos?
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }
@@ -496,6 +499,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValueAsString;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -541,6 +549,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    public String parseSourceValue(Object value, String format) {
+        String date = value.toString();
+        long timestamp = fieldType().parse(date);
+
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        if (format != null) {
+            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+        }
+        return dateTimeFormatter.format(dateTime);
+    }
 
     public boolean getIgnoreMalformed() {
         return ignoreMalformed;

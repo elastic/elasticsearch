@@ -184,3 +184,11 @@ structure, fields, and values together should improve the compression ratio.
 Due to the fact that multiple documents are compressed together into blocks,
 it is more likely to find longer duplicate strings in those `_source` documents
 if fields always occur in the same order.
+
+[discrete]
+[[roll-up-historical-data]]
+=== Roll up historical data
+
+Keeping older data can useful for later analysis but is often avoided due to
+storage costs. You can use data rollups to summarize and store historical data
+at a fraction of the raw data's storage cost. See <<xpack-rollup>>.

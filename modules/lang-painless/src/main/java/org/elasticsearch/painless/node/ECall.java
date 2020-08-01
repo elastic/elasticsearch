@@ -20,22 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
-import org.elasticsearch.painless.symbol.Decorations.StaticType;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -91,93 +79,9 @@ public class ECall extends AExpression {
         }
     }
 
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
-        }
+    public static void visitDefaultSemanticAnalysis(
+            DefaultSemanticAnalysisPhase visitor, ECall userCallNode, SemanticScope semanticScope) {
 
-        semanticScope.setCondition(prefixNode, Read.class);
-        prefixNode.analyze(semanticScope);
-        ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
-        StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
 
-        if (prefixValueType != null && prefixStaticType != null) {
-            throw createError(new IllegalStateException("cannot have both " +
-                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
-                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
-        }
-
-        if (semanticScope.hasDecoration(prefixNode, PartialCanonicalTypeName.class)) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol " +
-                    "[" + semanticScope.getDecoration(prefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
-        }
-
-        Class<?> valueType;
-
-        if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
-            for (AExpression argument : argumentNodes) {
-                semanticScope.setCondition(argument, Read.class);
-                semanticScope.setCondition(argument, Internal.class);
-                analyze(argument, semanticScope);
-                Class<?> argumentValueType = semanticScope.getDecoration(argument, ValueType.class).getValueType();
-
-                if (argumentValueType == void.class) {
-                    throw createError(new IllegalArgumentException(
-                            "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
-                }
-            }
-
-            TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
-            // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                    semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
-        } else {
-            PainlessMethod method;
-
-            if (prefixValueType != null) {
-                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixValueType.getValueType(), false, methodName, argumentNodes.size());
-
-                if (method == null) {
-                    throw createError(new IllegalArgumentException("member method " +
-                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
-                            "not found"));
-                }
-            } else if (prefixStaticType != null) {
-                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixStaticType.getStaticType(), true, methodName, argumentNodes.size());
-
-                if (method == null) {
-                    throw createError(new IllegalArgumentException("static method " +
-                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
-                            "not found"));
-                }
-            } else {
-                throw createError(new IllegalStateException("value required: instead found no value"));
-            }
-
-            semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
-
-            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
-                AExpression expression = argumentNodes.get(argument);
-
-                semanticScope.setCondition(expression, Read.class);
-                semanticScope.putDecoration(expression, new TargetType(method.typeParameters.get(argument)));
-                semanticScope.setCondition(expression, Internal.class);
-                analyze(expression, semanticScope);
-                expression.cast(semanticScope);
-            }
-
-            semanticScope.putDecoration(this, new StandardPainlessMethod(method));
-            valueType = method.returnType;
-        }
-
-        if (isNullSafe && valueType.isPrimitive()) {
-            throw new IllegalArgumentException("Result of null safe operator must be nullable");
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

@@ -48,7 +48,7 @@ change the config directory location.
 [discrete]
 === Config file format
 
-The configuration format is http://www.yaml.org/[YAML]. Here is an
+The configuration format is https://yaml.org/[YAML]. Here is an
 example of changing the path of the data and logs directories:
 
 [source,yaml]

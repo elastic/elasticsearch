@@ -69,10 +69,6 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
         return valuesSourceType;
     }
 
-    @Override
-    public final void clear() {
-        // can't do
-    }
 
     @Override
     public BinaryDVLeafFieldData load(LeafReaderContext context) {

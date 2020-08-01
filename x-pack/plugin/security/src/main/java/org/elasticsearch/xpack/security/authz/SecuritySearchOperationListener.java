@@ -9,6 +9,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextId;
@@ -74,10 +75,12 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
-                // restore the DLS and FLS permissions in this search scroll action from the initial search action
-                IndicesAccessControl indicesAccessControl =
-                        searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+                if (request instanceof InternalScrollSearchRequest) {
+                    // restore the DLS and FLS permissions in this search scroll action from the initial search action
+                    IndicesAccessControl indicesAccessControl =
+                            searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+                }
             }
         }
     }

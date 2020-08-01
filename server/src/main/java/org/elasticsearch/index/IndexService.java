@@ -88,6 +88,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -473,6 +474,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (nodePath != null) {
                 nodePath.addShard(shardId);
             }
+            assertShardsNumSyncedWithEnv();
             success = true;
             return indexShard;
         } catch (ShardLockObtainFailedException e) {
@@ -498,8 +500,30 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
         indexShard = newShards.remove(shardId);
         shards = unmodifiableMap(newShards);
+        ShardPath shardPath = indexShard.shardPath();
+        if (shardPath != null && shardPath.getNodePath() != null) {
+            shardPath.getNodePath().removeShard(indexShard.shardId());
+        }
+        assertShardsNumSyncedWithEnv();
         closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
+    }
+
+    public void assertShardsNumSyncedWithEnv() {
+        if (indexSettings.hasCustomDataPath()) {
+            return;
+        }
+        final List<ShardId> nodeEnvShards = new ArrayList<>();
+        for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
+            final List<ShardId> shardList = nodePath.getShards(index());
+            if (shardList != null){
+                nodeEnvShards.addAll(shardList);
+            }
+        }
+        for (IndexShard indexShard : shards.values()) {
+            assert nodeEnvShards.remove(indexShard.shardId());
+        }
+        assert nodeEnvShards.isEmpty();
     }
 
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {

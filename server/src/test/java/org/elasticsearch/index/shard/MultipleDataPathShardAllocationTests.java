@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -158,9 +159,9 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         final String[] dataPaths = new String[2];
-        Path nodeDir = this.getNodeDir();
-        dataPaths[0] = nodeDir.resolve("a").toString();
-        dataPaths[1] = nodeDir.resolve("b").toString();
+        final Path tempDir = createTempDir("tempDataDir");
+        dataPaths[0] = tempDir.resolve("a").toString();
+        dataPaths[1] = tempDir.resolve("b").toString();
         return Settings.builder()
             .put(super.nodeSettings())
             .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
@@ -179,18 +180,19 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get());
         ensureGreen();
         assertShardDataPath("index", aPathPart, null);
+        Index index = resolveIndex("index");
         assertEquals(nodePaths[0].getNumShards(), 1);
-        assertEquals(nodePaths[0].getNumShards("index"), 1);
+        assertEquals(nodePaths[0].getNumShards(index), 1);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
 
 
         // delete index, check num of shards
         assertAcked(client().admin().indices().prepareDelete("index").get());
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
 
         // reverse a/b path space
         aFileStore.usableSpace = 10000;
@@ -200,17 +202,18 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         assertShardDataPath("index", bPathPart, null);
+        index = resolveIndex("index");
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
         assertEquals(nodePaths[1].getNumShards(), 1);
-        assertEquals(nodePaths[1].getNumShards("index"), 1);
+        assertEquals(nodePaths[1].getNumShards(index), 1);
 
         // delete index, check num of shards
         assertAcked(client().admin().indices().prepareDelete("index").get());
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
     }
 
     public void testSelectCurrentNodeLeastShardsPath() {
@@ -226,10 +229,11 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get());
         ensureGreen();
         assertShardDataPath("index", aPathPart, null);
+        Index index = resolveIndex("index");
         assertEquals(nodePaths[0].getNumShards(), 1);
-        assertEquals(nodePaths[0].getNumShards("index"), 1);
+        assertEquals(nodePaths[0].getNumShards(index), 1);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
 
         // create index1 with one shard, shard should go to path b even path a has more free space
         // since path b has least shards of this node regardless of different indices
@@ -237,19 +241,20 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get());
         ensureGreen();
         assertShardDataPath("index1", bPathPart, null);
+        Index index1 = resolveIndex("index1");
         assertEquals(nodePaths[0].getNumShards(), 1);
-        assertEquals(nodePaths[0].getNumShards("index"), 1);
+        assertEquals(nodePaths[0].getNumShards(index), 1);
         assertEquals(nodePaths[1].getNumShards(), 1);
-        assertEquals(nodePaths[1].getNumShards("index1"), 1);
+        assertEquals(nodePaths[1].getNumShards(index1), 1);
 
         // delete index, check num of shards
         assertAcked(client().admin().indices().prepareDelete("index", "index1").get());
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
-        assertEquals(nodePaths[0].getNumShards("index1"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
+        assertEquals(nodePaths[0].getNumShards(index1), 0);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
-        assertEquals(nodePaths[1].getNumShards("index1"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
+        assertEquals(nodePaths[1].getNumShards(index1), 0);
     }
 
     public void testSelectCurrentIndexLeastShardsPath() {
@@ -265,10 +270,11 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get());
         ensureGreen();
         assertShardDataPath("index", aPathPart, null);
+        Index index = resolveIndex("index");
         assertEquals(nodePaths[0].getNumShards(), 1);
-        assertEquals(nodePaths[0].getNumShards("index"), 1);
+        assertEquals(nodePaths[0].getNumShards(index), 1);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
 
         // reverse a/b path space
         aFileStore.usableSpace = 10000;
@@ -282,20 +288,21 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         assertShardDataPath("index1", bPathPart, aPathPart);
+        Index index1 = resolveIndex("index1");
         assertEquals(nodePaths[0].getNumShards(), 2);
-        assertEquals(nodePaths[0].getNumShards("index"), 1);
-        assertEquals(nodePaths[0].getNumShards("index1"), 1);
+        assertEquals(nodePaths[0].getNumShards(index), 1);
+        assertEquals(nodePaths[0].getNumShards(index1), 1);
         assertEquals(nodePaths[1].getNumShards(), 1);
-        assertEquals(nodePaths[1].getNumShards("index1"), 1);
+        assertEquals(nodePaths[1].getNumShards(index1), 1);
 
         // delete index, check num of shards
         assertAcked(client().admin().indices().prepareDelete("index", "index1").get());
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
-        assertEquals(nodePaths[0].getNumShards("index1"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
+        assertEquals(nodePaths[0].getNumShards(index1), 0);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
-        assertEquals(nodePaths[1].getNumShards("index1"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
+        assertEquals(nodePaths[1].getNumShards(index1), 0);
     }
 
     public void testCustomIndexDataPathWouldBeIgnored() {
@@ -315,10 +322,11 @@ public class MultipleDataPathShardAllocationTests extends ESSingleNodeTestCase {
         IndicesStatsResponse response = indicesStats("index");
         assertThat(response.getShards()[0].getDataPath(), containsString(customDataPath));
         assertThat(response.getShards()[0].getStatePath() + '\\', containsString(aPathPart));
+        Index index = resolveIndex("index");
         assertEquals(nodePaths[0].getNumShards(), 0);
-        assertEquals(nodePaths[0].getNumShards("index"), 0);
+        assertEquals(nodePaths[0].getNumShards(index), 0);
         assertEquals(nodePaths[1].getNumShards(), 0);
-        assertEquals(nodePaths[1].getNumShards("index"), 0);
+        assertEquals(nodePaths[1].getNumShards(index), 0);
     }
 
     private void assertShardDataPath(String index, String firstShardPath, String secondShardPath) {

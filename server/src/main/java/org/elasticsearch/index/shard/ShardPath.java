@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
@@ -214,7 +215,7 @@ public final class ShardPath {
         final Path dataPath;
         final Path statePath;
         final NodeEnvironment.NodePath selectedNodePath;
-        final String indexName = shardId.getIndexName();
+        final Index index = shardId.getIndex();
 
         if (indexSettings.hasCustomDataPath()) {
             dataPath = env.resolveCustomLocation(indexSettings.customDataPath(), shardId);
@@ -254,7 +255,7 @@ public final class ShardPath {
                         .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
                         // Sort by the number of shards for this index
                         .sorted((p1, p2) -> {
-                                int cmp = Long.compare(p1.getNumShards(indexName), p2.getNumShards(indexName));
+                                int cmp = Long.compare(p1.getNumShards(index), p2.getNumShards(index));
                                 if (cmp == 0) {
                                     // if the number of shards is equal, tie-break with the number of total shards
                                     cmp = Integer.compare(p1.getNumShards(), p2.getNumShards());

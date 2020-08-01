@@ -581,6 +581,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
             success = true;
+            assertIndicesSyncedWithEnv();
             return indexService;
         } finally {
             if (success == false) {
@@ -773,6 +774,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .setSource(mapping.source().string(), XContentType.JSON)
                     .get();
             }, this);
+        assertIndicesSyncedWithEnv();
         return indexShard;
     }
 
@@ -805,9 +807,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 // now we are done - try to wipe data on disk if possible
                 deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
+            assertIndicesSyncedWithEnv();
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
         }
+    }
+
+    private void assertIndicesSyncedWithEnv() {
+        indices.values().forEach(index -> index.assertShardsNumSyncedWithEnv());
     }
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {
@@ -940,7 +947,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public void deleteShardStore(String reason, ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
-        nodeEnv.deleteShardDirectoryUnderLock(lock, shardPath, indexSettings);
+        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
     }
 
     /**
@@ -967,7 +974,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         assert indexService(shardId.getIndex()) == null || !indexService(shardId.getIndex()).hasShard(shardId.id())
             : "shard " + shardId + " should not exist in state";
-        nodeEnv.deleteShardDirectorySafe(shardId, null, indexSettings);
+        nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {

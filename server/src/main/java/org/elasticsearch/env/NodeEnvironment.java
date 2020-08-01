@@ -108,7 +108,7 @@ public final class NodeEnvironment  implements Closeable {
         // total shard number under this NodePath
         private int numShards = 0;
         // shardId list per index under this NodePath
-        private final Map<String, ArrayList<ShardId>> indices = new HashMap<>();
+        private final Map<Index, ArrayList<ShardId>> indices = new HashMap<>();
 
         public NodePath(Path path) throws IOException {
             this.path = path;
@@ -123,37 +123,33 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        public void addShard(ShardId shardId) {
-            this.indices.computeIfAbsent(shardId.getIndexName(), k -> new ArrayList()).add(shardId);
+        public void addShard(final ShardId shardId) {
+            this.indices.computeIfAbsent(shardId.getIndex(), k -> new ArrayList()).add(shardId);
             this.numShards++;
         }
 
-        public void removeShard(ShardId shardId) {
-            ArrayList<ShardId> shardIds = this.indices.get(shardId.getIndexName());
+        public void removeShard(final ShardId shardId) {
+            ArrayList<ShardId> shardIds = this.indices.get(shardId.getIndex());
             if (shardIds != null && shardIds.contains(shardId)) {
                 shardIds.remove(shardId);
                 this.numShards--;
                 if (shardIds.size() == 0) {
-                    this.indices.remove(shardId.getIndexName());
+                    this.indices.remove(shardId.getIndex());
                 }
             }
         }
 
-        public void removeIndex(String index) {
-            ArrayList<ShardId> shardIds = this.indices.get(index);
-            if (shardIds != null) {
-                this.numShards -= shardIds.size();
-                this.indices.remove(index);
-            }
-        }
-
-        public int getNumShards(String index) {
+        public int getNumShards(final Index index) {
             ArrayList<ShardId> shardIds = this.indices.get(index);
             return shardIds == null ? 0 : shardIds.size();
         }
 
         public int getNumShards() {
             return numShards;
+        }
+
+        public List<ShardId> getShards(final Index index) {
+            return this.indices.get(index);
         }
 
         /**
@@ -587,15 +583,14 @@ public final class NodeEnvironment  implements Closeable {
      * Deletes a shard data directory iff the shards locks were successfully acquired.
      *
      * @param shardId the id of the shard to delete to delete
-     * @param shardPath the shard path of the shard to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, ShardPath shardPath, IndexSettings indexSettings)
+    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings)
         throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
-            deleteShardDirectoryUnderLock(lock, shardPath, indexSettings);
+            deleteShardDirectoryUnderLock(lock, indexSettings);
         }
     }
 
@@ -637,20 +632,16 @@ public final class NodeEnvironment  implements Closeable {
      * allow the folder to be deleted
      *
      * @param lock the shards lock
-     * @param shardPath the shard path of the shard to delete
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
         IOUtils.rm(paths);
-        if (shardPath != null && shardPath.getNodePath() != null) {
-            shardPath.getNodePath().removeShard(shardId);
-        }
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
@@ -728,7 +719,6 @@ public final class NodeEnvironment  implements Closeable {
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
-        Arrays.stream(this.nodePaths).forEach(p -> p.removeIndex(index.getName()));
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);

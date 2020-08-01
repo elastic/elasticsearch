@@ -35,7 +35,6 @@ import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.util.Util;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
 import org.gradle.api.Action;
@@ -45,7 +44,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
-import org.gradle.api.distribution.Distribution;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -108,16 +106,14 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
             depsTasks.put(taskname, depsTask);
-            TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution,
-                t -> {
-                    t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
-                    addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                    addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
-                    t.exclude("**/PackageUpgradeTests.class");
-                }
-            , depsTask);
+            TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
+                t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
+                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
+                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                t.exclude("**/PackageUpgradeTests.class");
+            }, depsTask);
 
-            if (distribution.getPlatform() ==  Platform.WINDOWS) {
+            if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
             } else {
                 linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
@@ -135,7 +131,15 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // this is the same as the distribution we are testing
                         bwcDistro = distribution;
                     } else {
-                        bwcDistro = createDistro(allDistributions, distribution.getArchitecture(), distribution.getType(), distribution.getPlatform(), distribution.getFlavor(), distribution.getBundledJdk(), version.toString());
+                        bwcDistro = createDistro(
+                            allDistributions,
+                            distribution.getArchitecture(),
+                            distribution.getType(),
+                            distribution.getPlatform(),
+                            distribution.getFlavor(),
+                            distribution.getBundledJdk(),
+                            version.toString()
+                        );
 
                     }
                     String upgradeTaskname = destructiveDistroUpgradeTestTaskName(distribution, version.toString());
@@ -165,9 +169,13 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
-                    vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
-                }, vmDependencies);
+                configureWrapperTasks(
+                    vmProject,
+                    windowsTestTasks,
+                    depsTasks,
+                    wrapperTask -> { vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
+                    vmDependencies
+                );
             } else {
                 for (var entry : linuxTestTasks.entrySet()) {
                     Type type = entry.getKey();
@@ -183,8 +191,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // auto-detection doesn't work.
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = type != Type.DOCKER
-                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
+                        boolean shouldExecute = type != Type.DOCKER || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             distroTest.configure(t -> t.dependsOn(wrapperTask));
@@ -195,9 +202,13 @@ public class DistroTestPlugin implements Plugin<Project> {
                 for (var entry : upgradeTestTasks.entrySet()) {
                     String version = entry.getKey();
                     TaskProvider<?> vmVersionTask = vmVersionTasks.get(version);
-                    configureWrapperTasks(vmProject, entry.getValue(), depsTasks, wrapperTask -> {
-                        vmVersionTask.configure(t -> t.dependsOn(wrapperTask));
-                    }, vmDependencies);
+                    configureWrapperTasks(
+                        vmProject,
+                        entry.getValue(),
+                        depsTasks,
+                        wrapperTask -> { vmVersionTask.configure(t -> t.dependsOn(wrapperTask)); },
+                        vmDependencies
+                    );
                 }
             }
         });
@@ -284,9 +295,13 @@ public class DistroTestPlugin implements Plugin<Project> {
         return examplePlugin;
     }
 
-    private static void configureWrapperTasks(Project project, List<TaskProvider<Test>> destructiveTasks,
-                                              Map<String, TaskProvider<?>> depsTasks,
-                                              Action<TaskProvider<GradleDistroTestTask>> configure, Object... additionalDeps) {
+    private static void configureWrapperTasks(
+        Project project,
+        List<TaskProvider<Test>> destructiveTasks,
+        Map<String, TaskProvider<?>> depsTasks,
+        Action<TaskProvider<GradleDistroTestTask>> configure,
+        Object... additionalDeps
+    ) {
         for (TaskProvider<? extends Task> destructiveTask : destructiveTasks) {
             String destructiveTaskName = destructiveTask.getName();
             String taskname = destructiveTaskName.substring("destructive".length());
@@ -336,15 +351,17 @@ public class DistroTestPlugin implements Plugin<Project> {
                         boolean skip = bundledJdk == false && (type == Type.DOCKER || architecture == Architecture.AARCH64);
 
                         if (skip == false) {
-                            currentDistros.add(createDistro(
-                                distributions,
-                                architecture,
-                                type,
-                                null,
-                                flavor,
-                                bundledJdk,
-                                VersionProperties.getElasticsearch()
-                            ));
+                            currentDistros.add(
+                                createDistro(
+                                    distributions,
+                                    architecture,
+                                    type,
+                                    null,
+                                    flavor,
+                                    bundledJdk,
+                                    VersionProperties.getElasticsearch()
+                                )
+                            );
                         }
                     }
                 }
@@ -361,15 +378,17 @@ public class DistroTestPlugin implements Plugin<Project> {
                             continue;
                         }
 
-                        currentDistros.add(createDistro(
-                            distributions,
-                            architecture,
-                            Type.ARCHIVE,
-                            platform,
-                            flavor,
-                            bundledJdk,
-                            VersionProperties.getElasticsearch()
-                        ));
+                        currentDistros.add(
+                            createDistro(
+                                distributions,
+                                architecture,
+                                Type.ARCHIVE,
+                                platform,
+                                flavor,
+                                bundledJdk,
+                                VersionProperties.getElasticsearch()
+                            )
+                        );
                     }
                 }
             }
@@ -433,7 +452,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static String destructiveDistroUpgradeTestTaskName(ElasticsearchDistribution distro, String bwcVersion) {
         Type type = distro.getType();
         return "destructiveDistroUpgradeTest.v"
-            + bwcVersion + "."
+            + bwcVersion
+            + "."
             + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
     }
 

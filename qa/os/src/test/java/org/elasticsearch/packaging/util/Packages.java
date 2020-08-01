@@ -41,7 +41,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
-import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -123,8 +122,9 @@ public class Packages {
     }
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
-        final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE ?
-            distribution.flavor.name : distribution.path.toString();
+        final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
+            ? distribution.flavor.name
+            : distribution.path.toString();
 
         if (Platforms.isRPM()) {
             String rpmOptions = RPM_OPTIONS.get(command);
@@ -333,18 +333,28 @@ public class Packages {
     }
 
     private static Map<PackageManagerCommand, String> RPM_OPTIONS = Map.of(
-        PackageManagerCommand.QUERY, "-qe",
-        PackageManagerCommand.INSTALL, "-i",
-        PackageManagerCommand.UPGRADE, "-U",
-        PackageManagerCommand.FORCE_UPGRADE, "-U --force",
-        PackageManagerCommand.REMOVE, "-e"
+        PackageManagerCommand.QUERY,
+        "-qe",
+        PackageManagerCommand.INSTALL,
+        "-i",
+        PackageManagerCommand.UPGRADE,
+        "-U",
+        PackageManagerCommand.FORCE_UPGRADE,
+        "-U --force",
+        PackageManagerCommand.REMOVE,
+        "-e"
     );
 
     private static Map<PackageManagerCommand, String> DEB_OPTIONS = Map.of(
-        PackageManagerCommand.QUERY, "-s",
-        PackageManagerCommand.INSTALL, "-i",
-        PackageManagerCommand.UPGRADE, "-i --force-confnew",
-        PackageManagerCommand.FORCE_UPGRADE, "-i --force-conflicts",
-        PackageManagerCommand.REMOVE, "-r"
+        PackageManagerCommand.QUERY,
+        "-s",
+        PackageManagerCommand.INSTALL,
+        "-i",
+        PackageManagerCommand.UPGRADE,
+        "-i --force-confnew",
+        PackageManagerCommand.FORCE_UPGRADE,
+        "-i --force-conflicts",
+        PackageManagerCommand.REMOVE,
+        "-r"
     );
 }

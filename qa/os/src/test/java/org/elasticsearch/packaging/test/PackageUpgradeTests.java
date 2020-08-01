@@ -23,11 +23,11 @@ import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.ServerUtils;
 
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.Packages.*;
+import static org.elasticsearch.packaging.util.Packages.assertInstalled;
+import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
@@ -58,10 +58,12 @@ public class PackageUpgradeTests extends PackagingTestCase {
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
         makeRequest(
             Request.Put("http://localhost:9200/library")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON));
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+        );
         makeRequest(
             Request.Put("http://localhost:9200/library2")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON));
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+        );
 
         // add some docs
         makeRequest(
@@ -94,9 +96,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     public void test21CheckUpgradedVersion() throws Exception {
-        assertWhileRunning(() -> {
-            assertDocsExist();
-        });
+        assertWhileRunning(() -> { assertDocsExist(); });
     }
 
     private void assertDocsExist() throws Exception {

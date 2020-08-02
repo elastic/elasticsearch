@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -231,16 +230,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            maxEmptySearches = in.readOptionalVInt();
-        } else {
-            maxEmptySearches = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-        }
+        maxEmptySearches = in.readOptionalVInt();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     /**
@@ -453,12 +444,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(chunkingConfig);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalVInt(maxEmptySearches);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
+        out.writeOptionalVInt(maxEmptySearches);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

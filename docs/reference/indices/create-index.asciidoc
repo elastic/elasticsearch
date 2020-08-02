@@ -8,7 +8,7 @@ Creates a new index.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 --------------------------------------------------
 
 
@@ -79,7 +79,7 @@ associated with it, defined in the body:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
   "settings": {
     "index": {
@@ -97,7 +97,7 @@ or more simplified
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
   "settings": {
     "number_of_shards": 3,
@@ -147,7 +147,7 @@ PUT /test
     "alias_1": {},
     "alias_2": {
       "filter": {
-        "term": { "user": "kimchy" }
+        "term": { "user.id": "kimchy" }
       },
       "routing": "kimchy"
     }

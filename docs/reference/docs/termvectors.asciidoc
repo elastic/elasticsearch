@@ -8,9 +8,9 @@ Retrieves information and statistics for terms in the fields of a particular doc
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-termvectors-api-request]]
 ==== {api-request-title}
@@ -28,9 +28,9 @@ or by adding the fields to the request body.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1?fields=message
+GET /my-index-000001/_termvectors/1?fields=message
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Fields can be specified using wildcards, similar to the <<query-dsl-multi-match-query,multi match query>>.
 
@@ -169,7 +169,7 @@ First, we create an index that stores term vectors, payloads etc. :
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 { "mappings": {
     "properties": {
       "text": {
@@ -210,16 +210,16 @@ Second, we add some documents:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_doc/1
+PUT /my-index-000001/_doc/1
 {
   "fullname" : "John Doe",
-  "text" : "twitter test test test "
+  "text" : "test test test "
 }
 
-PUT /twitter/_doc/2?refresh=wait_for
+PUT /my-index-000001/_doc/2?refresh=wait_for
 {
   "fullname" : "Jane Doe",
-  "text" : "Another twitter test ..."
+  "text" : "Another test ..."
 }
 --------------------------------------------------
 // TEST[continued]
@@ -229,7 +229,7 @@ The following request returns all information and statistics for field
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 {
   "fields" : ["text"],
   "offsets" : true,
@@ -246,56 +246,43 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
+  "_index": "my-index-000001",
   "_id": "1",
-  "_index": "twitter",
   "_version": 1,
   "found": true,
   "took": 6,
   "term_vectors": {
     "text": {
       "field_statistics": {
+        "sum_doc_freq": 4,
         "doc_count": 2,
-        "sum_doc_freq": 6,
-        "sum_ttf": 8
+        "sum_ttf": 6
       },
       "terms": {
         "test": {
           "doc_freq": 2,
+          "ttf": 4,
           "term_freq": 3,
           "tokens": [
             {
-              "end_offset": 12,
-              "payload": "d29yZA==",
-              "position": 1,
-              "start_offset": 8
-            },
-            {
-              "end_offset": 17,
-              "payload": "d29yZA==",
-              "position": 2,
-              "start_offset": 13
-            },
-            {
-              "end_offset": 22,
-              "payload": "d29yZA==",
-              "position": 3,
-              "start_offset": 18
-            }
-          ],
-          "ttf": 4
-        },
-        "twitter": {
-          "doc_freq": 2,
-          "term_freq": 1,
-          "tokens": [
-            {
-              "end_offset": 7,
-              "payload": "d29yZA==",
               "position": 0,
-              "start_offset": 0
+              "start_offset": 0,
+              "end_offset": 4,
+              "payload": "d29yZA=="
+            },
+            {
+              "position": 1,
+              "start_offset": 5,
+              "end_offset": 9,
+              "payload": "d29yZA=="
+            },
+            {
+              "position": 2,
+              "start_offset": 10,
+              "end_offset": 14,
+              "payload": "d29yZA=="
             }
-          ],
-          "ttf": 2
+          ]
         }
       }
     }
@@ -315,7 +302,7 @@ Note that for the field `text`, the terms are not re-generated.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 {
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
@@ -338,11 +325,11 @@ mapping will be dynamically created.*
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors
+GET /my-index-000001/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
-    "text" : "twitter test test test"
+    "text" : "test test test"
   }
 }
 --------------------------------------------------
@@ -359,11 +346,11 @@ vectors, the term vectors will be re-generated.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_termvectors
+GET /my-index-000001/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
-    "text" : "twitter test test test"
+    "text" : "test test test"
   },
   "fields": ["fullname"],
   "per_field_analyzer" : {
@@ -378,7 +365,7 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "twitter",
+  "_index": "my-index-000001",
   "_version": 0,
   "found": true,
   "took": 6,

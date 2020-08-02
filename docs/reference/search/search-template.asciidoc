@@ -34,7 +34,7 @@ render search requests, before they are executed and fill existing templates
 with template parameters.
 
 For more information on how Mustache templating and what kind of templating you
-can do with it check out the http://mustache.github.io/mustache.5.html[online
+can do with it check out the https://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
 NOTE: The mustache language is implemented in {es} as a sandboxed scripting 
@@ -604,7 +604,7 @@ query as a string instead:
 
 The `{{#url}}value{{/url}}` function can be used to encode a string value
 in a HTML encoding form as defined in by the 
-http://www.w3.org/TR/html4/[HTML specification].
+https://www.w3.org/TR/html4/[HTML specification].
 
 As an example, it is useful to encode a URL:
 

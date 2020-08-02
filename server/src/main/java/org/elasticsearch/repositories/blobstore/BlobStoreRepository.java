@@ -533,8 +533,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return metadata;
     }
 
-    @Override
-    public RepositoryStats stats() {
+    protected RepositoryStats stats() {
         final BlobStore store = blobStore.get();
         if (store == null) {
             return RepositoryStats.EMPTY_STATS;

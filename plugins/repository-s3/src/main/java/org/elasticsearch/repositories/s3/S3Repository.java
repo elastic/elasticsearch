@@ -41,7 +41,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -66,7 +66,7 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-class S3Repository extends BlobStoreRepository {
+class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
 
     static final String TYPE = "s3";
@@ -327,5 +327,18 @@ class S3Repository extends BlobStoreRepository {
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    protected String location() {
+        logger.info("LOCATION {}", bucket);
+        BlobPath location = BlobPath.cleanPath();
+
+        location = location.add(bucket);
+        for (String path : basePath()) {
+            location = location.add(path);
+        }
+
+        return location.buildAsString();
     }
 }

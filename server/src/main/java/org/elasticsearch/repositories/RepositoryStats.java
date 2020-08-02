@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class RepositoryStats implements Writeable {
 
@@ -54,5 +55,18 @@ public class RepositoryStats implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(requestCounts, StreamOutput::writeString, StreamOutput::writeLong);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RepositoryStats that = (RepositoryStats) o;
+        return Objects.equals(requestCounts, that.requestCounts);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestCounts);
     }
 }

@@ -43,7 +43,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +58,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -63,6 +68,9 @@ import java.util.Map;
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
+
+    public static final Setting<TimeValue> REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD =
+        Setting.positiveTimeSetting("repositories.stats.archive.retention_period", TimeValue.timeValueHours(2), Setting.Property.NodeScope);
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
@@ -75,6 +83,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
+    private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry, Map<String, Repository.Factory> internalTypesRegistry,
@@ -89,6 +98,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             clusterService.addHighPriorityApplier(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
+        this.repositoriesStatsArchive = new RepositoriesStatsArchive(REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings));
     }
 
     /**
@@ -123,7 +133,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            closeRepository(createRepository(newRepositoryMetadata, typesRegistry), false);
         } catch (Exception e) {
             registrationListener.onFailure(e);
             return;
@@ -397,6 +407,27 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         throw new RepositoryMissingException(repositoryName);
     }
 
+    public List<RepositoryStatsSnapshot> repositoriesStats() {
+        List<RepositoryStatsSnapshot> archivedRepoStats = repositoriesStatsArchive.getArchivedStats();
+        List<RepositoryStatsSnapshot> activeRepoStats = getRepositoryStatsForActiveRepositories();
+
+        List<RepositoryStatsSnapshot> repositoriesStats = new ArrayList<>(archivedRepoStats);
+        repositoriesStats.addAll(activeRepoStats);
+        return repositoriesStats;
+    }
+
+    private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {
+        return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
+            .map(Repository::statsSnapshot)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+    }
+
+    public void clearRepositoriesStatsArchive() {
+        repositoriesStatsArchive.clear();
+    }
+
     public void registerInternalRepository(String name, String type) {
         RepositoryMetadata metadata = new RepositoryMetadata(name, type, Settings.EMPTY);
         Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
@@ -423,8 +454,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /** Closes the given repository. */
     private void closeRepository(Repository repository) {
+        closeRepository(repository, true);
+    }
+
+    private void closeRepository(Repository repository, boolean archiveStats) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
+        if (archiveStats) {
+            Optional<RepositoryStatsSnapshot> stats = repository.statsSnapshot();
+            stats.ifPresent(repositoriesStatsArchive::archive);
+        }
     }
 
     /**

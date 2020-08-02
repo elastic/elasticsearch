@@ -41,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -154,8 +155,8 @@ public interface Repository extends LifecycleComponent {
     /**
      * Returns stats on the repository usage
      */
-    default RepositoryStats stats() {
-        return RepositoryStats.EMPTY_STATS;
+    default Optional<RepositoryStatsSnapshot> statsSnapshot() {
+        return Optional.empty();
     }
 
     /**

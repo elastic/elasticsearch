@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.function.Function;
 
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
-class GoogleCloudStorageRepository extends BlobStoreRepository {
+class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
@@ -117,5 +117,17 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
+    }
+
+    @Override
+    protected String location() {
+        BlobPath location = BlobPath.cleanPath();
+
+        location = location.add(bucket);
+        for (String path : basePath()) {
+            location = location.add(path);
+        }
+
+        return location.buildAsString();
     }
 }

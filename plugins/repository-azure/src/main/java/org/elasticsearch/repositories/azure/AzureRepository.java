@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.Locale;
 import java.util.function.Function;
@@ -52,7 +52,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends BlobStoreRepository {
+public class AzureRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(AzureRepository.class);
 
     public static final String TYPE = "azure";
@@ -75,6 +75,7 @@ public class AzureRepository extends BlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
+    private final String container;
 
     public AzureRepository(
         final RepositoryMetadata metadata,
@@ -94,6 +95,7 @@ public class AzureRepository extends BlobStoreRepository {
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }
+        this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
@@ -133,5 +135,17 @@ public class AzureRepository extends BlobStoreRepository {
     @Override
     public boolean isReadOnly() {
         return readonly;
+    }
+
+    @Override
+    protected String location() {
+        BlobPath location = BlobPath.cleanPath();
+
+        location = location.add(container);
+        for (String path : basePath()) {
+            location = location.add(path);
+        }
+
+        return location.buildAsString();
     }
 }

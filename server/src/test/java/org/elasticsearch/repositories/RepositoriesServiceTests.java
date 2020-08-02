@@ -47,12 +47,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class RepositoriesServiceTests extends ESTestCase {
@@ -67,8 +71,10 @@ public class RepositoriesServiceTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
+        Map<String, Repository.Factory> typesRegistry = Map.of(TestRepository.TYPE, TestRepository::new,
+                                                               SecondTestRepository.TYPE, SecondTestRepository::new);
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
-            transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+            transportService, Collections.emptyMap(), typesRegistry, threadPool);
         repositoriesService.start();
     }
 
@@ -114,6 +120,28 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
     }
 
+    public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
+        String repoName = "name";
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
+        assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
+
+        repositoriesService.unregisterInternalRepository(repoName);
+        assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
+
+        repositoriesService.registerInternalRepository(repoName, SecondTestRepository.TYPE);
+
+        List<RepositoryStatsSnapshot> repositoriesStats = repositoriesService.repositoriesStats();
+        assertThat(repositoriesStats.size(), equalTo(2));
+        RepositoryStatsSnapshot repositoryStats = repositoriesStats.get(0);
+        assertThat(repositoryStats.getRepositoryInfo().type, equalTo(TestRepository.TYPE));
+        assertThat(repositoryStats.getRepositoryStats().requestCounts, equalTo(Map.of("TEST-REPO", 10L)));
+
+        RepositoryStatsSnapshot repositoryStats2 = repositoriesStats.get(1);
+        assertThat(repositoryStats2.getRepositoryInfo().type, equalTo(SecondTestRepository.TYPE));
+        assertThat(repositoryStats2.getRepositoryStats().requestCounts, equalTo(Map.of("SECOND-TEST", 20L)));
+    }
+
     private void assertThrowsOnRegister(String repoName) {
         PutRepositoryRequest request = new PutRepositoryRequest(repoName);
         expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
@@ -122,6 +150,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
+        private static final String LOCATION = "location";
         private boolean isClosed;
         private boolean isStarted;
 
@@ -255,6 +284,30 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void close() {
             isClosed = true;
+        }
+
+        @Override
+        public Optional<RepositoryStatsSnapshot> statsSnapshot() {
+            RepositoryInfo repositoryInfo =
+                new RepositoryInfo(UUIDs.randomBase64UUID(), metadata.name(), metadata.type(), LOCATION, Instant.now());
+            return Optional.of(new RepositoryStatsSnapshot(repositoryInfo, getRepositoryStats()));
+        }
+
+        protected RepositoryStats getRepositoryStats() {
+            return new RepositoryStats(Map.of("TEST-REPO", 10L));
+        }
+    }
+
+    private static class SecondTestRepository extends TestRepository {
+        private static final String TYPE = "second-internal";
+
+        private SecondTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        protected RepositoryStats getRepositoryStats() {
+            return new RepositoryStats(Map.of("SECOND-TEST", 20L));
         }
     }
 }

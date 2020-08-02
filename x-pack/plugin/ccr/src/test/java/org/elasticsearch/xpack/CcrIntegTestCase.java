@@ -384,7 +384,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     "\nleader cluster tasks:\n{}" +
                     "\nfollower cluster state:\n{}" +
                     "\nfollower cluster hot threads:\n{}" +
-                    "\nfollower cluster tasks:\n{}" +
+                    "\nfollower cluster tasks:\n{}",
                 method,
                 leaderClient().admin().cluster().prepareState().get().getState(),
                 getHotThreads(leaderClient()),

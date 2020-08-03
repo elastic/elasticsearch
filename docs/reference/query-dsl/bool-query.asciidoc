@@ -39,10 +39,10 @@ POST _search
   "query": {
     "bool" : {
       "must" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "user.id" : "kimchy" }
       },
       "filter": {
-        "term" : { "tag" : "tech" }
+        "term" : { "tags" : "production" }
       },
       "must_not" : {
         "range" : {
@@ -50,8 +50,8 @@ POST _search
         }
       },
       "should" : [
-        { "term" : { "tag" : "wow" } },
-        { "term" : { "tag" : "elasticsearch" } }
+        { "term" : { "tags" : "env1" } },
+        { "term" : { "tags" : "deployed" } }
       ],
       "minimum_should_match" : 1,
       "boost" : 1.0

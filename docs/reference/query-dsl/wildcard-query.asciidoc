@@ -13,7 +13,7 @@ combine wildcard operators with other characters to create a wildcard pattern.
 [[wildcard-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains a term
+The following search returns documents where the `user.id` field contains a term
 that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
 `kity`, or `kimchy`.
 
@@ -23,7 +23,7 @@ GET /_search
 {
   "query": {
     "wildcard": {
-      "user": {
+      "user.id": {
         "value": "ki*y",
         "boost": 1.0,
         "rewrite": "constant_score"

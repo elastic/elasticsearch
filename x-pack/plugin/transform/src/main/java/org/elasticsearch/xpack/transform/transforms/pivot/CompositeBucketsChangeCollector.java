@@ -565,7 +565,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                             entry.getKey(),
                             entry.getValue().getMissingBucket(),
                             ((DateHistogramGroupSource) entry.getValue()).getRounding(),
-                            entry.getValue().getField().equals(synchronizationField)
+                            entry.getValue().getField() != null && entry.getValue().getField().equals(synchronizationField)
                         )
                     );
                     break;

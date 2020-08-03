@@ -113,6 +113,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             ImmutableOpenMap.of(),
             null,
             null,
+            null,
             null
         );
     }

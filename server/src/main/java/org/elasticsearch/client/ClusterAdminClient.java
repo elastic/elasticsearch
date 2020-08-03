@@ -71,6 +71,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -504,6 +506,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Creates a new snapshot.
      */
     CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name);
+
+    CloneSnapshotRequestBuilder prepareCloneSnapshot(String repository, String source, String target);
+
+    ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request);
+
+    void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Get snapshots.

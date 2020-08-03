@@ -37,9 +37,11 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.locationtech.jts.util.AssertionFailedException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -273,6 +275,12 @@ public interface Repository extends LifecycleComponent {
      */
     default void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, ActionListener<String> listener) {
         throw new AssertionError("not implemented yet");
+    }
+
+    default void finalizeSnapshotClone(SnapshotId source, ShardGenerations shardGenerations, long repositoryStateId,
+                               SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                               Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
+        throw new AssertionFailedException("not implemented yet");
     }
 
     /**

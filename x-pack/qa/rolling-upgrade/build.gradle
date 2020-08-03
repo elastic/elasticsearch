@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -88,7 +88,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
     dependsOn "copyTestNodeKeyMaterial"
@@ -99,7 +99,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
 
   String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
-  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -124,7 +124,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     ].join(',')
   }
 
-  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -137,7 +137,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {

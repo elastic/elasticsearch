@@ -191,7 +191,7 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
     }
 

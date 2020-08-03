@@ -21,9 +21,7 @@ dependencies {
 test.enabled = false
 javaRestTest {
   dependsOn buildZip
-  runner {
-    systemProperty 'tests.security.manager', 'false'
-  }
+  systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.javaRestTest {

@@ -12,9 +12,7 @@ dependencies {
 
 task "leader-cluster"(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.target_cluster', 'leader'
-  }
+  systemProperty 'tests.target_cluster', 'leader'
 }
 testClusters."leader-cluster" {
   testDistribution = 'DEFAULT'
@@ -61,7 +59,6 @@ tasks.register("writeJavaPolicy") {
 
 task "follow-cluster"(type: RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
-  runner {
     useCluster testClusters."leader-cluster"
     if (BuildParams.inFipsJvm){
       systemProperty 'java.security.policy', "=file://${policyFile}"
@@ -71,7 +68,6 @@ task "follow-cluster"(type: RestIntegTestTask) {
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"
-  }
 }
 
 testClusters."follow-cluster" {

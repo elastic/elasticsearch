@@ -184,6 +184,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
         assert assertCurrentThreadMayLoadSnapshot();
+        if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
+            throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");
+        }
         boolean alreadyLoaded = this.loaded;
         if (alreadyLoaded == false) {
             synchronized (this) {
@@ -194,7 +197,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
-                    addRecoveryFileDetails();
                     prewarmCache();
                 }
             }
@@ -395,13 +397,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void onPreWarmFinished() {
-        recoveryState.preWarmFinished();
-    }
-
     private void prewarmCache() {
         if (prewarmCache == false) {
-            onPreWarmFinished();
+            recoveryState.preWarmFinished();
             return;
         }
 
@@ -409,15 +407,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final Executor executor = prewarmExecutor();
 
         final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(
-            ActionListener.wrap(voids -> onPreWarmFinished(), e -> {}), // Ignore pre-warm errors
+            ActionListener.wrap(voids -> recoveryState.preWarmFinished(), e -> {}), // Ignore pre-warm errors
             snapshot().totalFileCount()
         );
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
+                recoveryState.ignoreFile(file.physicalName());
                 completionListener.onResponse(null);
                 continue;
             }
+            recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
             try {
                 final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                 assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
@@ -475,19 +475,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);
-        }
-    }
-
-    private void addRecoveryFileDetails() {
-        if (prewarmCache == false) {
-            return;
-        }
-        for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
-            if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
-                recoveryState.ignoreFile(file.physicalName());
-                continue;
-            }
-            recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
         }
     }
 

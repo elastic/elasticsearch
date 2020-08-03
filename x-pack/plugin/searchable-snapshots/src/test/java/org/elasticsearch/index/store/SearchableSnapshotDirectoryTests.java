@@ -765,7 +765,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         }
     }
 
-    public void testRecoveryStateIsKeepOpenAfterPreWarmFailures() throws Exception {
+    public void testRecoveryStateIsKeptOpenAfterPreWarmFailures() throws Exception {
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
         FaultyReadsFileSystem disruptFileSystemProvider = new FaultyReadsFileSystem(fileSystem);
         fileSystem = disruptFileSystemProvider.getFileSystem(null);
@@ -819,17 +819,22 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             "fdm",
             "nvm"
         );
-        Settings settings = Settings.builder().putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), allFileExtensions).build();
+        List<String> fileTypesExcludedFromCaching = randomSubsetOf(allFileExtensions);
+        Settings settings = Settings.builder()
+            .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching).build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.cacheFetchAsyncExecutor();
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.prewarmExecutor();
             assertBusy(() -> {
                 assertThat(executor.getActiveCount(), equalTo(0));
                 assertThat(executor.getQueue().size(), equalTo(0));
             });
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
-            assertThat(recoveryState.getIndex().toString(), recoveryState.getIndex().recoveredBytes(), equalTo(0L));
-            assertThat(recoveryState.getIndex().toString(), recoveryState.getIndex().totalRecoverFiles(), equalTo(0));
+            for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
+                boolean fileHasExcludedType = fileTypesExcludedFromCaching.stream()
+                    .anyMatch(type -> fileDetail.name().endsWith(type));
+                assertThat(fileHasExcludedType, equalTo(false));
+            }
         });
     }
 

@@ -707,18 +707,20 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
-                logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
                 ByteSizeValue cacheSize = getCacheSizeForShard(recoveryState.getShardId());
-                boolean largeCache = cacheSize.compareTo(new ByteSizeValue(1, ByteSizeUnit.MB)) >= 0;
+                boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                RecoveryState.Index index = recoveryState.getIndex();
                 assertThat(
                     Strings.toString(recoveryState),
-                    recoveryState.getIndex().recoveredFileCount(),
-                    preWarmEnabled && largeCache ? greaterThan(0) : greaterThanOrEqualTo(0)
+                    index.recoveredFileCount(),
+                    preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
                 );
 
                 // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
-                // while a part is pre-fetched, in that case the recovery state is left as FINALIZE.
-                assertThat(recoveryState.getStage(), anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE)));
+                // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
+                assertThat(recoveryState.getStage(),
+                    unboundedCache ? equalTo(RecoveryState.Stage.DONE)
+                               : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE)));
             }
         }
     }

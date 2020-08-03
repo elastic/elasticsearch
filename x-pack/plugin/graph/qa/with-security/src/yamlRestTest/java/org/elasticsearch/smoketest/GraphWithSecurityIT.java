@@ -28,12 +28,12 @@ public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
-    
+
     protected String[] getCredentials() {
         return new String[]{"graph_explorer", "x-pack-test-password"};
-    }    
+    }
 
 
     @Override

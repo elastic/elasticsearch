@@ -14,7 +14,7 @@ within the index. For this reason, it can be disabled as follows:
 
 [source,console]
 --------------------------------------------------
-PUT tweets
+PUT my-index-000001
 {
   "mappings": {
     "_source": {

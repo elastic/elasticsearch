@@ -307,14 +307,18 @@ PUT /test1
   "mappings": {
     "properties": {
       "user" : {
-        "type": "keyword"
+        {
+          "id": {
+            "type": "keyword"
+          }
+        }
       }
     }
   }
 }
 --------------------------------------------------
 
-Now we can create an alias that uses a filter on field `user`:
+Now we can create an alias that uses a filter on field `user.id`:
 
 [source,console]
 --------------------------------------------------

@@ -30,7 +30,7 @@ public class TermsGroupSourceTests extends AbstractXContentTestCase<TermsGroupSo
 
     public static TermsGroupSource randomTermsGroupSource() {
         Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
-        return new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), script);
+        return new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), script, randomBoolean());
     }
 
     @Override

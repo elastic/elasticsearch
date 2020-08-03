@@ -33,7 +33,7 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-dfanalytics-stats-path-params]]
 == {api-path-parms-title}

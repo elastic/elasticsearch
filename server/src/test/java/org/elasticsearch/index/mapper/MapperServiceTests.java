@@ -39,7 +39,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -62,16 +61,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
-    }
-
-    public void testTypeValidation() {
-        InvalidTypeNameException e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_type"));
-        assertEquals("mapping type name [_type] can't start with '_' unless it is called [_doc]", e.getMessage());
-
-        e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_document"));
-        assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
-
-        MapperService.validateTypeName("_doc"); // no exception
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {

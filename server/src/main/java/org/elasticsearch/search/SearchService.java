@@ -86,6 +86,7 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -95,6 +96,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -918,6 +920,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService(), source.docValueFields());
             context.docValuesContext(docValuesContext);
         }
+        if (source.fetchFields() != null) {
+            String indexName = context.indexShard().shardId().getIndexName();
+            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
+                indexName, context.mapperService(), source.fetchFields());
+            context.fetchFieldsContext(fetchFieldsContext);
+        }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
@@ -936,7 +944,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());
+                SearchLookup lookup = context.getQueryShardContext().lookup();
+                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), lookup);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

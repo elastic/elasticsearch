@@ -5,7 +5,7 @@
 ++++
 
 Clears the search context and results for a
-<<request-body-search-scroll,scrolling search>>.
+<<scroll-search-results,scrolling search>>.
 
 ////
 [source,console]

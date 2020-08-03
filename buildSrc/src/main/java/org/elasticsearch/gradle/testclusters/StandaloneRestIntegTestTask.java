@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.test.Fixture;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
@@ -42,11 +44,11 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class RestTestRunnerTask extends Test implements TestClustersAware {
+public class StandaloneRestIntegTestTask extends Test implements TestClustersAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 
-    public RestTestRunnerTask() {
+    public StandaloneRestIntegTestTask() {
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
@@ -57,7 +59,7 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
                  * multiple tasks.
                  */
                 t -> getProject().getTasks()
-                    .withType(RestTestRunnerTask.class)
+                    .withType(StandaloneRestIntegTestTask.class)
                     .stream()
                     .filter(task -> task != this)
                     .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
@@ -89,5 +91,26 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
         }
 
         return Collections.unmodifiableList(locks);
+    }
+
+    @Override
+    public Task dependsOn(Object... dependencies) {
+        super.dependsOn(dependencies);
+        for (Object dependency : dependencies) {
+            if (dependency instanceof Fixture) {
+                finalizedBy(((Fixture) dependency).getStopTask());
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public void setDependsOn(Iterable<?> dependencies) {
+        super.setDependsOn(dependencies);
+        for (Object dependency : dependencies) {
+            if (dependency instanceof Fixture) {
+                finalizedBy(((Fixture) dependency).getStopTask());
+            }
+        }
     }
 }

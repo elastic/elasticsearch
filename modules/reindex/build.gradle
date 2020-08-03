@@ -109,12 +109,12 @@ jdks {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  javaRestTest.runner {
+  javaRestTest {
     systemProperty "tests.fromOld", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  javaRestTest.runner {
+  javaRestTest {
     systemProperty "tests.fromOld", "false"
   }
 } else {
@@ -157,13 +157,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
     javaRestTest {
       dependsOn fixture
-      runner {
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
         nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
-      }
     }
   }
 }

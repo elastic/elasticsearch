@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.test;
 
+import org.elasticsearch.gradle.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -34,6 +35,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(TestClustersPlugin.class);
+        project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project

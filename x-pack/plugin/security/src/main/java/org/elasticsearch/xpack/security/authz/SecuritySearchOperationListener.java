@@ -90,6 +90,11 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     @Override
+    public void onPreFetchPhase(SearchContext searchContext) {
+        ensureIndicesAccessControlForScrollThreadContext(searchContext);
+    }
+
+    @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         ensureIndicesAccessControlForScrollThreadContext(searchContext);
     }

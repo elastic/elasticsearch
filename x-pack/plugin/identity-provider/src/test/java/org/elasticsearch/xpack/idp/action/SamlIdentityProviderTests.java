@@ -282,13 +282,13 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54285")
     public void testSpInitiatedSsoFailsForMalformedRequest() throws Exception {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
         registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
         // Validate incoming authentication request
         Request validateRequest = new Request("POST", "/_idp/saml/validate");
         validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
@@ -298,12 +298,14 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         final AuthnRequest authnRequest = buildAuthnRequest(entityId + randomAlphaOfLength(4), new URL(acsUrl),
             new URL("https://idp.org/sso/redirect"), nameIdFormat, forceAuthn);
         final String query = getQueryString(authnRequest, relayString, false, null);
+
         // Skip http parameter name
         final String queryWithoutParam = query.substring(12);
         validateRequest.setJsonEntity("{\"authn_request_query\":\"" + queryWithoutParam + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
         assertThat(e.getMessage(), containsString("does not contain a SAMLRequest parameter"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+
         // arbitrarily trim the request
         final String malformedRequestQuery = query.substring(0, query.length() - randomIntBetween(10, 15));
         validateRequest.setJsonEntity("{\"authn_request_query\":\"" + malformedRequestQuery + "\"}");

@@ -264,7 +264,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 final String field = "f-" + between(1, numFields);
                 leaderClient().prepareIndex("index1").setSource(field, between(0, 1000)).get();
                 if (rarely()) {
-                    leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(false).setForce(false).execute();
+                    leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(false).setForce(false).get();
                 }
             }
         });

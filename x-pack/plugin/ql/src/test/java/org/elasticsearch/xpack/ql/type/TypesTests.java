@@ -177,7 +177,7 @@ public class TypesTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("full_name");
-        assertThat(dt.getDataType().typeName(), is("constant_keyword"));
+        assertThat(dt.getDataType().typeName(), is("keyword"));
     }
 
     public void testUnsupportedTypes() {

@@ -535,7 +535,6 @@ public class IndexResolver {
             }
 
             Map<String, FieldCapabilities> types = new LinkedHashMap<>(entry.getValue());
-            // apply verification and possibly remove the "duplicate" CONSTANT_KEYWORD field type
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
             // apply verification for fields belonging to index aliases
             Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);

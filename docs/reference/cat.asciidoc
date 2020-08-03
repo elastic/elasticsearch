@@ -121,7 +121,7 @@ by shard storage in descending order.
 --------------------------------------------------
 GET /_cat/indices?bytes=b&s=store.size:desc&v
 --------------------------------------------------
-// TEST[setup:my_index]
+// TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
 
 The API returns the following response:

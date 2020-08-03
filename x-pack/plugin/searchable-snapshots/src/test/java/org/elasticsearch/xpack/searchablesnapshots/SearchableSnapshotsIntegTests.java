@@ -718,9 +718,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
                 // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
                 // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
-                assertThat(recoveryState.getStage(),
-                    unboundedCache ? equalTo(RecoveryState.Stage.DONE)
-                               : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE)));
+                assertThat(
+                    recoveryState.getStage(),
+                    unboundedCache
+                        ? equalTo(RecoveryState.Stage.DONE)
+                        : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
+                );
             }
         }
     }

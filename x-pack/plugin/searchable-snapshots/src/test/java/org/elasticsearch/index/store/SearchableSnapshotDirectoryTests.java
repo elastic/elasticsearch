@@ -821,7 +821,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         );
         List<String> fileTypesExcludedFromCaching = randomSubsetOf(allFileExtensions);
         Settings settings = Settings.builder()
-            .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching).build();
+            .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching)
+            .build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
             ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.prewarmExecutor();
             assertBusy(() -> {
@@ -831,8 +832,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
-                boolean fileHasExcludedType = fileTypesExcludedFromCaching.stream()
-                    .anyMatch(type -> fileDetail.name().endsWith(type));
+                boolean fileHasExcludedType = fileTypesExcludedFromCaching.stream().anyMatch(type -> fileDetail.name().endsWith(type));
                 assertThat(fileHasExcludedType, equalTo(false));
             }
         });

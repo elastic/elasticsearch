@@ -54,7 +54,7 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
     keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
   }
-  integTest.runner.finalizedBy "cleanJira"
+  integTest.finalizedBy "cleanJira"
 }
 
 /** List all issues associated to a given Jira project **/

@@ -48,7 +48,7 @@ tasks.register("copyKeytabToGeneratedResources", Copy) {
 }
 
 String realm = "BUILD.ELASTIC.CO"
-integTest.runner {
+integTest {
   Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
   nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"

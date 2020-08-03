@@ -106,10 +106,8 @@ if (useFixture) {
 
 integTest {
   dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.gcs.bucket', gcsBucket
-    nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_stats" + BuildParams.testSeed
-  }
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_stats" + BuildParams.testSeed
 }
 
 testClusters.integTest {

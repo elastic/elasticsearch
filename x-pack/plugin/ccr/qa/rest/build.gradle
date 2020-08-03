@@ -9,7 +9,6 @@ restResources {
 
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackModule('ccr'))
 }
 
 testClusters.all {

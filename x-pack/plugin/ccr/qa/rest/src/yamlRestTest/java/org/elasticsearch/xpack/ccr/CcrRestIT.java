@@ -10,10 +10,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +41,7 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
 
     @After
     public void cleanup() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("indices:data/read/xpack/ccr/shard_changes"));
     }
 
 }

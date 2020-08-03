@@ -78,15 +78,12 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
                 // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
-                if (request instanceof InternalScrollSearchRequest) {
-                    // retrieving the search context while processing a scroll search
-                    if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
-                        // fill in the DLS and FLS permissions for the scroll search action from the scroll context
-                        IndicesAccessControl indicesAccessControl =
-                                searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                        securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                                indicesAccessControl);
-                    }
+                if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
+                    // fill in the DLS and FLS permissions for the scroll search action from the scroll context
+                    IndicesAccessControl indicesAccessControl =
+                            searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                            indicesAccessControl);
                 }
             }
         }

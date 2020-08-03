@@ -9,7 +9,6 @@ restResources {
 }
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('enrich'))
   javaRestTestImplementation project(path: xpackModule('enrich:qa:common'), configuration: 'testArtifacts')
 }
 

@@ -298,12 +298,10 @@ task largeBlobYamlRestTest(type: RestIntegTestTask) {
   if (useFixture) {
     dependsOn createServiceAccountFile
   }
-  runner {
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-  }
 }
 
 check.dependsOn largeBlobYamlRestTest

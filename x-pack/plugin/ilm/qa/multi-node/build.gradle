@@ -11,7 +11,7 @@ dependencies {
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-integTest.runner {
+integTest {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
 }

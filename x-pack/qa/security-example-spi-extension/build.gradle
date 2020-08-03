@@ -14,7 +14,7 @@ dependencies {
 }
 
 
-integTest.runner {
+integTest {
   dependsOn buildZip
   systemProperty 'tests.security.manager', 'false'
 }

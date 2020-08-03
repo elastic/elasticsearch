@@ -179,17 +179,18 @@ public class DeprecationLogger {
          * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
          * quote and we know the last quote is at the end of the string
          *
-         *   299 Elasticsearch-6.0.0 "warning value"
-         *                           ^             ^
-         *                           firstQuote    lastQuote
+         *   299 Elasticsearch-6.0.0 "warning value" "Thu, 01 Jan 1970 00:00:00 GMT"
+         *                           ^               ^                             ^
+         *                           firstQuote      penultimateQuote              lastQuote
          *
          * We parse this manually rather than using the capturing regular expression because the regular expression involves a lot of
          * backtracking and carries a performance penalty. However, when assertions are enabled, we still use the regular expression to
          * verify that we are maintaining the warning header format.
          */
         final int firstQuote = s.indexOf('\"');
-        final int lastQuote = s.length() - 1;
-        final String warningValue = s.substring(firstQuote + 1, lastQuote);
+        final int lastQuote = s.lastIndexOf('\"');
+        final int penultimateQuote = s.lastIndexOf('\"', lastQuote - 1);
+        final String warningValue = s.substring(firstQuote + 1, penultimateQuote - 2);
         assert assertWarningValue(s, warningValue);
         return warningValue;
     }
@@ -251,7 +252,7 @@ public class DeprecationLogger {
      * @return a warning value formatted according to RFC 7234
      */
     public static String formatWarning(final String s) {
-        return WARNING_PREFIX + " " + "\"" + escapeAndEncode(s) + "\"";
+        return WARNING_PREFIX + " " + "\"" + escapeAndEncode(s) + "\"" + " \"Thu, 01 Jan 1970 00:00:00 GMT\"";
     }
 
     /**

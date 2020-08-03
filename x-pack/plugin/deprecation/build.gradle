@@ -11,6 +11,7 @@ archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
+  compileOnly project(':x-pack:plugin:stack')
 }
 
 integTest.enabled = false

@@ -12,7 +12,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -31,9 +36,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.stack.StackPlugin;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -42,17 +49,25 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender.DEPRECATION_MESSAGES_DATA_STREAM;
+import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
@@ -68,7 +83,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, TestDeprecationPlugin.class);
+        return List.of(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, StackPlugin.class, TestDeprecationPlugin.class);
     }
 
     @Override
@@ -203,6 +218,35 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }
+    }
+
+    /**
+     * Check that deprecation messages can be recorded to an index
+     */
+    public void testDeprecationMessagesCanBeIndexed() throws Exception {
+        try {
+            configureWriteDeprecationLogsToIndex(true);
+
+            doTestDeprecationWarningsAppearInHeaders();
+
+            assertBusy(() -> {
+                final SearchResponse searchResponse = client().search(new SearchRequest(DEPRECATION_MESSAGES_DATA_STREAM)).actionGet();
+                assertHitCount(searchResponse, 1);
+
+                final SearchHit hit = searchResponse.getHits().getHits()[0];
+                final Map<String, Object> document = hit.getSourceAsMap();
+
+                assertThat(document, hasEntry("", ""));
+            });
+        } finally {
+            configureWriteDeprecationLogsToIndex(false);
+        }
+    }
+
+    private void configureWriteDeprecationLogsToIndex(boolean value) {
+        final ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.transientSettings(Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), value));
+        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 
     private List<String> getWarningHeaders(Header[] headers) {

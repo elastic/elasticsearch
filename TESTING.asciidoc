@@ -628,7 +628,7 @@ If you want to run Elasticsearch and be able to remotely attach the process
 for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
 
 ---------------------------------------------------------------------------
-ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
+ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" ./bin/elasticsearch
 ---------------------------------------------------------------------------
 
 Read your IDE documentation for how to attach a debugger to a JVM process.

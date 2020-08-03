@@ -84,7 +84,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     /**
-     * Creates the initial {@link Entry} when starting a snapshot.
+     * Creates the initial {@link Entry} when starting a snapshot, if no shard-level snapshot work is to be done the resulting entry
+     * will be in state {@link State#SUCCESS} right away otherwise it will be in state {@link State#STARTED}.
      */
     public static Entry startedEntry(Snapshot snapshot, boolean includeGlobalState, boolean partial, List<IndexId> indices,
                                      List<String> dataStreams, long startTime, long repositoryStateId,

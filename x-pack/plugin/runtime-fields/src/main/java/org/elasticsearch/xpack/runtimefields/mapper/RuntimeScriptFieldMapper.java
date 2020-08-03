@@ -6,10 +6,11 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -43,7 +45,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     protected RuntimeScriptFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        AbstractScriptMappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
         String runtimeType,
@@ -78,22 +80,33 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
             DateFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 DateScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
                     builder.script.getValue(),
                     DateScriptFieldScript.CONTEXT
                 );
+                String format = builder.format.getValue();
+                if (format == null) {
+                    format = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern();
+                }
+                Locale locale = builder.locale.getValue();
+                if (locale == null) {
+                    locale = Locale.ROOT;
+                }
+                DateFormatter dateTimeFormatter = DateFormatter.forPattern(format).withLocale(locale);
                 return new ScriptDateMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
+                    dateTimeFormatter,
                     builder.meta.getValue()
                 );
             },
             NumberType.DOUBLE.typeName(),
             (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
                 DoubleScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
                     builder.script.getValue(),
                     DoubleScriptFieldScript.CONTEXT
@@ -107,6 +120,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             },
             KeywordFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
                 StringScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
                     builder.script.getValue(),
                     StringScriptFieldScript.CONTEXT
@@ -120,6 +134,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             },
             NumberType.LONG.typeName(),
             (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
                 LongScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
                     builder.script.getValue(),
                     LongScriptFieldScript.CONTEXT
@@ -159,6 +174,27 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("script must be specified for " + CONTENT_TYPE + " field [" + name + "]");
             }
         });
+        private final Parameter<String> format = Parameter.stringParam(
+            "format",
+            true,
+            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).format(),
+            null
+        ).setSerializer((b, n, v) -> {
+            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                b.field(n, v);
+            }
+        }).acceptsNull();
+        private final Parameter<Locale> locale = new Parameter<>(
+            "locale",
+            true,
+            () -> null,
+            (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
+            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).formatLocale()
+        ).setSerializer((b, n, v) -> {
+            if (v != null && false == v.equals(Locale.ROOT)) {
+                b.field(n, v.toString());
+            }
+        }).acceptsNull();
 
         private final ScriptCompiler scriptCompiler;
 
@@ -169,12 +205,12 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(meta, runtimeType, script);
+            return List.of(meta, runtimeType, script, format, locale);
         }
 
         @Override
         public RuntimeScriptFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+            BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {
@@ -202,6 +238,15 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             return script;
+        }
+
+        private void formatAndLocaleNotSupported() {
+            if (format.getValue() != null) {
+                throw new IllegalArgumentException("format can not be specified for runtime_type [" + runtimeType.getValue() + "]");
+            }
+            if (locale.getValue() != null) {
+                throw new IllegalArgumentException("locale can not be specified for runtime_type [" + runtimeType.getValue() + "]");
+            }
         }
     }
 

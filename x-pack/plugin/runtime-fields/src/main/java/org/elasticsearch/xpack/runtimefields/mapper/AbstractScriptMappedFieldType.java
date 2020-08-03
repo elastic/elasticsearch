@@ -159,4 +159,21 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
             );
         }
     }
+
+    /**
+     * The format that this field should use. The default implementation is
+     * {@code null} because most fields don't support formats.
+     */
+    protected String format() {
+        return null;
+    }
+
+    /**
+     * The locale that this field's format should use. The default
+     * implementation is {@code null} because most fields don't
+     * support formats.
+     */
+    protected Locale formatLocale() {
+        return null;
+    }
 }

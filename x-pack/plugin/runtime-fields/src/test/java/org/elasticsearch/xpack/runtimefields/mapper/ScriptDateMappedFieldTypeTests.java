@@ -23,10 +23,14 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -55,6 +59,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
@@ -72,6 +77,23 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")).format(1595432181354L),
             equalTo("2020-07-22T11:36:21.354-04:00")
         );
+        assertThat(coolFormattedFieldType().docValueFormat(null, null).format(1595432181354L), equalTo("2020-07-22(-■_■)15:36:21.354Z"));
+    }
+
+    public void testFormatDuel() throws IOException {
+        DateFormatter formatter = DateFormatter.forPattern(randomFrom(FormatNames.values()).getSnakeCaseName())
+            .withLocale(randomLocale(random()));
+        ScriptDateMappedFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
+        DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
+        for (int i = 0; i < 100; i++) {
+            long date = randomLongBetween(0, 3000000000000L); // Maxes out in the year 2065
+            assertThat(indexed.docValueFormat(null, null).format(date), equalTo(scripted.docValueFormat(null, null).format(date)));
+            String format = randomFrom(FormatNames.values()).getSnakeCaseName();
+            assertThat(indexed.docValueFormat(format, null).format(date), equalTo(scripted.docValueFormat(format, null).format(date)));
+            ZoneId zone = randomZone();
+            assertThat(indexed.docValueFormat(null, zone).format(date), equalTo(scripted.docValueFormat(null, zone).format(date)));
+            assertThat(indexed.docValueFormat(format, zone).format(date), equalTo(scripted.docValueFormat(format, zone).format(date)));
+        }
     }
 
     @Override
@@ -224,6 +246,35 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     ),
                     equalTo(0)
                 );
+                checkBadDate(
+                    () -> searcher.count(
+                        ft.rangeQuery(
+                            "2020-07-22(-■_■)00:00:00.000Z",
+                            "2020-07-23(-■_■)00:00:00.000Z",
+                            false,
+                            false,
+                            null,
+                            null,
+                            null,
+                            mockContext()
+                        )
+                    )
+                );
+                assertThat(
+                    searcher.count(
+                        coolFormattedFieldType().rangeQuery(
+                            "2020-07-22(-■_■)00:00:00.000Z",
+                            "2020-07-23(-■_■)00:00:00.000Z",
+                            false,
+                            false,
+                            null,
+                            null,
+                            null,
+                            mockContext()
+                        )
+                    ),
+                    equalTo(3)
+                );
             }
         }
     }
@@ -250,6 +301,8 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     searcher.count(build("add_days", Map.of("days", 1)).termQuery("2020-07-23T15:36:21.354Z", mockContext())),
                     equalTo(1)
                 );
+                checkBadDate(() -> searcher.count(simpleMappedFieldType().termQuery("2020-07-22(-■_■)15:36:21.354Z", mockContext())));
+                assertThat(searcher.count(coolFormattedFieldType().termQuery("2020-07-22(-■_■)15:36:21.354Z", mockContext())), equalTo(1));
             }
         }
     }
@@ -274,6 +327,23 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 assertThat(searcher.count(ft.termsQuery(List.of(1595432181354L, 2595432181354L), mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.termsQuery(List.of(2595432181354L, 1595432181354L), mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.termsQuery(List.of(1595432181355L, 1595432181354L), mockContext())), equalTo(2));
+                checkBadDate(
+                    () -> searcher.count(
+                        simpleMappedFieldType().termsQuery(
+                            List.of("2020-07-22T15:36:21.354Z", "2020-07-22(-■_■)15:36:21.354Z"),
+                            mockContext()
+                        )
+                    )
+                );
+                assertThat(
+                    searcher.count(
+                        coolFormattedFieldType().termsQuery(
+                            List.of("2020-07-22(-■_■)15:36:21.354Z", "2020-07-22(-■_■)15:36:21.355Z"),
+                            mockContext()
+                        )
+                    ),
+                    equalTo(2)
+                );
             }
         }
     }
@@ -288,6 +358,10 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         return build("read_timestamp");
     }
 
+    private ScriptDateMappedFieldType coolFormattedFieldType() throws IOException {
+        return build(simpleMappedFieldType().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz"));
+    }
+
     @Override
     protected String runtimeType() {
         return "date";
@@ -298,10 +372,10 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     private static ScriptDateMappedFieldType build(String code, Map<String, Object> params) throws IOException {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+        return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
-    private static ScriptDateMappedFieldType build(Script script) throws IOException {
+    private static ScriptDateMappedFieldType build(Script script, DateFormatter dateTimeFormatter) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -361,7 +435,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateScriptFieldScript.Factory factory = scriptService.compile(script, DateScriptFieldScript.CONTEXT);
-            return new ScriptDateMappedFieldType("test", script, factory, emptyMap());
+            return new ScriptDateMappedFieldType("test", script, factory, dateTimeFormatter, emptyMap());
         }
     }
 
@@ -372,5 +446,10 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             e.getMessage(),
             equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
         );
+    }
+
+    private void checkBadDate(ThrowingRunnable queryBuilder) {
+        Exception e = expectThrows(ElasticsearchParseException.class, queryBuilder);
+        assertThat(e.getMessage(), containsString("failed to parse date field"));
     }
 }

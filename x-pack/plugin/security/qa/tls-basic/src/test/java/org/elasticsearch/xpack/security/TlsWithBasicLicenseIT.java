@@ -60,9 +60,11 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
     }
 
     public void testWithBasicLicense() throws Exception {
-        checkLicenseType("basic");
-        checkSSLEnabled();
-        checkCertificateAPI();
+        assertBusy(() -> {
+            checkLicenseType("basic");
+            checkSSLEnabled();
+            checkCertificateAPI();
+        });
     }
 
     public void testWithTrialLicense() throws Exception {

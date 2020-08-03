@@ -263,7 +263,7 @@ public class AllocationService {
     }
 
     /**
-     * Checks if the are replicas with the auto-expand feature that need to be adapted.
+     * Checks if there are replicas with the auto-expand feature that need to be adapted.
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {

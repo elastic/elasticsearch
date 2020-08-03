@@ -1,24 +1,25 @@
-[[request-body-search-collapse]]
-==== Field Collapsing
+[[collapse-search-results]]
+== Collapse search results
 
-Allows to collapse search results based on field values.
-The collapsing is done by selecting only the top sorted document per collapse key.
-For instance the query below retrieves the best tweet for each user and sorts them by number of likes.
+You can use the `collapse` parameter to collapse search results based
+on field values. The collapsing is done by selecting only the top sorted
+document per collapse key. For instance the query below retrieves the best tweet
+for each user and sorts them by number of likes.
 
 [source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "user" <1>
-    },
-    "sort": ["likes"], <2>
-    "from": 10 <3>
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user"     <1>
+  },
+  "sort": [ "likes" ],  <2>
+  "from": 10            <3>
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -34,8 +35,9 @@ The field used for collapsing must be a single valued <<keyword, `keyword`>> or 
 
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
-
-===== Expand collapse results
+[discrete]
+[[expand-collapse-results]]
+=== Expand collapse results
 
 It is also possible to expand each collapsed top hits with the `inner_hits` option.
 
@@ -43,21 +45,21 @@ It is also possible to expand each collapsed top hits with the `inner_hits` opti
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user",                    <1>
+    "inner_hits": {
+      "name": "last_tweets",            <2>
+      "size": 5,                        <3>
+      "sort": [ { "date": "asc" } ]     <4>
     },
-    "collapse" : {
-        "field" : "user", <1>
-        "inner_hits": {
-            "name": "last_tweets", <2>
-            "size": 5, <3>
-            "sort": [{ "date": "asc" }] <4>
-        },
-        "max_concurrent_group_searches": 4 <5>
-    },
-    "sort": ["likes"]
+    "max_concurrent_group_searches": 4  <5>
+  },
+  "sort": [ "likes" ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -77,27 +79,27 @@ multiple representations of the collapsed hits.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "user", <1>
-        "inner_hits": [
-            {
-                "name": "most_liked",  <2>
-                "size": 3,
-                "sort": ["likes"]
-            },
-            {
-                "name": "most_recent", <3>
-                "size": 3,
-                "sort": [{ "date": "asc" }]
-            }
-        ]
-    },
-    "sort": ["likes"]
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user",                  <1>
+      "inner_hits": [
+      {
+        "name": "most_liked",         <2>
+        "size": 3,
+        "sort": [ "likes" ]
+      },
+      {
+        "name": "most_recent",        <3>
+        "size": 3,
+        "sort": [ { "date": "asc" } ]
+      }
+    ]
+  },
+  "sort": [ "likes" ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -114,10 +116,12 @@ The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
-WARNING: `collapse` cannot be used in conjunction with <<request-body-search-scroll, scroll>>,
-<<request-body-search-rescore, rescore>> or <<request-body-search-search-after, search after>>.
+WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>>,
+<<request-body-search-rescore, rescore>> or <<search-after, search after>>.
 
-===== Second level of collapsing
+[discrete]
+[[second-level-of-collapsing]]
+=== Second level of collapsing
 
 Second level of collapsing is also supported and is applied to `inner_hits`.
 For example, the following request finds the top scored tweets for
@@ -128,19 +132,19 @@ for each user.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "country",
-        "inner_hits" : {
-            "name": "by_location",
-            "collapse" : {"field" : "user"},
-            "size": 3
-        }
+  "query": {
+    "match": {
+      "message": "elasticsearch"
     }
+  },
+  "collapse": {
+    "field": "country",
+    "inner_hits": {
+      "name": "by_location",
+      "collapse": { "field": "user" },
+      "size": 3
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -150,69 +154,69 @@ Response:
 [source,js]
 --------------------------------------------------
 {
+  ...
+  "hits": [
+    {
+      "_index": "twitter",
+      "_type": "_doc",
+      "_id": "9",
+      "_score": ...,
+      "_source": {...},
+      "fields": { "country": [ "UK" ] },
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": [ "user124" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user589" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user001" ] }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "_index": "twitter",
+      "_type": "_doc",
+      "_id": "1",
+      "_score": ..,
+      "_source": {...
+      },
+      "fields": { "country": [ "Canada" ] },
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": [ "user444" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user1111" ] }
+              },
+              {
+                ...
+                  "fields": { "user": [ "user999" ] }
+              }
+            ]
+          }
+        }
+      }
+    },
     ...
-    "hits": [
-        {
-            "_index": "twitter",
-            "_type": "_doc",
-            "_id": "9",
-            "_score": ...,
-            "_source": {...},
-            "fields": {"country": ["UK"]},
-            "inner_hits":{
-                "by_location": {
-                    "hits": {
-                       ...,
-                       "hits": [
-                          {
-                            ...
-                            "fields": {"user" : ["user124"]}
-                          },
-                          {
-                            ...
-                            "fields": {"user" : ["user589"]}
-                          },
-                          {
-                            ...
-                             "fields": {"user" : ["user001"]}
-                          }
-                       ]
-                    }
-                 }
-            }
-        },
-        {
-            "_index": "twitter",
-            "_type": "_doc",
-            "_id": "1",
-            "_score": ..,
-            "_source": {...},
-            "fields": {"country": ["Canada"]},
-            "inner_hits":{
-                "by_location": {
-                    "hits": {
-                       ...,
-                       "hits": [
-                          {
-                            ...
-                            "fields": {"user" : ["user444"]}
-                          },
-                          {
-                            ...
-                            "fields": {"user" : ["user1111"]}
-                          },
-                          {
-                            ...
-                             "fields": {"user" : ["user999"]}
-                          }
-                       ]
-                    }
-                 }
-            }
-
-        },
-        ....
-    ]
+  ]
 }
 --------------------------------------------------
 // NOTCONSOLE

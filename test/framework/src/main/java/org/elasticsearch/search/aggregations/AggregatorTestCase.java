@@ -118,7 +118,6 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -315,9 +314,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
             .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField);
-        when(searchContext.lookup()).thenReturn(searchLookup);
-
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
@@ -329,6 +325,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             return null;
         });
+
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .filter(Objects::nonNull)
@@ -386,8 +383,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected BiFunction<MappedFieldType, String, IndexFieldData<?>> getIndexFieldDataLookup(MapperService mapperService,
                                                                                              CircuitBreakerService circuitBreakerService) {
         return (fieldType, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
-            .build(mapperService.getIndexSettings(), fieldType,
-                new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
+            .build(new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
 
     }
 
@@ -548,11 +544,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-            T aggregationBuilder,
-            Query query,
-            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<V> verify,
-            MappedFieldType... fieldTypes) throws IOException {
+        T aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<V> verify,
+        MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
@@ -751,8 +747,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("")
-                                .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder("").build(null, null, null).getValuesSourceType();
     }
 
     /**

@@ -26,14 +26,14 @@ Mappings, shard counts, replicas, and so on must be configured ahead of time.
 POST _reindex
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -205,38 +205,38 @@ slices to each request:
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "slice": {
       "id": 0,
       "max": 2
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "slice": {
       "id": 1,
       "max": 2
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 You can verify this works by:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 
@@ -265,20 +265,20 @@ slice on `_id`. Use `slices` to specify the number of slices to use:
 POST _reindex?slices=5&refresh
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 You can also this verify works by:
 
 [source,console]
 ----------------------------------------------------------------
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 
@@ -603,33 +603,33 @@ the `conflicts` option to prevent reindex from aborting on version conflicts.
 ===== Reindex select documents with a query
 
 You can limit the documents by adding a query to the `source`.
-For example, the following request only copies tweets made by `kimchy` into `new_twitter`:
+For example, the following request only copies documents with a `user.id` of `kimchy` into `my-new-index-000001`:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "query": {
       "term": {
-        "user": "kimchy"
+        "user.id": "kimchy"
       }
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-reindex-select-max-docs]]
 ===== Reindex select documents with `max_docs`
 
 You can limit the number of processed documents by setting `max_docs`.
-For example, this request copies a single document from `twitter` to
-`new_twitter`:
+For example, this request copies a single document from `my-index-000001` to
+`my-new-index-000001`:
 
 [source,console]
 --------------------------------------------------
@@ -637,36 +637,36 @@ POST _reindex
 {
   "max_docs": 1,
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-reindex-multiple-sources]]
 ===== Reindex from multiple sources
 
 The `index` attribute in `source` can be a list, allowing you to copy from lots
 of sources in one request. This will copy documents from the
-`twitter` and `blog` indices:
+`my-index-000001` and `my-index-000002` indices:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": ["twitter", "blog"]
+    "index": ["my-index-000001", "my-index-000002"]
   },
   "dest": {
-    "index": "all_together"
+    "index": "my-new-index-000002"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/PUT blog\/_doc\/post1?refresh\n{"test": "foo"}\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\/_doc\/post1?refresh\n{"test": "foo"}\n/]
 
 NOTE: The Reindex API makes no effort to handle ID collisions so the last
 document written will "win" but the order isn't usually predictable so it is
@@ -677,22 +677,22 @@ using a script.
 ===== Reindex select fields with a source filter
 
 You can use source filtering to reindex a subset of the fields in the original documents.
-For example, the following request only reindexes the `user` and `_doc` fields of each document:
+For example, the following request only reindexes the `user.id` and `_doc` fields of each document:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": "twitter",
-    "_source": ["user", "_doc"]
+    "index": "my-index-000001",
+    "_source": ["user.id", "_doc"]
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-reindex-change-name]]
 ===== Reindex to change the name of a field
@@ -702,7 +702,7 @@ create an index containing documents that look like this:
 
 [source,console]
 --------------------------------------------------
-POST test/_doc/1?refresh
+POST my-index-000001/_doc/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -717,10 +717,10 @@ but you don't like the name `flag` and want to replace it with `tag`.
 POST _reindex
 {
   "source": {
-    "index": "test"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "test2"
+    "index": "my-new-index-000001"
   },
   "script": {
     "source": "ctx._source.tag = ctx._source.remove(\"flag\")"
@@ -733,7 +733,7 @@ Now you can get the new document:
 
 [source,console]
 --------------------------------------------------
-GET test2/_doc/1
+GET my-new-index-000001/_doc/1
 --------------------------------------------------
 // TEST[continued]
 
@@ -744,7 +744,7 @@ which will return:
 {
   "found": true,
   "_id": "1",
-  "_index": "test2",
+  "_index": "my-new-index-000001",
   "_version": 1,
   "_seq_no": 44,
   "_primary_term": 1,
@@ -821,7 +821,7 @@ POST _reindex
 {
   "max_docs": 10,
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "query": {
       "function_score" : {
         "random_score" : {},
@@ -830,11 +830,11 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "random_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 <1> You may need to adjust the `min_score` depending on the relative amount of
 data extracted from source.
@@ -851,10 +851,10 @@ document's metadata. This example bumps the version of the source document:
 POST _reindex
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter",
+    "index": "my-new-index-000001",
     "version_type": "external"
   },
   "script": {
@@ -863,7 +863,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Just as in `_update_by_query`, you can set `ctx.op` to change the
 operation that is executed on the destination:
@@ -911,7 +911,7 @@ POST _reindex
       "username": "user",
       "password": "pass"
     },
-    "index": "source",
+    "index": "my-index-000001",
     "query": {
       "match": {
         "test": "data"
@@ -919,12 +919,12 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "dest"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
 // TEST[setup:host]
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 // TEST[s/otherhost:9200",/\${host}"/]
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]

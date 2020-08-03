@@ -55,11 +55,11 @@ public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
-        QueryShardContext context = highlighterContext.context;
-        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        MappedFieldType fieldType = highlighterContext.fieldType;
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        SearchHighlightContext.Field field = fieldContext.field;
+        QueryShardContext context = fieldContext.context;
+        FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
+        MappedFieldType fieldType = fieldContext.fieldType;
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
@@ -72,7 +72,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
         if (entry == null) {
-            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query,
+            QueryScorer queryScorer = new CustomQueryScorer(fieldContext.query,
                     field.fieldOptions().requireFieldMatch() ? fieldType.name() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
@@ -86,7 +86,7 @@ public class PlainHighlighter implements Highlighter {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fieldOptions().fragmentCharSize());
             } else {
                 throw new IllegalArgumentException("unknown fragmenter option [" + field.fieldOptions().fragmenter()
-                        + "] for the field [" + highlighterContext.fieldName + "]");
+                        + "] for the field [" + fieldContext.fieldName + "]");
             }
             Formatter formatter = new SimpleHTMLFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0]);
 
@@ -106,14 +106,13 @@ public class PlainHighlighter implements Highlighter {
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
             KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
-                .mappers().getMapper(highlighterContext.fieldName);
+                .mappers().getMapper(fieldContext.fieldName);
             keywordIgnoreAbove = mapper.ignoreAbove();
         }
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         try {
-            textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context, hitContext,
-                highlighterContext.highlight.forceSource(field));
+            textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = convertFieldValue(fieldType, textToHighlight);
@@ -123,7 +122,7 @@ public class PlainHighlighter implements Highlighter {
                 }
                 if (textLength > maxAnalyzedOffset) {
                     throw new IllegalArgumentException(
-                        "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
+                        "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
                             "] doc of [" + context.index().getName() + "] index " +
                             "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                             "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
@@ -151,8 +150,8 @@ public class PlainHighlighter implements Highlighter {
                 // the plain highlighter will parse the source and try to analyze it.
                 return null;
             } else {
-                throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
-                    "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+                throw new FetchPhaseExecutionException(fieldContext.shardTarget,
+                    "Failed to highlight field [" + fieldContext.fieldName + "]", e);
             }
         }
         if (field.fieldOptions().scoreOrdered()) {
@@ -180,10 +179,10 @@ public class PlainHighlighter implements Highlighter {
         }
 
         if (fragments.length > 0) {
-            return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+            return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
         }
 
-        int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
+        int noMatchSize = fieldContext.field.fieldOptions().noMatchSize();
         if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();
@@ -191,11 +190,11 @@ public class PlainHighlighter implements Highlighter {
             try {
                 end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, fieldType.name(), fieldContents);
             } catch (Exception e) {
-                throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
-                    "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+                throw new FetchPhaseExecutionException(fieldContext.shardTarget,
+                    "Failed to highlight field [" + fieldContext.fieldName + "]", e);
             }
             if (end > 0) {
-                return new HighlightField(highlighterContext.fieldName, new Text[] { new Text(fieldContents.substring(0, end)) });
+                return new HighlightField(fieldContext.fieldName, new Text[] { new Text(fieldContents.substring(0, end)) });
             }
         }
         return null;

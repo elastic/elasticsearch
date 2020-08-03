@@ -85,7 +85,7 @@ sudo cp .libs/libhsdis.so.0.0.0 /usr/lib/jvm/java-14-adoptopenjdk/lib/hsdis-amd6
 If you want to disassemble a single method do something like this:
 
 ```
-    gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
+gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
 ```
 
 If you want `perf` to find the hot methods for you then do add `-prof:perfasm`.

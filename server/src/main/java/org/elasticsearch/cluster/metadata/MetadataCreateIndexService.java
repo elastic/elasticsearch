@@ -776,12 +776,6 @@ public class MetadataCreateIndexService {
 
     static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
                                             Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
-                                            @Nullable IndexMetadata sourceMetadata) {
-        return buildIndexMetadata(indexName, aliases, documentMapperSupplier, indexSettings, routingNumShards, sourceMetadata, false);
-    }
-
-    static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
-                                            Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
                                             @Nullable IndexMetadata sourceMetadata, boolean isSystem) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);

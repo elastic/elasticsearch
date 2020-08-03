@@ -97,10 +97,16 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    private void checkBasicLicenseType() throws IOException {
-        Map<String, Object> license = getAsMap("/_license");
-        assertThat(license, notNullValue());
-        assertThat(ObjectPath.evaluate(license, "license.type"), equalTo("basic"));
+    private void checkBasicLicenseType() throws Exception {
+        assertBusy(() -> {
+            try {
+                Map<String, Object> license = getAsMap("/_license");
+                assertThat(license, notNullValue());
+                assertThat(ObjectPath.evaluate(license, "license.type"), equalTo("basic"));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private void checkSecurityStatus(boolean expectEnabled) throws IOException {

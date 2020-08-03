@@ -63,7 +63,7 @@ Example to delete with routing
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_doc/1?routing=kimchy
+PUT /my-index-000001/_doc/1?routing=kimchy
 {
   "test": "test"
 }
@@ -73,11 +73,11 @@ PUT /twitter/_doc/1?routing=kimchy
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1?routing=kimchy
+DELETE /my-index-000001/_doc/1?routing=kimchy
 --------------------------------------------------
 // TEST[continued]
 
-This request deletes the tweet with id `1`, but it is routed based on the
+This request deletes the document with id `1`, but it is routed based on the
 user. The document is not deleted if the correct routing is not specified.
 
 [discrete]
@@ -129,9 +129,9 @@ to 5 minutes:
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1?timeout=5m
+DELETE /my-index-000001/_doc/1?timeout=5m
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-delete-api-path-params]]
 ==== {api-path-parms-title}
@@ -166,13 +166,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 [[docs-delete-api-example]]
 ==== {api-examples-title}
 
-Delete the JSON document `1` from the `twitter` index:
+Delete the JSON document `1` from the `my-index-000001` index:
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter/_doc/1
+DELETE /my-index-000001/_doc/1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following result:
 
@@ -184,7 +184,7 @@ The API returns the following result:
     "failed": 0,
     "successful": 2
   },
-  "_index": "twitter",
+  "_index": "my-index-000001",
   "_id": "1",
   "_version": 2,
   "_primary_term": 1,

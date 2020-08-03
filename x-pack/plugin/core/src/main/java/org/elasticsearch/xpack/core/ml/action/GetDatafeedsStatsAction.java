@@ -29,8 +29,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_4_0;
-
 public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
@@ -132,11 +130,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-                if (in.getVersion().onOrAfter(V_7_4_0)) {
-                    timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
-                } else {
-                    timingStats = null;
-                }
+                timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
             }
 
             public String getDatafeedId() {
@@ -199,9 +193,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
-                if (out.getVersion().onOrAfter(V_7_4_0)) {
-                    out.writeOptionalWriteable(timingStats);
-                }
+                out.writeOptionalWriteable(timingStats);
             }
 
             @Override

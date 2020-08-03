@@ -286,7 +286,7 @@ handling network delays:
 By default, {es} reduces the number of network roundtrips between remote
 clusters. This reduces the impact of network delays on search speed. However,
 {es} can't reduce network roundtrips for large search requests, such as those
-including a <<request-body-search-scroll, scroll>> or
+including a <<scroll-search-results, scroll>> or
 <<request-body-search-inner-hits,inner hits>>.
 +
 See <<ccs-min-roundtrips>> to learn how this option works.

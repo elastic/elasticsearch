@@ -42,6 +42,9 @@ indices that have received one search request or more in the last 30 seconds.
 You can change this default interval
 using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
 
+Refresh requests are synchronous and do not return a response until the
+refresh operation completes.
+
 [IMPORTANT]
 ====
 Refreshes are resource-intensive.

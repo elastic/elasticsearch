@@ -100,7 +100,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
-            // converts date values to nanosecond resolution
+            // converts date_nanos values to millisecond resolution
             return new LongValuesComparatorSource(this, missingValue,
                 sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
         }
@@ -110,7 +110,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE) {
-            // converts date_nanos values to millisecond resolution
+            // converts date values to nanosecond resolution
             return new LongValuesComparatorSource(this, missingValue,
                 sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
         }

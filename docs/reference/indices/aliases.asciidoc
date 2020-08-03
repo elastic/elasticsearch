@@ -307,8 +307,10 @@ PUT /my-index-000001
   "mappings": {
     "properties": {
       "user": {
-        "id": {
-          "type": "keyword"
+        "properties": {
+          "id": {
+            "type": "keyword"
+          }
         }
       }
     }

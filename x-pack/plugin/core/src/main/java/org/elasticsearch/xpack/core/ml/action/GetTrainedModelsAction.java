@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,11 +48,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public Request(StreamInput in) throws IOException {
             super(in);
             this.includeModelDefinition = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                this.tags = in.readStringList();
-            } else {
-                this.tags = Collections.emptyList();
-            }
+            this.tags = in.readStringList();
         }
 
         @Override
@@ -73,9 +68,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(includeModelDefinition);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                out.writeStringCollection(tags);
-            }
+            out.writeStringCollection(tags);
         }
 
         @Override

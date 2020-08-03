@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -89,9 +90,15 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
 
                     // TODO remove once jvm.options are added to test system properties
-                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    if (BuildParams.getRuntimeJavaVersion() == JavaVersion.VERSION_1_8) {
+                        test.systemProperty("java.locale.providers", "SPI,JRE");
+                    } else {
+                        test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                        test.jvmArgs("--illegal-access=warn");
+                    }
                 }
             });
+
             if (BuildParams.isInFipsJvm()) {
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bctls-fips:1.0.9");
@@ -105,10 +112,9 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.exclude("**/*$*.class");
 
             test.jvmArgs(
-                "-Xmx" + System.getProperty("tests.heap.size", "512m"),
-                "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "--illegal-access=warn",
-                "-XX:+HeapDumpOnOutOfMemoryError"
+                    "-Xmx" + System.getProperty("tests.heap.size", "512m"),
+                    "-Xms" + System.getProperty("tests.heap.size", "512m"),
+                    "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
@@ -123,18 +129,18 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.gradle",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.task",
-                test.getPath(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
+                    "java.awt.headless",
+                    "true",
+                    "tests.gradle",
+                    "true",
+                    "tests.artifact",
+                    project.getName(),
+                    "tests.task",
+                    test.getPath(),
+                    "tests.security.manager",
+                    "true",
+                    "jna.nosys",
+                    "true"
             );
             test.systemProperties(sysprops);
 
@@ -150,8 +156,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             String gradleVersion = project.getGradle().getGradleVersion();
             nonInputProperties.systemProperty("gradle.dist.lib", new File(project.getGradle().getGradleHomeDir(), "lib"));
             nonInputProperties.systemProperty(
-                "gradle.worker.jar",
-                gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar"
+                    "gradle.worker.jar",
+                    gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar"
             );
             nonInputProperties.systemProperty("gradle.user.home", gradleHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
@@ -197,9 +203,9 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
                 // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
                 FileCollection mainRuntime = project.getExtensions()
-                    .getByType(SourceSetContainer.class)
-                    .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
-                    .getRuntimeClasspath();
+                        .getByType(SourceSetContainer.class)
+                        .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+                        .getRuntimeClasspath();
                 // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
                 Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
                 // Add the shadow JAR artifact itself

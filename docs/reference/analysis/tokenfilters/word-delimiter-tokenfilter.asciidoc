@@ -146,7 +146,7 @@ The following <<indices-create-index,create index API>> request uses the
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -320,7 +320,7 @@ $ => DIGIT
 
 # in some cases you might not want to split on ZWJ
 # this also tests the case where we need a bigger byte[]
-# see http://en.wikipedia.org/wiki/Zero-width_joiner
+# see https://en.wikipedia.org/wiki/Zero-width_joiner
 \\u200D => ALPHANUM
 ----
 
@@ -357,7 +357,7 @@ filter that uses the following rules:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

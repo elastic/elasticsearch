@@ -63,6 +63,12 @@ You can access metadata fields in the same way that you access fields in the sou
 is possible because Elasticsearch doesn't allow fields in the source that have the
 same name as metadata fields.
 
+The following metadata fields are accessible by a processor:
+
+* `_index`
+* `_id`
+* `_routing`
+
 The following example sets the `_id` metadata field of a document to `1`:
 
 [source,js]
@@ -76,7 +82,13 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following metadata fields are accessible by a processor: `_index`, `_id`, `_routing`.
+You can access a metadata field's value by surrounding it in double
+curly brackets `"{{ }}"`. For example, `{{_index}}` retrieves the name of a
+document's index.
+
+WARNING: If you <<create-document-ids-automatically,automatically generate>>
+document IDs, you cannot use the `{{_id}}` value in an ingest processor. {es}
+assigns auto-generated `_id` values after ingest.
 
 [discrete]
 [[accessing-ingest-metadata]]

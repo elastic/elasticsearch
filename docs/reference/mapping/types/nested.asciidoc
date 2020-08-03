@@ -20,7 +20,7 @@ following document:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "group" : "fans",
   "user" : [ <1>
@@ -56,7 +56,7 @@ incorrectly match a query for `alice AND smith`:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "bool": {
@@ -83,7 +83,7 @@ queried independently of the others with the <<query-dsl-nested-query,`nested` q
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -94,7 +94,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "group" : "fans",
   "user" : [
@@ -109,7 +109,7 @@ PUT my_index/_doc/1
   ]
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "nested": {
@@ -126,7 +126,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "nested": {

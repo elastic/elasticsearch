@@ -14,7 +14,7 @@ For example:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -29,13 +29,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text":       "Some text value",
   "number_one": "foo" <1>
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text":       "Some text value",
   "number_two": "foo" <2>
@@ -67,7 +67,7 @@ Mapping types that don't support the setting will ignore it if set on the index 
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.mapping.ignore_malformed": true <1>

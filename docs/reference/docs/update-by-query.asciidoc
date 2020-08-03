@@ -10,9 +10,9 @@ modifying the source, which is useful for picking up mapping changes.
 
 [source,console]
 --------------------------------------------------
-POST twitter/_update_by_query?conflicts=proceed
+POST my-index-000001/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -204,7 +204,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
@@ -305,16 +305,16 @@ To update selected documents, specify a query in the request body:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_update_by_query?conflicts=proceed
+POST my-index-000001/_update_by_query?conflicts=proceed
 {
   "query": { <1>
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> The query must be passed as a value to the `query` key, in the same
 way as the <<search-search,Search API>>. You can also use the `q`
@@ -324,49 +324,63 @@ Update documents in multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
-POST twitter,blog/_update_by_query
+POST my-index-000001,my-index-000002/_update_by_query
 --------------------------------------------------
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Limit the update by query operation to shards that a particular routing value:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_update_by_query?routing=1
+POST my-index-000001/_update_by_query?routing=1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default update by query uses scroll batches of 1000. 
 You can change the batch size with the `scroll_size` parameter:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_update_by_query?scroll_size=100
+POST my-index-000001/_update_by_query?scroll_size=100
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-update-by-query-api-source]]
 ===== Update the document source
 
 Update by query supports scripts to update the document source. 
-For example, the following request increments the likes field for all of kimchy’s tweets:
+For example, the following request increments the `count` field for all
+documents with a `user.id` of `kimchy` in `my-index-000001`:
+
+////
+[source,console]
+----
+PUT my-index-000001/_create/1
+{
+  "user": {
+    "id": "kimchy"
+  },
+  "count": 1
+}
+----
+////
 
 [source,console]
 --------------------------------------------------
-POST twitter/_update_by_query
+POST my-index-000001/_update_by_query
 {
   "script": {
-    "source": "ctx._source.likes++",
+    "source": "ctx._source.count++",
     "lang": "painless"
   },
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[continued]
 
 Note that `conflicts=proceed` is not specified in this example. In this case, a
 version conflict should halt the process so you can handle the failure.
@@ -404,9 +418,9 @@ PUT _ingest/pipeline/set-foo
       }
   } ]
 }
-POST twitter/_update_by_query?pipeline=set-foo
+POST my-index-000001/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [discrete]
@@ -535,7 +549,7 @@ slices to each request:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_update_by_query
+POST my-index-000001/_update_by_query
 {
   "slice": {
     "id": 0,
@@ -545,7 +559,7 @@ POST twitter/_update_by_query
     "source": "ctx._source['extra'] = 'test'"
   }
 }
-POST twitter/_update_by_query
+POST my-index-000001/_update_by_query
 {
   "slice": {
     "id": 1,
@@ -556,14 +570,14 @@ POST twitter/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+POST my-index-000001/_search?size=0&q=extra:test&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 
@@ -591,20 +605,20 @@ slices to use:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_update_by_query?refresh&slices=5
+POST my-index-000001/_update_by_query?refresh&slices=5
 {
   "script": {
     "source": "ctx._source['extra'] = 'test'"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you also can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+POST my-index-000001/_search?size=0&q=extra:test&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 

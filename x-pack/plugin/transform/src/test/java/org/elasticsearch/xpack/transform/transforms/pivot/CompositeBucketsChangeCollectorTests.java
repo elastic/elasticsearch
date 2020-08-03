@@ -102,7 +102,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // a terms group_by is limited by terms query
-        SingleGroupSource termsGroupBy = new TermsGroupSource("id", null);
+        SingleGroupSource termsGroupBy = new TermsGroupSource("id", null, false);
         groups.put("id", termsGroupBy);
 
         ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);

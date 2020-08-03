@@ -69,7 +69,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. For example:
 --------------------------------------------------
 GET /_cat/health?v
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 
@@ -89,7 +89,7 @@ You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 --------------------------------------------------
 GET /_cat/health?v&ts=false
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 

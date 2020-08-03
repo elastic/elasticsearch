@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -217,7 +216,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .actionGet();
         assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(/*invalidateAccessTokenResponse.getResult().getErrors()*/ Collections.singletonList("x"), Matchers.empty());
+        assertThat(invalidateAccessTokenResponse.getResult().getErrors().size(), equalTo(0));
         InvalidateTokenResponse invalidateRefreshTokenResponse = securityClient.prepareInvalidateToken(refreshToken)
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
             .execute()

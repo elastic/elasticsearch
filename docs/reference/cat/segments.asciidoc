@@ -47,7 +47,7 @@ columns, it only returns the specified columns.
 Valid columns are:
 
 `index`, `i`, `idx`::
-(Default) Name of the index, such as `twitter`.
+(Default) Name of the index.
 
 `shard`, `s`, `sh`::
 (Default) Name of the shard.

@@ -20,16 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public final class DocumentFieldMappers implements Iterable<Mapper> {
+public final class MappingLookup implements Iterable<Mapper> {
 
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
@@ -46,10 +49,45 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         analyzers.put(key, value);
     }
 
-    public DocumentFieldMappers(Collection<FieldMapper> mappers,
-                                Collection<ObjectMapper> objectMappers,
-                                Collection<FieldAliasMapper> aliasMappers,
-                                Analyzer defaultIndex) {
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+        List<ObjectMapper> newObjectMappers = new ArrayList<>();
+        List<FieldMapper> newFieldMappers = new ArrayList<>();
+        List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            if (metadataMapper != null) {
+                newFieldMappers.add(metadataMapper);
+            }
+        }
+        collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+    }
+
+    private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
+                               Collection<FieldMapper> fieldMappers,
+                               Collection<FieldAliasMapper> fieldAliasMappers) {
+        if (mapper instanceof RootObjectMapper) {
+            // root mapper isn't really an object mapper
+        } else if (mapper instanceof ObjectMapper) {
+            objectMappers.add((ObjectMapper)mapper);
+        } else if (mapper instanceof FieldMapper) {
+            fieldMappers.add((FieldMapper)mapper);
+        } else if (mapper instanceof FieldAliasMapper) {
+            fieldAliasMappers.add((FieldAliasMapper) mapper);
+        } else {
+            throw new IllegalStateException("Unrecognized mapper type [" +
+                mapper.getClass().getSimpleName() + "].");
+        }
+
+        for (Mapper child : mapper) {
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers);
+        }
+    }
+
+    public MappingLookup(Collection<FieldMapper> mappers,
+                         Collection<ObjectMapper> objectMappers,
+                         Collection<FieldAliasMapper> aliasMappers,
+                         int metadataFieldCount,
+                         Analyzer defaultIndex) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -65,7 +103,6 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         }
         this.hasNested = hasNested;
 
-        int metadataFieldCount = 0;
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.name())) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined both as an object and a field");
@@ -75,9 +112,6 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
             }
             MappedFieldType fieldType = mapper.fieldType();
             put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
-            if (mapper instanceof MetadataFieldMapper) {
-                metadataFieldCount++;
-            }
         }
         this.metadataFieldCount = metadataFieldCount;
 
@@ -124,13 +158,20 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         return fieldMappers.values().iterator();
     }
 
-    public void checkFieldLimit(long limit) {
+    public void checkLimits(IndexSettings settings) {
+        checkFieldLimit(settings.getMappingTotalFieldsLimit());
+        checkObjectDepthLimit(settings.getMappingDepthLimit());
+        checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
+        checkNestedLimit(settings.getMappingNestedFieldsLimit());
+    }
+
+    private void checkFieldLimit(long limit) {
         if (fieldMappers.size() + objectMappers.size() - metadataFieldCount > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }
 
-    public void checkObjectDepthLimit(long limit) {
+    private void checkObjectDepthLimit(long limit) {
         for (String objectPath : objectMappers.keySet()) {
             int numDots = 0;
             for (int i = 0; i < objectPath.length(); ++i) {
@@ -146,7 +187,7 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         }
     }
 
-    public void checkFieldNameLengthLimit(long limit) {
+    private void checkFieldNameLengthLimit(long limit) {
         Stream.of(objectMappers.values().stream(), fieldMappers.values().stream())
             .reduce(Stream::concat)
             .orElseGet(Stream::empty)
@@ -158,7 +199,7 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
             });
     }
 
-    public void checkNestedLimit(long limit) {
+    private void checkNestedLimit(long limit) {
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : objectMappers.values()) {
             if (objectMapper.nested().isNested()) {

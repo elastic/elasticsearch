@@ -40,10 +40,10 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("path", "some.path", "field");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            new DocumentFieldMappers(
+            new MappingLookup(
                 Collections.emptyList(),
                 singletonList(objectMapper),
-                singletonList(aliasMapper), Lucene.STANDARD_ANALYZER));
+                singletonList(aliasMapper), 0, Lucene.STANDARD_ANALYZER));
         assertEquals("Alias [some.path] is defined both as an object and an alias", e.getMessage());
     }
 
@@ -53,10 +53,10 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid", "invalid", "field");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            new DocumentFieldMappers(
+            new MappingLookup(
                 Arrays.asList(field, invalidField),
                 emptyList(),
-                singletonList(invalidAlias), Lucene.STANDARD_ANALYZER));
+                singletonList(invalidAlias), 0, Lucene.STANDARD_ANALYZER));
 
         assertEquals("Alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
     }
@@ -66,10 +66,10 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "field");
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "alias");
 
-        DocumentFieldMappers mappers = new DocumentFieldMappers(
+        MappingLookup mappers = new MappingLookup(
             singletonList(field),
             emptyList(),
-            Arrays.asList(alias, invalidAlias), Lucene.STANDARD_ANALYZER);
+            Arrays.asList(alias, invalidAlias), 0, Lucene.STANDARD_ANALYZER);
         alias.validate(mappers);
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
@@ -84,10 +84,10 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "invalid-alias");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            DocumentFieldMappers mappers = new DocumentFieldMappers(
+            MappingLookup mappers = new MappingLookup(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias), null);
+                singletonList(invalidAlias), 0, null);
             invalidAlias.validate(mappers);
         });
 
@@ -99,10 +99,10 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "non-existent");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            DocumentFieldMappers mappers = new DocumentFieldMappers(
+            MappingLookup mappers = new MappingLookup(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias), Lucene.STANDARD_ANALYZER);
+                singletonList(invalidAlias), 0, Lucene.STANDARD_ANALYZER);
             invalidAlias.validate(mappers);
         });
 
@@ -114,11 +114,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         ObjectMapper objectMapper = createNestedObjectMapper("nested");
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "nested.alias", "nested.field");
 
-        DocumentFieldMappers mappers = new DocumentFieldMappers(
+        MappingLookup mappers = new MappingLookup(
             singletonList(createFieldMapper("nested", "field")),
             singletonList(objectMapper),
             singletonList(aliasMapper),
-            Lucene.STANDARD_ANALYZER);
+            0, Lucene.STANDARD_ANALYZER);
         aliasMapper.validate(mappers);
     }
 
@@ -126,11 +126,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "object2.alias", "object1.field");
 
-        DocumentFieldMappers mappers = new DocumentFieldMappers(
+        MappingLookup mappers = new MappingLookup(
             List.of(createFieldMapper("object1", "field")),
             List.of(createObjectMapper("object1"), createObjectMapper("object2")),
             singletonList(aliasMapper),
-            Lucene.STANDARD_ANALYZER);
+            0, Lucene.STANDARD_ANALYZER);
         aliasMapper.validate(mappers);
     }
 
@@ -139,11 +139,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "alias", "nested.field");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            DocumentFieldMappers mappers = new DocumentFieldMappers(
+            MappingLookup mappers = new MappingLookup(
                 singletonList(createFieldMapper("nested", "field")),
                 Collections.singletonList(objectMapper),
                 singletonList(aliasMapper),
-                Lucene.STANDARD_ANALYZER);
+                0, Lucene.STANDARD_ANALYZER);
             aliasMapper.validate(mappers);
         });
 
@@ -157,11 +157,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "nested2.alias", "nested1.field");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            DocumentFieldMappers mappers = new DocumentFieldMappers(
+            MappingLookup mappers = new MappingLookup(
                 singletonList(createFieldMapper("nested1", "field")),
                 List.of(createNestedObjectMapper("nested1"), createNestedObjectMapper("nested2")),
                 singletonList(aliasMapper),
-                Lucene.STANDARD_ANALYZER);
+                0, Lucene.STANDARD_ANALYZER);
             aliasMapper.validate(mappers);
         });
 

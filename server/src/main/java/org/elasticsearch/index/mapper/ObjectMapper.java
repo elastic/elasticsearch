@@ -484,7 +484,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public void validate(DocumentFieldMappers mappers) {
+    public void validate(MappingLookup mappers) {
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }

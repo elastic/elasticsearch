@@ -89,7 +89,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public void validate(DocumentFieldMappers mappers) {
+    public void validate(MappingLookup mappers) {
         if (Objects.equals(this.path(), this.name())) {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias cannot refer to itself.");

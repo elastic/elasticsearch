@@ -75,7 +75,7 @@ public final class Mapping implements ToXContentFragment {
         return root;
     }
 
-    public void validate(DocumentFieldMappers mappers) {
+    public void validate(MappingLookup mappers) {
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
             metadataFieldMapper.validate(mappers);
         }

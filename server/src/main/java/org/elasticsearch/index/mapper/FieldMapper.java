@@ -224,6 +224,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    public MultiFields multiFields() {
+        return multiFields;
+    }
+
     /**
      * A value to use in place of a {@code null} value in the document source.
      */
@@ -347,9 +351,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-
     @Override
-    public void validate(DocumentFieldMappers mappers) {
+    public final void validate(MappingLookup mappers) {
         if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
             if (mappers.isMultiField(this.name())) {
                 throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
@@ -368,10 +371,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 checkNestedScopeCompatibility(sourceScope, targetScope);
             }
         }
-        for (Mapper multiField : multiFields) {
+        for (Mapper multiField : multiFields()) {
             multiField.validate(mappers);
         }
+        doValidate(mappers);
     }
+
+    protected void doValidate(MappingLookup mappers) { }
 
     private static void checkNestedScopeCompatibility(String source, String target) {
         boolean targetIsParentOfSource;

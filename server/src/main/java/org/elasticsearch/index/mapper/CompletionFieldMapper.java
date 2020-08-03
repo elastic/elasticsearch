@@ -577,8 +577,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void validate(DocumentFieldMappers mappers) {
-        super.validate(mappers);
+    public void doValidate(MappingLookup mappers) {
         if (fieldType().hasContextMappings()) {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
                 contextMapping.validateReferences(indexVersionCreated, s -> mappers.fieldTypes().get(s));

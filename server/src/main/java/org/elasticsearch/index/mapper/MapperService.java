@@ -110,10 +110,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private volatile DocumentMapper mapper;
 
-    private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
-    private boolean hasNested = false; // updated dynamically to true when a nested object is added
-
     private final DocumentMapperParser documentParser;
     private final Version indexVersionCreated;
 
@@ -133,7 +129,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
@@ -146,7 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return this.hasNested;
+        return this.mapper != null && this.mapper.hasNestedObjects();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -323,10 +318,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // commit the change
         this.mapper = newMapper;
-        this.fieldTypes = newMapper.fieldTypes();
-        this.hasNested = newMapper.hasNestedObjects();
-        this.fullPathObjectMappers = newMapper.objectMappers();
-
         assert assertSerialization(newMapper);
 
         return newMapper;
@@ -398,7 +389,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return fieldTypes.get(fullName);
+        return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 
     /**
@@ -410,7 +401,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        return fieldTypes.simpleMatchToFullName(pattern);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().simpleMatchToFullName(pattern);
     }
 
     /**
@@ -418,18 +409,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * the 'source path' for a multi-field is the path to its parent field.
      */
     public Set<String> sourcePath(String fullName) {
-        return fieldTypes.sourcePaths(fullName);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().sourcePaths(fullName);
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {
-        return fieldTypes;
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return fullPathObjectMappers.get(name);
+        return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
 
     /**

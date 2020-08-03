@@ -279,7 +279,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
@@ -362,7 +363,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
 
@@ -821,7 +823,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
@@ -987,7 +990,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();

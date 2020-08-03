@@ -239,11 +239,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
         }
 
         @Override
-        boolean needToCheck() {
-            return randomBoolean();
-        }
-
-        @Override
         boolean shouldAutoCreate(String index, ClusterState state) {
             return randomBoolean();
         }

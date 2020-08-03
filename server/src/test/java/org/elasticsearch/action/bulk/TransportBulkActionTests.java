@@ -81,11 +81,6 @@ public class TransportBulkActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean needToCheck() {
-            return true;
-        }
-
-        @Override
         void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);

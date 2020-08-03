@@ -64,11 +64,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        // Test emulating auto_create_index=false
-        indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, null);
-        // Test emulating auto_create_index=true
+        // Test emulating that index can be auto-created
         indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> true);
-        // Test emulating all indices already created
+        // Test emulating that index cannot be auto-created
         indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> false);
         // Test emulating auto_create_index=true with some indices already created.
         indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> randomBoolean());
@@ -112,15 +110,19 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
+
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
+
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
+
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
                 null, null, mock(ActionFilters.class), null, null,
             new IndexingPressure(Settings.EMPTY)) {
@@ -128,11 +130,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
-            }
-
-            @Override
-            boolean needToCheck() {
-                return null != shouldAutoCreate; // Use "null" to mean "no indices can be created so don't bother checking"
             }
 
             @Override

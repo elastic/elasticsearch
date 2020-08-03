@@ -102,7 +102,7 @@ public class ComposableTemplateIT extends ESIntegTestCase {
         Exception expectedException = expectThrows(Exception.class, () -> ComposableIndexTemplate.parse(parser));
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs-*-*"), null, null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate());
+            null, new ComposableIndexTemplate.DataStreamTemplate(), null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet());
         Exception actualException = (Exception) e.getCause();

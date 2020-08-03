@@ -147,10 +147,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 ), new IndexingPressure(SETTINGS)
             );
         }
-        @Override
-        protected boolean needToCheck() {
-            return needToCheck;
-        }
+
         @Override
         void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
                 final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
@@ -582,7 +579,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         ComposableIndexTemplate t1 = new ComposableIndexTemplate(Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder()

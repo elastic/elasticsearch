@@ -20,7 +20,10 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -53,13 +56,6 @@ public final class AutoCreateIndex {
     }
 
     /**
-     * Do we really need to check if an index should be auto created?
-     */
-    public boolean needToCheck() {
-        return this.autoCreate.autoCreateIndex;
-    }
-
-    /**
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
@@ -67,6 +63,13 @@ public final class AutoCreateIndex {
         if (resolver.hasIndexAbstraction(index, state)) {
             return false;
         }
+
+        // Templates can override the AUTO_CREATE_INDEX_SETTING setting
+        final ComposableIndexTemplate template = findTemplate(index, state.metadata());
+        if (template != null && template.getAllowAutoCreate()) {
+            return true;
+        }
+
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
@@ -98,6 +101,11 @@ public final class AutoCreateIndex {
 
     void setAutoCreate(AutoCreate autoCreate) {
         this.autoCreate = autoCreate;
+    }
+
+    private ComposableIndexTemplate findTemplate(String name, Metadata metadata) {
+        final String templateName = MetadataIndexTemplateService.findV2Template(metadata, name, false);
+        return metadata.templatesV2().get(templateName);
     }
 
     static class AutoCreate {

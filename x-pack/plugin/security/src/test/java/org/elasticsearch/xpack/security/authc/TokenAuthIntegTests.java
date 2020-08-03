@@ -169,7 +169,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateResponse.getErrors(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
@@ -200,7 +200,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .actionGet();
                 assertThat(invalidateResponseTwo.getResult().getInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getResult().getPreviouslyInvalidatedTokens(), equalTo(0));
-                assertThat(invalidateResponseTwo.getErrors(), empty());
+                assertThat(invalidateResponseTwo.getResult().getErrors(), empty());
             }
             client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
@@ -225,7 +225,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .actionGet();
         assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateRefreshTokenResponse.getErrors(), empty());
+        assertThat(invalidateRefreshTokenResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForUser() throws Exception{
@@ -247,7 +247,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateResponse.getErrors(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForRealm() throws Exception{
@@ -269,7 +269,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateResponse.getErrors(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForRealmThatHasNone() {
@@ -291,7 +291,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateResponse.getErrors(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testExpireMultipleTimes() {

@@ -87,6 +87,46 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("Failed to parse mapping: script must be specified for runtime_script field [my_field]", exception.getMessage());
     }
 
+    public void testCopyToIsNotSupported() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "runtime_script")
+            .field("runtime_type", randomFrom(runtimeTypes))
+            .field("script", "keyword('test')")
+            .field("copy_to", "field")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_script field does not support [copy_to]", exception.getMessage());
+    }
+
+    public void testMultiFieldsIsNotSupported() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "runtime_script")
+            .field("runtime_type", randomFrom(runtimeTypes))
+            .field("script", "keyword('test')")
+            .startObject("fields")
+            .startObject("test")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_script field does not support [fields]", exception.getMessage());
+    }
+
     public void testStoredScriptsAreNotSupported() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

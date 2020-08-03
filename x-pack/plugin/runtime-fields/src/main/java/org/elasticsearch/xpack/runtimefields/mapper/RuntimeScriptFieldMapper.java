@@ -218,12 +218,19 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
                     "runtime_type [" + runtimeType.getValue() + "] not supported for " + CONTENT_TYPE + " field [" + name + "]"
                 );
             }
-            // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            if (multiFields.iterator().hasNext()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field does not support [fields]");
+            }
+            CopyTo copyTo = this.copyTo.build();
+            if (copyTo.copyToFields().isEmpty() == false) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field does not support [copy_to]");
+            }
             return new RuntimeScriptFieldMapper(
                 name,
                 fieldTypeResolver.apply(this, context),
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                MultiFields.empty(),
+                CopyTo.empty(),
                 runtimeType.getValue(),
                 script.getValue(),
                 scriptCompiler

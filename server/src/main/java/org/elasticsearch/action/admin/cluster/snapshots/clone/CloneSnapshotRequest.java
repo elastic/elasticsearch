@@ -24,6 +24,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         source = in.readString();
         target = in.readString();
         indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         excludedSettings = in.readStringArray();
         updatedSettings = Settings.readSettingsFromStream(in);
     }
@@ -61,6 +63,17 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         this.indices = indices;
         this.excludedSettings = excludedSettings;
         this.updatedSettings = updatedSettings;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(repository);
+        out.writeString(source);
+        out.writeString(target);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeStringArray(excludedSettings);
+        Settings.writeSettingsToStream(updatedSettings, out);
     }
 
     @Override

@@ -13,13 +13,13 @@ testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpFiles(type: Copy) {
+def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml');
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
 
-task setupPorts {
+tasks.register("setupPorts") {
   dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
@@ -39,7 +39,7 @@ task setupPorts {
 }
 
 
-integTest.runner.dependsOn setupPorts
+integTest.runner.dependsOn "setupPorts"
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
@@ -85,13 +85,13 @@ testClusters.integTest {
   user username: "test_admin", password: 'x-pack-test-password'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.der'
   exclude '**/*.p12'
   exclude '**/*.key'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',

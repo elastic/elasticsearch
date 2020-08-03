@@ -29,7 +29,7 @@ artifacts {
   restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
-task testJar(type: Jar) {
+def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
   /*
@@ -61,7 +61,7 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-task copyKeyCerts(type: Copy) {
+tasks.register("copyKeyCerts", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -69,7 +69,7 @@ task copyKeyCerts(type: Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+processTestResources.dependsOn("copyKeyCerts")
 
 integTest.runner {
   /*

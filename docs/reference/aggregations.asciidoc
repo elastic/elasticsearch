@@ -44,7 +44,7 @@ NOTE:   Aggregations operate on the `double` representation of
         the data. As a consequence, the result may be approximate when running on longs
         whose absolute value is greater than `2^53`.
 
-[float]
+[discrete]
 == Structuring Aggregations
 
 The following snippet captures the basic structure of aggregations:
@@ -76,7 +76,7 @@ sub-aggregations you define on the bucketing aggregation level will be computed 
 bucketing aggregation. For example, if you define a set of aggregations under the `range` aggregation, the
 sub-aggregations will be computed for the range buckets that are defined.
 
-[float]
+[discrete]
 === Values Source
 
 Some aggregations work on values extracted from the aggregated documents. Typically, the values will be extracted from

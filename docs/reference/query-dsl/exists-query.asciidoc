@@ -20,11 +20,11 @@ An indexed value may not exist for a document's field due to a variety of reason
 ----
 GET /_search
 {
-    "query": {
-        "exists": {
-            "field": "user"
-        }
+  "query": {
+    "exists": {
+      "field": "user"
     }
+  }
 }
 ----
 
@@ -56,14 +56,14 @@ the `user` field.
 ----
 GET /_search
 {
-    "query": {
-        "bool": {
-            "must_not": {
-                "exists": {
-                    "field": "user"
-                }
-            }
+  "query": {
+    "bool": {
+      "must_not": {
+        "exists": {
+          "field": "user"
         }
+      }
     }
+  }
 }
 ----

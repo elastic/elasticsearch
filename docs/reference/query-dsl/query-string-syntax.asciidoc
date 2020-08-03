@@ -123,7 +123,7 @@ operator:
     quikc~ brwn~ foks~
 
 This uses the
-http://en.wikipedia.org/wiki/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
+{wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
 to find all terms with a maximum of
 two changes, where a change is the insertion, deletion
 or substitution of a single character, or transposition of two adjacent

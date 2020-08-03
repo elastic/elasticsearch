@@ -54,9 +54,9 @@ testClusters.'mixed-cluster' {
   user username: "test_user", password: "x-pack-test-password"
 }
 
-task integTest {
+tasks.register("integTest") {
   dependsOn 'mixed-cluster'
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
-check.dependsOn(integTest)
+tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn("integTest") }

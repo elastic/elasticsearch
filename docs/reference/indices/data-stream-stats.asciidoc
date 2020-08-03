@@ -5,8 +5,6 @@
 <titleabbrev>Data stream stats</titleabbrev>
 ++++
 
-experimental::[]
-
 Retrieves statistics for one or more <<data-streams,data streams>>.
 
 ////

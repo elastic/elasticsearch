@@ -223,17 +223,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
             Fields.CONTENT_FIELD_NAME_WEIGHT, Fields.CONTENT_FIELD_NAME_CONTEXTS);
 
-    public static class TypeParser implements Mapper.TypeParser {
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            CompletionFieldMapper.Builder builder
-                = new CompletionFieldMapper.Builder(name, parserContext.getIndexAnalyzers().get("simple"));
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple")));
 
     public static final class CompletionFieldType extends TermBasedFieldType {
 
@@ -538,6 +528,19 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName()
                 + "]: expected text or object, but got " + token.name());
+        }
+    }
+
+    @Override
+    protected List<?> parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value instanceof List) {
+            return (List<?>) value;
+        } else {
+            return List.of(value);
         }
     }
 

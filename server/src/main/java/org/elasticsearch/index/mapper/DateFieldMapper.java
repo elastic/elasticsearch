@@ -53,6 +53,7 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -216,22 +217,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault);
+    });
 
-        private final Resolution resolution;
-
-        public TypeParser(Resolution resolution) {
-            this.resolution = resolution;
-        }
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
-            Builder builder = new Builder(name, resolution, parserContext.getDateFormatter(), ignoreMalformedByDefault);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault);
+    });
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;
@@ -275,6 +269,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
@@ -445,6 +440,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
             // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            // TODO maybe aggs should force millis because lots so of other places want nanos?
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }
@@ -503,6 +499,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValueAsString;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -548,6 +549,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    public String parseSourceValue(Object value, String format) {
+        String date = value.toString();
+        long timestamp = fieldType().parse(date);
+
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        if (format != null) {
+            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+        }
+        return dateTimeFormatter.format(dateTime);
+    }
 
     public boolean getIgnoreMalformed() {
         return ignoreMalformed;

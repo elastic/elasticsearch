@@ -10,6 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,7 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -263,7 +265,10 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result2 = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result1, result2));
 
-        verifyNoMoreInteractions(resultsPersisterService);
+        List<BulkRequest> capturedBulkRequests = bulkRequestCaptor.getAllValues();
+        assertThat(capturedBulkRequests, hasSize(1));
+        BulkRequest capturedBulkRequest = capturedBulkRequests.get(0);
+        assertThat(capturedBulkRequest.numberOfActions(), equalTo(1));
     }
 
     public void testProcess_GivenNoResults_ShouldCancelAndConsumeExtractor() throws IOException {
@@ -283,7 +288,8 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenProcessResults(List<RowResults> results) {
-        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, new TaskId(""), dataExtractor, resultsPersisterService)) {
+        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, Settings.EMPTY, new TaskId(""), dataExtractor,
+            resultsPersisterService)) {
             results.forEach(joiner::processRowResults);
         }
     }

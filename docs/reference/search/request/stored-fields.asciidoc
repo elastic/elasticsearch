@@ -13,10 +13,10 @@ by a search hit.
 --------------------------------------------------
 GET /_search
 {
-    "stored_fields" : ["user", "postDate"],
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "stored_fields" : ["user", "postDate"],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -29,10 +29,10 @@ returned, for example:
 --------------------------------------------------
 GET /_search
 {
-    "stored_fields" : [],
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "stored_fields" : [],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -55,10 +55,10 @@ To disable the stored fields (and metadata fields) entirely use: `_none_`:
 --------------------------------------------------
 GET /_search
 {
-    "stored_fields": "_none_",
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "stored_fields": "_none_",
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 

@@ -172,4 +172,9 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         // do nothing
     }
 
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    }
+
 }

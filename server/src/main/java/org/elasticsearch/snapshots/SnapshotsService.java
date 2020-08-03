@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotReque
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -330,7 +329,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
-    public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
+    public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.target());
         validate(repositoryName, snapshotName);
@@ -341,13 +340,104 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
-        // TODO: do not allow delete of in-progress-clone
+        final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        // TODO: do not allow delete of source of in-progress-clone
         // TODO: handle index metadata via metadata generations only (no physical file writing) ... implement this in repo
         // TODO: just copy global metadata blob? Or just make it empty with the index metadata in it? (latter might be better with DS)
         // TODO: Clone DS? (probably no, not relevant for searchable snapshots ...)
         // TODO: SnapshotInfo build as always
         // TODO: shards are snapshot shard-by-shard on the master node, no need for coordination here
         // TODO: what about snapshot metadata?
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+
+            private SnapshotsInProgress.Entry newEntry;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                // check if the snapshot name already exists in the repository
+                if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+                    throw new InvalidSnapshotNameException(
+                            repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
+                }
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+                if (runningSnapshots.stream().anyMatch(s -> {
+                    final Snapshot running = s.snapshot();
+                    return running.getRepository().equals(repositoryName) && running.getSnapshotId().getName().equals(snapshotName);
+                })) {
+                    throw new InvalidSnapshotNameException(
+                            repository.getMetadata().name(), snapshotName, "snapshot with the same name is already in-progress");
+                }
+                validate(repositoryName, snapshotName, currentState);
+                final boolean concurrentOperationsAllowed = currentState.nodes().getMinNodeVersion().onOrAfter(FULL_CONCURRENCY_VERSION);
+                final SnapshotDeletionsInProgress deletionsInProgress =
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+                // TODO: check that no delete for the source snapshot is running
+                final SnapshotId sourceSnapshotId = repositoryData.getSnapshotIds()
+                        .stream()
+                        .filter(src -> src.getName().equals(request.source()))
+                        .findAny()
+                        .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
+                if (deletionsInProgress.hasDeletionsInProgress() && concurrentOperationsAllowed == false) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                            "cannot snapshot while a snapshot deletion is in-progress in [" + deletionsInProgress + "]");
+                }
+                final RepositoryCleanupInProgress repositoryCleanupInProgress =
+                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
+                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                            "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+                }
+                // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
+                // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
+                // cluster state anyway in #applyClusterState.
+                if (concurrentOperationsAllowed == false && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
+                }
+                ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
+                // TODO: figure out indices by pattern matching
+                List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
+
+                logger.trace("[{}][{}] creating snapshot clone for indices [{}]", repositoryName, snapshotName, indices);
+
+                final List<IndexId> indexIds = repositoryData.resolveNewIndices(
+                        indices, runningSnapshots.stream().filter(entry -> entry.repository().equals(repositoryName))
+                                .flatMap(entry -> entry.indices().stream()).distinct()
+                                .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+                final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
+                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shards(snapshots, deletionsInProgress, currentState.metadata(),
+                        currentState.routingTable(), indexIds, useShardGenerations(version), repositoryData, repositoryName);
+                newEntry = SnapshotsInProgress.startClone(snapshot, sourceSnapshotId,
+                        indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, version);
+                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
+                newEntries.add(newEntry);
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
+                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                try {
+                    logger.info("snapshot clone [{}] started", snapshot);
+                    addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
+                } finally {
+                    if (newEntry.state().completed()) {
+                        endSnapshot(newEntry, newState.metadata(), repositoryData);
+                    }
+                }
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
+            }
+        }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
     private void ensureBelowConcurrencyLimit(String repository, String name, SnapshotsInProgress snapshotsInProgress,

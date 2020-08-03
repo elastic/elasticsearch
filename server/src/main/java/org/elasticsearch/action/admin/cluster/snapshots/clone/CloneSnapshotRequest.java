@@ -71,6 +71,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         out.writeString(repository);
         out.writeString(source);
         out.writeString(target);
+        out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(excludedSettings);
         Settings.writeSettingsToStream(updatedSettings, out);
@@ -108,5 +109,9 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     public String target() {
         return this.target;
+    }
+
+    public String source() {
+        return this.source;
     }
 }

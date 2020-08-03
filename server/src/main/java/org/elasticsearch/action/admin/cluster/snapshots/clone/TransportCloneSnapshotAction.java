@@ -69,6 +69,6 @@ public class TransportCloneSnapshotAction extends TransportMasterNodeAction<Clon
     @Override
     protected void masterOperation(Task task, final CloneSnapshotRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.cloneSnapshot(request, listener);
+        snapshotsService.cloneSnapshot(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
     }
 }

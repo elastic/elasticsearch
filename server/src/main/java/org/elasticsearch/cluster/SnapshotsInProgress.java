@@ -98,9 +98,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 indices, dataStreams, startTime, repositoryStateId, shards, null, userMetadata, version, null);
     }
 
-    public static Entry startClone(Snapshot snapshot, SnapshotId source, boolean includeGlobalState, List<IndexId> indices, long startTime,
+    public static Entry startClone(Snapshot snapshot, SnapshotId source, List<IndexId> indices, long startTime,
                                    long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Version version) {
-        return new SnapshotsInProgress.Entry(snapshot, includeGlobalState, false,
+        return new SnapshotsInProgress.Entry(snapshot, false, false,
                 completed(shards.values()) ? State.SUCCESS : State.STARTED, indices, Collections.emptyList(), startTime, repositoryStateId,
                 shards, null, Collections.emptyMap(), version, source);
     }

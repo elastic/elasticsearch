@@ -40,14 +40,6 @@ For more information, see <<security-privileges>>.
 
 [discrete]
 ==== Examples
-////
-[source,console]
---------------------------------------------------
-GET /_cluster/health?wait_for_events=normal&timeout=180s
---------------------------------------------------
-// TESTSETUP
-
-////
 The following example provides information about a trial license:
 
 [source,console]

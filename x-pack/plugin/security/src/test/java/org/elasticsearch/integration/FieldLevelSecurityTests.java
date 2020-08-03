@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -19,13 +20,17 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,6 +40,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -45,6 +51,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -757,6 +765,110 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field3"), is("value3"));
+        }
+    }
+
+    public void testScrollWithQueryCache() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setMapping("field1", "type=text", "field2", "type=text")
+        );
+
+        final int numDocs = scaledRandomIntBetween(2, 5);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i))
+                    .setSource("field1", "value1", "field2", "value2")
+                    .get();
+        }
+        refresh("test");
+
+        final QueryBuilder cacheableQueryBuilder = constantScoreQuery(termQuery("field1", "value1"));
+
+        SearchResponse user1SearchResponse = null;
+        SearchResponse user2SearchResponse = null;
+        int scrolledDocsUser1 = 0;
+        final int numScrollSearch = scaledRandomIntBetween(20, 30);
+
+        try {
+            for (int i = 0; i < numScrollSearch; i++) {
+                if (randomBoolean()) {
+                    if (user2SearchResponse == null) {
+                        user2SearchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(
+                                "user2", USERS_PASSWD)))
+                                .prepareSearch("test")
+                                .setQuery(cacheableQueryBuilder)
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .setSize(1)
+                                .setFetchSource(true)
+                                .get();
+                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                    } else {
+                        // make sure scroll is empty
+                        if (user2SearchResponse.getScrollId() != null) {
+                            user2SearchResponse = client()
+                                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2",
+                                            USERS_PASSWD)))
+                                    .prepareSearchScroll(user2SearchResponse.getScrollId())
+                                    .setScroll(TimeValue.timeValueMinutes(10L))
+                                    .get();
+                            assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                            assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                            client().prepareClearScroll().addScrollId(user2SearchResponse.getScrollId()).get();
+                        }
+                        user2SearchResponse = null;
+                    }
+                } else {
+                    if (user1SearchResponse == null) {
+                        user1SearchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(
+                                "user1", USERS_PASSWD)))
+                                .prepareSearch("test")
+                                .setQuery(cacheableQueryBuilder)
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .setSize(1)
+                                .setFetchSource(true)
+                                .get();
+                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        assertThat(user1SearchResponse.getHits().getHits().length, is(1));
+                        assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                        assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                        scrolledDocsUser1++;
+                    } else {
+                        user1SearchResponse = client()
+                                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                                .prepareSearchScroll(user1SearchResponse.getScrollId())
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .get();
+                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        if (scrolledDocsUser1 < numDocs) {
+                            assertThat(user1SearchResponse.getHits().getHits().length, is(1));
+                            assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                            assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                            scrolledDocsUser1++;
+                        } else {
+                            assertThat(user1SearchResponse.getHits().getHits().length, is(0));
+                            if (user1SearchResponse.getScrollId() != null) {
+                                client().prepareClearScroll().addScrollId(user1SearchResponse.getScrollId()).get();
+                            }
+                            user1SearchResponse = null;
+                            scrolledDocsUser1 = 0;
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (user1SearchResponse != null) {
+                String scrollId = user1SearchResponse.getScrollId();
+                if (scrollId != null) {
+                    client().prepareClearScroll().addScrollId(scrollId).get();
+                }
+            }
+            if (user2SearchResponse != null) {
+                String scrollId = user2SearchResponse.getScrollId();
+                if (scrollId != null) {
+                    client().prepareClearScroll().addScrollId(scrollId).get();
+                }
+            }
         }
     }
 

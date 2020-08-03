@@ -12,17 +12,17 @@ GET /_mget
 {
   "docs": [
     {
-      "_index": "twitter",
+      "_index": "my-index-000001",
       "_id": "1"
     },
     {
-      "_index": "twitter",
+      "_index": "my-index-000001",
       "_id": "2"
     }
   ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-get-api-request]]
 ==== {api-request-title}
@@ -128,7 +128,7 @@ If you specify an index in the request URI, only the document IDs are required i
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_mget
+GET /my-index-000001/_mget
 {
   "docs": [
     {
@@ -140,18 +140,18 @@ GET /twitter/_mget
   ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You can use the `ids` element to simplify the request:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_mget
+GET /my-index-000001/_mget
 {
   "ids" : ["1", "2"]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[mget-source-filtering]]
 ===== Filter source fields

@@ -95,7 +95,7 @@ In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [ ... ],                            <1>  
   "metric": {                                     <2>
@@ -114,7 +114,7 @@ application, along with the document ratings for each particular search request.
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -123,9 +123,9 @@ GET /my_index/_rank_eval
           "query": { "match": { "text": "amsterdam" } }
       },
       "ratings": [                                              <3> 
-        { "_index": "my_index", "_id": "doc1", "rating": 0 },
-        { "_index": "my_index", "_id": "doc2", "rating": 3 },
-        { "_index": "my_index", "_id": "doc3", "rating": 1 }
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 0 },
+        { "_index": "my-index-000001", "_id": "doc2", "rating": 3 },
+        { "_index": "my-index-000001", "_id": "doc3", "rating": 1 }
       ]
     },
     {
@@ -134,7 +134,7 @@ GET /my_index/_rank_eval
         "query": { "match": { "text": "berlin" } }
       },
       "ratings": [
-        { "_index": "my_index", "_id": "doc1", "rating": 1 }
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 1 }
       ]
     }
   ]
@@ -167,7 +167,7 @@ set of query templates, this helps make the evaluation request more succinct.
 
 [source,js]
 --------------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 { 
    [...]
   "templates": [
@@ -208,7 +208,7 @@ GET /my_index/_rank_eval
 The `metric` section determines which of the available evaluation metrics 
 will be used. The following metrics are supported:
 
-[float]
+[discrete]
 [[k-precision]]
 ===== Precision at K (P@k)
 
@@ -263,7 +263,7 @@ If set to 'true', unlabeled documents are ignored and neither count as relevant 
 |=======================================================================
 
 
-[float]
+[discrete]
 [[k-recall]]
 ===== Recall at K (R@k)
 
@@ -315,7 +315,7 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Mean reciprocal rank
 
 For every query in the test suite, this metric calculates the reciprocal of the 
@@ -356,7 +356,7 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, 
@@ -399,13 +399,13 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Expected Reciprocal Rank (ERR)
 
 Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank 
 for the graded relevance case (Olivier Chapelle, Donald Metzler, Ya Zhang, and 
 Pierre Grinspan. 2009. 
-http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+https://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
 
 It is based on the assumption of a cascade model of search, in which a user 
 scans through ranked search results in order and stops at the first document 
@@ -473,14 +473,14 @@ potential errors of individual queries. The response has the following format:
         "metric_score": 0.6,                      <3>
         "unrated_docs": [                         <4>
           {
-            "_index": "my_index",
+            "_index": "my-index-000001",
             "_id": "1960795"
           }, ...
         ],
         "hits": [
           {
             "hit": {                              <5>
-              "_index": "my_index",
+              "_index": "my-index-000001",
               "_type": "page",
               "_id": "1528558",
               "_score": 7.0556192

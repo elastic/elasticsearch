@@ -20,7 +20,7 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -52,7 +52,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  tasks.register("${baseName}#mixedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
     doFirst {

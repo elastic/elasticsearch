@@ -165,7 +165,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             channel.position(position);
         }
         assert channel.position() == position;
-        return org.elasticsearch.common.io.Streams.limitStream(Channels.newInputStream(channel), length);
+        return Streams.limitStream(Channels.newInputStream(channel), length);
     }
 
     @Override
@@ -176,11 +176,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
-        }
         final Path file = path.resolve(blobName);
-        writeToPath(inputStream, file, blobSize);
+        try {
+            writeToPath(inputStream, file, blobSize);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(inputStream, file, blobSize);
+        }
         IOUtils.fsync(path, true);
     }
 
@@ -207,7 +212,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
-            Streams.copy(inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
+            org.elasticsearch.core.internal.io.Streams.copy(
+                    inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
         }
         IOUtils.fsync(tempBlobPath, false);
     }

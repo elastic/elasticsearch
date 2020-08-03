@@ -31,7 +31,7 @@ PUT hockey/_bulk?refresh
 ----------------------------------------------------------------
 // TESTSETUP
 
-[float]
+[discrete]
 ==== Accessing Doc Values from Painless
 
 Document values can be accessed from a `Map` named `doc`.
@@ -111,7 +111,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 
 
-[float]
+[discrete]
 ==== Missing values
 
 `doc['field'].value` throws an exception if
@@ -121,7 +121,7 @@ To check if a document is missing a value, you can call
 `doc['field'].size() == 0`.
 
 
-[float]
+[discrete]
 ==== Updating Fields with Painless
 
 You can also easily update fields. You access the original source for a field as `ctx._source.<field-name>`.
@@ -177,7 +177,7 @@ POST hockey/_update/1
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[modules-scripting-painless-dates]]
 ==== Dates
 
@@ -202,7 +202,7 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[modules-scripting-painless-regex]]
 ==== Regular expressions
 
@@ -219,7 +219,7 @@ Painless's native support for regular expressions has syntax constructs:
 
 * `/pattern/`: Pattern literals create patterns. This is the only way to create
 a pattern in painless. The pattern inside the ++/++'s are just
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
 See <<pattern-flags>> for more.
 * `=~`: The find operator return a `boolean`, `true` if a subsequence of the
 text matches, `false` otherwise.
@@ -281,7 +281,7 @@ POST hockey/_update_by_query
 ----------------------------------------------------------------
 
 `Matcher.replaceAll` is just a call to Java's `Matcher`'s
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
 method so it supports `$1` and `\1` for replacements:
 
 [source,console]

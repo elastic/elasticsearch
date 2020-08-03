@@ -13,11 +13,11 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 POST /_aliases
 {
   "actions" : [
-    { "add" : { "index" : "twitter", "alias" : "alias1" } }
+    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
   ]
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[indices-aliases-api-request]]
@@ -302,19 +302,23 @@ exist in the mapping:
 
 [source,console]
 --------------------------------------------------
-PUT /test1
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "user" : {
-        "type": "keyword"
+      "user": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          }
+        }
       }
     }
   }
 }
 --------------------------------------------------
 
-Now we can create an alias that uses a filter on field `user`:
+Now we can create an alias that uses a filter on field `user.id`:
 
 [source,console]
 --------------------------------------------------
@@ -323,9 +327,9 @@ POST /_aliases
   "actions": [
     {
       "add": {
-        "index": "test1",
+        "index": "my-index-000001",
         "alias": "alias2",
-        "filter": { "term": { "user": "kimchy" } }
+        "filter": { "term": { "user.id": "kimchy" } }
       }
     }
   ]
@@ -392,7 +396,7 @@ routing value:
 
 [source,console]
 --------------------------------------------------
-GET /alias2/_search?q=user:kimchy&routing=2,3
+GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 

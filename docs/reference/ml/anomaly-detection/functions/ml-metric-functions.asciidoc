@@ -18,7 +18,7 @@ The {ml-features} include the following metric functions:
 NOTE: You cannot add rules with conditions to detectors that use the `metric` 
 function. 
 
-[float]
+[discrete]
 [[ml-metric-min]]
 == Min
 
@@ -53,7 +53,7 @@ where the smallest transaction is lower than previously observed. You can use
 this function to detect items for sale at unintentionally low prices due to data
 entry mistakes. It models the minimum amount for each product over time.
 
-[float]
+[discrete]
 [[ml-metric-max]]
 == Max
 
@@ -111,7 +111,7 @@ functions by application. By combining detectors and using the same influencer
 this job can detect both unusually long individual response times and average
 response times for each bucket.
 
-[float]
+[discrete]
 [[ml-metric-median]]
 == Median, high_median, low_median
 
@@ -149,7 +149,7 @@ If you use this `median` function in a detector in your {anomaly-job}, it models
 the median `responsetime` for each application over time. It detects when the
 median `responsetime` is unusual compared to previous `responsetime` values.
 
-[float]
+[discrete]
 [[ml-metric-mean]]
 == Mean, high_mean, low_mean
 
@@ -219,7 +219,7 @@ models the mean `responsetime` for each application over time. It detects when
 the mean `responsetime` is unusually low compared to previous `responsetime`
 values.
 
-[float]
+[discrete]
 [[ml-metric-metric]]
 == Metric
 
@@ -256,7 +256,7 @@ the mean, min, and max `responsetime` for each application over time. It detects
 when the mean, min, or max `responsetime` is unusual compared to previous
 `responsetime` values.
 
-[float]
+[discrete]
 [[ml-metric-varp]]
 == Varp, high_varp, low_varp
 

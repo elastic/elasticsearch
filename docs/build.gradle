@@ -144,23 +144,28 @@ Closure setupTwitter = { String name, int count ->
                   type: date
                 likes:
                   type: long
+                location:
+                  properties:
+                    city:
+                      type: keyword
+                    country:
+                      type: keyword
   - do:
         bulk:
           index: twitter
           refresh: true
           body: |'''
   for (int i = 0; i < count; i++) {
-    String user, text
+    String body
     if (i == 0) {
-      user = 'kimchy'
-      text = 'trying out Elasticsearch'
+      body = """{"user": "kimchy", "message": "trying out Elasticsearch", "date": "2009-11-15T14:12:12", "likes": 0,
+              "location": { "city": "Amsterdam", "country": "Netherlands" }}"""
     } else {
-      user = 'test'
-      text = "some message with the number $i"
+      body = """{"user": "test", "message": "some message with the number $i", "date": "2009-11-15T14:12:12", "likes": $i}"""
     }
     buildRestTests.setups[name] += """
             {"index":{"_id": "$i"}}
-            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+            $body"""
   }
 }
 setupTwitter('twitter', 5)

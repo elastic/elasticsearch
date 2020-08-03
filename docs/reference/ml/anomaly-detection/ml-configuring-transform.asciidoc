@@ -26,7 +26,7 @@ subsequent examples:
 
 [source,console]
 ----------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings":{
     "properties": {
@@ -74,7 +74,7 @@ PUT /my_index
   }
 }
 
-PUT /my_index/_doc/1
+PUT /my-index-000001/_doc/1
 {
   "@timestamp":"2017-03-23T13:00:00",
   "error_count":36320,
@@ -124,7 +124,7 @@ PUT _ml/anomaly_detectors/test1
 PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
-  "indices": ["my_index"],
+  "indices": ["my-index-000001"],
   "query": {
     "match_all": {
           "boost": 1
@@ -232,7 +232,7 @@ PUT _ml/anomaly_detectors/test2
 PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
-  "indices": ["my_index"],
+  "indices": ["my-index-000001"],
   "query": {
     "match_all": {
           "boost": 1
@@ -480,7 +480,7 @@ PUT _ml/anomaly_detectors/test3
 PUT _ml/datafeeds/datafeed-test3
 {
   "job_id": "test3",
-  "indices": ["my_index"],
+  "indices": ["my-index-000001"],
   "query": {
     "match_all": {
           "boost": 1
@@ -547,7 +547,7 @@ PUT _ml/anomaly_detectors/test4
 PUT _ml/datafeeds/datafeed-test4
 {
   "job_id": "test4",
-  "indices": ["my_index"],
+  "indices": ["my-index-000001"],
   "query": {
     "match_all": {
           "boost": 1

@@ -68,7 +68,7 @@ it finds by sending an empty body for the request.
 //////
 [source,console]
 --------------------------------------------------	
-PUT /myindex	
+PUT /my-index-000001	
 --------------------------------------------------	
 // TESTSETUP
 //////
@@ -77,7 +77,7 @@ PUT /myindex
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
-  "index": "myindex",
+  "index": "my-index-000001",
   "shard": 0,
   "primary": true
 }
@@ -90,7 +90,7 @@ GET /_cluster/allocation/explain
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
-  "index": "myindex",
+  "index": "my-index-000001",
   "shard": 0,
   "primary": false,
   "current_node": "nodeA"                         <1>
@@ -106,22 +106,23 @@ GET /_cluster/allocation/explain
 //////
 [source,console]
 --------------------------------------------------	
-DELETE myindex	
+DELETE my-index-000001
 --------------------------------------------------	
 //////
 
 [source,console]
 --------------------------------------------------
-PUT /my_index?master_timeout=1s&timeout=1s
+PUT /my-index-000001?master_timeout=1s&timeout=1s
 {"settings": {"index.routing.allocation.include._name": "non_existent_node"} }
 
 GET /_cluster/allocation/explain
 {
-  "index": "my_index",
+  "index": "my-index-000001",
   "shard": 0,
   "primary": true
 }
 --------------------------------------------------
+// TEST[continued]
 
 
 The API returns the following response for an unassigned primary shard:
@@ -129,7 +130,7 @@ The API returns the following response for an unassigned primary shard:
 [source,console-result]
 --------------------------------------------------
 {
-  "index" : "my_index",
+  "index" : "my-index-000001",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",                 <1>
@@ -178,7 +179,7 @@ allocated to a node in the cluster:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "my_index",
+  "index" : "my-index-000001",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",
@@ -203,7 +204,7 @@ allocation:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "my_index",
+  "index" : "my-index-000001",
   "shard" : 0,
   "primary" : false,
   "current_state" : "unassigned",
@@ -239,7 +240,7 @@ allocation:
         {
           "decider" : "same_shard",
           "decision" : "NO",
-          "explanation" : "a copy of this shard is already allocated to this node [[my_index][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
+          "explanation" : "a copy of this shard is already allocated to this node [[my-index-000001][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
         }
       ]
     }
@@ -260,7 +261,7 @@ its current node and is required to move:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "my_index",
+  "index" : "my-index-000001",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",
@@ -309,7 +310,7 @@ because moving the shard to another node does not form a better cluster balance:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "my_index",
+  "index" : "my-index-000001",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",

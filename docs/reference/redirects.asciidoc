@@ -977,7 +977,7 @@ For more information, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-apis.html[7.x docs].
 
 [role="exclude",id="ilm-searchable-snapshot"]
-=== SSearchable snapshots coming soon
+=== Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
 For more information, see the 

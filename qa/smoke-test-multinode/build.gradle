@@ -29,11 +29,13 @@ restResources {
 }
 
 File repo = file("$buildDir/testclusters/repo")
-testClusters.integTest {
-  numberOfNodes = 2
-  setting 'path.repo', repo.absolutePath
-}
+tasks.named("integTest").configure {
 
+  testClusters.integTest {
+    numberOfNodes = 2
+    setting 'path.repo', repo.absolutePath
+  }
+}
 integTest {
   doFirst {
     project.delete(repo)

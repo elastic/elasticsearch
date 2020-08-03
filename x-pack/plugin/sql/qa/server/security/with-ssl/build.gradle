@@ -11,9 +11,11 @@ integTest {
   }
 }
 
-testClusters.integTest {
-  // The setup that we actually want
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.http.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    // The setup that we actually want
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.http.ssl.enabled', 'true'
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+  }
 }

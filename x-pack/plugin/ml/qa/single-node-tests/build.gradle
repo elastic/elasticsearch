@@ -7,8 +7,10 @@ dependencies {
   testImplementation project(path: xpackModule('ml'))
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
 }

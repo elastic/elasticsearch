@@ -8,9 +8,11 @@ dependencies {
   testImplementation project(path: xpackModule('transform'))
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    user username: "x_pack_rest_user", password: "x-pack-test-password"
+  }
 }

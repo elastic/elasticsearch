@@ -2,6 +2,8 @@ integTest {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 
-testClusters.integTest {
-  setting 'xpack.license.self_generated.type', 'trial'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
 }

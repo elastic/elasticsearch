@@ -21,10 +21,12 @@ package org.elasticsearch.gradle.test
 import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.gradle.api.Action
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.TaskProvider
 
 /**
  * Adds support for starting an Elasticsearch cluster before running integration
@@ -34,6 +36,8 @@ import org.gradle.api.plugins.JavaBasePlugin
  */
 @CompileStatic
 class RestTestPlugin implements Plugin<Project> {
+    public static final String INTEG_TEST_TASK_NAME = 'integTest'
+
     List<String> REQUIRED_PLUGINS = [
         'elasticsearch.build',
         'elasticsearch.standalone-rest-test']
@@ -47,10 +51,14 @@ class RestTestPlugin implements Plugin<Project> {
         }
         project.getPlugins().apply(RestTestBasePlugin.class);
         project.pluginManager.apply(TestClustersPlugin)
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.description = 'Runs rest tests against an elasticsearch cluster.'
-        integTest.group = JavaBasePlugin.VERIFICATION_GROUP
-        integTest.mustRunAfter(project.tasks.named('precommit'))
+        TaskProvider<RestIntegTestTask> integTest = project.tasks.register(INTEG_TEST_TASK_NAME, RestIntegTestTask.class, new Action<RestIntegTestTask>() {
+            @Override
+            void execute(RestIntegTestTask t) {
+                t.description = 'Runs rest tests against an elasticsearch cluster.'
+                t.group = JavaBasePlugin.VERIFICATION_GROUP
+                t.mustRunAfter(project.tasks.named('precommit'))
+            }
+        })
         project.tasks.named('check').configure { it.dependsOn(integTest) }
     }
 }

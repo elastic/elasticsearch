@@ -26,6 +26,8 @@ dependencies {
   testImplementation project(':modules:ingest-common')
 }
 
-testClusters.integTest {
-  setting 'node.roles', '[data,master,remote_cluster_client]'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    setting 'node.roles', '[data,master,remote_cluster_client]'
+  }
 }

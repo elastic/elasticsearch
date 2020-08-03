@@ -14,13 +14,15 @@ integTest {
   systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', file('roles.yml')
-  user clusterCredentials
-  user username: "test_ilm", password: "x-pack-test-password", role: "ilm"
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    extraConfigFile 'roles.yml', file('roles.yml')
+    user clusterCredentials
+    user username: "test_ilm", password: "x-pack-test-password", role: "ilm"
+  }
 }

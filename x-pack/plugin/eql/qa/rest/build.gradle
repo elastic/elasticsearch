@@ -17,9 +17,11 @@ dependencies {
   testImplementation project(path: xpackModule('eql:qa:common'))
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.eql.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.monitoring.collection.enabled', 'true'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.eql.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'basic'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+  }
 }

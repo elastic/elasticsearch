@@ -23,8 +23,10 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-testClusters.integTest {
-  nameCustomization = { null }
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    nameCustomization = { null }
+  }
 }
 
 integTest {

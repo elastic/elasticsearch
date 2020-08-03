@@ -66,36 +66,38 @@ integTest {
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    plugin repositoryPlugin.bundlePlugin.archiveFile
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-
-  keystore 'azure.client.searchable_snapshots.account', azureAccount
-  if (azureKey != null && azureKey.isEmpty() == false) {
-    keystore 'azure.client.searchable_snapshots.key', azureKey
-  }
-  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-    keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
-  }
-
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  if (useFixture) {
-    def fixtureAddress = { fixtureName ->
-      assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
-      assert ephemeralPort > 0
-      '127.0.0.1:' + ephemeralPort
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
-    setting 'azure.client.searchable_snapshots.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}" }, IGNORE_VALUE
 
-  } else {
-    println "Using an external service to test " + project.name
+    keystore 'azure.client.searchable_snapshots.account', azureAccount
+    if (azureKey != null && azureKey.isEmpty() == false) {
+      keystore 'azure.client.searchable_snapshots.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+      keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
+    }
+
+    setting 'xpack.license.self_generated.type', 'trial'
+
+    if (useFixture) {
+      def fixtureAddress = { fixtureName ->
+        assert useFixture: 'closure should not be used without a fixture'
+        int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
+        assert ephemeralPort > 0
+        '127.0.0.1:' + ephemeralPort
+      }
+      setting 'azure.client.searchable_snapshots.endpoint_suffix',
+              { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}" }, IGNORE_VALUE
+
+    } else {
+      println "Using an external service to test " + project.name
+    }
   }
 }
 

@@ -13,10 +13,12 @@ integTest {
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
 
-  user username: "test_admin", password: "x-pack-test-password"
+    user username: "test_admin", password: "x-pack-test-password"
+  }
 }

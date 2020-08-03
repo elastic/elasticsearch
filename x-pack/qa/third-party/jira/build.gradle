@@ -41,20 +41,23 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
   integTest.enabled = false
   testingConventions.enabled = false
 } else {
-  testClusters.integTest {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-    setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
-    setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
-    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
-    keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
-    keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
-    keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
+  tasks.named("integTest").configure {
+
+    testClusters.integTest {
+      testDistribution = 'DEFAULT'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'trial'
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+      setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
+      setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
+      setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
+      keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
+      keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
+      keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
+    }
+    finalizedBy "cleanJira"
   }
-  integTest.finalizedBy "cleanJira"
 }
 
 /** List all issues associated to a given Jira project **/

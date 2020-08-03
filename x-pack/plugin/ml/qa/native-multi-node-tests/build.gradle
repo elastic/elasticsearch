@@ -35,30 +35,32 @@ integTest {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-testClusters.integTest {
-  numberOfNodes = 3
-  testDistribution = 'DEFAULT'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    numberOfNodes = 3
+    testDistribution = 'DEFAULT'
 
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', nodeKey.name
-  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-  setting 'xpack.security.audit.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.ml.min_disk_space_off_heap', '200mb'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'slm.history_index_enabled', 'false'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
+    setting 'xpack.ml.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.security.authc.token.enabled', 'true'
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+    setting 'xpack.security.transport.ssl.key', nodeKey.name
+    setting 'xpack.security.transport.ssl.certificate', nodeCert.name
+    setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+    setting 'xpack.security.audit.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.ml.min_disk_space_off_heap', '200mb'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
+    setting 'slm.history_index_enabled', 'false'
 
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+    keystore 'bootstrap.password', 'x-pack-test-password'
+    keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+    user username: "x_pack_rest_user", password: "x-pack-test-password"
 
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
+    extraConfigFile nodeKey.name, nodeKey
+    extraConfigFile nodeCert.name, nodeCert
+  }
 }

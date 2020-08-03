@@ -6,14 +6,16 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', file('roles.yml')
-  user username: "test-user", password: "x-pack-test-password", role: "test"
-  user username: "super-user", password: "x-pack-super-password"
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    extraConfigFile 'roles.yml', file('roles.yml')
+    user username: "test-user", password: "x-pack-test-password", role: "test"
+    user username: "super-user", password: "x-pack-super-password"
+  }
 }

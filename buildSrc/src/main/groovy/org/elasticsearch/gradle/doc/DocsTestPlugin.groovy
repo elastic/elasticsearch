@@ -21,6 +21,8 @@ package org.elasticsearch.gradle.doc
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.test.RestTestPlugin
+import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -39,8 +41,13 @@ class DocsTestPlugin implements Plugin<Project> {
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.integTest.testDistribution = distribution.toUpperCase()
-        project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
+        project.tasks.named(RestTestPlugin.INTEG_TEST_TASK_NAME).configure(new Action<Task>() {
+            @Override
+            void execute(Task task) {
+                project.testClusters.integTest.testDistribution = distribution.toUpperCase()
+                project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
+            }
+        })
         // Docs are published separately so no need to assemble
         project.tasks.assemble.enabled = false
         Map<String, String> commonDefaultSubstitutions = [

@@ -16,12 +16,14 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
 
-  setting 'xpack.ml.enabled', 'false'
-  // We run with a trial license, but do not enable security.
-  // This means the security plugin is loaded and all feature are permitted, but they are not enabled
-  setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.ml.enabled', 'false'
+    // We run with a trial license, but do not enable security.
+    // This means the security plugin is loaded and all feature are permitted, but they are not enabled
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
 }

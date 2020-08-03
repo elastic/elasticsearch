@@ -1,4 +1,6 @@
-testClusters.integTest {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
 }

@@ -11,24 +11,26 @@ dependencies {
 }
 
 int pluginsCount = 0
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "test_user", password: "x-pack-test-password"
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
+integTest {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    user username: "test_user", password: "x-pack-test-password"
+    project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+      if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+        // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+        return
+      }
+      plugin pluginProject.tasks.bundlePlugin.archiveFile
+      tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
+      pluginsCount += 1
     }
-    plugin pluginProject.tasks.bundlePlugin.archiveFile
-    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
-    pluginsCount += 1
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+        'expected.plugins.count': pluginsCount
 ]
 
 processTestResources {

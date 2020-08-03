@@ -32,11 +32,12 @@ integTest {
   systemProperty 'tests.system_call_filter', 'false'
   nonInputProperties.systemProperty 'log', "${-> testClusters.integTest.singleNode().getServerLog()}"
   systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
+
+  testClusters.integTest {
+    systemProperty "die.with.dignity.test", "whatever"
+  }
 }
 
-testClusters.integTest {
-  systemProperty "die.with.dignity.test", "whatever"
-}
 
 test.enabled = false
 

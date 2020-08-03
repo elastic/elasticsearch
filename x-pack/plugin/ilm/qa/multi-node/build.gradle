@@ -15,19 +15,21 @@ integTest {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-  numberOfNodes = 4
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+    }
+    numberOfNodes = 4
 
-  setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.poll_interval', '1000ms'
-  setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
-  setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+    setting 'path.repo', repoDir.absolutePath
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.poll_interval', '1000ms'
+    setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
+    setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  }
 }

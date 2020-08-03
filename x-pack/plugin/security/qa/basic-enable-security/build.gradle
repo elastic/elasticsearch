@@ -13,14 +13,14 @@ dependencies {
 integTest {
   description = "Run tests against a cluster that doesn't have security"
   systemProperty 'tests.has_security', 'false'
-}
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'false'
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'basic'
+    setting 'xpack.security.enabled', 'false'
+  }
 }
 
 task integTestSecurity(type: StandaloneRestIntegTestTask) {
@@ -53,5 +53,6 @@ task integTestSecurity(type: StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
   }
 }
+
 tasks.named("check").configure { dependsOn(integTestSecurity) }
 

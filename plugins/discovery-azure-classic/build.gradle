@@ -72,7 +72,7 @@ String host = InetAddress.getLoopbackAddress().getHostAddress()
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
 // generate the keystore
-task createKey(type: LoggedExec) {
+TaskProvider createKey = tasks.register("createKey", LoggedExec) {
   doFirst {
     project.delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
@@ -91,9 +91,9 @@ task createKey(type: LoggedExec) {
     '-storepass', 'keypass'
 }
 //no unit tests
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 // add keystore to test classpath: it expects it there
-processInternalClusterTestResources {
+tasks.named("processInternalClusterTestResources").configure {
   from createKey
 }
 
@@ -110,45 +110,47 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  'javax.activation.ActivationDataFlavor',
-  'javax.activation.DataContentHandler',
-  'javax.activation.DataHandler',
-  'javax.activation.DataSource',
-  'javax.activation.FileDataSource',
-  'javax.activation.FileTypeMap',
-  'javax.activation.MimeType',
-  'javax.activation.MimeTypeParseException',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.eclipse.persistence.descriptors.ClassDescriptor',
-  'org.eclipse.persistence.internal.oxm.MappingNodeValue',
-  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',
-  'org.eclipse.persistence.internal.oxm.XPathFragment',
-  'org.eclipse.persistence.internal.oxm.XPathNode',
-  'org.eclipse.persistence.internal.queries.ContainerPolicy',
-  'org.eclipse.persistence.jaxb.JAXBContext',
-  'org.eclipse.persistence.jaxb.JAXBHelper',
-  'org.eclipse.persistence.mappings.DatabaseMapping',
-  'org.eclipse.persistence.mappings.converters.TypeConversionConverter',
-  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping',
-  'org.eclipse.persistence.oxm.XMLContext',
-  'org.eclipse.persistence.oxm.XMLDescriptor',
-  'org.eclipse.persistence.oxm.XMLField',
-  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping',
-  'org.eclipse.persistence.sessions.DatabaseSession',
-  'org.jvnet.fastinfoset.VocabularyApplicationData',
-  'org.jvnet.staxex.Base64Data',
-  'org.jvnet.staxex.XMLStreamReaderEx',
-  'org.jvnet.staxex.XMLStreamWriterEx',
-  'org.osgi.framework.Bundle',
-  'org.osgi.framework.BundleActivator',
-  'org.osgi.framework.BundleContext',
-  'org.osgi.framework.BundleEvent',
-  'org.osgi.framework.SynchronousBundleListener',
-  'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
-  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'javax.activation.ActivationDataFlavor',
+          'javax.activation.DataContentHandler',
+          'javax.activation.DataHandler',
+          'javax.activation.DataSource',
+          'javax.activation.FileDataSource',
+          'javax.activation.FileTypeMap',
+          'javax.activation.MimeType',
+          'javax.activation.MimeTypeParseException',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.eclipse.persistence.descriptors.ClassDescriptor',
+          'org.eclipse.persistence.internal.oxm.MappingNodeValue',
+          'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',
+          'org.eclipse.persistence.internal.oxm.XPathFragment',
+          'org.eclipse.persistence.internal.oxm.XPathNode',
+          'org.eclipse.persistence.internal.queries.ContainerPolicy',
+          'org.eclipse.persistence.jaxb.JAXBContext',
+          'org.eclipse.persistence.jaxb.JAXBHelper',
+          'org.eclipse.persistence.mappings.DatabaseMapping',
+          'org.eclipse.persistence.mappings.converters.TypeConversionConverter',
+          'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping',
+          'org.eclipse.persistence.oxm.XMLContext',
+          'org.eclipse.persistence.oxm.XMLDescriptor',
+          'org.eclipse.persistence.oxm.XMLField',
+          'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping',
+          'org.eclipse.persistence.sessions.DatabaseSession',
+          'org.jvnet.fastinfoset.VocabularyApplicationData',
+          'org.jvnet.staxex.Base64Data',
+          'org.jvnet.staxex.XMLStreamReaderEx',
+          'org.jvnet.staxex.XMLStreamWriterEx',
+          'org.osgi.framework.Bundle',
+          'org.osgi.framework.BundleActivator',
+          'org.osgi.framework.BundleContext',
+          'org.osgi.framework.BundleEvent',
+          'org.osgi.framework.SynchronousBundleListener',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
+  )
+}

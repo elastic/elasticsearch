@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -126,7 +127,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
         }
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+            throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(request.name,

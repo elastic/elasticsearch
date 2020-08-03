@@ -1,5 +1,6 @@
-[[request-body-search-scroll]]
-==== Scroll
+[discrete]
+[[scroll-search-results]]
+=== Scroll search results
 
 While a `search` request returns a single ``page'' of results, the `scroll`
 API can be used to retrieve large numbers of results (or even all results)
@@ -24,7 +25,7 @@ Perl::
 
 Python::
 
-    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+    See https://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
 
 JavaScript::
 
@@ -102,8 +103,9 @@ GET /_search?scroll=1m
 --------------------------------------------------
 // TEST[setup:twitter]
 
+[discrete]
 [[scroll-search-context]]
-===== Keeping the search context alive
+==== Keeping the search context alive
 
 A scroll returns all the documents which matched the search at the time of the
 initial search request. It ignores any subsequent changes to these documents.
@@ -149,7 +151,9 @@ You can check how many search contexts are open with the
 GET /_nodes/stats/indices/search
 ---------------------------------------
 
-===== Clear scroll API
+[discrete]
+[[clear-scroll]]
+==== Clear scroll
 
 Search context are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the
@@ -196,8 +200,9 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 ---------------------------------------
 // TEST[catch:missing]
 
+[discrete]
 [[sliced-scroll]]
-===== Sliced Scroll
+==== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
 can be consumed independently:

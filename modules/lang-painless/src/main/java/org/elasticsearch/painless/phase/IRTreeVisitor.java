@@ -80,6 +80,7 @@ import org.elasticsearch.painless.ir.StoreFieldMemberNode;
 import org.elasticsearch.painless.ir.StoreListShortcutNode;
 import org.elasticsearch.painless.ir.StoreMapShortcutNode;
 import org.elasticsearch.painless.ir.StoreVariableNode;
+import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -115,7 +116,8 @@ public interface IRTreeVisitor<Scope> {
     void visitBinary(BinaryNode irBinaryNode, Scope scope);
     void visitUnaryMath(UnaryMathNode irUnaryMathNode, Scope scope);
     void visitBinaryMath(BinaryMathNode irBinaryMathNode, Scope scope);
-    void visitBoolean(BooleanNode irBoolNode, Scope scope);
+    void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Scope scope);
+    void visitBoolean(BooleanNode irBooleanNode, Scope scope);
     void visitComparison(ComparisonNode irComparisonNode, Scope scope);
     void visitCast(CastNode irCastNode, Scope scope);
     void visitInstanceof(InstanceofNode irInstanceofNode, Scope scope);
@@ -157,5 +159,5 @@ public interface IRTreeVisitor<Scope> {
     void visitFlipArrayIndex(FlipArrayIndexNode irFlipArrayIndexNode, Scope scope);
     void visitFlipCollectionIndex(FlipCollectionIndexNode irFlipCollectionIndexNode, Scope scope);
     void visitFlipDefIndex(FlipDefIndexNode irFlipDefIndexNode, Scope scope);
-    void visitDup(DupNode dupNode, Scope scope);
+    void visitDup(DupNode irDupNode, Scope scope);
 }

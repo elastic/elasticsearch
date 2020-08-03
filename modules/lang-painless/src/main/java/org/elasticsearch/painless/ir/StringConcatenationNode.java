@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StringConcatenationNode extends ArgumentsNode {
@@ -39,16 +40,15 @@ public class StringConcatenationNode extends ArgumentsNode {
 
     /* ---- end node data, begin visitor ---- */
 
-    /*@Override
+    @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        irTreeVisitor.visitBinaryMath(this, scope);
+        irTreeVisitor.visitStringConcatenation(this, scope);
     }
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getLeftNode().visit(irTreeVisitor, scope);
-        getRightNode().visit(irTreeVisitor, scope);
-    }*/
+
+    }
 
     /* ---- end visitor ---- */
 

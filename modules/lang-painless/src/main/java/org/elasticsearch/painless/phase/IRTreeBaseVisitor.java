@@ -80,6 +80,7 @@ import org.elasticsearch.painless.ir.StoreFieldMemberNode;
 import org.elasticsearch.painless.ir.StoreListShortcutNode;
 import org.elasticsearch.painless.ir.StoreMapShortcutNode;
 import org.elasticsearch.painless.ir.StoreVariableNode;
+import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -91,336 +92,341 @@ public class IRTreeBaseVisitor<Scope> implements IRTreeVisitor<Scope> {
 
     @Override
     public void visitClass(ClassNode irClassNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irClassNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitFunction(FunctionNode irFunctionNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irFunctionNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitField(FieldNode irFieldNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irFieldNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitBlock(BlockNode irBlockNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irBlockNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitIf(IfNode irIfNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irIfNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitIfElse(IfElseNode irIfElseNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irIfElseNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitWhileLoop(WhileLoopNode irWhileLoopNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irWhileLoopNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitDoWhileLoop(DoWhileLoopNode irDoWhileLoopNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDoWhileLoopNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitForLoop(ForLoopNode irForLoopNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irForLoopNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitForEachLoop(ForEachLoopNode irForEachLoopNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irForEachLoopNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitForEachSubArrayLoop(ForEachSubArrayNode irForEachSubArrayNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irForEachSubArrayNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitForEachSubIterableLoop(ForEachSubIterableNode irForEachSubIterableNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irForEachSubIterableNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitDeclarationBlock(DeclarationBlockNode irDeclarationBlockNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDeclarationBlockNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitDeclaration(DeclarationNode irDeclarationNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDeclarationNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitReturn(ReturnNode irReturnNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irReturnNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStatementExpression(StatementExpressionNode irStatementExpressionNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStatementExpressionNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitTry(TryNode irTryNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irTryNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitCatch(CatchNode irCatchNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irCatchNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitThrow(ThrowNode irThrowNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irThrowNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitContinue(ContinueNode irContinueNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irContinueNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitBreak(BreakNode irBreakNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irBreakNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitBinary(BinaryNode irBinaryNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irBinaryNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitUnaryMath(UnaryMathNode irUnaryMathNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irUnaryMathNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitBinaryMath(BinaryMathNode irBinaryMathNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irBinaryMathNode.visitChildren(this, scope);
     }
 
     @Override
-    public void visitBoolean(BooleanNode irBoolNode, Scope scope) {
-        throw new UnsupportedOperationException();
+    public void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Scope scope) {
+        irStringConcatenationNode.visitChildren(this, scope);
+    }
+
+    @Override
+    public void visitBoolean(BooleanNode irBooleanNode, Scope scope) {
+        irBooleanNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitComparison(ComparisonNode irComparisonNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irComparisonNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitCast(CastNode irCastNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irCastNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitInstanceof(InstanceofNode irInstanceofNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irInstanceofNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitConditional(ConditionalNode irConditionalNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irConditionalNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitElvis(ElvisNode irElvisNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irElvisNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitListInitialization(ListInitializationNode irListInitializationNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irListInitializationNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitMapInitialization(MapInitializationNode irMapInitializationNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irMapInitializationNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitNewArray(NewArrayNode irNewArrayNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irNewArrayNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitNewObject(NewObjectNode irNewObjectNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irNewObjectNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitConstant(ConstantNode irConstantNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irConstantNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitNull(NullNode irNullNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irNullNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitDefInterfaceReference(DefInterfaceReferenceNode irDefInterfaceReferenceNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDefInterfaceReferenceNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitTypedInterfaceReference(TypedInterfaceReferenceNode irTypedInterfaceReferenceNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irTypedInterfaceReferenceNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitTypeCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irTypedCaptureReferenceNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStatic(StaticNode irStaticNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStaticNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadVariable(LoadVariableNode irLoadVariableNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadVariableNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irNullSafeSubNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadDotArrayLengthNode(LoadDotArrayLengthNode irLoadDotArrayLengthNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadDotArrayLengthNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadDotDef(LoadDotDefNode irLoadDotDefNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadDotDefNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadDot(LoadDotNode irLoadDotNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadDotNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadDotShortcut(LoadDotShortcutNode irDotSubShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDotSubShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadListShortcut(LoadListShortcutNode irLoadListShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadListShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadMapShortcut(LoadMapShortcutNode irLoadMapShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadMapShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadFieldMember(LoadFieldMemberNode irLoadFieldMemberNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadFieldMemberNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadBraceDefNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitLoadBrace(LoadBraceNode irLoadBraceNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irLoadBraceNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreVariable(StoreVariableNode irStoreVariableNode, Scope scope) {
-
+        irStoreVariableNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreDotDef(StoreDotDefNode irStoreDotDefNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreDotDefNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreDot(StoreDotNode irStoreDotNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreDotNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreDotShortcut(StoreDotShortcutNode irDotSubShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irDotSubShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreListShortcut(StoreListShortcutNode irStoreListShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreListShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreMapShortcut(StoreMapShortcutNode irStoreMapShortcutNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreMapShortcutNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreFieldMember(StoreFieldMemberNode irStoreFieldMemberNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreFieldMemberNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreBraceDef(StoreBraceDefNode irStoreBraceDefNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreBraceDefNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitStoreBrace(StoreBraceNode irStoreBraceNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irStoreBraceNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitInvokeCallDef(InvokeCallDefNode irInvokeCallDefNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irInvokeCallDefNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitInvokeCall(InvokeCallNode irInvokeCallNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irInvokeCallNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irInvokeCallMemberNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitFlipArrayIndex(FlipArrayIndexNode irFlipArrayIndexNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irFlipArrayIndexNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitFlipCollectionIndex(FlipCollectionIndexNode irFlipCollectionIndexNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irFlipCollectionIndexNode.visitChildren(this, scope);
     }
 
     @Override
     public void visitFlipDefIndex(FlipDefIndexNode irFlipDefIndexNode, Scope scope) {
-        throw new UnsupportedOperationException();
+        irFlipDefIndexNode.visitChildren(this, scope);
     }
 
     @Override
-    public void visitDup(DupNode dupNode, Scope scope) {
-        throw new UnsupportedOperationException();
+    public void visitDup(DupNode irDupNode, Scope scope) {
+        irDupNode.visitChildren(this, scope);
     }
 }

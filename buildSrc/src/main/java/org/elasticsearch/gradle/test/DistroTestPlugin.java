@@ -169,7 +169,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureWrapperTasks(
+                configureVMWrapperTasks(
                     vmProject,
                     windowsTestTasks,
                     depsTasks,
@@ -180,7 +180,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 for (var entry : linuxTestTasks.entrySet()) {
                     Type type = entry.getKey();
                     TaskProvider<?> vmLifecycleTask = vmLifecyleTasks.get(type);
-                    configureWrapperTasks(vmProject, entry.getValue(), depsTasks, wrapperTask -> {
+                    configureVMWrapperTasks(vmProject, entry.getValue(), depsTasks, wrapperTask -> {
                         vmLifecycleTask.configure(t -> t.dependsOn(wrapperTask));
 
                         // Only VM sub-projects that are specifically opted-in to testing Docker should
@@ -202,7 +202,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 for (var entry : upgradeTestTasks.entrySet()) {
                     String version = entry.getKey();
                     TaskProvider<?> vmVersionTask = vmVersionTasks.get(version);
-                    configureWrapperTasks(
+                    configureVMWrapperTasks(
                         vmProject,
                         entry.getValue(),
                         depsTasks,
@@ -295,7 +295,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return examplePlugin;
     }
 
-    private static void configureWrapperTasks(
+    private static void configureVMWrapperTasks(
         Project project,
         List<TaskProvider<Test>> destructiveTasks,
         Map<String, TaskProvider<?>> depsTasks,

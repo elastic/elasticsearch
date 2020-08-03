@@ -91,14 +91,6 @@ public class FakeStringFieldMapper extends FieldMapper {
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
-        protected FakeStringFieldType(FakeStringFieldType ref) {
-            super(ref);
-        }
-
-        public FakeStringFieldType clone() {
-            return new FakeStringFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -139,6 +131,11 @@ public class FakeStringFieldMapper extends FieldMapper {
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        return value.toString();
     }
 
     @Override

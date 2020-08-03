@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -82,9 +81,6 @@ public class JobNodeSelector {
 
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
                                                                int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed) {
-        // TODO: remove in 8.0.0
-        boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_2_0);
-
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
         boolean allocateByMemory = isMemoryTrackerRecentlyRefreshed;
@@ -124,19 +120,7 @@ public class JobNodeSelector {
 
             Map<String, String> nodeAttributes = node.getAttributes();
             int maxNumberOfOpenJobs = dynamicMaxOpenJobs;
-            // TODO: remove this in 8.0.0
-            if (allNodesHaveDynamicMaxWorkers == false) {
-                String maxNumberOfOpenJobsStr = nodeAttributes.get(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR);
-                try {
-                    maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
-                } catch (NumberFormatException e) {
-                    reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
-                        MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
-            }
+
             long availableCount = maxNumberOfOpenJobs - currentLoad.numberOfAssignedJobs;
             if (availableCount == 0) {
                 reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)

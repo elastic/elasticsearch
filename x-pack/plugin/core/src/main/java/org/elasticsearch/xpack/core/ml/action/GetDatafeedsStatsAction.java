@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -30,8 +28,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.Version.V_7_4_0;
 
 public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
@@ -58,8 +54,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
-
-        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -109,13 +103,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         }
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDatafeedsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends AbstractGetResourcesResponse<Response.DatafeedStats> implements ToXContentObject {
 
         public static class DatafeedStats implements ToXContentObject, Writeable {
@@ -143,11 +130,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-                if (in.getVersion().onOrAfter(V_7_4_0)) {
-                    timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
-                } else {
-                    timingStats = null;
-                }
+                timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
             }
 
             public String getDatafeedId() {
@@ -210,9 +193,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
-                if (out.getVersion().onOrAfter(V_7_4_0)) {
-                    out.writeOptionalWriteable(timingStats);
-                }
+                out.writeOptionalWriteable(timingStats);
             }
 
             @Override

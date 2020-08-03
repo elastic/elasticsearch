@@ -115,7 +115,6 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
-            .implicitJoinKey(request.implicitJoinKeyField())
             .size(request.size())
             .fetchSize(request.fetchSize());
 

@@ -63,18 +63,20 @@ public class BoxedQueryRequest implements QueryRequest {
     }
 
     /**
-     * Sets the lower boundary for the query (non-inclusive).
+     * Sets the lower boundary for the query (inclusive).
      * Can be removed (when the query in unbounded) through null.
      */
     public BoxedQueryRequest from(Ordinal begin) {
         from = begin;
+        timestampRange.gte(begin != null ? begin.timestamp() : null);
         if (tiebreakerRange != null) {
-            timestampRange.gte(begin != null ? begin.timestamp() : null);
-            tiebreakerRange.gt(begin != null ? begin.tiebreaker() : null);
-        } else {
-            timestampRange.gt(begin != null ? begin.timestamp() : null);
+            tiebreakerRange.gte(begin != null ? begin.tiebreaker() : null);
         }
         return this;
+    }
+
+    public Ordinal after() {
+        return after;
     }
 
     public Ordinal from() {

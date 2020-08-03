@@ -207,6 +207,9 @@
 
 ---
 "Component and composable template validation":
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.put_component_template:
         name: my-ct
@@ -226,6 +229,8 @@
               eggplant: true
 
   - do:
+      allowed_warnings:
+        - "index template [my-it] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-it] will take precedence during new index creation"
       indices.put_index_template:
         name: my-it
         body:

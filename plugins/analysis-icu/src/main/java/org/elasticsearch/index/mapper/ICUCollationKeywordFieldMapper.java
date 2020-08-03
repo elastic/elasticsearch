@@ -86,26 +86,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this(name, true, true, collator, Collections.emptyMap());
         }
 
-        protected CollationFieldType(CollationFieldType ref) {
-            super(ref);
-            this.collator = ref.collator;
-        }
-
-        @Override
-        public CollationFieldType clone() {
-            return new CollationFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hashCode(collator);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -127,7 +107,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -598,6 +578,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
         if (!Objects.equals(collator, icuMergeWith.collator)) {
@@ -750,5 +735,18 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
     }
 }

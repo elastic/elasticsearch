@@ -20,27 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NewObjectNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents and object instantiation.
@@ -66,73 +50,14 @@ public class ENewObj extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitNewObj(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewObj(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
-                    "[" + canonicalTypeName + "/" + argumentNodes.size() + "]"));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AExpression argumentNode : argumentNodes) {
+            argumentNode.visit(userTreeVisitor, scope);
         }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-
-        Output output = new Output();
-        Class<?> valueType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (valueType == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, argumentNodes.size());
-
-        if (constructor == null) {
-            throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + argumentNodes.size() + "] not found"));
-        }
-
-        scriptScope.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
-
-        Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
-        constructor.typeParameters.toArray(types);
-
-        if (constructor.typeParameters.size() != argumentNodes.size()) {
-            throw createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + argumentNodes.size() + "]."));
-        }
-
-        List<Output> argumentOutputs = new ArrayList<>();
-        List<PainlessCast> argumentCasts = new ArrayList<>();
-
-        for (int i = 0; i < argumentNodes.size(); ++i) {
-            AExpression expression = argumentNodes.get(i);
-
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(types[i]));
-            semanticScope.setCondition(expression, Internal.class);
-            Output expressionOutput = analyze(expression, classNode, semanticScope);
-            argumentOutputs.add(expressionOutput);
-            argumentCasts.add(expression.cast(semanticScope));
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
-
-        NewObjectNode newObjectNode = new NewObjectNode();
-
-        for (int i = 0; i < argumentNodes.size(); ++ i) {
-            newObjectNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
-        }
-
-        newObjectNode.setLocation(getLocation());
-        newObjectNode.setExpressionType(valueType);
-        newObjectNode.setRead(semanticScope.getCondition(this, Read.class));
-        newObjectNode.setConstructor(constructor);
-
-        output.expressionNode = newObjectNode;
-
-        return output;
     }
 }

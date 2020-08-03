@@ -6,12 +6,14 @@
 <titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
-Shows an index's current lifecycle status.
+Retrieves the current lifecycle status for one or more indices. For data
+streams, the API retrieves the current lifecycle status for the stream's backing
+indices.
 
 [[ilm-explain-lifecycle-request]]
 ==== {api-request-title}
 
-`GET <index>/_ilm/explain`
+`GET <target>/_ilm/explain`
 
 [[ilm-explain-lifecycle-prereqs]]
 ==== {api-prereq-title}
@@ -31,8 +33,12 @@ about any failures.
 [[ilm-explain-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-  (Required, string) Identifier for the index.
+`<target>`::
+(Required, string)
+Comma-separated list of data streams, indices, and index aliases to target.
+Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, use `_all` or `*`.
 
 [[ilm-explain-lifecycle-query-params]]
 ==== {api-query-parms-title}
@@ -51,7 +57,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-explain-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example retrieves the lifecycle state of `my_index`:
+The following example retrieves the lifecycle state of `my-index-000001`:
 
 //////////////////////////
 
@@ -79,7 +85,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -95,7 +101,7 @@ GET /_cluster/health?wait_for_status=green&timeout=10s
 
 [source,console]
 --------------------------------------------------
-GET my_index/_ilm/explain
+GET my-index-000001/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
@@ -106,8 +112,8 @@ that the index is managed and in the `new` phase:
 --------------------------------------------------
 {
   "indices": {
-    "my_index": {
-      "index": "my_index",
+    "my-index-000001": {
+      "index": "my-index-000001",
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>

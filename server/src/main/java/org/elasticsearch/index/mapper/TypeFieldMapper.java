@@ -89,15 +89,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             super(NAME, Collections.emptyMap());
         }
 
-        protected TypeFieldType(TypeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new TypeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -111,7 +102,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
-            return new ConstantIndexFieldData.Builder(typeFunction, CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

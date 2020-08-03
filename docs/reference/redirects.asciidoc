@@ -632,32 +632,67 @@ See <<cat-transforms>>.
 [role="exclude",id="testing"]
 === Testing
 
-This page was deleted.
+This page was deleted. 
+Information about the Java testing framework was removed 
+({es-issue}55257[#55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}55258[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
 
 [role="exclude",id="testing-framework"]
 === Java testing framework
 
 This page was deleted.
+Information about the Java testing framework was removed 
+({es-issue}55257[55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
+
 
 [role="exclude",id="why-randomized-testing"]
 === Why randomized testing?
 
 This page was deleted.
+Information about the Java testing framework was removed 
+({es-issue}55257[55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
+
 
 [role="exclude",id="using-elasticsearch-test-classes"]
 === Using the {es} test classes
 
 This page was deleted.
+Information about the Java testing framework was removed 
+({es-issue}55257[55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}55258[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
+
 
 [role="exclude",id="unit-tests"]
 === Unit tests
 
 This page was deleted.
+Information about the Java testing framework was removed 
+({es-issue}55257[55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}55258[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
+
 
 [role="exclude",id="integration-tests"]
 === Integration tests
 
 This page was deleted.
+Information about the Java testing framework was removed 
+({es-issue}55257[55257]) from the {es} Reference 
+because it was out of date and erroneously implied that it should be used by application developers.  
+There is an issue ({es-issue}55258[#55258]) 
+for providing general testing guidance for applications that communicate with {es}. 
+
 
 [role="exclude",id="number-of-shards"]
 ==== Number of shards

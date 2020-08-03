@@ -73,7 +73,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareLong(HistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
 
         PARSER.declareField(HistogramAggregationBuilder::extendedBounds, parser -> DoubleBounds.PARSER.apply(parser, null),
-            Histogram.HARD_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+            Histogram.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(HistogramAggregationBuilder::hardBounds, parser -> DoubleBounds.PARSER.apply(parser, null),
             Histogram.HARD_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);

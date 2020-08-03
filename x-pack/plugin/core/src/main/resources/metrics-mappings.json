@@ -35,7 +35,7 @@
           "properties": {
             "type": {
               "type": "constant_keyword",
-              "value": "logs"
+              "value": "metrics"
             },
             "dataset": {
               "type": "constant_keyword"

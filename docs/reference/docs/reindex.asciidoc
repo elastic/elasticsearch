@@ -15,7 +15,7 @@ different. For example, you cannot reindex a data stream into itself.
 Reindex requires <<mapping-source-field,`_source`>> to be enabled for
 all documents in the source.
 
-The destination must exist and should be configured as wanted before calling `_reindex`.
+The destination should be configured as wanted before calling `_reindex`.
 Reindex does not copy the settings from the source or its associated template.
 
 Mappings, shard counts, replicas, and so on must be configured ahead of time.

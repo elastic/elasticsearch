@@ -531,21 +531,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 false
             );
             // Check deprecations
-            checkerService.validateDotIndex(".test2", false);
+            assertFalse(checkerService.validateDotIndex(".test2", false));
             assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
                 "names starting with a dot are reserved for hidden indices and system indices");
 
             // Check non-system hidden indices don't trigger a warning
-            checkerService.validateDotIndex(".test2", true);
+            assertFalse(checkerService.validateDotIndex(".test2", true));
 
             // Check NO deprecation warnings if we give the index name
-            checkerService.validateDotIndex(".test", false);
-            checkerService.validateDotIndex(".test3", false);
+            assertTrue(checkerService.validateDotIndex(".test", false));
+            assertTrue(checkerService.validateDotIndex(".test3", false));
 
             // Check that patterns with wildcards work
-            checkerService.validateDotIndex(".pattern-test", false);
-            checkerService.validateDotIndex(".pattern-test-with-suffix", false);
-            checkerService.validateDotIndex(".pattern-test-other-suffix", false);
+            assertTrue(checkerService.validateDotIndex(".pattern-test", false));
+            assertTrue(checkerService.validateDotIndex(".pattern-test-with-suffix", false));
+            assertTrue(checkerService.validateDotIndex(".pattern-test-other-suffix", false));
         }));
     }
 

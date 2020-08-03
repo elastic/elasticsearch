@@ -186,14 +186,19 @@ public class MetadataCreateIndexService {
         boolean isSystem = false;
         if (index.charAt(0) == '.') {
             SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
-            if (matchingDescriptor == null && (isHidden == null || isHidden == Boolean.FALSE)) {
+            if (matchingDescriptor != null) {
+                logger.trace("index [{}] is a system index because it matches index pattern [{}] with description [{}]",
+                    index, matchingDescriptor.getIndexPattern(), matchingDescriptor.getDescription());
+                isSystem = true;
+            } else if (isHidden) {
+                logger.trace("index [{}] is a hidden index", index);
+            } else {
                 deprecationLogger.deprecate("index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
-                    "starting with a dot are reserved for hidden indices and system indices", index);
-            } else {
-                isSystem = true;
+                        "starting with a dot are reserved for hidden indices and system indices", index);
             }
         }
+
         return isSystem;
     }
 

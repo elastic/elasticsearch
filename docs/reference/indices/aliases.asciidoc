@@ -302,15 +302,13 @@ exist in the mapping:
 
 [source,console]
 --------------------------------------------------
-PUT /test1
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "user" : {
-        {
-          "id": {
-            "type": "keyword"
-          }
+      "user": {
+        "id": {
+          "type": "keyword"
         }
       }
     }
@@ -327,7 +325,7 @@ POST /_aliases
   "actions": [
     {
       "add": {
-        "index": "test1",
+        "index": "my-index-000001",
         "alias": "alias2",
         "filter": { "term": { "user.id": "kimchy" } }
       }

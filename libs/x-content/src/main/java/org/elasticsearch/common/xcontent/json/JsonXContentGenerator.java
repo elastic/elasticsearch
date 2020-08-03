@@ -364,7 +364,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            Streams.copy(stream, os);
+            Streams.copy(stream, os, false);
             writeEndRaw();
         }
     }

@@ -340,6 +340,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_MAPPINGS = "mappings";
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
+    static final String KEY_SYSTEM = "system";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -1381,7 +1382,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 cursor.value.toXContent(builder, params);
             }
             builder.endObject();
-            builder.field("system", indexMetadata.isSystem);
+            builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
             builder.endObject();
         }
@@ -1509,7 +1510,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.aliasesVersion(parser.longValue());
                     } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
                         builder.setRoutingNumShards(parser.intValue());
-                    } else if ("system".equals(currentFieldName)) {
+                    } else if (KEY_SYSTEM.equals(currentFieldName)) {
                         builder.system(parser.booleanValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");

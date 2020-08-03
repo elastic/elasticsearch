@@ -130,7 +130,7 @@ public class IpFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -146,15 +146,6 @@ public class IpFieldMapper extends FieldMapper {
 
         public IpFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        IpFieldType(IpFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IpFieldType(this);
         }
 
         @Override
@@ -307,7 +298,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(IpScriptDocValues::new, CoreValuesSourceType.IP);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), IpScriptDocValues::new, CoreValuesSourceType.IP);
         }
 
         @Override
@@ -355,6 +346,11 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return fieldType().typeName();
+    }
+
+    @Override
+    protected Object nullValue() {
+        return nullValue;
     }
 
     @Override
@@ -407,6 +403,21 @@ public class IpFieldMapper extends FieldMapper {
         if (fieldType.stored()) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        InetAddress address;
+        if (value instanceof InetAddress) {
+            address = (InetAddress) value;
+        } else {
+            address = InetAddresses.forString(value.toString());
+        }
+        return InetAddresses.toAddrString(address);
     }
 
     @Override

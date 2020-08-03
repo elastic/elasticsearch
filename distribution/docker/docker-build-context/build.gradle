@@ -1,6 +1,6 @@
 apply plugin: 'base'
 
-task buildDockerBuildContext(type: Tar) {
+tasks.register("buildDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
@@ -10,4 +10,4 @@ task buildDockerBuildContext(type: Tar) {
   with dockerBuildContext("<remote>", false, false)
 }
 
-assemble.dependsOn buildDockerBuildContext
+tasks.named("assemble").configure {dependsOn "buildDockerBuildContext"}

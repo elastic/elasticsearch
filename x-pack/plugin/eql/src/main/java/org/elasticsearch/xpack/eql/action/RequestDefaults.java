@@ -12,7 +12,7 @@ public final class RequestDefaults {
 
     public static final String FIELD_TIMESTAMP = "@timestamp";
     public static final String FIELD_EVENT_CATEGORY = "event.category";
-    public static final String FIELD_IMPLICIT_JOIN_KEY = "agent.id";
 
-    public static int FETCH_SIZE = 50;
+    public static int SIZE = 10;
+    public static int FETCH_SIZE = 1000;
 }

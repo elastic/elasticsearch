@@ -100,14 +100,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -116,7 +108,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -191,6 +183,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
     }
 
     @Override

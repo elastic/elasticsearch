@@ -1,5 +1,5 @@
 [[range]]
-=== Range datatypes
+=== Range data types
 ++++
 <titleabbrev>Range</titleabbrev>
 ++++

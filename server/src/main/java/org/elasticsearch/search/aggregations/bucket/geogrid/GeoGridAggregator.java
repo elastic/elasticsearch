@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -50,12 +51,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
-                      Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, metadata);
+                      Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override

@@ -22,7 +22,7 @@ with the exception of the secure settings, which you add to the {es} keystore.
 For more information about creating and updating the {es} keystore, see
 <<secure-settings>>.
 
-[float]
+[discrete]
 [[general-security-settings]]
 ==== General security settings
 `xpack.security.enabled`::
@@ -53,14 +53,14 @@ the sensitive nature of the information.
 `xpack.security.fips_mode.enabled`::
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
-[float]
+[discrete]
 [[password-hashing-settings]]
 ==== Password hashing settings
 `xpack.security.authc.password_hashing.algorithm`::
 Specifies the hashing algorithm that is used for secure user credential storage.
 See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 
-[float]
+[discrete]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
@@ -80,7 +80,7 @@ resource. When set to `false`, an HTTP 401 response is returned and the user
 can provide credentials with the appropriate permissions to gain
 access. Defaults to `true`.
 
-[float]
+[discrete]
 [[security-automata-settings]]
 ==== Automata Settings
 In places where the {security-features} accept wildcard patterns (e.g. index
@@ -108,7 +108,7 @@ The length of time to retain in an item in the automata cache (based on most
 recent usage).
 Defaults to `48h` (48 hours).
 
-[float]
+[discrete]
 [[field-document-security-settings]]
 ==== Document and field level security settings
 
@@ -132,7 +132,7 @@ Document level security queries may depend on Lucene BitSet objects, and these a
 automatically cached to improve performance. Defaults to `50mb`, after which
 least-recently-used entries will be evicted.
 
-[float]
+[discrete]
 [[token-service-settings]]
 ==== Token service settings
 
@@ -148,7 +148,7 @@ Set to `false` to disable the built-in token service. Defaults to `true` unless
 The length of time that a token is valid for. By default this value is `20m` or
 20 minutes. The maximum value is 1 hour.
 
-[float]
+[discrete]
 [[api-key-service-settings]]
 ==== API key service settings
 
@@ -178,7 +178,7 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-[float]
+[discrete]
 [[realm-settings]]
 ==== Realm settings
 // tag::realm-settings-description-tag[]
@@ -214,7 +214,7 @@ The valid settings vary depending on the realm type. For more
 information, see <<setting-up-authentication>>.
 // end::realm-settings-description-tag[]
 
-[float]
+[discrete]
 [[ref-realm-settings]]
 ===== Settings valid for all realms
 // tag::realm-order-tag[]
@@ -228,7 +228,7 @@ Indicates whether a realm is enabled. You can use this setting to disable a
 realm without removing its configuration information. Defaults to `true`.
 
 [[ref-native-settings]]
-[float]
+[discrete]
 ===== Native realm settings
 For a native realm, the `type` must be set to `native`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
@@ -253,7 +253,7 @@ Defaults to `true`.
 
 [[ref-users-settings]]
 
-[float]
+[discrete]
 ===== File realm settings
 
 The `type` setting must be set to `file`. In addition to the
@@ -281,7 +281,7 @@ this realm, so that it only supports user lookups.
 Defaults to `true`.
 
 [[ref-ldap-settings]]
-[float]
+[discrete]
 ===== LDAP realm settings
 
 The `type` setting must be set to `ldap`. In addition to the
@@ -552,7 +552,7 @@ this realm, so that it only supports user lookups.
 Defaults to `true`.
 
 [[ref-ad-settings]]
-[float]
+[discrete]
 ===== Active Directory realm settings
 
 The `type` setting must be set to `active_directory`. In addition to the
@@ -811,7 +811,7 @@ Referrals are URLs returned by the server that are to be used to continue the
 LDAP operation (such as `search`). Defaults to `true`.
 
 [[ref-pki-settings]]
-[float]
+[discrete]
 ===== PKI realm settings
 
 The `type` setting must be set to `pki`. In addition to the
@@ -875,7 +875,7 @@ must be defined. For more details, see <<pki-realm-for-proxied-clients,
 Configuring authentication delegation for PKI realms>>.
 
 [[ref-saml-settings]]
-[float]
+[discrete]
 ===== SAML realm settings
 // tag::saml-description-tag[]
 The `type` setting must be set to `saml`. In addition to the
@@ -1051,7 +1051,7 @@ For more information, see
 <<req-authn-context>>.
 // end::saml-req-authn-context-tag[]
 
-[float]
+[discrete]
 [[ref-saml-signing-settings]]
 ===== SAML realm signing settings
 // tag::saml-signing-description-tag[]
@@ -1115,7 +1115,7 @@ The password to the keystore in `signing.keystore.path`.
 The password for the key in the keystore (`signing.keystore.path`).
 Defaults to the keystore password.
 
-[float]
+[discrete]
 [[ref-saml-encryption-settings]]
 ===== SAML realm encryption settings
 // tag::saml-encryption-description-tag[]
@@ -1173,7 +1173,7 @@ The password for the key in the keystore (`encryption.keystore.path`). Only a
 single password is supported. If you are using multiple decryption keys,
 they cannot have individual passwords.
 
-[float]
+[discrete]
 [[ref-saml-ssl-settings]]
 ===== SAML realm SSL settings
 // tag::saml-ssl-description-tag[]
@@ -1277,7 +1277,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::saml-ssl-cipher-suites-tag[]
 
-[float]
+[discrete]
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
 // tag::kerberos-description-tag[]
@@ -1322,7 +1322,7 @@ See <<authorization_realms>>.
 // end::kerberos-authorization-realms-tag[]
 
 [[ref-oidc-settings]]
-[float]
+[discrete]
 ===== OpenID Connect realm settings
 // tag::oidc-description-tag[]
 In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
@@ -1545,7 +1545,7 @@ the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
 // end::oidc-http-max-endpoint-connections-tag[]
 
-[float]
+[discrete]
 [[ref-oidc-ssl-settings]]
 ===== OpenID Connect realm SSL settings
 // tag::oidc-ssl-description-tag[]
@@ -1649,7 +1649,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::oidc-ssl-cipher-suites-tag[]
 
-[float]
+[discrete]
 [[load-balancing]]
 ===== Load balancing and failover
 
@@ -1675,7 +1675,7 @@ IP addresses that correspond to this DNS name. Connections will continuously
 iterate through the list of addresses. If a server is unavailable, iterating
 through the list of URLs will continue until a successful connection is made.
 
-[float]
+[discrete]
 [[ssl-tls-settings]]
 ==== General TLS settings
 `xpack.security.ssl.diagnose.trust`::
@@ -1687,7 +1687,7 @@ This diagnostic message contains information that can be used to determine the
 cause of the failure and assist with resolving the problem.
 Set to `false` to disable these messages.
 
-[float]
+[discrete]
 [[tls-ssl-key-settings]]
 ===== TLS/SSL key and trusted certificate settings
 
@@ -1733,7 +1733,7 @@ include::ssl-settings.asciidoc[]
 include::ssl-settings.asciidoc[]
 
 [[ssl-tls-profile-settings]]
-[float]
+[discrete]
 ===== Transport profile TLS/SSL settings
 The same settings that are available for the <<transport-tls-ssl-settings, default transport>>
 are also available for each transport profile. By default, the settings for a
@@ -1746,7 +1746,7 @@ transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` 
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
-[float]
+[discrete]
 [[ip-filtering-settings]]
 ==== IP filtering settings
 You can configure the following settings for <<ip-filtering,IP filtering>>.

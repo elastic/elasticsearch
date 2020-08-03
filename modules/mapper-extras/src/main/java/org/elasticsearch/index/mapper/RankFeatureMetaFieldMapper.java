@@ -85,15 +85,6 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
             super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
-        protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public RankFeatureMetaFieldType clone() {
-            return new RankFeatureMetaFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

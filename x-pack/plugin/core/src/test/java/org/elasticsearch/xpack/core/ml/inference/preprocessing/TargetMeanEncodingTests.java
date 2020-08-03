@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncoding> {
@@ -40,7 +41,8 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         return new TargetMeanEncoding(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             valueMap,
-            randomDoubleBetween(0.0, 1.0, false));
+            randomDoubleBetween(0.0, 1.0, false),
+            randomBoolean() ? randomBoolean() : null);
     }
 
     @Override
@@ -55,7 +57,7 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
             v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         Double defaultvalue = randomDouble();
-        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
         Object fieldValue = randomFrom(values);
         Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
             equalTo(valueMap.get(fieldValue.toString())));
@@ -66,6 +68,18 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         fieldValues = randomFieldValues(field, "unknownValue");
         matchers = Collections.singletonMap(encodedFeatureName, equalTo(defaultvalue));
         testProcess(encoding, fieldValues, matchers);
+    }
+
+    public void testInputOutputFields() {
+        String field = randomAlphaOfLength(10);
+        String encodedFeatureName = randomAlphaOfLength(10);
+        Double defaultvalue = randomDouble();
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
+        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
+            v -> randomDoubleBetween(0.0, 1.0, false)));
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
+        assertThat(encoding.inputFields(), containsInAnyOrder(field));
+        assertThat(encoding.outputFields(), containsInAnyOrder(encodedFeatureName));
     }
 
 }

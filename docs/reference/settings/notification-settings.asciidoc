@@ -21,7 +21,7 @@ For more information about creating and updating the {es} keystore, see
 <<cluster-update-settings,cluster update settings API>>.
 // end::notification-settings-description-tag[]
 
-[float]
+[discrete]
 [[general-notification-settings]]
 ==== General Watcher Settings
 `xpack.watcher.enabled`::
@@ -89,7 +89,7 @@ corresponding endpoints are explicitly allowed as well.
 
 include::ssl-settings.asciidoc[]
 
-[float]
+[discrete]
 [[email-notification-settings]]
 ==== Email Notification Settings
 You can configure the following email notification settings in
@@ -134,7 +134,7 @@ can specify the following email account attributes:
   Set to `true` to enable the use of the `STARTTLS`
   command (if supported by the server) to switch the connection to a
   TLS-protected connection before issuing any login commands. Note that
-  an appropriate trust store must configured so that the client will
+  an appropriate trust store must be configured so that the client will
   trust the server's certificate. Defaults to `false`.
 
   `smtp.starttls.required` (<<cluster-update-settings,Dynamic>>);;
@@ -231,7 +231,7 @@ Defaults to `true`.
 
 include::ssl-settings.asciidoc[]
 
-[float]
+[discrete]
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
@@ -272,7 +272,7 @@ via Slack. You can specify the following Slack account attributes:
                                    Slack attachments documentation].
 --
 
-[float]
+[discrete]
 [[jira-notification-settings]]
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
@@ -301,7 +301,7 @@ issues in Jira. You can specify the following Jira account attributes:
   Optional.
 --
 
-[float]
+[discrete]
 [[pagerduty-notification-settings]]
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in

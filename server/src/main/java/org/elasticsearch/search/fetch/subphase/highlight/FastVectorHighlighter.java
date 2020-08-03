@@ -39,11 +39,10 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 
 import java.text.BreakIterator;
 import java.util.Collections;
@@ -69,14 +68,14 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
-        QueryShardContext context = highlighterContext.context;
-        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        MappedFieldType fieldType = highlighterContext.fieldType;
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        SearchHighlightContext.Field field = fieldContext.field;
+        FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
+        MappedFieldType fieldType = fieldContext.fieldType;
+        boolean forceSource = fieldContext.forceSource;
 
         if (canHighlight(fieldType) == false) {
-            throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
+            throw new IllegalArgumentException("the field [" + fieldContext.fieldName +
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
@@ -96,7 +95,6 @@ public class FastVectorHighlighter implements Highlighter {
                 BaseFragmentsBuilder fragmentsBuilder;
 
                 final BoundaryScanner boundaryScanner = getBoundaryScanner(field);
-                boolean forceSource = highlighterContext.highlight.forceSource(field);
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
@@ -104,7 +102,7 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                 field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, context,
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, hitContext.sourceLookup(),
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
@@ -115,7 +113,7 @@ public class FastVectorHighlighter implements Highlighter {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, context,
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, hitContext.sourceLookup(),
                                     field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
@@ -124,8 +122,8 @@ public class FastVectorHighlighter implements Highlighter {
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder =
-                                new SourceSimpleFragmentsBuilder(fieldType, context, field.fieldOptions().preTags(),
-                                    field.fieldOptions().postTags(), boundaryScanner);
+                                new SourceSimpleFragmentsBuilder(fieldType, hitContext.sourceLookup(),
+                                    field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }
                 }
@@ -136,14 +134,14 @@ public class FastVectorHighlighter implements Highlighter {
                      * we use top level reader to rewrite the query against all readers,
                      * with use caching it across hits (and across readers...)
                      */
-                    entry.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                    entry.fieldMatchFieldQuery = new CustomFieldQuery(fieldContext.query,
                         hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 } else {
                     /**
                      * we use top level reader to rewrite the query against all readers,
                      * with use caching it across hits (and across readers...)
                      */
-                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(fieldContext.query,
                         hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 entry.fragListBuilder = fragListBuilder;
@@ -186,10 +184,10 @@ public class FastVectorHighlighter implements Highlighter {
             }
 
             if (CollectionUtils.isEmpty(fragments) == false) {
-                return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+                return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
             }
 
-            int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
+            int noMatchSize = fieldContext.field.fieldOptions().noMatchSize();
             if (noMatchSize > 0) {
                 // Essentially we just request that a fragment is built from 0 to noMatchSize using
                 // the normal fragmentsBuilder
@@ -199,15 +197,15 @@ public class FastVectorHighlighter implements Highlighter {
                     fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
                 if (CollectionUtils.isEmpty(fragments) == false) {
-                    return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
+                    return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
                 }
             }
 
             return null;
 
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
-                "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            throw new FetchPhaseExecutionException(fieldContext.shardTarget,
+                "Failed to highlight field [" + fieldContext.fieldName + "]", e);
         }
     }
 

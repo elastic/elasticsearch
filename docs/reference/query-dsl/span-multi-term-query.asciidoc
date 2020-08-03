@@ -12,13 +12,13 @@ it can be nested. Example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_multi":{
-            "match":{
-                "prefix" : { "user" :  { "value" : "ki" } }
-            }
-        }
+  "query": {
+    "span_multi": {
+      "match": {
+        "prefix": { "user": { "value": "ki" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -28,13 +28,13 @@ A boost can also be associated with the query:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_multi":{
-            "match":{
-                "prefix" : { "user" :  { "value" : "ki", "boost" : 1.08 } }
-            }
-        }
+  "query": {
+    "span_multi": {
+      "match": {
+        "prefix": { "user": { "value": "ki", "boost": 1.08 } }
+      }
     }
+  }
 }
 --------------------------------------------------
 

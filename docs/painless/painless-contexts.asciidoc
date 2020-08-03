@@ -23,7 +23,7 @@ specialized code may define new ways to use a Painless script.
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
                                     | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {ref}/search-request-body.html#request-body-search-sort[Elasticsearch Documentation]
+                                    | {ref}/sort-search-results.html[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
                                     | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>

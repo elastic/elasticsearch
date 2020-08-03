@@ -66,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -913,16 +914,6 @@ public class NumberFieldMapper extends FieldMapper {
             this(name, type, true, true, Collections.emptyMap());
         }
 
-        private NumberFieldType(NumberFieldType other) {
-            super(other);
-            this.type = other.type;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NumberFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return type.name;
@@ -972,9 +963,17 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return this::parsePoint;
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
         }
 
         @Override
@@ -1000,20 +999,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            NumberFieldType that = (NumberFieldType) o;
-            return type == that.type;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), type);
         }
     }
 
@@ -1049,6 +1034,11 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected NumberFieldMapper clone() {
         return (NumberFieldMapper) super.clone();
+    }
+
+    @Override
+    protected Number nullValue() {
+        return nullValue;
     }
 
     @Override
@@ -1098,6 +1088,19 @@ public class NumberFieldMapper extends FieldMapper {
         if (docValued == false && (stored || fieldType().isSearchable())) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value.equals("")) {
+            return nullValue;
+        }
+
+        return fieldType().type.parse(value, coerce.value());
     }
 
     @Override

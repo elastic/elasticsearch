@@ -19,13 +19,14 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
-testClusters.integTest {
+testClusters.all {
   module project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
@@ -53,27 +54,30 @@ restResources {
   }
 }
 
-test {
+integTest.enabled = false
+
+tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
-task apiJavadoc(type: Javadoc) {
+tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
   classpath = sourceSets.main.runtimeClasspath
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
 
-task apiJavadocJar(type: Jar) {
+tasks.register("apiJavadocJar", Jar) {
   archiveClassifier = 'apiJavadoc'
   from apiJavadoc
 }
 
-assemble.dependsOn apiJavadocJar
-
+tasks.named("assemble").configure {
+  dependsOn "apiJavadocJar"
+}
 /**********************************************
  *           Context API Generation           *
  **********************************************/
@@ -83,8 +87,8 @@ sourceSets {
 }
 
 dependencies {
-  docCompile project(':server')
-  docCompile project(':modules:lang-painless')
+  docImplementation project(':server')
+  docImplementation project(':modules:lang-painless')
 }
 
 testClusters {
@@ -93,13 +97,14 @@ testClusters {
   }
 }
 
-task generateContextDoc(type: DefaultTestClustersTask) {
+tasks.register("generateContextDoc", DefaultTestClustersTask) {
+  dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
       main = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI()}"
+      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
   }
 }
@@ -119,7 +124,7 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
-task cleanGenerated(type: Delete) {
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -128,8 +133,8 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenLexer(type: JavaExec) {
-  dependsOn cleanGenerated
+tasks.register("regenLexer", JavaExec) {
+  dependsOn "cleanGenerated"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -142,8 +147,8 @@ task regenLexer(type: JavaExec) {
     "${file(grammarPath)}/PainlessLexer.g4"
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn regenLexer
+tasks.register("regenParser", JavaExec) {
+  dependsOn "regenLexer"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -159,8 +164,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/PainlessParser.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)

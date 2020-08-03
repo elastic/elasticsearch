@@ -604,7 +604,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoobar"));
-            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one index associated with it"));
         }
 
         {
@@ -612,7 +612,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "foofoobar"));
-            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one index associated with it"));
         }
 
         {
@@ -1710,32 +1710,30 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(new DataStream(dataStreamName, createTimestampField("ts"), List.of(backingIndex.getIndex()), 1));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex()), 1));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("The provided expression [" + dataStreamName + "] matches a data stream, specify the corresponding " +
-                "concrete indices instead.", iae.getMessage());
+            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("The provided expression [my-data-*] matches a data stream, specify the corresponding concrete indices instead.",
-                iae.getMessage());
+            assertEquals("no such index [my-data-*]", iae.getMessage());
         }
 
-        //{
-        //    IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
-        //        .alias("my-data");
-        //    String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
-        //    assertEquals(1, indices.length);
-        //    assertEquals(backingIndex.getIndex().getName(), indices[0]);
-        //}
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
+                .alias("my-data");
+            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
+        }
     }
 
     public void testInvalidIndex() {
@@ -1820,7 +1818,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, createTimestampField("ts"), List.of(index1.getIndex(), index2.getIndex()), 2));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex()), 2));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1833,28 +1831,24 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             // Ignore data streams
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
-                "data stream, specify the corresponding concrete indices instead."));
+            assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams and allow no indices
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
                 EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
-                "data stream, specify the corresponding concrete indices instead."));
+            assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams, allow no indices and ignore unavailable
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
                 IndicesOptions.Option.IGNORE_UNAVAILABLE), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
-                "data stream, specify the corresponding concrete indices instead."));
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream");
+            assertThat(result.length, equalTo(0));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -1865,28 +1859,24 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             // Ignore data streams
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
                 EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
-                "data stream, specify the corresponding concrete indices instead."));
-
+            assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams and allow no indices
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a data stream, " +
-                "specify the corresponding concrete indices instead."));
+            assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams, allow no indices and ignore unavailable
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
                 IndicesOptions.Option.IGNORE_UNAVAILABLE), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false));
-            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a data stream, " +
-                "specify the corresponding concrete indices instead."));
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
     }
 
@@ -1918,6 +1908,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true,
+                randomFrom(new String[]{"*"}, new String[]{"_all"}, new String[0]));
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(4));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[2].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 1)));
+            assertThat(result[3].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));;
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-m*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
@@ -1926,10 +1927,41 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN; // without include data streams
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*"));
-            assertThat(e.getMessage(), equalTo("The provided expression [logs-*] matches a data stream, " +
-                "specify the corresponding concrete indices instead."));
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+            assertThat(result.length, equalTo(0));
+        }
+    }
+
+    public void testDataStreamsWithClosedBackingIndicesAndWildcardExpressions() {
+        final String dataStream1 = "logs-mysql";
+        final String dataStream2 = "logs-redis";
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1).state(State.CLOSE).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
+        IndexMetadata index3 = createBackingIndex(dataStream2, 1).state(State.CLOSE).build();
+        IndexMetadata index4 = createBackingIndex(dataStream2, 2).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(index3, false)
+            .put(index4, false)
+            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
+        }
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
         }
     }
 
@@ -1983,10 +2015,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index3, false)
                 .put(index4, false)
                 .put(justAnIndex, false)
-                .put(new DataStream(dataStream1, createTimestampField("ts"), List.of(index1.getIndex(), index2.getIndex())))
-                .put(new DataStream(dataStream2, createTimestampField("ts"), List.of(index3.getIndex(), index4.getIndex())))).build();
+                .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+                .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex()))))
+            .build();
 
         List<String> names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "log*");
+        assertEquals(Collections.singletonList(dataStream1), names);
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), dataStream1);
         assertEquals(Collections.singletonList(dataStream1), names);
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "other*");
@@ -1999,6 +2035,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, empty());
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), index3.getIndex().getName());
+        assertThat(names, empty());
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-logs-foobar");
+        assertThat(names, containsInAnyOrder(dataStream2));
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
     }
 }

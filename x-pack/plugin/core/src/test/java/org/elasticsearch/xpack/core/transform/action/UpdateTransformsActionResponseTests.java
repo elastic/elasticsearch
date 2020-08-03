@@ -34,7 +34,9 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
     }
 
     public void testBWCPre78() throws IOException {
-        Response newResponse = createTestInstance();
+        Response newResponse = new Response(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(Version.V_7_8_0, randomAlphaOfLengthBetween(1, 10))
+        );
         UpdateTransformActionPre78.Response oldResponse = writeAndReadBWCObject(
             newResponse,
             getNamedWriteableRegistry(),

@@ -17,9 +17,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-class HistoBackedHDRPercentileRanksAggregator extends AbstractHistoBackedHDRPercentilesAggregator {
+public class HistoBackedHDRPercentileRanksAggregator extends AbstractHistoBackedHDRPercentilesAggregator {
 
-    HistoBackedHDRPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+    public HistoBackedHDRPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                  double[] percents, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat format,
                                  Map<String, Object> metadata) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, format, metadata);

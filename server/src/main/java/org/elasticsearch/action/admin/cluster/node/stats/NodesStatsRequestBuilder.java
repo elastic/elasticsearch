@@ -157,6 +157,11 @@ public class NodesStatsRequestBuilder
         return this;
     }
 
+    public NodesStatsRequestBuilder setIndexingPressure(boolean indexingPressure) {
+        addOrRemoveMetric(indexingPressure, NodesStatsRequest.Metric.INDEXING_PRESSURE);
+        return this;
+    }
+
     /**
      * Helper method for adding metrics to a request
      */

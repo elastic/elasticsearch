@@ -32,28 +32,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMapper.Builder> {
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity", "index");
-    }
-
-    @Override
-    protected BinaryFieldMapper.Builder newBuilder() {
-        return new BinaryFieldMapper.Builder("binary");
-    }
+public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

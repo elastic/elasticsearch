@@ -356,7 +356,7 @@ times.
 
 The meaning of the stats are as follows:
 
-[float]
+[discrete]
 ===== All parameters:
 
 [horizontal]
@@ -890,7 +890,7 @@ overall time, the breakdown is inclusive of all children times.
 
 The meaning of the stats are as follows:
 
-[float]
+[discrete]
 ===== All parameters:
 
 [horizontal]

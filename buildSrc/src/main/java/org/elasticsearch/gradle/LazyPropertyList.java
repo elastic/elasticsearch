@@ -218,6 +218,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
             this.normalization = normalization;
         }
 
+        @Input
         public PropertyNormalization getNormalization() {
             return normalization;
         }

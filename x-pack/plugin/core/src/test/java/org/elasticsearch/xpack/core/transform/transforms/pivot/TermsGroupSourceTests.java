@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -15,10 +16,16 @@ import java.io.IOException;
 public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        ScriptConfig scriptConfig = randomBoolean() ? null : ScriptConfigTests.randomScriptConfig();
+        return randomTermsGroupSource(Version.CURRENT);
+    }
 
-        return new TermsGroupSource(field, scriptConfig);
+    public static TermsGroupSource randomTermsGroupSource(Version version) {
+        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        ScriptConfig scriptConfig = version.onOrAfter(Version.V_7_7_0)
+            ? randomBoolean() ? null : ScriptConfigTests.randomScriptConfig()
+            : null;
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+        return new TermsGroupSource(field, scriptConfig, missingBucket);
     }
 
     @Override

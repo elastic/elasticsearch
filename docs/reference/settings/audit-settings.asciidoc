@@ -14,7 +14,7 @@ on each node in the cluster. For more information, see <<enable-audit-logging>>.
 ==== General Auditing Settings
 [[xpack-security-audit-enabled]]
 // tag::xpack-security-audit-enabled-tag[]
-`xpack.security.audit.enabled` {ess-icon}::
+`xpack.security.audit.enabled`::
 Set to `true` to enable auditing on the node. The default value is `false`.
 This puts the auditing events in a dedicated file named `<clustername>_audit.json`
 on each node.

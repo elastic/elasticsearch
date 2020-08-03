@@ -24,13 +24,16 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }
 
-testClusters.integTest {
+testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
   module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
   module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile
@@ -106,12 +109,12 @@ jdks {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  integTest.runner {
+  javaRestTest {
     systemProperty "tests.fromOld", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  integTest.runner {
+  javaRestTest {
     systemProperty "tests.fromOld", "false"
   }
 } else {
@@ -152,15 +155,13 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
 
-    integTest {
+    javaRestTest {
       dependsOn fixture
-      runner {
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
         nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
-      }
     }
   }
 }

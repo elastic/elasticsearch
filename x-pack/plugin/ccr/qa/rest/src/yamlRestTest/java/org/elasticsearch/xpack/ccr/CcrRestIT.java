@@ -27,7 +27,7 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
 
     @Override
@@ -38,12 +38,12 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void waitForRequirements() throws Exception {
-        ESRestTestCase.waitForActiveLicense(adminClient());
+        waitForActiveLicense(adminClient());
     }
 
     @After
     public void cleanup() throws Exception {
-        ESRestTestCase.waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));
     }
 
 }

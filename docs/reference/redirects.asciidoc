@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="ccr-remedy-follower-index"]
+=== Leader index retaining operations for replication
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-remedy-follower-index"]
+=== Remedying a follower that has fallen behind
+
+See <<ccr-recreate-follower-index,Recreating a follower index>>.
+
 [role="exclude",id="remote-reovery"]
 === Remote recovery process
 

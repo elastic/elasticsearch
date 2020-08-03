@@ -33,6 +33,47 @@ on the follower shard task if your initial configuration is not suitable for
 your use case.
 ====
 
+[[ccr-recreate-follower-index]]
+==== Recreating a follower index
+When a document is updated or deleted, the underlying operation is retained in
+the Lucene index for a period of time defined by the
+`index.soft_deletes.retention_lease.period` parameter. You configure this
+setting on the <<ccr-leader-requirements,leader index>>.
+
+When a follower index starts, it acquires a retention lease from
+the leader index. This lease informs the leader that it should not allow a soft
+delete to be pruned until either the follower indicates that it has received
+the operation, or until the lease expires.
+
+If a follower index falls sufficiently behind a leader and cannot
+replicate operations, {es} reports an `indices[].fatal_exception` error. To
+resolve the issue, recreate the follower index. When the new follow index
+starts, the <<ccr-remote-recovery, remote recovery>> process recopies the
+Lucene segment files from the leader.
+
+IMPORTANT: Recreating the follower index is a destructive action. All existing
+Lucene segment files are deleted on the cluster containing the follower index.
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-post-pause-follow,pause follow API>> to pause the replication
+process. Then, close the follower index and recreate it. For example:
+
+[source,console]
+----------------------------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+
+POST /follower_index/_close
+
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+----------------------------------------------------------------------
+====
+
 [[ccr-terminate-replication]]
 ==== Terminating replication
 

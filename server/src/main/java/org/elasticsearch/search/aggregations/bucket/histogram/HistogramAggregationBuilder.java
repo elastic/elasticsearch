@@ -357,12 +357,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
 
-        if (hardBounds != null) {
-            if (hardBounds.getMax() != null && hardBounds.getMax() < extendedBounds.getMax()) {
+        if (hardBounds != null && extendedBounds != null) {
+            if (hardBounds.getMax() != null && extendedBounds.getMax() != null && hardBounds.getMax() < extendedBounds.getMax()) {
                 throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
                     hardBounds + "], extended bounds: [" + extendedBounds.getMin() + "--" + extendedBounds.getMax() + "]");
             }
-            if (hardBounds.getMin() != null && hardBounds.getMin() > extendedBounds.getMin()) {
+            if (hardBounds.getMin() != null && extendedBounds.getMin() != null && hardBounds.getMin() > extendedBounds.getMin()) {
                 throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
                     hardBounds + "], extended bounds: [" + extendedBounds.getMin() + "--" + extendedBounds.getMax() + "]");
             }

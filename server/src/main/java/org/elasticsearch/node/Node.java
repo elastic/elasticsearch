@@ -474,7 +474,7 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry(), recoveryStateFactories, systemIndices);
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
 
             final AliasValidator aliasValidator = new AliasValidator();
 

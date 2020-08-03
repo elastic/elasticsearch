@@ -292,7 +292,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .map(shardRouting -> shardRouting.currentNodeId()).map(nodeId -> clusterState.getState().nodes().resolveNode(nodeId))
             .map(DiscoveryNode::getName).collect(Collectors.toList());
 
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+            new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))).get();
         ensureGreen("test1");
 
         String partitionedNode = nodes.stream().filter(n -> nodesWithShards.contains(n) == false).findFirst().get();
@@ -315,10 +316,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(NoShardAvailableActionException.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
-        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
+        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
+            .setAllowPartialSearchResults(true).setSize(0).get();
         assertHitCount(countResponse, 1L);
 
-        expectThrows(SearchPhaseExecutionException.class, () -> client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get());
+        expectThrows(SearchPhaseExecutionException.class, () -> client(partitionedNode).prepareSearch("test1")
+            .setAllowPartialSearchResults(true).setSize(0).get());
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")

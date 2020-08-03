@@ -15,7 +15,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.xpack.search.AsyncSearchIntegTestCase.SearchResponseIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -125,8 +124,8 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
      *  A synchronization aid that is used by {@link BlockingQueryBuilder} to block shards executions until
      *  the consumer calls {@link QueryLatch#countDownAndReset()}.
      *  The static {@link QueryLatch} is shared in {@link AsyncSearchIntegTestCase#assertBlockingIterator} to provide
-     *  a {@link SearchResponseIterator} that unblocks shards executions whenever {@link SearchResponseIterator#next()}
-     *  is called.
+     *  a {@link AsyncSearchIntegTestCase.SearchResponseIterator} that unblocks shards executions whenever
+     *  {@link AsyncSearchIntegTestCase.SearchResponseIterator#next()} is called.
      */
     static class QueryLatch implements Closeable {
         private final Set<Integer> failedShards = new HashSet<>();

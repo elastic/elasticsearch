@@ -29,7 +29,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> See <<score-functions>> for a list of supported functions.
 
@@ -64,7 +64,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> Boost for the whole query.
 <2> See <<score-functions>> for a list of supported functions.
@@ -151,7 +151,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [IMPORTANT]
 ====
@@ -193,7 +193,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
@@ -251,7 +251,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[function-field-value-factor]]
 ==== Field Value factor
@@ -281,7 +281,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Which will translate into the following formula for scoring:
 
@@ -383,7 +383,7 @@ GET /_search
   "query": {
     "function_score": {
       "gauss": {
-        "date": {
+        "@timestamp": {
           "origin": "2013-09-17", <1>
           "scale": "10d",
           "offset": "5d",         <2>
@@ -394,7 +394,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
     your mapping. If you do not define the origin, the current time is used.

@@ -155,7 +155,7 @@ PUT _index_template/template_1
             "filter" : {
                 "term" : {"user.id" : "kimchy" }
             },
-            "routing" : "kimchy"
+            "routing" : "shard-1"
         },
         "{index}-alias" : {} <1>
     }

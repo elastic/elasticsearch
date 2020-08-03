@@ -40,6 +40,7 @@ For more information, see <<security-privileges>>.
 
 [discrete]
 ==== Examples
+
 The following example provides information about a trial license:
 
 [source,console]

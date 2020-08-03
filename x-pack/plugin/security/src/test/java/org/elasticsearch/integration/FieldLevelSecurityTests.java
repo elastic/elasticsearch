@@ -774,7 +774,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "field2", "type=text")
         );
 
-        final int numDocs = scaledRandomIntBetween(2, 5);
+        final int numDocs = scaledRandomIntBetween(2, 4);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setId(String.valueOf(i))
                     .setSource("field1", "value1", "field2", "value2")
@@ -805,18 +805,19 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                         assertThat(user2SearchResponse.getHits().getHits().length, is(0));
                     } else {
                         // make sure scroll is empty
-                        if (user2SearchResponse.getScrollId() != null) {
-                            user2SearchResponse = client()
-                                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2",
-                                            USERS_PASSWD)))
-                                    .prepareSearchScroll(user2SearchResponse.getScrollId())
-                                    .setScroll(TimeValue.timeValueMinutes(10L))
-                                    .get();
-                            assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
-                            assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                        user2SearchResponse = client()
+                                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2",
+                                        USERS_PASSWD)))
+                                .prepareSearchScroll(user2SearchResponse.getScrollId())
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .get();
+                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                        if (randomBoolean()) {
+                            // maybe reuse the scroll even if empty
                             client().prepareClearScroll().addScrollId(user2SearchResponse.getScrollId()).get();
+                            user2SearchResponse = null;
                         }
-                        user2SearchResponse = null;
                     }
                 } else {
                     if (user1SearchResponse == null) {
@@ -847,11 +848,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                             scrolledDocsUser1++;
                         } else {
                             assertThat(user1SearchResponse.getHits().getHits().length, is(0));
-                            if (user1SearchResponse.getScrollId() != null) {
-                                client().prepareClearScroll().addScrollId(user1SearchResponse.getScrollId()).get();
+                            if (randomBoolean()) {
+                                // maybe reuse the scroll even if empty
+                                if (user1SearchResponse.getScrollId() != null) {
+                                    client().prepareClearScroll().addScrollId(user1SearchResponse.getScrollId()).get();
+                                }
+                                user1SearchResponse = null;
+                                scrolledDocsUser1 = 0;
                             }
-                            user1SearchResponse = null;
-                            scrolledDocsUser1 = 0;
                         }
                     }
                 }

@@ -45,8 +45,10 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
             datafeedId = GetDatafeedsStatsAction.ALL;
         }
         GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-            request.allowNoDatafeeds()));
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                GetDatafeedsStatsAction.Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetDatafeedsStatsAction.Response getDatafeedsStatsRespons) throws Exception {

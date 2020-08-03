@@ -57,10 +57,10 @@ public class RestStopDatafeedAction extends BaseRestHandler {
             if (restRequest.hasParam(StopDatafeedAction.Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(StopDatafeedAction.Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName())) {
-                request.setAllowNoDatafeeds(restRequest.paramAsBoolean(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                        request.allowNoDatafeeds()));
-            }
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    StopDatafeedAction.Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         }
         return channel -> client.execute(StopDatafeedAction.INSTANCE, request, new RestBuilderListener<Response>(channel) {
 

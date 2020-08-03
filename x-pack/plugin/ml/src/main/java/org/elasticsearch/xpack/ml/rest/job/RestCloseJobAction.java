@@ -49,9 +49,10 @@ public class RestCloseJobAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
-                request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
-            }
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

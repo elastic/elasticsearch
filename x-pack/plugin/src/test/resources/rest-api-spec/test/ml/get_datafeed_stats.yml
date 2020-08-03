@@ -102,7 +102,14 @@ setup:
         datafeed_id: missing-datafeed
 
 ---
-"Test get datafeed stats with expression that does not match and allow_no_datafeeds":
+"Test get datafeed stats with expression that does not match and allow_no_match":
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "missing-*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
 
   - do:
       ml.get_datafeed_stats:
@@ -112,7 +119,13 @@ setup:
   - match: { datafeeds: [] }
 
 ---
-"Test get datafeed stats with expression that does not match and not allow_no_datafeeds":
+"Test get datafeed stats with expression that does not match and not allow_no_match":
+
+  - do:
+      catch: missing
+      ml.get_datafeed_stats:
+        datafeed_id: "missing-*"
+        allow_no_match: false
 
   - do:
       catch: missing

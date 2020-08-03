@@ -59,7 +59,10 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.END.getPreferredName())) {
                 request.setEnd(restRequest.param(Request.END.getPreferredName()));
             }
-            request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         }
 
         return channel -> client.execute(GetOverallBucketsAction.INSTANCE, request, new RestToXContentListener<>(channel));

@@ -42,8 +42,10 @@ public class RestGetJobStatsAction extends BaseRestHandler {
             jobId = Metadata.ALL;
         }
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-        request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
-                request.allowNoJobs()));
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                GetJobsStatsAction.Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

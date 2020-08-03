@@ -40,8 +40,10 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
             datafeedId = GetDatafeedsAction.ALL;
         }
         GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                request.allowNoDatafeeds()));
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                GetDatafeedsAction.Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(GetDatafeedsAction.Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

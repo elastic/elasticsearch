@@ -14,7 +14,14 @@
   - match: { jobs: [] }
 
 ---
-"Test get jobs with expression that does not match and allow_no_jobs":
+"Test get jobs with expression that does not match and allow_no_match":
+
+  - do:
+      ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { jobs: [] }
 
   - do:
       ml.get_jobs:
@@ -24,7 +31,13 @@
   - match: { jobs: [] }
 
 ---
-"Test get jobs with expression that does not match and not allow_no_jobs":
+"Test get jobs with expression that does not match and not allow_no_match":
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_match: false
 
   - do:
       catch: missing
@@ -849,7 +862,13 @@
   - match: { jobs.0.state: opened }
 
 ---
-"Test close jobs with expression that does not match and allow_no_jobs":
+"Test close jobs with expression that does not match and allow_no_match":
+
+  - do:
+      ml.close_job:
+        job_id: "missing-*"
+        allow_no_match: true
+  - match: { closed: true }
 
   - do:
       ml.close_job:
@@ -858,7 +877,13 @@
   - match: { closed: true }
 
 ---
-"Test close jobs with expression that does not match and not allow_no_jobs":
+"Test close jobs with expression that does not match and not allow_no_match":
+
+  - do:
+      catch: missing
+      ml.close_job:
+        job_id: "missing-*"
+        allow_no_match: false
 
   - do:
       catch: missing
@@ -1553,7 +1578,31 @@
 
 ---
 "Test close job with body params":
+  - skip:
+      features:
+       - "warnings"
+       - "allowed_warnings"
+
   - do:
+      catch: missing
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_match" : false
+          }
+
+  - do:
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_match" : true
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.close_job:
         job_id: job-that-doesnot-exist*
@@ -1563,6 +1612,8 @@
           }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.close_job:
         job_id: job-that-doesnot-exist*
         body:  >

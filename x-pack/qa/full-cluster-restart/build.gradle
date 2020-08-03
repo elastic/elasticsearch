@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -65,7 +65,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter(precommit)
     useCluster testClusters."${baseName}"
     dependsOn copyTestNodeKeyMaterial
@@ -79,7 +79,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter(precommit)
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"

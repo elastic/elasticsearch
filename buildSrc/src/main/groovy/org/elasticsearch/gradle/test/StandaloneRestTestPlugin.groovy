@@ -61,11 +61,12 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(TestClustersPlugin)
         project.pluginManager.apply(RepositoriesSetupPlugin)
+        project.pluginManager.apply(RestTestBasePlugin)
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
-        ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
         ElasticsearchJavaPlugin.configureCompile(project)
+
 
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
         project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion

@@ -1,7 +1,4 @@
 import org.elasticsearch.gradle.info.BuildParams
-
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'searchable-snapshots'

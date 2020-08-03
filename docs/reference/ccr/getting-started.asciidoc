@@ -303,11 +303,11 @@ replication
 
 [source,console]
 --------------------------------------------------
-POST /server-metrics-copy/_ccr/pause_follow
+POST /server-metrics-follower/_ccr/pause_follow
 
-POST /server-metrics-copy/_close
+POST /server-metrics-follower/_close
 
-POST /server-metrics-copy/_ccr/unfollow
+POST /server-metrics-follower/_ccr/unfollow
 --------------------------------------------------
 // TEST[continued]
 

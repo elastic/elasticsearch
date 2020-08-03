@@ -2,8 +2,12 @@
 [testenv="platinum"]
 [[ccr-getting-started]]
 === Configure {ccr}
+You configure {ccr} by manually creating specific follower indices or by automatically creating follower indices from auto-follow patterns. When you initiate replication, the follower index is created on the local cluster.
+After the follower index is created, the <<remote-recovery, remote recovery>>
+process copies all of the Lucene segment files from the remote cluster to the
+local cluster.
 
-Use this guide to configure {ccr}:
+Complete the following tasks to configure {ccr}:
 
 . <<ccr-getting-started-security,Configure security roles>>
 . <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
@@ -271,6 +275,10 @@ When you create a follower index, you must reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> and the
 <<ccr-getting-started-leader-index,leader index>> that you created in the
 remote cluster.
+
+When initiating the follower request, the response returns before the
+<<remote-recovery, remote recovery>> process completes. To wait for the process
+to complete, add the `wait_for_active_shards` parameter to your request.
 
 [source,console]
 --------------------------------------------------

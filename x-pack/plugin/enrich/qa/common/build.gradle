@@ -4,3 +4,17 @@ test.enabled = false
 dependencies {
   api project(':test:framework')
 }
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
+}
+
+def testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

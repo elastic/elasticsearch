@@ -506,14 +506,14 @@ The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
 
 * A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* An `agent.id` other than `8a4f526c`
 
 [source,console]
 ----
 GET /my-index-00001/_eql/search
 {
   "query": """
-    file where (file.name == "cmd.exe" and agent.id != "my_user")
+    file where (file.name == "cmd.exe" and agent.id != "8a4f526c")
   """
 }
 ----
@@ -616,7 +616,7 @@ that:
 --
 * An `event.category` of `file`
 * A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* An `agent.id` other than `8a4f526c`
 --
 . Followed by an event with:
 +
@@ -633,7 +633,7 @@ GET /my-index-00001/_eql/search
 {
   "query": """
     sequence by agent.id
-      [ file where file.name == "cmd.exe" and agent.id != "my_user" ]
+      [ file where file.name == "cmd.exe" and agent.id != "8a4f526c" ]
       [ process where stringContains(process.executable, "regsvr32") ]
   """
 }

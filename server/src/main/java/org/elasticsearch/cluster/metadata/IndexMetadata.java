@@ -345,7 +345,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    private static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_8_0_0;
+    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_8_0_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -820,7 +820,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.customMetadata.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
-            builder.system(isSystem);
+            builder.system(part.isSystem);
             return builder.build();
         }
     }

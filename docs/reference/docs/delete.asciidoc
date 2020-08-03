@@ -63,7 +63,7 @@ Example to delete with routing
 
 [source,console]
 --------------------------------------------------
-PUT /my-index-000001/_doc/1?routing=kimchy
+PUT /my-index-000001/_doc/1?routing=shard-1
 {
   "test": "test"
 }
@@ -73,7 +73,7 @@ PUT /my-index-000001/_doc/1?routing=kimchy
 
 [source,console]
 --------------------------------------------------
-DELETE /my-index-000001/_doc/1?routing=kimchy
+DELETE /my-index-000001/_doc/1?routing=shard-1
 --------------------------------------------------
 // TEST[continued]
 

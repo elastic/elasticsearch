@@ -31,7 +31,7 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index.search.slowlog.threshold.query.warn": "10s",
   "index.search.slowlog.threshold.query.info": "5s",
@@ -44,7 +44,7 @@ PUT /twitter/_settings
   "index.search.slowlog.level": "info"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default, none are enabled (set to `-1`). Levels (`warn`, `info`,
 `debug`, `trace`) allow to control under which logging level the log
@@ -141,7 +141,7 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index.indexing.slowlog.threshold.index.warn": "10s",
   "index.indexing.slowlog.threshold.index.info": "5s",
@@ -151,7 +151,7 @@ PUT /twitter/_settings
   "index.indexing.slowlog.source": "1000"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default Elasticsearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting

@@ -79,9 +79,13 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private void checkLicenseType(String type) throws Exception {
         assertBusy(() -> {
-            Map<String, Object> license = getAsMap("/_license");
-            assertThat(license, notNullValue());
-            assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+            try {
+                Map<String, Object> license = getAsMap("/_license");
+                assertThat(license, notNullValue());
+                assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
         });
     }
 

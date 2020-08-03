@@ -292,7 +292,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                org.elasticsearch.core.internal.io.Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
 
                     @SuppressForbidden(reason = "channel is based on a socket")
                     @Override
@@ -350,7 +350,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throws IOException {
         assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         final byte[] buffer = new byte[Math.toIntExact(blobSize)];
-        org.elasticsearch.common.io.Streams.readFully(inputStream, buffer);
+        Streams.readFully(inputStream, buffer);
         try {
             final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
                 new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :

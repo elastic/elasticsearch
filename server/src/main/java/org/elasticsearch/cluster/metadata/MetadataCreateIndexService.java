@@ -81,7 +81,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -186,23 +185,11 @@ public class MetadataCreateIndexService {
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
         boolean isSystem = false;
         if (index.charAt(0) == '.') {
-            Collection<SystemIndexDescriptor> matchingDescriptors = systemIndices.findMatchingDescriptors(index);
-            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
+            if (matchingDescriptor == null && (isHidden == null || isHidden == Boolean.FALSE)) {
                 deprecationLogger.deprecate("index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
-            } else if (matchingDescriptors.size() > 1) {
-                // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
-                StringBuilder errorMessage = new StringBuilder()
-                    .append("index name [")
-                    .append(index)
-                    .append("] is claimed as a system index by multiple system index patterns: [")
-                    .append(matchingDescriptors.stream()
-                        .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
-                            "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
-                // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
-                assert false : errorMessage.toString();
-                throw new IllegalStateException(errorMessage.toString());
             } else {
                 isSystem = true;
             }

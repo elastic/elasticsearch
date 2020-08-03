@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
@@ -37,12 +38,18 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
+/**
+ * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
+ * node knows about. Methods for determining if an index should be a system index are also provided
+ * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
+ */
 public class SystemIndices {
 
     private final CharacterRunAutomaton runAutomaton;
     private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap) {
+        checkForOverlappingPatterns(systemIndexDescriptorMap);
         this.systemIndexDescriptors = systemIndexDescriptorMap.values()
             .stream()
             .flatMap(Collection::stream)
@@ -50,14 +57,43 @@ public class SystemIndices {
         this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
     }
 
+    /**
+     * Determines whether a given index is a system index by comparing its name to the collection of loaded {@link SystemIndexDescriptor}s
+     * @param index the {@link Index} object to check against loaded {@link SystemIndexDescriptor}s
+     * @return true if the {@link Index}'s name matches a pattern from a {@link SystemIndexDescriptor}
+     */
     public boolean isSystemIndex(Index index) {
         return runAutomaton.run(index.getName());
     }
 
-    public Collection<SystemIndexDescriptor> findMatchingDescriptors(String name) {
-        return systemIndexDescriptors.stream()
+    /**
+     * Finds a single matching {@link SystemIndexDescriptor}, if any, for the given index name.
+     * @param name the name of the index
+     * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
+     * @throws IllegalStateException if multiple descriptors match the name
+     */
+    public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        final List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(toUnmodifiableList());
+
+        if (matchingDescriptors.isEmpty()) {
+            return null;
+        } else if (matchingDescriptors.size() == 1) {
+            return matchingDescriptors.get(0);
+        } else {
+            // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
+            StringBuilder errorMessage = new StringBuilder()
+                .append("index name [")
+                .append(name)
+                .append("] is claimed as a system index by multiple system index patterns: [")
+                .append(matchingDescriptors.stream()
+                    .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
+                        "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+            // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
+            assert false : errorMessage.toString();
+            throw new IllegalStateException(errorMessage.toString());
+        }
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
@@ -74,11 +110,11 @@ public class SystemIndices {
      * @param sourceToDescriptors A map of source (plugin) names to the SystemIndexDescriptors they provide.
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    public static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
+    static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
         List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
             .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toList());
+            .collect(Collectors.toUnmodifiableList());
 
         // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
         // automaton, but the absolute number of system index descriptors should be quite small (~10s at most), and the number of states
@@ -88,18 +124,13 @@ public class SystemIndices {
 
                 .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
                 .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toUnmodifiableList());
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                StringBuilder errorMessage = new StringBuilder();
-                errorMessage.append("a system index descriptor [")
-                    .append(descriptorToCheck.v2())
-                    .append("] from plugin [")
-                    .append(descriptorToCheck.v1())
-                    .append("] overlaps with other system index descriptors: [")
-                    .append(descriptorsMatchingThisPattern.stream()
+                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from plugin [" +
+                    descriptorToCheck.v1() + "] overlaps with other system index descriptors: [" +
+                    descriptorsMatchingThisPattern.stream()
                         .map(descriptor -> descriptor.v2() + " from plugin [" + descriptor.v1() + "]")
                         .collect(Collectors.joining(", ")));
-                throw new IllegalStateException(errorMessage.toString());
             }
         });
     }

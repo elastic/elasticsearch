@@ -21,13 +21,13 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class SystemIndicesTests extends ESTestCase {
@@ -45,7 +45,7 @@ public class SystemIndicesTests extends ESTestCase {
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
         descriptors.put(broadPatternSource, List.of(broadPattern));
-        descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
+        descriptors.put(otherSource, List.of(notOverlapping, overlapping1, overlapping2, overlapping3));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
@@ -56,6 +56,9 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
+
+        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testComplexOverlappingPatterns() {
@@ -68,8 +71,8 @@ public class SystemIndicesTests extends ESTestCase {
         String source1 = "AAA" + randomAlphaOfLength(5);
         String source2 = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
-        descriptors.put(source1, Arrays.asList(pattern1));
-        descriptors.put(source2, Arrays.asList(pattern2));
+        descriptors.put(source1, List.of(pattern1));
+        descriptors.put(source2, List.of(pattern2));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
@@ -77,5 +80,7 @@ public class SystemIndicesTests extends ESTestCase {
             "] from plugin [" + source1 + "] overlaps with other system index descriptors:"));
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from plugin [" + source2 + "]"));
 
+        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 }

@@ -104,7 +104,7 @@ settings update, and then re-opens itself. The follower index is unavailable
 for reads and cannot replicate writes during this cycle.
 
 [discrete]
-[[remote-recovery]]
+[[ccr-remote-recovery]]
 === Remote recovery process
 When you create a follower index, you cannot use it until it is fully
 initialized. The _remote recovery_ process builds a new copy of a shard on a
@@ -134,7 +134,7 @@ infrastructure, running remote recoveries are labelled as type
 `snapshot` in the recovery API.
 
 [discrete]
-[[ccr-requirements]]
+[[ccr-leader-requirements]]
 === Requirements for leader indices
 {ccr-cap} works by replaying the history of individual write
 operations that were performed on the shards of the leader index. This means

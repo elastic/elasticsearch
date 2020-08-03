@@ -47,7 +47,7 @@ Elasticsearch attempts to mitigate this potential issue for update workflows usi
 a Lucene feature called soft deletes. When a document is updated or deleted, the
 underlying operation is retained in the Lucene index for a period of time. This
 period of time is governed by the `index.soft_deletes.retention_lease.period`
-setting which can be <<ccr-requirements,configured on the leader index>>.
+setting which can be <<ccr-leader-requirements,configured on the leader index>>.
 
 When a follower initiates the index following, it acquires a retention lease from
 the leader. This informs the leader that it should not allow a soft delete to be
@@ -82,6 +82,6 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 
 Re-creating the follower index is a destructive action. All of the existing Lucene
 segment files are deleted on the follower cluster. The
-<<remote-recovery, remote recovery>> process copies the Lucene segment
+<<ccr-remote-recovery, remote recovery>> process copies the Lucene segment
 files from the leader again. After the follower index initializes, the
 following process starts again.

@@ -46,12 +46,14 @@ public class GeoTileGroupSource extends SingleGroupSource {
     private static ConstructingObjectParser<GeoTileGroupSource, Void> createParser(boolean lenient) {
         ConstructingObjectParser<GeoTileGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
-            Integer precision = (Integer) args[1];
-            GeoBoundingBox boundingBox = (GeoBoundingBox) args[2];
+            boolean missingBucket = args[1] == null ? false : (boolean) args[1];
+            Integer precision = (Integer) args[2];
+            GeoBoundingBox boundingBox = (GeoBoundingBox) args[3];
 
-            return new GeoTileGroupSource(field, precision, boundingBox);
+            return new GeoTileGroupSource(field, missingBucket, precision, boundingBox);
         });
         parser.declareString(optionalConstructorArg(), FIELD);
+        parser.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
         parser.declareInt(optionalConstructorArg(), PRECISION);
         parser.declareField(
             optionalConstructorArg(),
@@ -65,8 +67,8 @@ public class GeoTileGroupSource extends SingleGroupSource {
     private final Integer precision;
     private final GeoBoundingBox geoBoundingBox;
 
-    public GeoTileGroupSource(final String field, final Integer precision, final GeoBoundingBox boundingBox) {
-        super(field, null);
+    public GeoTileGroupSource(final String field, final boolean missingBucket, final Integer precision, final GeoBoundingBox boundingBox) {
+        super(field, null, missingBucket);
         if (precision != null) {
             GeoTileUtils.checkPrecisionRange(precision);
         }
@@ -135,14 +137,15 @@ public class GeoTileGroupSource extends SingleGroupSource {
 
         final GeoTileGroupSource that = (GeoTileGroupSource) other;
 
-        return Objects.equals(this.field, that.field)
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
             && Objects.equals(this.precision, that.precision)
             && Objects.equals(this.geoBoundingBox, that.geoBoundingBox);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, precision, geoBoundingBox);
+        return Objects.hash(field, missingBucket, precision, geoBoundingBox);
     }
 
     @Override

@@ -134,7 +134,7 @@ can specify the following email account attributes:
   Set to `true` to enable the use of the `STARTTLS`
   command (if supported by the server) to switch the connection to a
   TLS-protected connection before issuing any login commands. Note that
-  an appropriate trust store must configured so that the client will
+  an appropriate trust store must be configured so that the client will
   trust the server's certificate. Defaults to `false`.
 
   `smtp.starttls.required` (<<cluster-update-settings,Dynamic>>);;

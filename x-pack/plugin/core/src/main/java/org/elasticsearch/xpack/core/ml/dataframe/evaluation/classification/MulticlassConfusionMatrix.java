@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -103,11 +102,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     public MulticlassConfusionMatrix(StreamInput in) throws IOException {
         this.size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            this.aggNamePrefix = in.readString();
-        } else {
-            this.aggNamePrefix = DEFAULT_AGG_NAME_PREFIX;
-        }
+        this.aggNamePrefix = in.readString();
     }
 
     @Override
@@ -216,9 +211,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeString(aggNamePrefix);
-        }
+        out.writeString(aggNamePrefix);
     }
 
     @Override

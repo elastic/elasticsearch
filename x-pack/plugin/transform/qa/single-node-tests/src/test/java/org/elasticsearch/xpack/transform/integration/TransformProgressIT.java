@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransformProgressIT extends ESRestTestCase {
-    protected void createReviewsIndex() throws Exception {
+    protected void createReviewsIndex(int userWithMissingBuckets) throws Exception {
         final int numDocs = 1000;
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
 
@@ -98,12 +98,14 @@ public class TransformProgressIT extends ESRestTestCase {
             String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
 
             StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(user)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
+            sourceBuilder.append("{");
+            sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
+
+            if (user != userWithMissingBuckets) {
+                sourceBuilder.append("\"count\":").append(i).append(",");
+            }
+
+            sourceBuilder.append("\"business_id\":\"")
                 .append("business_")
                 .append(business)
                 .append("\",\"stars\":")
@@ -120,18 +122,28 @@ public class TransformProgressIT extends ESRestTestCase {
                 day += 1;
             }
         }
-        restClient.bulk(bulk, RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = restClient.bulk(bulk, RequestOptions.DEFAULT);
+        assertFalse(bulkResponse.hasFailures());
         restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
     }
 
     public void testGetProgress() throws Exception {
+        assertGetProgress(-1);
+    }
+
+    public void testGetProgressMissingBucket() throws Exception {
+        assertGetProgress(randomIntBetween(1, 25));
+    }
+
+    public void assertGetProgress(int userWithMissingBuckets) throws Exception {
         String transformId = "get_progress_transform";
-        createReviewsIndex();
+        boolean missingBucket = userWithMissingBuckets > 0;
+        createReviewsIndex(userWithMissingBuckets);
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
         DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("count", null, 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("count", null, missingBucket, 50.0))
         );
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
@@ -147,6 +159,12 @@ public class TransformProgressIT extends ESRestTestCase {
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
+        progress = getProgress(pivot, getProgressQuery(pivot, config.getSource().getIndex(), QueryBuilders.rangeQuery("stars").gte(2)));
+
+        assertThat(progress.getTotalDocs(), equalTo(600L));
+        assertThat(progress.getDocumentsProcessed(), equalTo(0L));
+        assertThat(progress.getPercentComplete(), equalTo(0.0));
+
         progress = getProgress(
             pivot,
             getProgressQuery(pivot, config.getSource().getIndex(), QueryBuilders.termQuery("user_id", "user_26"))
@@ -158,7 +176,7 @@ public class TransformProgressIT extends ESRestTestCase {
 
         histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, missingBucket, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         pivot = new Pivot(pivotConfig, transformId);
@@ -168,9 +186,14 @@ public class TransformProgressIT extends ESRestTestCase {
             getProgressQuery(pivot, config.getSource().getIndex(), QueryBuilders.termQuery("user_id", "user_26"))
         );
 
-        assertThat(progress.getTotalDocs(), equalTo(0L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
-        assertThat(progress.getPercentComplete(), equalTo(100.0));
+        if (missingBucket) {
+            assertThat(progress.getTotalDocs(), equalTo(35L));
+            assertThat(progress.getPercentComplete(), equalTo(0.0));
+        } else {
+            assertThat(progress.getTotalDocs(), equalTo(0L));
+            assertThat(progress.getPercentComplete(), equalTo(100.0));
+        }
 
         deleteIndex(REVIEWS_INDEX_NAME);
     }
@@ -192,10 +215,7 @@ public class TransformProgressIT extends ESRestTestCase {
 
             function.getInitialProgressFromResponse(
                 response,
-                new LatchedActionListener<>(
-                    ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }),
-                    latch
-                )
+                new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }), latch)
             );
         }
 

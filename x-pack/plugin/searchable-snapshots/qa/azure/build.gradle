@@ -101,7 +101,7 @@ testClusters.integTest {
   }
 }
 
-task azureThirdPartyTest {
-  dependsOn integTest
+tasks.register("azureThirdPartyTest") {
+  dependsOn "integTest"
 }
 

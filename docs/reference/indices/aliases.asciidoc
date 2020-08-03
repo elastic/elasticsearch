@@ -13,11 +13,11 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 POST /_aliases
 {
   "actions" : [
-    { "add" : { "index" : "twitter", "alias" : "alias1" } }
+    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
   ]
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[indices-aliases-api-request]]
@@ -325,7 +325,7 @@ POST /_aliases
       "add": {
         "index": "test1",
         "alias": "alias2",
-        "filter": { "term": { "user": "kimchy" } }
+        "filter": { "term": { "user.id": "kimchy" } }
       }
     }
   ]
@@ -392,7 +392,7 @@ routing value:
 
 [source,console]
 --------------------------------------------------
-GET /alias2/_search?q=user:kimchy&routing=2,3
+GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 

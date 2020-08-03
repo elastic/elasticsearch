@@ -55,5 +55,5 @@ task integTestSecurity(type: RestTestRunnerTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
   }
 }
-check.dependsOn(integTestSecurity)
+tasks.named("check").configure { dependsOn(integTestSecurity) }
 

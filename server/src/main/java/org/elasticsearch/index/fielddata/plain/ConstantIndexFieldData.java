@@ -147,10 +147,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public void clear() {
-    }
-
-    @Override
     public final LeafOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }
@@ -180,7 +176,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return loadGlobal(indexReader);
     }
 

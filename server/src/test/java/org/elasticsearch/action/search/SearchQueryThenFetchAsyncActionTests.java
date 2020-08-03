@@ -57,15 +57,15 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
-    public void testBottomFieldSort() throws InterruptedException {
+    public void testBottomFieldSort() throws Exception {
         testCase(false);
     }
 
-    public void testScrollDisableBottomFieldSort() throws InterruptedException {
+    public void testScrollDisableBottomFieldSort() throws Exception {
         testCase(true);
     }
 
-    private void testCase(boolean withScroll) throws InterruptedException {
+    private void testCase(boolean withScroll) throws Exception {
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
@@ -131,7 +131,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
             null, shardsIter, timeProvider, null, task,
-            SearchResponse.Clusters.EMPTY) {
+            SearchResponse.Clusters.EMPTY, exc -> {}) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {

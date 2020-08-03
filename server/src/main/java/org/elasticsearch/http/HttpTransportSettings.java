@@ -114,9 +114,9 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_IDLE =
-        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, Setting.Property.NodeScope);
+        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, 300, Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_INTERVAL =
-        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope);
+        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, 300, Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_COUNT =
         intSetting("http.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =

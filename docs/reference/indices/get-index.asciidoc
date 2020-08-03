@@ -9,9 +9,9 @@ returns information about the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /twitter
+GET /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[get-index-api-request]]
 ==== {api-request-title}

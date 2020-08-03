@@ -2,10 +2,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
-dependencies {
-  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
-}
-
 File repoDir = file("$buildDir/testclusters/repo")
 
 javaRestTest {

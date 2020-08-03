@@ -7,10 +7,6 @@ restResources {
   }
 }
 
-dependencies {
-  yamlRestTestImplementation project(path: xpackModule('data-streams'))
-}
-
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'

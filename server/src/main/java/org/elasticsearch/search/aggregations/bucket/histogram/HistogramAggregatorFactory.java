@@ -47,7 +47,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final double minBound, maxBound;
+    private final DoubleBounds extendedBounds;
     private final DoubleBounds hardBounds;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -66,8 +66,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         BucketOrder order,
                                         boolean keyed,
                                         long minDocCount,
-                                        double minBound,
-                                        double maxBound,
+                                        DoubleBounds extendedBounds,
                                         DoubleBounds hardBounds,
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
@@ -79,8 +78,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
     }
 
@@ -100,7 +98,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 aggregatorSupplier.getClass().toString() + "]");
         }
         HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
-        return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
             hardBounds, config, searchContext, parent, cardinality, metadata);
     }
 
@@ -108,7 +106,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
             hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

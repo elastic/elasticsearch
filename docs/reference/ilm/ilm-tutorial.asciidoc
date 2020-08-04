@@ -294,7 +294,7 @@ as expected.
 
 [discrete]
 [[ilm-gs-alias-apply-policy]]
-=== Create a legacy index template to apply the lifecycle policy
+=== Create an index template to apply the lifecycle policy
 
 To automatically apply a lifecycle policy to the new write index on rollover,
 specify the policy in the index template used to create new indices.
@@ -310,24 +310,26 @@ that match the index pattern.
 when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. To access the
-wizard, open the menu, go to *Stack Management > Index Management*, and click
-the *Index Templates* tab.
+wizard, open the menu and go to *Stack Management > Index Management*. In the
+the *Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
-image:images/ilm/create-template-wizard.png[]
+image:images/ilm/create-template-wizard.png[Create template page]
 
 The create template request for the example template looks like this:
 
 [source,console]
 -----------------------
-PUT _template/timeseries_template
+PUT _index_template/timeseries_template
 {
   "index_patterns": ["timeseries-*"],                 <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "timeseries_policy",      <2>
-    "index.lifecycle.rollover_alias": "timeseries"    <3>
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "timeseries_policy",      <2>
+      "index.lifecycle.rollover_alias": "timeseries"    <3>
+    }
   }
 }
 -----------------------
@@ -342,7 +344,7 @@ Required for policies that use the rollover action.
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/timeseries_template
+DELETE _index_template/timeseries_template
 --------------------------------------------------
 // TEST[continued]
 

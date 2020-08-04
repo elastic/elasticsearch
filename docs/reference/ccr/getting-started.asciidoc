@@ -334,6 +334,7 @@ With an auto-follow pattern, you reference the
 local cluster. You must also specify a collection of patterns that match the
 indices you want to automatically follow.
 
+// tag::ccr-create-auto-follow-pattern-tag[]
 Create follower indices from an {kibana-ref}/managing-cross-cluster-replication.html#_create_follower_indices_from_an_auto_follow_pattern[auto-follow pattern]:
 
 . Open a browser to access {kib} on your _remote_ cluster.
@@ -356,6 +357,7 @@ Create follower indices from an {kibana-ref}/managing-cross-cluster-replication.
 
 [role="screenshot"]
 image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
+// end::ccr-create-auto-follow-pattern-tag[]
 
 [%collapsible]
 .Use the API

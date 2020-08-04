@@ -29,7 +29,7 @@ replication progress, pausing and resuming replication, recreating a follower
 index, and terminating replication.
 
 [[ccr-inspect-progress]]
-==== Inspecting replication progress
+==== Inspect replication statistics
 You can inspect the progress of replication for a follower index and view
 
 . Open a browser to access {kib} on your _local_ cluster.
@@ -55,7 +55,7 @@ retried and fatal exceptions that require user intervention.
 ====
 
 [[ccr-pause-replication]]
-==== Pausing and resuming replication
+==== Pause and resume replication
 Pause and resume replication of follower indices. When resuming, you can choose
 to modify advanced settings.
 
@@ -83,7 +83,7 @@ your use case.
 ====
 
 [[ccr-recreate-follower-index]]
-==== Recreating a follower index
+==== Recreate a follower index
 When a document is updated or deleted, the underlying operation is retained in
 the Lucene index for a period of time defined by the
 <<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>> parameter. You configure
@@ -140,7 +140,7 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 ====
 
 [[ccr-terminate-replication]]
-==== Terminating replication
+==== Terminate replication
 Unfollow a leader index to terminate replication and convert the follower index
 to a standard index.
 

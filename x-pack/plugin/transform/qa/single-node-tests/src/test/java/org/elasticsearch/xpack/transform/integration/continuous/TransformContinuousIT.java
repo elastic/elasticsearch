@@ -104,6 +104,24 @@ public class TransformContinuousIT extends ESRestTestCase {
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 
     @Before
+    public void setClusterSettings() throws IOException {
+        // Make sure we never retry on failure to speed up the test
+        // Set logging level to trace
+        // see: https://github.com/elastic/elasticsearch/issues/45562
+        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
+        addFailureRetrySetting.setJsonEntity(
+            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+                + 0
+                + "\","
+                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
+                + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
+        );
+        client().performRequest(addFailureRetrySetting);
+    }
+
+    @Before
     public void registerTestCases() {
         addTestCaseIfNotDisabled(new TermsGroupByIT());
         addTestCaseIfNotDisabled(new DataHistogramGroupByIT());
@@ -300,6 +318,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject();
             }
             builder.endObject();
+            String indexSettingsAndMappings = Strings.toString(builder);
+            logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
                 createCompositeTemplate.setJsonEntity(
@@ -310,13 +330,13 @@ public class TransformContinuousIT extends ESRestTestCase {
                         + "  \"data_stream\": {\n"
                         + "  },\n"
                         + "  \"template\": \n"
-                        + Strings.toString(builder)
+                        + indexSettingsAndMappings
                         + "}"
                 );
                 client().performRequest(createCompositeTemplate);
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {
-                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+                final StringEntity entity = new StringEntity(indexSettingsAndMappings, ContentType.APPLICATION_JSON);
                 Request req = new Request("PUT", indexName);
                 req.setEntity(entity);
                 client().performRequest(req);

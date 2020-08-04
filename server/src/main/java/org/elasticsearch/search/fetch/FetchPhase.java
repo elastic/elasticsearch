@@ -286,19 +286,33 @@ public class FetchPhase implements SearchPhase {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
-        final Uid uid;
-        final BytesReference source;
-        final boolean needSource = context.sourceRequested() || context.highlight() != null;
-        if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
+        boolean needSource = context.sourceRequested() || context.highlight() != null;
+
+        Uid rootId;
+        Map<String, Object> rootSourceAsMap = null;
+        XContentType rootSourceContentType = null;
+
+        if (context instanceof InnerHitsContext.InnerHitSubContext) {
+            InnerHitsContext.InnerHitSubContext innerHitsContext = (InnerHitsContext.InnerHitSubContext) context;
+            rootId = innerHitsContext.getRootId();
+
+            if (needSource) {
+                SourceLookup rootLookup = innerHitsContext.getRootLookup();
+                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
+                rootSourceContentType = rootLookup.sourceContentType();
+            }
+        } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
-            uid = rootFieldsVisitor.uid();
-            source = rootFieldsVisitor.source();
-        } else {
-            // In case of nested inner hits we already know the uid, so no need to fetch it from stored fields again!
-            uid = ((InnerHitsContext.InnerHitSubContext) context).getUid();
-            source = null;
+            rootId = rootFieldsVisitor.uid();
+
+            if (needSource) {
+                BytesReference rootSource = rootFieldsVisitor.source();
+                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootSource, false);
+                rootSourceAsMap = tuple.v2();
+                rootSourceContentType = tuple.v1();
+            }
         }
 
         Map<String, DocumentField> docFields = emptyMap();
@@ -322,14 +336,10 @@ public class FetchPhase implements SearchPhase {
         SearchHit.NestedIdentity nestedIdentity =
                 getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
-        SearchHit hit = new SearchHit(nestedTopDocId, uid.id(), typeText, nestedIdentity, docFields, metaFields);
+        SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), typeText, nestedIdentity, docFields, metaFields);
         hitContext.reset(hit, subReaderContext, nestedSubDocId, context.searcher());
 
-        if (source != null) {
-            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
-            XContentType contentType = tuple.v1();
-            Map<String, Object> sourceAsMap = tuple.v2();
-
+        if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
             // features like source filtering and highlighting work consistent regardless of whether the field points
@@ -339,7 +349,7 @@ public class FetchPhase implements SearchPhase {
             for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
-                Object extractedValue = XContentMapValues.extractValue(nestedPath, sourceAsMap);
+                Object extractedValue = XContentMapValues.extractValue(nestedPath, rootSourceAsMap);
                 List<?> nestedParsedSource;
                 if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
@@ -361,9 +371,9 @@ public class FetchPhase implements SearchPhase {
                     throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
                         nestedObjectMapper.name() + "] are not nested. All parent fields need to be nested fields too");
                 }
-                sourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
+                rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {
-                    current.put(nestedPath, sourceAsMap);
+                    current.put(nestedPath, rootSourceAsMap);
                 } else {
                     Map<String, Object> next = new HashMap<>();
                     current.put(nestedPath, next);
@@ -372,7 +382,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             hitContext.sourceLookup().setSource(nestedSourceAsMap);
-            hitContext.sourceLookup().setSourceContentType(contentType);
+            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
         }
 
     }

@@ -644,6 +644,17 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
+
+        // Check that inner hits contain _source even when it's disabled on the root request.
+        response = client().prepareSearch()
+            .setFetchSource(false)
+            .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
+                .innerHit(new InnerHitBuilder()))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+        assertFalse(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().isEmpty());
     }
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {

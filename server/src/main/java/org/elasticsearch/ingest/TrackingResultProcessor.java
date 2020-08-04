@@ -36,7 +36,6 @@ public final class TrackingResultProcessor implements Processor {
     private final ConditionalProcessor conditionalProcessor;
     private final List<SimulateProcessorResult> processorResultList;
     private final boolean ignoreFailure;
-    private Tuple<String, Boolean> conditionalWithResult = null; //null = no conditional
 
     TrackingResultProcessor(boolean ignoreFailure, Processor actualProcessor, ConditionalProcessor conditionalProcessor,
                             List<SimulateProcessorResult> processorResultList) {
@@ -48,16 +47,19 @@ public final class TrackingResultProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (conditionalProcessor != null ) {
+        Tuple<String, Boolean> conditionalWithResult;
+        if (conditionalProcessor != null) {
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
                 conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.FALSE);
                 processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
                     actualProcessor.getDescription(), conditionalWithResult));
                 handler.accept(ingestDocument, null);
                 return;
-            } else{
+            } else {
                 conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.TRUE);
             }
+        } else {
+            conditionalWithResult = null; //no condition
         }
 
         if (actualProcessor instanceof PipelineProcessor) {

@@ -30,15 +30,15 @@ Any `_search` request can be profiled by adding a top-level `profile` parameter:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "profile": true,<1>
   "query" : {
-    "match" : { "message" : "some number" }
+    "match" : { "message" : "GET /search" }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> Setting the top-level `profile` parameter to `true` will enable profiling
 for the search.
@@ -49,127 +49,127 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   "took": 25,
-   "timed_out": false,
-   "_shards": {
-      "total": 1,
-      "successful": 1,
-      "skipped" : 0,
-      "failed": 0
-   },
-   "hits": {
-      "total" : {
-          "value": 4,
-          "relation": "eq"
-      },
-      "max_score": 0.5093388,
-      "hits": [...] <1>
-   },
-   "profile": {
-     "shards": [
-        {
-           "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",
-           "searches": [
+  "took": 25,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 5,
+      "relation": "eq"
+    },
+    "max_score": 0.17402273,
+    "hits": [...] <1>
+  },
+  "profile": {
+    "shards": [
+      {
+        "id": "[2aE02wS1R8q_QFnYu6vDVQ][my-index-000001][0]",
+        "searches": [
+          {
+            "query": [
               {
-                 "query": [
-                    {
-                       "type": "BooleanQuery",
-                       "description": "message:some message:number",
-                       "time_in_nanos": "1873811",
-                       "breakdown": {
-                          "score": 51306,
-                          "score_count": 4,
-                          "build_scorer": 2935582,
-                          "build_scorer_count": 1,
-                          "match": 0,
-                          "match_count": 0,
-                          "create_weight": 919297,
-                          "create_weight_count": 1,
-                          "next_doc": 53876,
-                          "next_doc_count": 5,
-                          "advance": 0,
-                          "advance_count": 0,
-                          "compute_max_score": 0,
-                          "compute_max_score_count": 0,
-                          "shallow_advance": 0,
-                          "shallow_advance_count": 0,
-                          "set_min_competitive_score": 0,
-                          "set_min_competitive_score_count": 0
-                       },
-                       "children": [
-                          {
-                             "type": "TermQuery",
-                             "description": "message:some",
-                             "time_in_nanos": "391943",
-                             "breakdown": {
-                                "score": 28776,
-                                "score_count": 4,
-                                "build_scorer": 784451,
-                                "build_scorer_count": 1,
-                                "match": 0,
-                                "match_count": 0,
-                                "create_weight": 1669564,
-                                "create_weight_count": 1,
-                                "next_doc": 10111,
-                                "next_doc_count": 5,
-                                "advance": 0,
-                                "advance_count": 0,
-                                "compute_max_score": 0,
-                                "compute_max_score_count": 0,
-                                "shallow_advance": 0,
-                                "shallow_advance_count": 0,
-                                "set_min_competitive_score": 0,
-                                "set_min_competitive_score_count": 0
-                             }
-                          },
-                          {
-                             "type": "TermQuery",
-                             "description": "message:number",
-                             "time_in_nanos": "210682",
-                             "breakdown": {
-                                "score": 4552,
-                                "score_count": 4,
-                                "build_scorer": 42602,
-                                "build_scorer_count": 1,
-                                "match": 0,
-                                "match_count": 0,
-                                "create_weight": 89323,
-                                "create_weight_count": 1,
-                                "next_doc": 2852,
-                                "next_doc_count": 5,
-                                "advance": 0,
-                                "advance_count": 0,
-                                "compute_max_score": 0,
-                                "compute_max_score_count": 0,
-                                "shallow_advance": 0,
-                                "shallow_advance_count": 0,
-                                "set_min_competitive_score": 0,
-                                "set_min_competitive_score_count": 0
-                             }
-                          }
-                       ]
+                "type": "BooleanQuery",
+                "description": "message:get
+                message:search", "time_in_nanos" : 11972972, "breakdown" :
+                {
+                  "set_min_competitive_score_count": 0,
+                  "match_count": 5,
+                  "shallow_advance_count": 0,
+                  "set_min_competitive_score": 0,
+                  "next_doc": 39022,
+                  "match": 4456,
+                  "next_doc_count": 5,
+                  "score_count": 5,
+                  "compute_max_score_count": 0,
+                  "compute_max_score": 0,
+                  "advance": 84525,
+                  "advance_count": 1,
+                  "score": 37779,
+                  "build_scorer_count": 2,
+                  "create_weight": 4694895,
+                  "shallow_advance": 0,
+                  "create_weight_count": 1,
+                  "build_scorer": 7112295
+                },
+                "children": [
+                  {
+                    "type": "TermQuery",
+                    "description": "message:get",
+                    "time_in_nanos": 3801935,
+                    "breakdown": {
+                      "set_min_competitive_score_count": 0,
+                      "match_count": 0,
+                      "shallow_advance_count": 3,
+                      "set_min_competitive_score": 0,
+                      "next_doc": 0,
+                      "match": 0,
+                      "next_doc_count": 0,
+                      "score_count": 5,
+                      "compute_max_score_count": 3,
+                      "compute_max_score": 32487,
+                      "advance": 5749,
+                      "advance_count": 6,
+                      "score": 16219,
+                      "build_scorer_count": 3,
+                      "create_weight": 2382719,
+                      "shallow_advance": 9754,
+                      "create_weight_count": 1,
+                      "build_scorer": 1355007
                     }
-                 ],
-                 "rewrite_time": 51443,
-                 "collector": [
-                    {
-                       "name": "SimpleTopScoreDocCollector",
-                       "reason": "search_top_hits",
-                       "time_in_nanos": "32273"
+                  },
+                  {
+                    "type": "TermQuery",
+                    "description": "message:search",
+                    "time_in_nanos": 205654,
+                    "breakdown": {
+                      "set_min_competitive_score_count": 0,
+                      "match_count": 0,
+                      "shallow_advance_count": 3,
+                      "set_min_competitive_score": 0,
+                      "next_doc": 0,
+                      "match": 0,
+                      "next_doc_count": 0,
+                      "score_count": 5,
+                      "compute_max_score_count": 3,
+                      "compute_max_score": 6678,
+                      "advance": 12733,
+                      "advance_count": 6,
+                      "score": 6627,
+                      "build_scorer_count": 3,
+                      "create_weight": 130951,
+                      "shallow_advance": 2512,
+                      "create_weight_count": 1,
+                      "build_scorer": 46153
                     }
-                 ]
+                  }
+                ]
               }
-           ],
-           "aggregations": []
-        }
-     ]
-   }
+            ],
+            "rewrite_time": 451233,
+            "collector": [
+              {
+                "name": "SimpleTopScoreDocCollector",
+                "reason": "search_top_hits",
+                "time_in_nanos": 775274
+              }
+            ]
+          }
+        ],
+        "aggregations": []
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[my-index-000001\]\[0\]/$body.$_path/]
 
 <1> Search results are returned, but were omitted here for brevity.
 
@@ -185,7 +185,7 @@ The overall structure of the profile response is as follows:
    "profile": {
         "shards": [
            {
-              "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",  <1>
+              "id": "[2aE02wS1R8q_QFnYu6vDVQ][my-index-000001][0]",  <1>
               "searches": [
                  {
                     "query": [...],             <2>
@@ -201,7 +201,7 @@ The overall structure of the profile response is as follows:
 --------------------------------------------------
 // TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[my-index-000001\]\[0\]/$body.$_path/]
 // TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
 // TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
@@ -271,20 +271,20 @@ Using our previous `match` query example, let's analyze the `query` section:
 "query": [
     {
        "type": "BooleanQuery",
-       "description": "message:some message:number",
-       "time_in_nanos": "1873811",
+       "description": "message:get message:search",
+       "time_in_nanos": "11972972",
        "breakdown": {...},               <1>
        "children": [
           {
              "type": "TermQuery",
-             "description": "message:some",
-             "time_in_nanos": "391943",
+             "description": "message:get",
+             "time_in_nanos": "3801935",
              "breakdown": {...}
           },
           {
              "type": "TermQuery",
-             "description": "message:number",
-             "time_in_nanos": "210682",
+             "description": "message:search",
+             "time_in_nanos": "205654",
              "breakdown": {...}
           }
        ]
@@ -323,27 +323,27 @@ Lucene execution:
 [source,console-result]
 --------------------------------------------------
 "breakdown": {
-   "score": 51306,
-   "score_count": 4,
-   "build_scorer": 2935582,
-   "build_scorer_count": 1,
-   "match": 0,
-   "match_count": 0,
-   "create_weight": 919297,
-   "create_weight_count": 1,
-   "next_doc": 53876,
-   "next_doc_count": 5,
-   "advance": 0,
-   "advance_count": 0,
-   "compute_max_score": 0,
-   "compute_max_score_count": 0,
-   "shallow_advance": 0,
-   "shallow_advance_count": 0,
-   "set_min_competitive_score": 0,
-   "set_min_competitive_score_count": 0
+  "set_min_competitive_score_count": 0,
+  "match_count": 5,
+  "shallow_advance_count": 0,
+  "set_min_competitive_score": 0,
+  "next_doc": 39022,
+  "match": 4456,
+  "next_doc_count": 5,
+  "score_count": 5,
+  "compute_max_score_count": 0,
+  "compute_max_score": 0,
+  "advance": 84525,
+  "advance_count": 1,
+  "score": 37779,
+  "build_scorer_count": 2,
+  "create_weight": 4694895,
+  "shallow_advance": 0,
+  "create_weight_count": 1,
+  "build_scorer": 7112295
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
 // TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -437,11 +437,11 @@ Looking at the previous example:
 [source,console-result]
 --------------------------------------------------
 "collector": [
-   {
-      "name": "SimpleTopScoreDocCollector",
-      "reason": "search_top_hits",
-      "time_in_nanos": "32273"
-   }
+  {
+    "name": "SimpleTopScoreDocCollector",
+    "reason": "search_top_hits",
+    "time_in_nanos": 775274
+  }
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
@@ -531,20 +531,20 @@ profile the following query:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "profile": true,
   "query": {
     "term": {
-      "user": {
-        "value": "test"
+      "user.id": {
+        "value": "elkbee"
       }
     }
   },
   "aggs": {
     "my_scoped_agg": {
       "terms": {
-        "field": "likes"
+        "field": "http.response.status_code"
       }
     },
     "my_global_agg": {
@@ -552,7 +552,7 @@ GET /twitter/_search
       "aggs": {
         "my_level_agg": {
           "terms": {
-            "field": "likes"
+            "field": "http.response.status_code"
           }
         }
       }
@@ -560,13 +560,14 @@ GET /twitter/_search
   },
   "post_filter": {
     "match": {
-      "message": "some"
+      "message": "search"
     }
   }
 }
 --------------------------------------------------
+// TEST[setup:my_index]
 // TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
-// TEST[continued]
+
 
 This example has:
 
@@ -581,112 +582,112 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   ...
-   "profile": {
-         "shards": [
-            {
-               "id": "[P6-vulHtQRWuD4YnubWb7A][test][0]",
-               "searches": [
+  ...
+  "profile": {
+    "shards": [
+      {
+        "id": "[P6-vulHtQRWuD4YnubWb7A][my-index-000001][0]",
+        "searches": [
+          {
+            "query": [
+              {
+                "type": "TermQuery",
+                "description": "message:search",
+                "time_in_nanos": 141618,
+                "breakdown": {
+                  "set_min_competitive_score_count": 0,
+                  "match_count": 0,
+                  "shallow_advance_count": 0,
+                  "set_min_competitive_score": 0,
+                  "next_doc": 0,
+                  "match": 0,
+                  "next_doc_count": 0,
+                  "score_count": 0,
+                  "compute_max_score_count": 0,
+                  "compute_max_score": 0,
+                  "advance": 3942,
+                  "advance_count": 4,
+                  "score": 0,
+                  "build_scorer_count": 2,
+                  "create_weight": 38380,
+                  "shallow_advance": 0,
+                  "create_weight_count": 1,
+                  "build_scorer": 99296
+                }
+              },
+              {
+                "type": "TermQuery",
+                "description": "user.id:elkbee",
+                "time_in_nanos": 163081,
+                "breakdown": {
+                  "set_min_competitive_score_count": 0,
+                  "match_count": 0,
+                  "shallow_advance_count": 0,
+                  "set_min_competitive_score": 0,
+                  "next_doc": 2447,
+                  "match": 0,
+                  "next_doc_count": 4,
+                  "score_count": 4,
+                  "compute_max_score_count": 0,
+                  "compute_max_score": 0,
+                  "advance": 3552,
+                  "advance_count": 1,
+                  "score": 5027,
+                  "build_scorer_count": 2,
+                  "create_weight": 107840,
+                  "shallow_advance": 0,
+                  "create_weight_count": 1,
+                  "build_scorer": 44215
+                }
+              }
+            ],
+            "rewrite_time": 4769,
+            "collector": [
+              {
+                "name": "MultiCollector",
+                "reason": "search_multi",
+                "time_in_nanos": 1945072,
+                "children": [
                   {
-                     "query": [
-                        {
-                           "type": "TermQuery",
-                           "description": "message:some",
-                           "time_in_nanos": "409456",
-                           "breakdown": {
-                              "score": 0,
-                              "build_scorer_count": 1,
-                              "match_count": 0,
-                              "create_weight": 31584,
-                              "next_doc": 0,
-                              "match": 0,
-                              "create_weight_count": 1,
-                              "next_doc_count": 2,
-                              "score_count": 1,
-                              "build_scorer": 377872,
-                              "advance": 0,
-                              "advance_count": 0,
-                              "compute_max_score": 0,
-                              "compute_max_score_count": 0,
-                              "shallow_advance": 0,
-                              "shallow_advance_count": 0,
-                              "set_min_competitive_score": 0,
-                              "set_min_competitive_score_count": 0
-                           }
-                        },
-                        {
-                           "type": "TermQuery",
-                           "description": "user:test",
-                           "time_in_nanos": "303702",
-                           "breakdown": {
-                              "score": 0,
-                              "build_scorer_count": 1,
-                              "match_count": 0,
-                              "create_weight": 185215,
-                              "next_doc": 5936,
-                              "match": 0,
-                              "create_weight_count": 1,
-                              "next_doc_count": 2,
-                              "score_count": 1,
-                              "build_scorer": 112551,
-                              "advance": 0,
-                              "advance_count": 0,
-                              "compute_max_score": 0,
-                              "compute_max_score_count": 0,
-                              "shallow_advance": 0,
-                              "shallow_advance_count": 0,
-                              "set_min_competitive_score": 0,
-                              "set_min_competitive_score_count": 0
-                           }
-                        }
-                     ],
-                     "rewrite_time": 7208,
-                     "collector": [
-                        {
-                          "name": "MultiCollector",
-                          "reason": "search_multi",
-                          "time_in_nanos": 1820,
-                          "children": [
-                            {
-                              "name": "FilteredCollector",
-                              "reason": "search_post_filter",
-                              "time_in_nanos": 7735,
-                              "children": [
-                                {
-                                  "name": "SimpleTopScoreDocCollector",
-                                  "reason": "search_top_hits",
-                                  "time_in_nanos": 1328
-                                }
-                              ]
-                            },
-                            {
-                              "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
-                              "reason": "aggregation",
-                              "time_in_nanos": 8273
-                            }
-                          ]
-                        }
-                     ]
+                    "name": "FilteredCollector",
+                    "reason": "search_post_filter",
+                    "time_in_nanos": 500850,
+                    "children": [
+                      {
+                        "name": "SimpleTopScoreDocCollector",
+                        "reason": "search_top_hits",
+                        "time_in_nanos": 22577
+                      }
+                    ]
+                  },
+                  {
+                    "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
+                    "reason": "aggregation",
+                    "time_in_nanos": 867617
                   }
-               ],
-               "aggregations": [...] <1>
-            }
-         ]
+                ]
+              }
+            ]
+          }
+        ],
+        "aggregations": [...] <1>
       }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 <1> The `"aggregations"` portion has been omitted because it will be covered in 
 the next section.
 
 As you can see, the output is significantly more verbose than before.  All the 
 major portions of the query are represented:
 
-1. The first `TermQuery` (user:test) represents the main `term` query.
-2. The second `TermQuery` (message:some) represents the `post_filter` query.
+1. The first `TermQuery` (user.id:elkbee) represents the main `term` query.
+2. The second `TermQuery` (message:search) represents the `post_filter` query.
 
 The Collector tree is fairly straightforward, showing how a single 
 CancellableCollector wraps a MultiCollector which also wraps a FilteredCollector 
@@ -734,20 +735,20 @@ and look at the aggregation profile this time:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "profile": true,
   "query": {
     "term": {
-      "user": {
-        "value": "test"
+      "user.id": {
+        "value": "elkbee"
       }
     }
   },
   "aggs": {
     "my_scoped_agg": {
       "terms": {
-        "field": "likes"
+        "field": "http.response.status_code"
       }
     },
     "my_global_agg": {
@@ -755,7 +756,7 @@ GET /twitter/_search
       "aggs": {
         "my_level_agg": {
           "terms": {
-            "field": "likes"
+            "field": "http.response.status_code"
           }
         }
       }
@@ -763,7 +764,7 @@ GET /twitter/_search
   },
   "post_filter": {
     "match": {
-      "message": "some"
+      "message": "search"
     }
   }
 }
@@ -777,61 +778,61 @@ This yields the following aggregation profile output:
 [source,console-result]
 --------------------------------------------------
 {
-  "profile" : {
-    "shards" : [
+  "profile": {
+    "shards": [
       {
-        "aggregations" : [
+        "aggregations": [
           {
-            "type" : "NumericTermsAggregator",
-            "description" : "my_scoped_agg",
-            "time_in_nanos" : 195386,
-            "breakdown" : {
-              "reduce" : 0,
-              "build_aggregation" : 81171,
-              "build_aggregation_count" : 1,
-              "initialize" : 22753,
-              "initialize_count" : 1,
-              "reduce_count" : 0,
-              "collect" : 91456,
-              "collect_count" : 4
+            "type": "NumericTermsAggregator",
+            "description": "my_scoped_agg",
+            "time_in_nanos": 79294,
+            "breakdown": {
+              "reduce": 0,
+              "build_aggregation": 30885,
+              "build_aggregation_count": 1,
+              "initialize": 2623,
+              "initialize_count": 1,
+              "reduce_count": 0,
+              "collect": 45786,
+              "collect_count": 4
             },
             "debug": {
-              "result_strategy": "long_terms",
-              "total_buckets": 4
+              "total_buckets": 1,
+              "result_strategy": "long_terms"
             }
           },
           {
-            "type" : "GlobalAggregator",
-            "description" : "my_global_agg",
-            "time_in_nanos" : 190430,
-            "breakdown" : {
-              "reduce" : 0,
-              "build_aggregation" : 59990,
-              "build_aggregation_count" : 1,
-              "initialize" : 29619,
-              "initialize_count" : 1,
-              "reduce_count" : 0,
-              "collect" : 100815,
-              "collect_count" : 4
+            "type": "GlobalAggregator",
+            "description": "my_global_agg",
+            "time_in_nanos": 104325,
+            "breakdown": {
+              "reduce": 0,
+              "build_aggregation": 22470,
+              "build_aggregation_count": 1,
+              "initialize": 12454,
+              "initialize_count": 1,
+              "reduce_count": 0,
+              "collect": 69401,
+              "collect_count": 4
             },
-            "children" : [
+            "children": [
               {
-                "type" : "NumericTermsAggregator",
-                "description" : "my_level_agg",
-                "time_in_nanos" : 160329,
-                "breakdown" : {
-                  "reduce" : 0,
-                  "build_aggregation" : 55712,
-                  "build_aggregation_count" : 1,
-                  "initialize" : 10559,
-                  "initialize_count" : 1,
-                  "reduce_count" : 0,
-                  "collect" : 94052,
-                  "collect_count" : 4,
+                "type": "NumericTermsAggregator",
+                "description": "my_level_agg",
+                "time_in_nanos": 76876,
+                "breakdown": {
+                  "reduce": 0,
+                  "build_aggregation": 13824,
+                  "build_aggregation_count": 1,
+                  "initialize": 1441,
+                  "initialize_count": 1,
+                  "reduce_count": 0,
+                  "collect": 61611,
+                  "collect_count": 4
                 },
                 "debug": {
-                  "result_strategy": "long_terms",
-                  "total_buckets": 4
+                  "total_buckets": 1,
+                  "result_strategy": "long_terms"
                 }
               }
             ]
@@ -844,13 +845,13 @@ This yields the following aggregation profile output:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
-// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 
 From the profile structure we can see that the `my_scoped_agg` is internally 
 being run as a `NumericTermsAggregator` (because the field it is aggregating, 
-`likes`, is a numeric field). At the same level, we see a `GlobalAggregator` 
+`http.response.status_code`, is a numeric field). At the same level, we see a `GlobalAggregator` 
 which comes from `my_global_agg`. That aggregation then has a child 
-`NumericTermsAggregator` which comes from the second term's aggregation on `likes`.
+`NumericTermsAggregator` which comes from the second term's aggregation on `http.response.status_code`.
 
 The `time_in_nanos` field shows the time executed by each aggregation, and is 
 inclusive of all children.  While the overall time is useful, the `breakdown` 
@@ -870,14 +871,13 @@ The `breakdown` component lists detailed statistics about low-level execution:
 --------------------------------------------------
 "breakdown": {
   "reduce": 0,
+  "build_aggregation": 30885,
+  "build_aggregation_count": 1,
+  "initialize": 2623,
+  "initialize_count": 1,
   "reduce_count": 0,
-  "build_aggregation": 49765,
-  "build_aggregation_count": 300,
-  "initialize": 52785,
-  "initialize_count": 300,
-  "reduce_count": 0,
-  "collect": 3155490036,
-  "collect_count": 1800
+  "collect": 45786,
+  "collect_count": 4
 }
 --------------------------------------------------
 // NOTCONSOLE

@@ -9,18 +9,18 @@ response, you can use the `fields` parameter:
 
 [source,console]
 ----
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "message": "foo"
     }
   },
-  "fields": ["user", "date"],
+  "fields": ["user.id", "@timestamp"],
   "_source": false
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `fields` parameter consults both a document's `_source` and the index
 mappings to load and return values. Because it makes use of the mappings,
@@ -60,30 +60,30 @@ type. By default, date fields are formatted according to the
 <<mapping-date-format,date format>> parameter in their mappings.
 
 The following search request uses the `fields` parameter to retrieve values
-for the `user` field, all fields starting with `location.`, and the
-`date` field:
+for the `user.id` field, all fields starting with `http.response.`, and the
+`@timestamp` field:
 
 [source,console]
 ----
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "user.id": "kimchy"
     }
   },
   "fields": [
-    "user",
-    "location.*", <1>
+    "user.id",
+    "http.response.*", <1>
     {
-      "field": "date",
+      "field": "@timestamp",
       "format": "epoch_millis" <2>
     }
   ],
   "_source": false
 }
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
@@ -116,21 +116,21 @@ The values are returned as a flat list in the `fields` section in each hit:
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "twitter",
+        "_index" : "my-index-000001",
         "_id" : "0",
         "_score" : 1.0,
         "fields" : {
-          "user" : [
+          "user.id" : [
             "kimchy"
           ],
-          "date" : [
-            "1258294332000"
+          "@timestamp" : [
+            "4098435132000"
           ],
-          "location.city": [
-            "Amsterdam"
+          "http.response.bytes": [
+            1070000
           ],
-          "location.country": [
-            "Netherlands"
+          "http.response.status_code": [
+            200
           ]
         }
       }
@@ -177,21 +177,21 @@ not supported for <<text,`text`>> or
 {plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
 
 The following search request uses the `docvalue_fields` parameter to retrieve
-doc values for the `user` field, all fields starting with `location.`, and the
-`date` field:
+doc values for the `user.id` field, all fields starting with `http.response.`, and the
+`@timestamp` field:
 
 [source,console]
 ----
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "user.id": "kimchy"
     }
   },
   "docvalue_fields": [
-    "user",
-    "location.*", <1>
+    "user.id",
+    "http.response.*", <1>
     {
       "field": "date",
       "format": "epoch_millis" <2>
@@ -199,7 +199,7 @@ GET twitter/_search
   ]
 }
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom

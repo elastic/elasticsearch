@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
     ExecuteEnrichPolicyAction.Request,
@@ -58,7 +61,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
         this.executor = new EnrichPolicyExecutor(
             settings,
             clusterService,
-            client,
+            new OriginSettingClient(client, ENRICH_ORIGIN),
             transportService.getTaskManager(),
             threadPool,
             indexNameExpressionResolver,

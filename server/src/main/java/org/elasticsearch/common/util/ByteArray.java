@@ -26,6 +26,8 @@ import org.apache.lucene.util.BytesRef;
  */
 public interface ByteArray extends BigArray {
 
+    ByteArray EMPTY = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(0L, false);
+
     /**
      * Get an element given its index.
      */

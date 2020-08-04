@@ -449,9 +449,6 @@ public class BigArrays {
         return array;
     }
 
-    private static final ByteArray EMPTY_BYTE_ARRAY =
-            new ByteArrayWrapper(BigArrays.NON_RECYCLING_INSTANCE, BytesRef.EMPTY_BYTES, 0L, null, false);
-
     /**
      * Allocate a new {@link ByteArray}.
      * @param size          the initial length of the array
@@ -459,7 +456,7 @@ public class BigArrays {
      */
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         if (size == 0L) {
-            return EMPTY_BYTE_ARRAY;
+            return ByteArray.EMPTY;
         }
         if (size > PageCacheRecycler.BYTE_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by

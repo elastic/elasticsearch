@@ -24,6 +24,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.Collections;
@@ -104,20 +105,22 @@ public class UsageServiceTests extends ESTestCase {
         usageService.addRestHandler(handlerD);
         usageService.addRestHandler(handlerE);
         usageService.addRestHandler(handlerF);
-        handlerA.handleRequest(restRequest, null, null);
-        handlerB.handleRequest(restRequest, null, null);
-        handlerA.handleRequest(restRequest, null, null);
-        handlerA.handleRequest(restRequest, null, null);
-        handlerB.handleRequest(restRequest, null, null);
-        handlerC.handleRequest(restRequest, null, null);
-        handlerC.handleRequest(restRequest, null, null);
-        handlerD.handleRequest(restRequest, null, null);
-        handlerA.handleRequest(restRequest, null, null);
-        handlerB.handleRequest(restRequest, null, null);
-        handlerE.handleRequest(restRequest, null, null);
-        handlerF.handleRequest(restRequest, null, null);
-        handlerC.handleRequest(restRequest, null, null);
-        handlerD.handleRequest(restRequest, null, null);
+        try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName() + "TestClient")) {
+            handlerA.handleRequest(restRequest, null, client);
+            handlerB.handleRequest(restRequest, null, client);
+            handlerA.handleRequest(restRequest, null, client);
+            handlerA.handleRequest(restRequest, null, client);
+            handlerB.handleRequest(restRequest, null, client);
+            handlerC.handleRequest(restRequest, null, client);
+            handlerC.handleRequest(restRequest, null, client);
+            handlerD.handleRequest(restRequest, null, client);
+            handlerA.handleRequest(restRequest, null, client);
+            handlerB.handleRequest(restRequest, null, client);
+            handlerE.handleRequest(restRequest, null, client);
+            handlerF.handleRequest(restRequest, null, client);
+            handlerC.handleRequest(restRequest, null, client);
+            handlerD.handleRequest(restRequest, null, client);
+        }
         Map<String, Long> restUsage = usageService.getRestUsageStats();
         assertThat(restUsage, notNullValue());
         assertThat(restUsage.size(), equalTo(6));

@@ -230,7 +230,7 @@ that contains one relevant result in position 1.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -247,7 +247,7 @@ GET /twitter/_rank_eval
   }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `precision` metric takes the following optional parameters
 
@@ -285,7 +285,7 @@ that contains one relevant result in position 1.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -301,7 +301,7 @@ GET /twitter/_rank_eval
   }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `recall` metric takes the following optional parameters
 
@@ -326,7 +326,7 @@ https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -342,7 +342,7 @@ GET /twitter/_rank_eval
   }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `mean_reciprocal_rank` metric takes the following optional parameters
 
@@ -370,7 +370,7 @@ the overall DCG metric.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -386,7 +386,7 @@ GET /twitter/_rank_eval
   }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `dcg` metric takes the following optional parameters:
 
@@ -426,7 +426,7 @@ for.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
   "requests": [
     {
@@ -442,7 +442,7 @@ GET /twitter/_rank_eval
   }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `expected_reciprocal_rank` metric takes the following parameters:
 

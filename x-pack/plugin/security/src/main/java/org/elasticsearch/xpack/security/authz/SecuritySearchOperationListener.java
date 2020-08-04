@@ -58,6 +58,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
             // this is then used to assert the DLS/FLS permission for the scroll search action
             IndicesAccessControl indicesAccessControl =
                     securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            assert indicesAccessControl != null : "thread context does not contain index access control";
             searchContext.scrollContext().putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         }
     }
@@ -100,14 +101,16 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
-        IndicesAccessControl scrollIndicesAccessControl =
-                searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        IndicesAccessControl threadIndicesAccessControl =
-                securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        if (false == scrollIndicesAccessControl.equals(threadIndicesAccessControl)) {
-            throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected scroll indices access control [" +
-                    scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
-                    "context");
+        if (licenseState.isSecurityEnabled() && searchContext.scrollContext() != null) {
+            IndicesAccessControl scrollIndicesAccessControl =
+                    searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl threadIndicesAccessControl =
+                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            if (false == scrollIndicesAccessControl.equals(threadIndicesAccessControl)) {
+                throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected scroll indices access control [" +
+                        scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
+                        "context");
+            }
         }
     }
 

@@ -144,6 +144,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     public void testOptOutQueryCacheNoIndicesPermissions() {
+        assumeFalse("This test is only relevant when assertions are disabled", OptOutQueryCache.class.desiredAssertionStatus());
         final Settings.Builder settings = Settings.builder()
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)

@@ -69,7 +69,7 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     private static class VerifyingClient extends NoOpNodeClient {
-        public VerifyingClient(String testName) {
+        VerifyingClient(String testName) {
             super(testName);
         }
 

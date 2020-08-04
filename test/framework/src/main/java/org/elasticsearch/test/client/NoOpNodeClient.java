@@ -62,18 +62,21 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId, RemoteClusterService remoteClusterService) {
+    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
+                           RemoteClusterService remoteClusterService) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse>
+    Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         listener.onResponse(null);
         return null;
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse>
+    Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
         listener.onResponse(null, null);
         return null;
     }

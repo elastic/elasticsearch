@@ -80,10 +80,11 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
                 if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
                     // fill in the DLS and FLS permissions for the scroll search action from the scroll context
-                    IndicesAccessControl indicesAccessControl =
+                    IndicesAccessControl scrollIndicesAccessControl =
                             searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
                     securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                            indicesAccessControl);
+                            scrollIndicesAccessControl);
                 }
             }
         }

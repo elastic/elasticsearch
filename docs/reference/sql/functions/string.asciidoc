@@ -477,6 +477,26 @@ SUBSTRING(
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSubString]
 --------------------------------------------------
+[[sql-functions-string-trim]]
+==== `TRIM`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TRIM(string_exp) <1>
+--------------------------------------------------
+*Input*:
+
+<1> string expression
+
+*Output*: string
+
+*Description*: Returns the characters of `string_exp`, with leading and trailing blanks removed.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringTrim]
+--------------------------------------------------
 
 [[sql-functions-string-ucase]]
 ==== `UCASE`

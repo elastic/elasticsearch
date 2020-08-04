@@ -1,4 +1,4 @@
-/*
+/* @notice
  *  Copyright 2001-2014 Stephen Colebourne
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");

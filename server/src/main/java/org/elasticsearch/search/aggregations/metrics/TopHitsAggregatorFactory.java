@@ -23,10 +23,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -88,7 +89,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
         subSearchContext.parsedQuery(searchContext.parsedQuery());
@@ -105,7 +106,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            subSearchContext.docValuesContext(new FetchDocValuesContext(docValueFields));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService(), docValueFields);
+            subSearchContext.docValuesContext(docValuesContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);

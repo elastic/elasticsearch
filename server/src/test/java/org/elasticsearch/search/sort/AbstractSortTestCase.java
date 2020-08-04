@@ -196,7 +196,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
-            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null, null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
@@ -210,7 +210,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             @Override
             public ObjectMapper getObjectMapper(String name) {
                 BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder<>(name).nested(Nested.newNested()).build(context);
             }
         };
     }
@@ -220,9 +220,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * Tests that require other field types can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        doubleFieldType.setName(name);
-        doubleFieldType.setHasDocValues(true);
+        NumberFieldMapper.NumberFieldType doubleFieldType
+            = new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
         return doubleFieldType;
     }
 

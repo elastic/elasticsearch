@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Get Index Templates V2 API
+=== Get Composable Index Templates API
 
 The Get Index Templates API allows to retrieve information about one or more index templates.
 
 [id="{upid}-{api}-request"]
-==== Get Index Templates V2 Request
+==== Get Composable Index Templates Request
 
 A +{request}+ specifies one, or a wildcard expression of index template names
 to get. To return all index templates, omit the name altogether or use a value of `*`.

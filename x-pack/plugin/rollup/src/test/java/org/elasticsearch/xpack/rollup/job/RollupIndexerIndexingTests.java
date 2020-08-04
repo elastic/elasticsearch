@@ -274,7 +274,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         asMap("the_histo", now)
                 )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(3));
             IndexRequest request = resp.get(0);
@@ -338,7 +338,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 asMap("the_histo", now)
             )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(2));
             IndexRequest request = resp.get(0);
@@ -529,11 +529,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
      */
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
-        MappedFieldType fieldType = new DateFieldMapper.Builder(job.getGroupConfig().getDateHistogram().getField())
-                .format(randomFrom("basic_date", "date_optional_time", "epoch_second"))
-                .locale(Locale.ROOT)
-                .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
-                .fieldType();
+        DateFormatter formatter
+            = DateFormatter.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")).withLocale(Locale.ROOT);
+        MappedFieldType fieldType = new DateFieldMapper.DateFieldType(job.getGroupConfig().getDateHistogram().getField(), formatter);
         fieldTypes.put(fieldType.name(), fieldType);
 
         if (job.getGroupConfig().getHistogram() != null) {

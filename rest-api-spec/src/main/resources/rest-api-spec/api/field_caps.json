@@ -59,6 +59,9 @@
         "default":false,
         "description":"Indicates whether unmapped fields should be included in the response."
       }
+    },
+    "body":{
+      "description":"An index filter specified with the Query DSL"
     }
   }
 }

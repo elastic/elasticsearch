@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.getClassificationDefinition;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -116,9 +117,13 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/inference/" + classificationModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":30"));
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":30"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());
@@ -168,9 +173,13 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/inference/" + classificationModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":3"));
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
+                response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":15"));
+                assertThat(response, containsString("\"cache_miss_count\":3"));
                 // can get both
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
                 String entityString = EntityUtils.toString(statsResponse.getEntity());
@@ -197,7 +206,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"target_field\": \"ml.classification\",\n" +
             "          \"inference_config\": {\"classification\": " +
-            "                {\"num_top_classes\":2, " +
+            "                {\"num_top_classes\":0, " +
             "                \"top_classes_results_field\": \"result_class_prob\"," +
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
@@ -236,6 +245,8 @@ public class InferenceIngestIT extends ESRestTestCase {
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
+        assertThat(responseString, containsString("\"prediction_probability\":1.0"));
+        assertThat(responseString, containsString("\"prediction_score\":1.0"));
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
         assertThat(responseString, containsString("\"predicted_value\":1.0"));
         assertThat(responseString, containsString("\"feature_name\":\"col1\""));
@@ -512,133 +523,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"definition\": " + REGRESSION_DEFINITION +
         "}";
 
-    private static final String CLASSIFICATION_DEFINITION = "{" +
-        "  \"preprocessors\": [\n" +
-        "    {\n" +
-        "      \"one_hot_encoding\": {\n" +
-        "        \"field\": \"col1\",\n" +
-        "        \"hot_map\": {\n" +
-        "          \"male\": \"col1_male\",\n" +
-        "          \"female\": \"col1_female\"\n" +
-        "        }\n" +
-        "      }\n" +
-        "    },\n" +
-        "    {\n" +
-        "      \"target_mean_encoding\": {\n" +
-        "        \"field\": \"col2\",\n" +
-        "        \"feature_name\": \"col2_encoded\",\n" +
-        "        \"target_map\": {\n" +
-        "          \"S\": 5.0,\n" +
-        "          \"M\": 10.0,\n" +
-        "          \"L\": 20\n" +
-        "        },\n" +
-        "        \"default_value\": 5.0\n" +
-        "      }\n" +
-        "    },\n" +
-        "    {\n" +
-        "      \"frequency_encoding\": {\n" +
-        "        \"field\": \"col3\",\n" +
-        "        \"feature_name\": \"col3_encoded\",\n" +
-        "        \"frequency_map\": {\n" +
-        "          \"none\": 0.75,\n" +
-        "          \"true\": 0.10,\n" +
-        "          \"false\": 0.15\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }\n" +
-        "  ],\n" +
-        "  \"trained_model\": {\n" +
-        "    \"ensemble\": {\n" +
-        "      \"feature_names\": [\n" +
-        "        \"col1_male\",\n" +
-        "        \"col1_female\",\n" +
-        "        \"col2_encoded\",\n" +
-        "        \"col3_encoded\",\n" +
-        "        \"col4\"\n" +
-        "      ],\n" +
-        "      \"aggregate_output\": {\n" +
-        "        \"weighted_mode\": {\n" +
-        "          \"num_classes\": \"2\",\n" +
-        "          \"weights\": [\n" +
-        "            0.5,\n" +
-        "            0.5\n" +
-        "          ]\n" +
-        "        }\n" +
-        "      },\n" +
-        "      \"target_type\": \"classification\",\n" +
-        "      \"classification_labels\": [\"first\", \"second\"],\n" +
-        "      \"trained_models\": [\n" +
-        "        {\n" +
-        "          \"tree\": {\n" +
-        "            \"feature_names\": [\n" +
-        "              \"col1_male\",\n" +
-        "              \"col1_female\",\n" +
-        "              \"col4\"\n" +
-        "            ],\n" +
-        "            \"tree_structure\": [\n" +
-        "              {\n" +
-        "                \"node_index\": 0,\n" +
-        "                \"split_feature\": 0,\n" +
-        "                \"number_samples\": 100,\n" +
-        "                \"split_gain\": 12.0,\n" +
-        "                \"threshold\": 10.0,\n" +
-        "                \"decision_type\": \"lte\",\n" +
-        "                \"default_left\": true,\n" +
-        "                \"left_child\": 1,\n" +
-        "                \"right_child\": 2\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 1,\n" +
-        "                \"number_samples\": 80,\n" +
-        "                \"leaf_value\": 1\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 2,\n" +
-        "                \"number_samples\": 20,\n" +
-        "                \"leaf_value\": 0\n" +
-        "              }\n" +
-        "            ],\n" +
-        "            \"target_type\": \"regression\"\n" +
-        "          }\n" +
-        "        },\n" +
-        "        {\n" +
-        "          \"tree\": {\n" +
-        "            \"feature_names\": [\n" +
-        "              \"col2_encoded\",\n" +
-        "              \"col3_encoded\",\n" +
-        "              \"col4\"\n" +
-        "            ],\n" +
-        "            \"tree_structure\": [\n" +
-        "              {\n" +
-        "                \"node_index\": 0,\n" +
-        "                \"split_feature\": 0,\n" +
-        "                \"split_gain\": 12.0,\n" +
-        "                \"number_samples\": 180,\n" +
-        "                \"threshold\": 10.0,\n" +
-        "                \"decision_type\": \"lte\",\n" +
-        "                \"default_left\": true,\n" +
-        "                \"left_child\": 1,\n" +
-        "                \"right_child\": 2\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 1,\n" +
-        "                \"number_samples\": 10,\n" +
-        "                \"leaf_value\": 1\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 2,\n" +
-        "                \"number_samples\": 170,\n" +
-        "                \"leaf_value\": 0\n" +
-        "              }\n" +
-        "            ],\n" +
-        "            \"target_type\": \"regression\"\n" +
-        "          }\n" +
-        "        }\n" +
-        "      ]\n" +
-        "    }\n" +
-        "  }\n" +
-        "}";
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -650,7 +534,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"description\": \"test model for classification\",\n" +
         "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
         "  \"inference_config\": {\"classification\": {}},\n" +
-        "  \"definition\": " + CLASSIFICATION_DEFINITION +
+        "  \"definition\": " + getClassificationDefinition(false) +
         "}";
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {

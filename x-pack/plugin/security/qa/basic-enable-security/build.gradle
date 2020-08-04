@@ -1,20 +1,18 @@
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 integTest {
   description = "Run tests against a cluster that doesn't have security"
-  runner {
-    systemProperty 'tests.has_security', 'false'
-  }
+  systemProperty 'tests.has_security', 'false'
 }
 
 testClusters.integTest {
@@ -25,7 +23,7 @@ testClusters.integTest {
   setting 'xpack.security.enabled', 'false'
 }
 
-task integTestSecurity(type: RestTestRunnerTask) {
+task integTestSecurity(type: StandaloneRestIntegTestTask) {
   description = "Run tests against a cluster that has security"
   useCluster testClusters.integTest
   dependsOn integTest
@@ -55,5 +53,5 @@ task integTestSecurity(type: RestTestRunnerTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
   }
 }
-check.dependsOn(integTestSecurity)
+tasks.named("check").configure { dependsOn(integTestSecurity) }
 

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -95,8 +95,10 @@ public class TransportSimulateTemplateAction
         // First, if a template body was requested, we need to "fake add" that template to the
         // cluster state, so it can be used when we resolved settings/etc
         if (request.getIndexTemplateRequest() != null) {
-            // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
-            simulateTemplateToAdd = "simulate_template_" + uuid;
+            // we'll "locally" add the template defined by the user in the cluster state (as if it
+            // existed in the system), either with a temporary name, or with the given name if
+            // specified, to simulate replacing the existing template
+            simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate());
@@ -130,7 +132,7 @@ public class TransportSimulateTemplateAction
 
         final ClusterState tempClusterState =
             TransportSimulateIndexTemplateAction.resolveTemporaryState(matchingTemplate, temporaryIndexName, stateWithTemplate);
-        IndexTemplateV2 templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         Map<String, List<String>> overlapping = new HashMap<>();

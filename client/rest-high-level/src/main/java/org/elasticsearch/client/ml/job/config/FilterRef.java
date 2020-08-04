@@ -20,10 +20,8 @@ package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,12 +51,7 @@ public class FilterRef implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return FilterType.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, FILTER_TYPE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
     }
 
     private final String filterId;

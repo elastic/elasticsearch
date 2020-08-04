@@ -190,7 +190,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
     private static class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private List<IndexableField> fields = new ArrayList<>();
-        private String name;
+        private final String name;
 
         private LuceneGeometryIndexer(String name) {
             this.name = name;

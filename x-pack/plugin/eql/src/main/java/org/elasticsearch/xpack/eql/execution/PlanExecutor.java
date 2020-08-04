@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.eql.stats.QueryMetric;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -49,7 +50,7 @@ public class PlanExecutor {
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
-        this.verifier = new Verifier();
+        this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
@@ -59,7 +60,11 @@ public class PlanExecutor {
     }
 
     public void eql(EqlConfiguration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {
-        newSession(cfg).eql(eql, parserParams, wrap(listener::onResponse, listener::onFailure));
+        metrics.total(QueryMetric.ALL);
+        newSession(cfg).eql(eql, parserParams, wrap(listener::onResponse, ex -> {
+            metrics.failed(QueryMetric.ALL);
+            listener.onFailure(ex);
+        }));
     }
 
     public Metrics metrics() {

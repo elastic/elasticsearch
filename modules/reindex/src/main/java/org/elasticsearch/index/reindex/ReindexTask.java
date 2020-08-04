@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -86,7 +86,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> taskInProgress,
+                                                     PersistentTasksCustomMetadata.PersistentTask<ReindexTaskParams> taskInProgress,
                                                      Map<String, String> headers) {
             headers.putAll(taskInProgress.getParams().getHeaders());
             Reindexer reindexer = new Reindexer(clusterService, client, threadPool, scriptService, reindexSslConfig);
@@ -195,7 +195,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         updatePersistentTaskState(new ReindexPersistentTaskState(taskId, ReindexPersistentTaskState.Status.DONE), new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                 if (shouldStoreResult) {
                     taskManager.storeResult(ReindexTask.this, stateDoc.getReindexResponse(), new ActionListener<>() {
                         @Override
@@ -226,7 +226,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         updatePersistentTaskState(new ReindexPersistentTaskState(taskId, ReindexPersistentTaskState.Status.STARTED),
             new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             }
 
             @Override
@@ -268,7 +268,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     private void updateClusterStateToFailed(boolean shouldStoreResult, ReindexPersistentTaskState.Status status, Exception ex) {
         updatePersistentTaskState(new ReindexPersistentTaskState(taskId, status), new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                 markEphemeralTaskFailed(shouldStoreResult, ex);
             }
 

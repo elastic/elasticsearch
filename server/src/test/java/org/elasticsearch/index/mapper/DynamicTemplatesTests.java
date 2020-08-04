@@ -56,10 +56,10 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         assertThat(mapperService.fieldType("s"), notNullValue());
-        assertEquals(IndexOptions.NONE, mapperService.fieldType("s").indexOptions());
+        assertFalse(mapperService.fieldType("s").isSearchable());
 
         assertThat(mapperService.fieldType("l"), notNullValue());
-        assertNotSame(IndexOptions.NONE, mapperService.fieldType("l").indexOptions());
+        assertTrue(mapperService.fieldType("l").isSearchable());
     }
 
     public void testSimple() throws Exception {

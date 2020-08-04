@@ -17,9 +17,11 @@ public class SequenceKey {
     public static final SequenceKey NONE = new SequenceKey();
 
     private final Object[] keys;
+    private final int hashCode;
 
     public SequenceKey(Object... keys) {
         this.keys = keys;
+        this.hashCode = Objects.hash(keys);
     }
 
     public List<String> asStringList() {
@@ -32,7 +34,7 @@ public class SequenceKey {
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys);
+        return hashCode;
     }
 
     @Override

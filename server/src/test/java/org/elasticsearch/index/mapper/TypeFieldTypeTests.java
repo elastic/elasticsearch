@@ -22,19 +22,15 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-public class TypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TypeFieldMapper.TypeFieldType();
-    }
+public class TypeFieldTypeTests extends ESTestCase {
 
-    public void testTermsQuery() throws Exception {
+    public void testTermsQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
 
-        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
-        ft.setName(TypeFieldMapper.NAME);
+        TypeFieldMapper.TypeFieldType ft = TypeFieldMapper.TypeFieldType.INSTANCE;
 
         Query query = ft.termQuery("_doc", context);
         assertEquals(new MatchAllDocsQuery(), query);

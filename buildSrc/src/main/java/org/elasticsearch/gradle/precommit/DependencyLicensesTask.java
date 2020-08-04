@@ -31,6 +31,7 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -223,6 +224,15 @@ public class DependencyLicensesTask extends DefaultTask {
         if (shaFiles.isEmpty() == false) {
             throw new GradleException("Unused sha files found: \n" + joinFilenames(shaFiles));
         }
+
+    }
+
+    // This is just a marker output folder to allow this task being up-to-date.
+    // The check logic is exception driven so a failed tasks will not be defined
+    // by this output but when successful we can safely mark the task as up-to-date.
+    @OutputDirectory
+    public File getOutputMarker() {
+        return new File(getProject().getBuildDir(), "dependencyLicense");
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {

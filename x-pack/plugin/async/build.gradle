@@ -1,0 +1,25 @@
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'x-pack-async'
+    description 'A module which handles common async operations'
+    classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-async'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-core'
+}
+
+//no tests
+tasks.named("test").configure {
+  enabled = false
+}
+integTest.enabled = false
+

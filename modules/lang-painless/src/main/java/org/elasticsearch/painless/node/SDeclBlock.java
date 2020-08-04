@@ -20,13 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationBlockNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,36 +30,27 @@ import java.util.List;
  */
 public class SDeclBlock extends AStatement {
 
-    protected final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclBlock(this, scope);
+    }
 
-        List<Output> declarationOutputs = new ArrayList<>(declarations.size());
-
-        for (SDeclaration declaration : declarations) {
-            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SDeclaration declarationNode : declarationNodes) {
+            declarationNode.visit(userTreeVisitor, scope);
         }
-
-        output.statementCount = declarations.size();
-
-        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
-
-        for (Output declarationOutput : declarationOutputs) {
-            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
-        }
-
-        declarationBlockNode.setLocation(location);
-
-        output.statementNode = declarationBlockNode;
-
-        return output;
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
@@ -38,10 +39,16 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
     private LongArray counts;
     private ByteArray dimensionalShapeTypes;
 
-    public GeoShapeCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                               GeoShapeValuesSource valuesSource, Map<String, Object> metadata) throws IOException {
+    public GeoShapeCentroidAggregator(
+        String name,
+        SearchContext context,
+        Aggregator parent,
+        ValuesSourceConfig valuesSourceConfig,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             lonSum = bigArrays.newDoubleArray(1, true);

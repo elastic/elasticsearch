@@ -129,14 +129,14 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource orig = config.toValuesSource();
+        ValuesSource orig = config.hasValues() ? config.getValuesSource() : null;
         if (orig == null) {
             orig = ValuesSource.GeoPoint.EMPTY;
         }
         if (orig instanceof ValuesSource.GeoPoint) {
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
             // is specified in the builder.
-            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            final MappedFieldType fieldType = config.fieldType();
             CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, geoBoundingBox, GeoTileUtils::longEncode);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);

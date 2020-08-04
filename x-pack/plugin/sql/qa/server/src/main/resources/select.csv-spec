@@ -187,3 +187,41 @@ SELECT emp_no, CAST(languages NOT IN (2, 3) AS STRING), CAST(NOT languages IN (2
 10019          |true                                     |null                                         
 10020          |null                                     |null  
 ;
+
+topWithWildCard
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|languages:byte|last_name:s|salary:i
+SELECT TOP 5 * FROM test_emp ORDER BY emp_no;
+
+       birth_date       |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |    salary
+------------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------
+1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |57305
+1964-06-02T00:00:00.000Z|10002          |Bezalel        |F              |1985-11-21T00:00:00.000Z|5              |Simmel         |56371
+1959-12-03T00:00:00.000Z|10003          |Parto          |M              |1986-08-28T00:00:00.000Z|4              |Bamford        |61805
+1954-05-01T00:00:00.000Z|10004          |Chirstian      |M              |1986-12-01T00:00:00.000Z|5              |Koblick        |36174
+1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|1              |Maliniak       |63528
+;
+
+topWithColumnNames
+SELECT TOP 7 emp_no, first_name, last_name FROM test_emp ORDER BY emp_no DESC;
+
+    emp_no     |  first_name   |   last_name
+---------------+---------------+---------------
+10100          |Hironobu       |Haraldson
+10099          |Valter         |Sullins
+10098          |Sreekrishna    |Servieres
+10097          |Remzi          |Waschkowski
+10096          |Jayson         |Mandell
+10095          |Hilari         |Morton
+10094          |Arumugam       |Ossenbruggen
+;
+
+topWithAggregations
+schema::cnt:l|emp_no % languages:i
+SELECT TOP 3 count(*) AS cnt, emp_no % languages FROM test_emp GROUP BY 2 ORDER BY 1 DESC;
+
+   cnt    | emp_no % languages
+----------+-------------------
+37        |0
+24        |1
+16        |2
+;

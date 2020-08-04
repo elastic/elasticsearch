@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
@@ -71,8 +70,7 @@ public final class AnalysisModule {
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AnalysisModule.class);
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -126,7 +124,7 @@ public final class AnalysisModule {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                    deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -184,7 +182,7 @@ public final class AnalysisModule {
         preConfiguredTokenFilters.register( "standard",
             PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
                 if (version.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                    deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");

@@ -20,19 +20,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
@@ -57,15 +58,13 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static class Defaults {
 
-        public static final MappedFieldType FIELD_TYPE = new NestedPathFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
     }
@@ -80,22 +79,14 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new NestedPathFieldMapper(indexSettings, defaultFieldType(indexSettings));
+            return new NestedPathFieldMapper(indexSettings.getSettings());
         }
     }
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        NestedPathFieldType() {
-        }
-
-        protected NestedPathFieldType(NestedPathFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NestedPathFieldType(this);
+        NestedPathFieldType(Settings settings) {
+            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -104,31 +95,13 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            return true;
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }
     }
 
-    private NestedPathFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
-        this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
-            indexSettings);
-    }
-
-    private NestedPathFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
-        super(name(indexSettings.getSettings()), fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
-    }
-
-    private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
-        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        defaultFieldType.setIndexOptions(IndexOptions.NONE);
-        defaultFieldType.setHasDocValues(false);
-        defaultFieldType.setName(name(indexSettings.getSettings()));
-        return defaultFieldType;
+    private NestedPathFieldMapper(Settings settings) {
+        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings));
     }
 
     @Override

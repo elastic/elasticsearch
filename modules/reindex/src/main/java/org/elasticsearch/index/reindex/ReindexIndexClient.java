@@ -34,7 +34,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -97,7 +97,7 @@ public class ReindexIndexClient {
     private void ensureReindexIndex(ActionListener<Void> listener) {
         ClusterState clusterState = clusterService.state();
         boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX_7);
-        boolean reindexAliasExists = clusterState.metaData().hasAlias(REINDEX_ALIAS);
+        boolean reindexAliasExists = clusterState.metadata().hasAlias(REINDEX_ALIAS);
         // we check both, but we create index and alias atomically, thus we do not expect to find just one of them.
         assert reindexAliasExists == reindexIndexExists : "alias/index mismatch: " + reindexAliasExists + " != " + reindexIndexExists;
         if (reindexIndexExists && reindexAliasExists) {
@@ -173,9 +173,9 @@ public class ReindexIndexClient {
     private static Settings reindexIndexSettings() {
         // TODO: Copied from task index
         return Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
-            .put(IndexMetaData.SETTING_PRIORITY, Integer.MAX_VALUE)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
             .build();
     }
 }

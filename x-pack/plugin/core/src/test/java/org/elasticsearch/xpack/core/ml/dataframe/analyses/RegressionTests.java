@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -260,5 +263,20 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }
+    }
+
+    public void testInferenceConfig() {
+        Regression regression = createRandom();
+
+        InferenceConfig inferenceConfig = regression.inferenceConfig(null);
+
+        assertThat(inferenceConfig, instanceOf(RegressionConfig.class));
+
+        RegressionConfig regressionConfig = (RegressionConfig) inferenceConfig;
+
+        assertThat(regressionConfig.getResultsField(), equalTo(regression.getPredictionFieldName()));
+        Integer expectedNumTopFeatureImportanceValues = regression.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
+            0 : regression.getBoostedTreeParams().getNumTopFeatureImportanceValues();
+        assertThat(regressionConfig.getNumTopFeatureImportanceValues(), equalTo(expectedNumTopFeatureImportanceValues));
     }
 }

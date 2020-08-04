@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProcessFactory<MemoryUsageEstimationResult> {
@@ -39,11 +40,13 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     private final Environment env;
     private final NativeController nativeController;
+    private final AtomicLong counter;
     private volatile Duration processConnectTimeout;
 
     public NativeMemoryUsageEstimationProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
             MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
@@ -61,8 +64,13 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             ExecutorService executorService,
             Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
+        // The config ID passed to the process pipes is only used to make the file names unique.  Since memory estimation can be
+        // called many times in quick succession for the same config the config ID alone is not sufficient to guarantee that the
+        // memory estimation process pipe names are unique.  Therefore an increasing counter value is appended to the config ID
+        // to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId(), false, false, true, false, false);
+            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
+            false, false, true, false, false);
 
         createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
 

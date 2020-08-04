@@ -276,6 +276,9 @@
 
 ---
 "Test cat indices with invalid health parameter":
+  - skip:
+      version: " - 7.7.1"
+      reason:  "fixed in 7.7.1+"
 
   - do:
       indices.create:

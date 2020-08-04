@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.Version;
@@ -28,40 +27,30 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IndexFieldMapper.IndexFieldType();
-    }
+public class IndexFieldTypeTests extends ESTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("ind", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         QueryShardException e = expectThrows(QueryShardException.class, () ->
             assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext())));

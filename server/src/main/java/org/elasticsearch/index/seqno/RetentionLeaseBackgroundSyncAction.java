@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -137,8 +137,11 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                             // node shutting down
                             return;
                         }
-                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
-                            // the shard is closed
+                        if (ExceptionsHelper.unwrap(e,
+                                                    IndexNotFoundException.class,
+                                                    AlreadyClosedException.class,
+                                                    IndexShardClosedException.class) != null) {
+                            // the index was deleted or the shard is closed
                             return;
                         }
                         getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
@@ -161,12 +164,14 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica) throws WriteStateException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.persistRetentionLeases();
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(Request request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+            return new ReplicaResult();
+        });
     }
 
     public static final class Request extends ReplicationRequest<Request> {

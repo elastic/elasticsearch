@@ -21,18 +21,28 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class DoWhileLoopNode extends LoopNode {
 
+    /* ---- begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitDoWhileLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        scopeTable = scopeTable.newScope();
+        writeScope = writeScope.newScope();
 
         Label start = new Label();
         Label begin = new Label();
@@ -42,19 +52,19 @@ public class DoWhileLoopNode extends LoopNode {
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, scopeTable);
+        getBlockNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.mark(begin);
 
         if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, scopeTable);
+            getConditionNode().write(classWriter, methodWriter, writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        Variable loop = scopeTable.getInternalVariable("loop");
+        Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         methodWriter.goTo(start);

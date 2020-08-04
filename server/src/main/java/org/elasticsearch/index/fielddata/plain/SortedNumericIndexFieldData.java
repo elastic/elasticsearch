@@ -26,17 +26,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -45,57 +37,49 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.function.LongUnaryOperator;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
  */
-public class SortedNumericIndexFieldData implements IndexNumericFieldData {
+public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
-
+        private final String name;
         private final NumericType numericType;
 
-        public Builder(NumericType numericType) {
+        public Builder(String name, NumericType numericType) {
+            this.name = name;
             this.numericType = numericType;
         }
 
         @Override
         public SortedNumericIndexFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
             IndexFieldDataCache cache,
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            final String fieldName = fieldType.name();
-            return new SortedNumericIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
+            return new SortedNumericIndexFieldData(name, numericType);
         }
     }
 
     private final NumericType numericType;
-    protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
-        this.index = index;
+    public SortedNumericIndexFieldData(String fieldName, NumericType numericType) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
+        this.valuesSourceType = numericType.getValuesSourceType();
     }
 
     @Override
@@ -104,104 +88,33 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
     }
 
     @Override
-    public final void clear() {
-        // can't do
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
-    public final Index index() {
-        return index;
-    }
-
-    /**
-     * Returns the {@link SortField} to used for sorting.
-     * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
-     * match the field's <code>numericType</code>.
-     */
-    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode,
-                               Nested nested, boolean reverse) {
-        final XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
-
-        /**
-         * Check if we can use a simple {@link SortedNumericSortField} compatible with index sorting and
-         * returns a custom sort field otherwise.
-         */
-        if (nested != null
-                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-                || numericType == NumericType.HALF_FLOAT
-                || targetNumericType != numericType) {
-            return new SortField(fieldName, source, reverse);
-        }
-
-        final SortField sortField;
-        final SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX ?
-            SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
-        switch (numericType) {
-            case FLOAT:
-                sortField = new SortedNumericSortField(fieldName, SortField.Type.FLOAT, reverse, selectorType);
-                break;
-
-            case DOUBLE:
-                sortField = new SortedNumericSortField(fieldName, SortField.Type.DOUBLE, reverse, selectorType);
-                break;
-
-            default:
-                assert !numericType.isFloatingPoint();
-                sortField = new SortedNumericSortField(fieldName, SortField.Type.LONG, reverse, selectorType);
-                break;
-        }
-        sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        return sortField;
+    protected boolean sortRequiresCustomComparator() {
+        return numericType == NumericType.HALF_FLOAT;
     }
 
     @Override
-    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(numericType, missingValue, sortMode, nested, reverse);
-    }
-
-    /**
-     * Builds a {@linkplain BucketedSort} for the {@code targetNumericType},
-     * casting the values if their native type doesn't match.
-     */
-    public BucketedSort newBucketedSort(NumericType targetNumericType, BigArrays bigArrays, @Nullable Object missingValue,
-            MultiValueMode sortMode, Nested nested, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
-        return comparatorSource(targetNumericType, missingValue, sortMode, nested)
-                .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
+    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        if (numericType == NumericType.DATE_NANOSECONDS) {
+            // converts date_nanos values to millisecond resolution
+            return new LongValuesComparatorSource(this, missingValue,
+                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
+        }
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-        return newBucketedSort(numericType, bigArrays, missingValue, sortMode, nested, sortOrder, format, bucketSize, extra);
-    }
-
-    private XFieldComparatorSource comparatorSource(NumericType targetNumericType, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
-        switch (targetNumericType) {
-        case HALF_FLOAT:
-        case FLOAT:
-            return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-        case DOUBLE:
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-        case DATE:
-            if (numericType == NumericType.DATE_NANOSECONDS) {
-                // converts date values to nanosecond resolution
-                return new LongValuesComparatorSource(this, missingValue,
-                    sortMode, nested, dvs -> convertNanosToMillis(dvs));
-            }
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
-        case DATE_NANOSECONDS:
-            if (numericType == NumericType.DATE) {
-                // converts date_nanos values to millisecond resolution
-                return new LongValuesComparatorSource(this, missingValue,
-                    sortMode, nested, dvs -> convertMillisToNanos(dvs));
-            }
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
-        default:
-            assert !targetNumericType.isFloatingPoint();
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+    protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        if (numericType == NumericType.DATE) {
+            // converts date values to nanosecond resolution
+            return new LongValuesComparatorSource(this, missingValue,
+                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
         }
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
     @Override
@@ -250,7 +163,7 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            return convertNanosToMillis(getLongValuesAsNanos());
+            return convertNumeric(getLongValuesAsNanos(), DateUtils::toMilliSeconds);
         }
 
         public SortedNumericDocValues getLongValuesAsNanos() {
@@ -520,47 +433,4 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
             return Collections.emptyList();
         }
     }
-
-    /**
-     * Convert the values in <code>dvs</code> from nanosecond to millisecond resolution.
-     */
-    static SortedNumericDocValues convertNanosToMillis(SortedNumericDocValues dvs) {
-        return convertNumeric(dvs, DateUtils::toMilliSeconds);
-    }
-
-    /**
-     * Convert the values in <code>dvs</code> from millisecond to nanosecond resolution.
-     */
-    static SortedNumericDocValues convertMillisToNanos(SortedNumericDocValues values) {
-        return convertNumeric(values, DateUtils::toNanoSeconds);
-    }
-
-    /**
-     * Convert the values in <code>dvs</code> using the provided <code>converter</code>.
-     */
-    private static SortedNumericDocValues convertNumeric(SortedNumericDocValues values, LongUnaryOperator converter) {
-        return new AbstractSortedNumericDocValues() {
-
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                return values.advanceExact(target);
-            }
-
-            @Override
-            public long nextValue() throws IOException {
-                return converter.applyAsLong(values.nextValue());
-            }
-
-            @Override
-            public int docValueCount() {
-                return values.docValueCount();
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                return values.nextDoc();
-            }
-        };
-    }
-
 }

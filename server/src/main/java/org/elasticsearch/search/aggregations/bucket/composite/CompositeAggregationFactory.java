@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ class CompositeAggregationFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         return new CompositeAggregator(name, factories, searchContext, parent, metadata, size, sources, afterKey);
     }

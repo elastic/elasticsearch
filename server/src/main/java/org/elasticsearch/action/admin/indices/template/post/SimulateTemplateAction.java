@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,7 +50,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private String templateName;
 
         @Nullable
-        private PutIndexTemplateV2Action.Request indexTemplateRequest;
+        private PutComposableIndexTemplateAction.Request indexTemplateRequest;
 
         public Request() { }
 
@@ -61,7 +61,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             this.templateName = templateName;
         }
 
-        public Request(PutIndexTemplateV2Action.Request indexTemplateRequest) {
+        public Request(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
             if (indexTemplateRequest == null) {
                 throw new IllegalArgumentException("index template body must be present");
             }
@@ -71,7 +71,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         public Request(StreamInput in) throws IOException {
             super(in);
             templateName = in.readOptionalString();
-            indexTemplateRequest = in.readOptionalWriteable(PutIndexTemplateV2Action.Request::new);
+            indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
         }
 
         @Override
@@ -101,7 +101,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         }
 
         @Nullable
-        public PutIndexTemplateV2Action.Request getIndexTemplateRequest() {
+        public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
         }
 
@@ -110,7 +110,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return this;
         }
 
-        public Request indexTemplateRequest(PutIndexTemplateV2Action.Request indexTemplateRequest) {
+        public Request indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
             this.indexTemplateRequest = indexTemplateRequest;
             return this;
         }

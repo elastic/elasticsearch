@@ -129,7 +129,7 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getInterimResults(job.getId()).isEmpty(), is(true));
 
         // advance time and request interim results
-        long lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd().getTime();
+        long lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         FlushJobAction.Request advanceTimeRequest = new FlushJobAction.Request(jobId);
         advanceTimeRequest.setAdvanceTime(String.valueOf(lastFinalizedBucketEnd + BUCKET_SPAN_SECONDS * 1000));
         advanceTimeRequest.setCalcInterim(true);

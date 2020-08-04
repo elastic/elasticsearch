@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 
@@ -49,15 +50,17 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
+    private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
 
-    public CacheService(final Settings settings) {
-        this(SNAPSHOT_CACHE_SIZE_SETTING.get(settings), SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings));
+    public CacheService(final Runnable cacheCleaner, final Settings settings) {
+        this(cacheCleaner, SNAPSHOT_CACHE_SIZE_SETTING.get(settings), SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings));
     }
 
-    // overridable by tests
-    public CacheService(final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
+    // exposed for tests
+    public CacheService(final Runnable cacheCleaner, final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
         this.cacheSize = Objects.requireNonNull(cacheSize);
+        this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = Objects.requireNonNull(rangeSize);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
@@ -68,9 +71,13 @@ public class CacheService extends AbstractLifecycleComponent {
             .build();
     }
 
+    public static Path getShardCachePath(ShardPath shardPath) {
+        return shardPath.getDataPath().resolve("snapshot_cache");
+    }
+
     @Override
     protected void doStart() {
-        // NORELEASE TODO clean up (or rebuild) cache from disk as a node crash may leave cached files
+        cacheCleaner.run();
     }
 
     @Override
@@ -83,6 +90,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private void ensureLifecycleStarted() {
         final Lifecycle.State state = lifecycleState();
+        assert state != Lifecycle.State.INITIALIZED : state;
         if (state != Lifecycle.State.STARTED) {
             throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
         }

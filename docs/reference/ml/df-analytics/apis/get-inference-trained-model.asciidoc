@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference]]
-=== Get {infer} trained model API
+= Get {infer} trained model API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {infer} trained model</titleabbrev>
@@ -13,7 +13,7 @@ experimental[]
 
 
 [[ml-get-inference-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/inference/` +
 
@@ -27,37 +27,37 @@ experimental[]
 
 
 [[ml-get-inference-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[ml-get-inference-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get information for multiple trained models in a single API request by 
 using a comma-separated list of model IDs or a wildcard expression.
 
 
 [[ml-get-inference-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<model_id>`::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
 [[ml-get-inference-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `decompress_definition`::
 (Optional, boolean)
@@ -66,7 +66,7 @@ Specifies whether the included model definition should be returned as a JSON map
 
 `from`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `include_model_definition`::
 (Optional, boolean)
@@ -76,15 +76,21 @@ provided. Otherwise, a bad request is returned.
 
 `size`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
 `tags`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
+
+`for_export`::
+(Optional, boolean)
+Indicates if certain fields should be removed from the model configuration on
+retrieval. This allows the model to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
 
 [role="child_attributes"]
 [[ml-get-inference-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `trained_model_configs`::
 (array)
@@ -144,7 +150,7 @@ The {es} version number in which the trained model was created.
 
 
 [[ml-get-inference-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `400`::
   If `include_model_definition` is `true`, this code indicates that more than 
@@ -156,7 +162,7 @@ The {es} version number in which the trained model was created.
   
 
 [[ml-get-inference-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example gets configuration information for all the trained models:
 

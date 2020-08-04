@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,30 +46,42 @@ public abstract class ArrayValuesSourceAggregatorFactory
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
-            ValuesSource vs = config.getValue().toValuesSource();
-            if (vs != null) {
-                valuesSources.put(config.getKey(), vs);
+            ValuesSourceConfig vsc = config.getValue();
+            if (vsc.hasValues()) {
+                valuesSources.put(config.getKey(), vsc.getValuesSource());
             }
         }
         if (valuesSources.isEmpty()) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(valuesSources, searchContext, parent, collectsFromSingleBucket, metadata);
+        return doCreateInternal(valuesSources, searchContext, parent, cardinality, metadata);
     }
 
+    /**
+     * Create the {@linkplain Aggregator} when none of the configured
+     * fields can be resolved to a {@link ValuesSource}.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     Map<String, Object> metadata) throws IOException;
 
+    /**
+     * Create the {@linkplain Aggregator} when any of the configured
+     * fields can be resolved to a {@link ValuesSource}.
+     * 
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
+     */
     protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
+                                                    CardinalityUpperBound cardinality,
                                                     Map<String, Object> metadata) throws IOException;
 
 }

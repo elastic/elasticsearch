@@ -337,6 +337,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig config = resolveConfig(queryShardContext);
+        if (queryShardContext.getValuesSourceRegistry().isRegistered(getType())) {
+            // Only test if the values source type is valid if the aggregation uses the registry
+            AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, getType());
+        }
+        // TODO: We should pass the supplier in from here.  Right now this just checks that the VST is valid
         ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
@@ -360,7 +365,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
-                this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType(), this.getType());
+                this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
     }
 
     protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,

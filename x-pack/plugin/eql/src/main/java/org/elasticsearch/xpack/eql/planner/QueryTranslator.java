@@ -96,8 +96,8 @@ final class QueryTranslator {
             }
             if (f instanceof CIDRMatch) {
                 CIDRMatch cm = (CIDRMatch) f;
-                if (cm.field() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) cm.field()).exactAttribute());
+                if (cm.input() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) cm.input()).exactAttribute());
 
                     Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(cm.addresses().size()));
 

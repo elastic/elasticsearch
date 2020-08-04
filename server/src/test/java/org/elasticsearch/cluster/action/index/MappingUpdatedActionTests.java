@@ -18,17 +18,39 @@
  */
 package org.elasticsearch.cluster.action.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction.AdjustableSemaphore;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MappingUpdatedActionTests extends ESTestCase {
 
@@ -83,7 +105,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         List<ActionListener<Void>> inFlightListeners = new CopyOnWriteArrayList<>();
         final MappingUpdatedAction mua = new MappingUpdatedAction(Settings.builder()
             .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null) {
 
             @Override
             protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
@@ -114,5 +136,59 @@ public class MappingUpdatedActionTests extends ESTestCase {
         assertFalse(fut2.isDone());
         inFlightListeners.remove(0).onResponse(null);
         assertTrue(fut2.isDone());
+    }
+
+    public void testSendUpdateMappingUsingPutMappingAction() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_8_0))
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        mua.setClient(client);
+
+        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
+        Mapping update = new Mapping(Version.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
+        verify(indicesAdminClient).putMapping(any(), any());
+    }
+
+    public void testSendUpdateMappingUsingAutoPutMappingAction() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        mua.setClient(client);
+
+        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
+        Mapping update = new Mapping(Version.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
+        verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());
     }
 }

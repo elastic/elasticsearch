@@ -515,7 +515,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                assertThat(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER), is(true));
+                assertThat(licenseState.checkFeature(XPackLicenseState.Feature.WATCHER), is(true));
             }
         });
     }

@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -88,10 +88,10 @@ public class TransportStartReindexTaskAction
             return;
         }
 
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         if (tasks != null && tasks.count() >= maxConcurrentTasks) {
-            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> reindexTasks = tasks.findTasks(ReindexTask.NAME, (t) -> true);
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> reindexTasks = tasks.findTasks(ReindexTask.NAME, (t) -> true);
             if (reindexTasks != null && reindexTasks.size() >= maxConcurrentTasks) {
                 listener.onFailure(new IllegalStateException("Maximum concurrent reindex operations exceeded [max=" +
                     maxConcurrentTasks + "]"));
@@ -118,7 +118,7 @@ public class TransportStartReindexTaskAction
             public void onResponse(ReindexTaskState taskState) {
                 persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> persistentTask) {
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<ReindexTaskParams> persistentTask) {
                         if (request.getWaitForCompletion()) {
                             waitForReindexDone(persistentTask.getId(), request.isResilient(), listener);
                         } else {
@@ -146,7 +146,7 @@ public class TransportStartReindexTaskAction
         persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(true), null,
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<ReindexTaskParams> task) {
                     ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
                     if (state.getStatus() == ReindexPersistentTaskState.Status.ASSIGNMENT_FAILED) {
                         if (resilient) {
@@ -193,7 +193,7 @@ public class TransportStartReindexTaskAction
         persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(false), null,
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<ReindexTaskParams> task) {
                     ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
                     listener.onResponse(new StartReindexTaskAction.Response(task.getId(), state.getEphemeralTaskId().toString()));
                 }
@@ -205,7 +205,7 @@ public class TransportStartReindexTaskAction
             });
     }
 
-    private static class ReindexPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class ReindexPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private boolean waitForDone;
 
@@ -214,11 +214,11 @@ public class TransportStartReindexTaskAction
         }
 
         @Override
-        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
-            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment == null || assignment.isAssigned() == false) {
                 return false;
             }

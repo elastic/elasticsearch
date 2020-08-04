@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -15,14 +17,20 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +43,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
@@ -55,6 +64,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60340")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -78,6 +88,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
+        int trainingDocsWithEmptyFeatureImportance = 0;
+        int testDocsWithEmptyFeatureImportance = 0;
+
+        // for debugging
+        List<Map<String, Object>> badDocuments = new ArrayList<>();
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
@@ -95,12 +110,32 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(greaterThan(0)));
-            assertThat(
-                importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                    || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))).findAny(),
-                isPresent());
+
+            if (importanceArray.isEmpty()) {
+                badDocuments.add(destDoc);
+                if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
+                    trainingDocsWithEmptyFeatureImportance++;
+                } else {
+                    testDocsWithEmptyFeatureImportance++;
+                }
+            }
+
+            // TODO reenable these assertions after we understand why some times there are rows with
+            // empty feature importance
+//            assertThat(importanceArray, hasSize(greaterThan(0)));
+//            assertThat(
+//                importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+//                    || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))).findAny(),
+//                isPresent());
         }
+
+        // If feature importance was empty for some of the docs this assertion helps us
+        // understand whether the offending docs were training or test docs.
+        assertThat("There were [" + trainingDocsWithEmptyFeatureImportance + "] training docs and ["
+            + testDocsWithEmptyFeatureImportance + "] test docs with empty feature importance"
+            + " from " + sourceData.getHits().getTotalHits().value + " hits.\n"
+            + badDocuments,
+            trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance, equalTo(0));
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
@@ -292,7 +327,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55807")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
@@ -391,6 +425,171 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59664")
+    public void testWithDatastream() throws Exception {
+        initialize("regression_with_datastream");
+        String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
+        indexData(sourceIndex, 300, 50, true);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Regression(
+                DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null)
+        );
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+
+            assertThat(resultsObject.containsKey(predictedClassField), is(true));
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
+            assertThat(
+                importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+                    || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))).findAny(),
+                isPresent());
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+    }
+
+    public void testAliasFields() throws Exception {
+        // The goal of this test is to assert alias fields are included in the analytics job.
+        // We have a simple dataset with two integer fields: field_1 and field_2.
+        // field_2 is double the value of field_1.
+        // We also add an alias to field_1 and we exclude field_1 from the analysis forcing
+        // field_1_alias to be the feature and field_2 to be the dependent variable.
+        // Then we proceed to check the predictions are roughly double the feature value.
+        // If alias fields are not being extracted properly the predictions will be wrong.
+
+        initialize("regression_alias_fields");
+        String predictionField = "field_2_prediction";
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"field_1\": {\n" +
+            "          \"type\": \"integer\"\n" +
+            "        }," +
+            "        \"field_2\": {\n" +
+            "          \"type\": \"integer\"\n" +
+            "        }," +
+            "        \"field_1_alias\": {\n" +
+            "          \"type\": \"alias\",\n" +
+            "          \"path\": \"field_1\"\n" +
+            "        }" +
+            "      }\n" +
+            "    }";
+        client().admin().indices().prepareCreate(sourceIndex)
+            .setMapping(mapping)
+            .get();
+
+        int totalDocCount = 300;
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < totalDocCount; i++) {
+            List<Object> source = List.of("field_1", i, "field_2", 2 * i);
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        Regression regression = new Regression(
+            "field_2",
+            BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+            null,
+            90.0,
+            null,
+            null,
+            null);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(jobId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
+            .setDest(new DataFrameAnalyticsDest(destIndex, null))
+            .setAnalysis(regression)
+            .setAnalyzedFields(new FetchSourceContext(true, null, new String[] {"field_1"}))
+            .build();
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        double predictionErrorSum = 0.0;
+
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+
+            assertThat(resultsObject.containsKey(predictionField), is(true));
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+
+            int featureValue = (int) destDoc.get("field_1");
+            double predictionValue = (double) resultsObject.get(predictionField);
+            predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
+        }
+
+        // We assert on the mean prediction error in order to reduce the probability
+        // the test fails compared to asserting on the prediction of each individual doc.
+        double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
+        assertThat(meanPredictionError, lessThanOrEqualTo(10.0));
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictionField, "double");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+    }
+
     private void initialize(String jobId) {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
@@ -398,12 +597,37 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(
-                NUMERICAL_FEATURE_FIELD, "type=double",
-                DISCRETE_NUMERICAL_FEATURE_FIELD, "type=long",
-                DEPENDENT_VARIABLE_FIELD, "type=double")
-            .get();
+        indexData(sourceIndex, numTrainingRows, numNonTrainingRows, false);
+    }
+
+    static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }," +
+            "        \""+ NUMERICAL_FEATURE_FIELD + "\": {\n" +
+            "          \"type\": \"double\"\n" +
+            "        }," +
+            "        \"" + DISCRETE_NUMERICAL_FEATURE_FIELD + "\": {\n" +
+            "          \"type\": \"long\"\n" +
+            "        }," +
+            "        \"" + DEPENDENT_VARIABLE_FIELD + "\": {\n" +
+            "          \"type\": \"double\"\n" +
+            "        }" +
+            "      }\n" +
+            "    }";
+        if (dataStream) {
+            try {
+                createDataStreamAndTemplate(sourceIndex, mapping);
+            } catch (IOException ex) {
+                throw new ElasticsearchException(ex);
+            }
+        } else {
+            client().admin().indices().prepareCreate(sourceIndex)
+                .setMapping(mapping)
+                .get();
+        }
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -411,15 +635,17 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             List<Object> source = List.of(
                 NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
                 DISCRETE_NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
-                DEPENDENT_VARIABLE_FIELD, DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()));
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+                DEPENDENT_VARIABLE_FIELD, DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()),
+                "@timestamp", Instant.now().toEpochMilli());
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = List.of(
                 NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
-                DISCRETE_NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()));
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+                DISCRETE_NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
+                "@timestamp", Instant.now().toEpochMilli());
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -446,5 +672,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     protected String stateDocId() {
         return jobId + "_regression_state#1";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

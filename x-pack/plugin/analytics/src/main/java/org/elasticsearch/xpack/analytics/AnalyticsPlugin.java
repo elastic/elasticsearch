@@ -31,7 +31,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
@@ -147,7 +147,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
                 AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
                 AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
-                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
+                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
             );
     }
 
@@ -169,7 +170,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isAllowed(XPackLicenseState.Feature.ANALYTICS) == false) {
+            if (getLicenseState().checkFeature(XPackLicenseState.Feature.ANALYTICS) == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

@@ -324,3 +324,19 @@ teardown:
         "metadata": { }
       }
     }
+
+---
+"Test clear privileges cache":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "application privileges cache is available since 7.9.0"
+
+  - do:
+      security.clear_cached_privileges:
+        application: "app"
+  - match: { _nodes.failed: 0 }
+
+  - do:
+      security.clear_cached_privileges:
+        application: ""
+  - match: { _nodes.failed: 0 }

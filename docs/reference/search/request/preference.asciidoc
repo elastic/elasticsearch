@@ -59,11 +59,11 @@ For instance, use the user's session ID `xyzabc123` as follows:
 ------------------------------------------------
 GET /_search?preference=xyzabc123
 {
-    "query": {
-        "match": {
-            "title": "elasticsearch"
-        }
+  "query": {
+    "match": {
+      "title": "elasticsearch"
     }
+  }
 }
 ------------------------------------------------
 

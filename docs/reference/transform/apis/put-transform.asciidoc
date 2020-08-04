@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-transform]]
-=== Create {transform} API
+= Create {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,28 +11,26 @@
 Instantiates a {transform}.
 
 [[put-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _transform/<transform_id>`
 
 [[put-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
 
 * `transform_admin`
-* `kibana_admin` (UI only)
-
 * source index: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-* cluster: `monitor` (UI only)
 
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<built-in-roles>>, <<security-privileges>>, and
+{ml-docs-setup-privileges}.
 
 
 [[put-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API defines a {transform}, which copies data from source indices,
 transforms it, and persists it into an entity-centric destination index. The
@@ -64,14 +62,14 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
             `.data-frame-internal*` indices.
 
 [[put-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[put-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
@@ -80,7 +78,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [role="child_attributes"]
 [[put-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {transform}.
@@ -88,7 +86,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 //Begin dest
 `dest`::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 +
 .Properties of `dest`
 [%collapsible%open]
@@ -96,22 +94,22 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
 
 `index`:::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 `pipeline`:::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 ====
 //End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 //Begin pivot
 `pivot`::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
 +
 .Properties of `pivot`
 [%collapsible%open]
@@ -119,11 +117,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
 
 `aggregations` or `aggs`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 
 `group_by`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 
 ====
 //End pivot
@@ -131,24 +129,24 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 //Begin settings
 `settings`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 +
 .Properties of `settings`
 [%collapsible%open]
 ====
 `docs_per_second`:::
 (Optional, float)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 ====
 //End settings
 
 //Begin source
 `source`::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 +
 .Properties of `source`
 [%collapsible%open]
@@ -156,18 +154,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 
 `index`:::
 (Required, string or array)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
 
 `query`:::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
 ====
 //End source
 
 //Begin sync
 `sync`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 +
 .Properties of `sync`
 [%collapsible%open]
@@ -176,7 +174,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
 //Begin time
 `time`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
 .Properties of `time`
 [%collapsible%open]
@@ -184,11 +182,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
 
 `delay`::::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
     
 `field`::::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
@@ -204,7 +202,7 @@ delays.
 
 
 [[put-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

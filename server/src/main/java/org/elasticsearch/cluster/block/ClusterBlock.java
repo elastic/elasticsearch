@@ -28,32 +28,26 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
-    private int id;
-    private @Nullable String uuid;
-    private String description;
-    private EnumSet<ClusterBlockLevel> levels;
-    private boolean retryable;
-    private boolean disableStatePersistence = false;
-    private boolean allowReleaseResources;
-    private RestStatus status;
+    private final int id;
+    @Nullable private final String uuid;
+    private final String description;
+    private final EnumSet<ClusterBlockLevel> levels;
+    private final boolean retryable;
+    private final boolean disableStatePersistence;
+    private final boolean allowReleaseResources;
+    private final RestStatus status;
 
     public ClusterBlock(StreamInput in) throws IOException {
         id = in.readVInt();
         uuid = in.readOptionalString();
         description = in.readString();
-        final int len = in.readVInt();
-        ArrayList<ClusterBlockLevel> levels = new ArrayList<>(len);
-        for (int i = 0; i < len; i++) {
-            levels.add(in.readEnum(ClusterBlockLevel.class));
-        }
-        this.levels = EnumSet.copyOf(levels);
+        this.levels = in.readEnumSet(ClusterBlockLevel.class);
         retryable = in.readBoolean();
         disableStatePersistence = in.readBoolean();
         status = RestStatus.readFrom(in);
@@ -81,6 +75,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return this.id;
     }
 
+    @Nullable
     public String uuid() {
         return uuid;
     }
@@ -146,10 +141,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         out.writeVInt(id);
         out.writeOptionalString(uuid);
         out.writeString(description);
-        out.writeVInt(levels.size());
-        for (ClusterBlockLevel level : levels) {
-            out.writeEnum(level);
-        }
+        out.writeEnumSet(levels);
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);

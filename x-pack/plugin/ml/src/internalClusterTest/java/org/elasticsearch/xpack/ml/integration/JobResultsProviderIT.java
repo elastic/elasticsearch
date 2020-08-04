@@ -424,7 +424,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             throw exceptionHolder.get();
         }
 
-        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(MlMetaIndex.indexName()).get();
     }
 
     private Calendar getCalendar(String calendarId) throws Exception {
@@ -582,7 +582,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Quantiles quantiles = new Quantiles(jobId, new Date(), "quantile-state");
         indexQuantiles(quantiles);
 
-        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexPattern(),
+        client().admin().indices().prepareRefresh(MlMetaIndex.indexName(), AnomalyDetectorsIndex.jobStateIndexPattern(),
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
 
 
@@ -702,7 +702,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (ScheduledEvent event : events) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
                     ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
@@ -726,7 +726,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (MlFilter filter : filters) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
                     ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
@@ -760,7 +760,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (Calendar calendar: calendars) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(
                     Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));

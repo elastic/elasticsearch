@@ -16,9 +16,9 @@ Computing the min price value across all documents:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "min_price" : { "min" : { "field" : "price" } }
-    }
+  "aggs": {
+    "min_price": { "min": { "field": "price" } }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -28,13 +28,13 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "min_price": {
-            "value": 10.0
-        }
+  "aggregations": {
+    "min_price": {
+      "value": 10.0
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -52,15 +52,15 @@ below computes the minimum price:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "min_price" : {
-            "min" : {
-                "script" : {
-                    "source" : "doc.price.value"
-                }
-            }
+  "aggs": {
+    "min_price": {
+      "min": {
+        "script": {
+          "source": "doc.price.value"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -72,18 +72,18 @@ and no script parameters. To use a stored script use the following syntax:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "min_price" : {
-            "min" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "price"
-                    }
-                }
-            }
+  "aggs": {
+    "min_price": {
+      "min": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "price"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales,stored_example_script]
@@ -99,19 +99,19 @@ conversion rate to every value before it is aggregated:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "min_price_in_euros" : {
-            "min" : {
-                "field" : "price",
-                "script" : {
-                    "source" : "_value * params.conversion_rate",
-                    "params" : {
-                        "conversion_rate" : 1.2
-                    }
-                }
-            }
+  "aggs": {
+    "min_price_in_euros": {
+      "min": {
+        "field": "price",
+        "script": {
+          "source": "_value * params.conversion_rate",
+          "params": {
+            "conversion_rate": 1.2
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -126,14 +126,14 @@ them as if they had a value.
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "grade_min" : {
-            "min" : {
-                "field" : "grade",
-                "missing": 10 <1>
-            }
-        }
+  "aggs": {
+    "grade_min": {
+      "min": {
+        "field": "grade",
+        "missing": 10 <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

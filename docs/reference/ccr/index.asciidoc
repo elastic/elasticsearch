@@ -168,11 +168,9 @@ and use {ccr}:
 * <<ccr-getting-started>>
 * <<ccr-managing>>
 * <<ccr-auto-follow>>
-* <<ccr-tuning>>
 * <<ccr-upgrading>>
 
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]
-include::tuning.asciidoc[]
 include::upgrading.asciidoc[]

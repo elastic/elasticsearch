@@ -8,7 +8,7 @@ The following pages have moved or been deleted.
 
 See <<ccr-leader-requirements,Requirements for leader indices>>.
 
-[role="exclude",id="ccr-remedy-follower-index"]
+[role="exclude",id="ccr-leader-not-replicating"]
 === Remedying a follower that has fallen behind
 
 See <<ccr-recreate-follower-index,Recreating a follower index>>.

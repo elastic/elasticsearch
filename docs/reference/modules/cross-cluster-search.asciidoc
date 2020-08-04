@@ -66,22 +66,22 @@ PUT _cluster/settings
 ==== Search a single remote cluster
 
 The following <<search-search,search>> API request searches the
-`twitter` index on a single remote cluster, `cluster_one`.
+`my-index-000001` index on a single remote cluster, `cluster_one`.
 
 [source,console]
 --------------------------------------------------
-GET /cluster_one:twitter/_search
+GET /cluster_one:my-index-000001/_search
 {
   "query": {
     "match": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   },
-  "_source": ["user", "message", "likes"]
+  "_source": ["user.id", "message", "http.response.status_code"]
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -109,13 +109,20 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter", <1>
+        "_index": "cluster_one:my-index-000001", <1>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       }
     ]
@@ -133,7 +140,7 @@ The API returns the following response:
 [[ccs-search-multi-remote-cluster]]
 ==== Search multiple remote clusters
 
-The following <<search,search>> API request searches the `twitter` index on
+The following <<search,search>> API request searches the `my-index-000001` index on
 three clusters:
 
 * Your local cluster
@@ -141,14 +148,14 @@ three clusters:
 
 [source,console]
 --------------------------------------------------
-GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
+GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_search
 {
   "query": {
     "match": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   },
-  "_source": ["user", "message", "likes"]
+  "_source": ["user.id", "message", "http.response.status_code"]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -180,33 +187,54 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "twitter", <1>
+        "_index": "my-index-000001", <1>
         "_id": "0",
         "_score": 2,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       },
       {
-        "_index": "cluster_one:twitter", <2>
+        "_index": "cluster_one:my-index-000001", <2>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       },
       {
-        "_index": "cluster_two:twitter", <3>
+        "_index": "cluster_two:my-index-000001", <3>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       }
     ]

@@ -134,12 +134,18 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
         return max;
     }
 
-    public double getEffectiveMin() {
-        return min != null ? min : Double.POSITIVE_INFINITY;
+    /**
+     * returns bounds min if it is defined or POSITIVE_INFINITY otherwise
+     */
+    public static double getEffectiveMin(DoubleBounds bounds) {
+        return bounds == null || bounds.min == null ? Double.POSITIVE_INFINITY : bounds.min;
     }
 
-    public Double getEffectiveMax() {
-        return max != null ? max : Double.NEGATIVE_INFINITY;
+    /**
+     * returns bounds max if it is defined or NEGATIVE_INFINITY otherwise
+     */
+    public static Double getEffectiveMax(DoubleBounds bounds) {
+        return bounds == null || bounds.max == null ? Double.NEGATIVE_INFINITY : bounds.max;
     }
 
     public boolean contain(double value) {

@@ -37,6 +37,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMax;
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMin;
+
 /**
  * Base class for functionality shared between aggregators for this
  * {@code histogram} aggregation.
@@ -97,10 +100,8 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
 
                 EmptyBucketInfo emptyBucketInfo = null;
                 if (minDocCount == 0) {
-                    emptyBucketInfo = new EmptyBucketInfo(interval, offset,
-                        extendedBounds == null || extendedBounds.getMin() == null ? Double.POSITIVE_INFINITY : extendedBounds.getMin(),
-                        extendedBounds == null || extendedBounds.getMax() == null ? Double.NEGATIVE_INFINITY : extendedBounds.getMax(),
-                        buildEmptySubAggregations());
+                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                        getEffectiveMax(extendedBounds), buildEmptySubAggregations());
                 }
                 return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
             });
@@ -110,10 +111,8 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {
-            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset,
-                extendedBounds == null || extendedBounds.getMin() == null ? Double.POSITIVE_INFINITY : extendedBounds.getMin(),
-                extendedBounds == null || extendedBounds.getMax() == null ? Double.NEGATIVE_INFINITY : extendedBounds.getMax(),
-                buildEmptySubAggregations());
+            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                getEffectiveMax(extendedBounds), buildEmptySubAggregations());
         }
         return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }

@@ -20,14 +20,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
@@ -314,13 +312,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        expectThrows(NoShardAvailableActionException.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
         SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
             .setAllowPartialSearchResults(true).setSize(0).get();
         assertHitCount(countResponse, 1L);
 
-        expectThrows(SearchPhaseExecutionException.class, () -> client(partitionedNode).prepareSearch("test1")
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareSearch("test1")
             .setAllowPartialSearchResults(true).setSize(0).get());
 
         TimeValue timeout = TimeValue.timeValueMillis(200);

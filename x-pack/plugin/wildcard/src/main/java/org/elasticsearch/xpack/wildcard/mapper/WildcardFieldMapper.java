@@ -940,16 +940,17 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-
-        String keywordValue = value.toString();
-        if (keywordValue.length() > ignoreAbove) {
-            return null;
-        }
-        return keywordValue;
+        return sourceValueFetcher(lookup, value -> {
+            String keywordValue = value.toString();
+            if (keywordValue.length() > ignoreAbove) {
+                return null;
+            }
+            return keywordValue;
+        });
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {

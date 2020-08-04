@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -38,19 +39,19 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<NumberFieldMapper.Builder> {
 
@@ -406,22 +407,23 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         }
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER).build(context);
-        assertEquals(3, mapper.parseSourceValue(3.14, null));
-        assertEquals(42, mapper.parseSourceValue("42.9", null));
+        assertEquals(List.of(3), fetchFromSource(mapper, null, 3.14));
+        assertEquals(List.of(42), fetchFromSource(mapper, null, 42.9));
+        assertEquals(List.of(), fetchFromSource(mapper, null, ""));
+        assertEquals(List.of(), fetchFromSource(mapper, null, null));
 
-        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT)
-            .nullValue(2.71f)
-            .build(context);
-        assertEquals(2.71f, (float) nullValueMapper.parseSourceValue("", null), 0.00001);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of(2.71f), nullValueMapper.lookupValues(sourceLookup, null));
+        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT).nullValue(2.71f).build(context);
+        assertThat(fetchFromSource(nullValueMapper, null, "42.9"), hasSize(1));
+        assertThat(((Number) fetchFromSource(nullValueMapper, null, "42.9").get(0)).doubleValue(), closeTo(42.9f, 0.00001));
+        assertThat(fetchFromSource(nullValueMapper, null, ""), hasSize(1));
+        assertThat(((Number) fetchFromSource(nullValueMapper, null, "").get(0)).doubleValue(), closeTo(2.71f, 0.00001));
+        assertThat(fetchFromSource(nullValueMapper, null, null), hasSize(1));
+        assertThat(((Number) fetchFromSource(nullValueMapper, null, null).get(0)).doubleValue(), closeTo(2.71f, 0.00001));
     }
 
     @Timeout(millis = 30000)

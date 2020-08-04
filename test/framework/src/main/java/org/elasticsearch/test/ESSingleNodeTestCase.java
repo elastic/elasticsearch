@@ -19,6 +19,19 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -32,26 +45,43 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -62,14 +92,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * A test that keep a singleton node started for all tests that can be used to get
@@ -367,4 +403,101 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from {@code _source}.
+     */
+    protected static List<?> fetchFromSource(FieldMapper mapper, String format, Object sourceValue) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of()); // An empty document is fine because we're setting the source.
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher indexSearcher = newSearcher(reader);
+                SearchLookup lookup = new SearchLookup(null, null);
+                SetOnce<List<?>> result = new SetOnce<>();
+                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
+                        return new LeafCollector() {
+                            @Override
+                            public void setScorer(Scorable scorer) throws IOException {}
+
+                            @Override
+                            public void collect(int doc) throws IOException {
+                                // Position the lookup and set the source to mimick the fetch phase
+                                lookup.source().setSegmentAndDocument(context, doc);
+                                lookup.source().setSource(singletonMap(mapper.name(), sourceValue));
+                                result.set(lvf.fetch(doc));
+                            }
+                        };
+                    }
+                });
+                return result.get();
+            }
+        }
+    }
+
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     */
+    protected static List<?> fetchFromDocValues(FieldMapper mapper, String format, Object sourceValue) throws IOException {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(any())).thenReturn(mapper.fieldType());
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = mft -> mft.fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            BytesRef source = BytesRefs.toBytesRef(
+                JsonXContent.contentBuilder().startObject().field(mapper.name(), sourceValue).endObject()
+            );
+            ParseContext.Document doc = new ParseContext.Document();
+            ParseContext context = mock(ParseContext.class);
+            when(context.doc()).thenReturn(doc);
+            when(context.sourceToParse()).thenReturn(new SourceToParse("test", "id", new BytesArray(source), XContentType.JSON));
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    source.utf8ToString()
+                )
+            ) {
+                parser.nextToken();
+                parser.nextToken();
+                mapper.parse(context);
+            }
+            iw.addDocument(doc);
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher indexSearcher = newSearcher(reader);
+                SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+                DocValueFormat dvFormat = mapper.fieldType().docValueFormat(format, null);
+                IndexFieldData<?> ifd = lookup.doc().getForField(mapper.fieldType());
+                SetOnce<List<?>> result = new SetOnce<>();
+                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        LeafValueFetcher lvf = ifd.load(context).buildFetcher(dvFormat);
+                        return new LeafCollector() {
+                            @Override
+                            public void setScorer(Scorable scorer) throws IOException {}
+
+                            @Override
+                            public void collect(int doc) throws IOException {
+                                result.set(lvf.fetch(doc));
+                            }
+                        };
+                    }
+                });
+                return result.get();
+            }
+        }
+    }
 }

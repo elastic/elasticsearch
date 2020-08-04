@@ -14,6 +14,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -21,12 +22,16 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +40,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
@@ -50,6 +56,8 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -57,7 +65,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -67,11 +74,11 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -779,28 +786,26 @@ public class WildcardFieldMapperTests extends ESTestCase {
         return result.toString();
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         WildcardFieldMapper mapper = new WildcardFieldMapper.Builder("field").build(context);
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("value"), fetchFromSource(mapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(mapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(mapper, null, true));
 
         WildcardFieldMapper ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
             .ignoreAbove(4)
             .build(context);
-        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
-        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
-        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+        assertEquals(List.of(), fetchFromSource(ignoreAboveMapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(ignoreAboveMapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(ignoreAboveMapper, null, true));
 
         WildcardFieldMapper nullValueMapper = new WildcardFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of("NULL"), fetchFromSource(nullValueMapper, null, null));
     }
 
     protected MappedFieldType provideMappedFieldType(String name) {
@@ -911,5 +916,43 @@ public class WildcardFieldMapperTests extends ESTestCase {
             randomSyntaxChar(sb);
         }
         return sb.toString();
+    }
+
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from {@code _source}.
+     */
+    protected static List<?> fetchFromSource(FieldMapper mapper, String format, Object sourceValue) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of()); // An empty document is fine because we're setting the source.
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher indexSearcher = newSearcher(reader);
+                SearchLookup lookup = new SearchLookup(null, null);
+                SetOnce<List<?>> result = new SetOnce<>();
+                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
+                        return new LeafCollector() {
+                            @Override
+                            public void setScorer(Scorable scorer) throws IOException {}
+
+                            @Override
+                            public void collect(int doc) throws IOException {
+                                // Position the lookup and set the source to mimick the fetch phase
+                                lookup.source().setSegmentAndDocument(context, doc);
+                                lookup.source().setSource(singletonMap(mapper.name(), sourceValue));
+                                result.set(lvf.fetch(doc));
+                            }
+                        };
+                    }
+                });
+                return result.get();
+            }
+        }
     }
 }

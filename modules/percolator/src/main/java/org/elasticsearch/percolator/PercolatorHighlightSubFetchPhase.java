@@ -34,6 +34,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +77,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
             LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(new SourceLookup());
 
             for (SearchHit hit : hits) {
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));

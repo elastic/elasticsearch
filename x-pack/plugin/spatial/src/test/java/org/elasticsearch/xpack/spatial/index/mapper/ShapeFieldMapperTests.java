@@ -26,14 +26,13 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -332,12 +331,11 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         return toXContentString(mapper, true);
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         ShapeFieldMapper mapper = new ShapeFieldMapper.Builder("field").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
@@ -346,23 +344,27 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         String wktPoint = "POINT (14.3 15.0)";
 
         // Test a single shape in geojson format.
-        sourceLookup.setSource(Collections.singletonMap("field", jsonLineString));
-        assertEquals(List.of(jsonLineString), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktLineString), mapper.lookupValues(sourceLookup, "wkt"));
+        assertEquals(List.of(jsonLineString), fetchFromSource(mapper, null, jsonLineString));
+        assertEquals(List.of(jsonLineString), fetchFromSource(mapper, "geojson", jsonLineString));
+        assertEquals(List.of(wktLineString), fetchFromSource(mapper, "wkt", jsonLineString));
 
         // Test a list of shapes in geojson format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(jsonLineString, jsonPoint)));
-        assertEquals(List.of(jsonLineString, jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktLineString, wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        Object value = List.of(jsonLineString, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktLineString, wktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a single shape in wkt format.
-        sourceLookup.setSource(Collections.singletonMap("field", wktLineString));
-        assertEquals(List.of(jsonLineString), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktLineString), mapper.lookupValues(sourceLookup, "wkt"));
+        assertEquals(List.of(jsonLineString), fetchFromSource(mapper, null, wktLineString));
+        assertEquals(List.of(jsonLineString), fetchFromSource(mapper, "geojson", wktLineString));
+        assertEquals(List.of(wktLineString), fetchFromSource(mapper, "wkt", wktLineString));
+
 
         // Test a list of shapes in wkt format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(wktLineString, wktPoint)));
-        assertEquals(List.of(jsonLineString, jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktLineString, wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = List.of(wktLineString, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktLineString, wktPoint), fetchFromSource(mapper, "wkt", value));
+
     }
 }

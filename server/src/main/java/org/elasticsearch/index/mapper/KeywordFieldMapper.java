@@ -48,7 +48,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -406,26 +405,23 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        String keywordValue = value.toString();
-        if (keywordValue.length() > ignoreAbove) {
-            return null;
-        }
+        return sourceValueFetcher(lookup, value -> {
+            String keywordValue = value.toString();
+            if (keywordValue.length() > ignoreAbove) {
+                return null;
+            }
 
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer == null) {
-            return keywordValue;
-        }
-
-        try {
+            NamedAnalyzer normalizer = fieldType().normalizer();
+            if (normalizer == null) {
+                return keywordValue;
+            }
             return normalizeValue(normalizer, keywordValue);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        });
     }
 
     @Override

@@ -26,9 +26,13 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.search.DocValueFormat;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 
 /**
@@ -82,4 +86,18 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     public void close() {
     }
 
+    @Override
+    public LeafValueFetcher buildFetcher(DocValueFormat format) {
+        SortedNumericDoubleValues doubles = getDoubleValues();
+        return docId -> {
+            if (false == doubles.advanceExact(docId)) {
+                return List.of();
+            }
+            List<Object> result = new ArrayList<>(doubles.docValueCount());
+            for (int i = 0, count = doubles.docValueCount(); i < count; ++i) {
+                result.add(format.format(doubles.nextValue()));
+            }
+            return result;
+        };
+    }
 }

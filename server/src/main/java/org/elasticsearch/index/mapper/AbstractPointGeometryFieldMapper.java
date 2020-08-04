@@ -20,8 +20,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -37,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -182,6 +186,18 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
+    @Override
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
+        if (format == null) {
+            format = GeoJsonGeometryFormat.NAME;
+        }
+
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
+        CheckedFunction<Object, Object, IOException> formatter = mappedFieldType.geometryParser().formatter(this, format);
+        return sourceListValueFetcher(lookup, v -> (List<?>) formatter.apply(v));
+    }
+
+
     /** A parser implementation that can parse the various point formats */
     public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
         /**
@@ -253,14 +269,16 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
 
         @Override
-        public Object format(List<P> points, String format) {
-            List<Object> result = new ArrayList<>();
+        public Function<List<P>, Object> formatter(String format) {
             GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            for (ParsedPoint point : points) {
-                Geometry geometry = point.asGeometry();
-                result.add(geometryFormat.toXContentAsObject(geometry));
-            }
-            return result;
+            return points -> {
+                List<Object> result = new ArrayList<>();
+                for (ParsedPoint point : points) {
+                    Geometry geometry = point.asGeometry();
+                    result.add(geometryFormat.toXContentAsObject(geometry));
+                }
+                return result;
+            };
         }
     }
 }

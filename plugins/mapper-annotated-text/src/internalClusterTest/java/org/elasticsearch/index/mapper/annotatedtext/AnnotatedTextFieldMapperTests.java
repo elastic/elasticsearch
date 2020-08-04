@@ -677,7 +677,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
@@ -688,8 +688,8 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
             .build(context);
         AnnotatedTextFieldMapper mapper = (AnnotatedTextFieldMapper) fieldMapper;
 
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("value"), fetchFromSource(mapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(mapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(mapper, null, true));
     }
 }

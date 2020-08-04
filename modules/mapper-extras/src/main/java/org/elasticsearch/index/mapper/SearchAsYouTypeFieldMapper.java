@@ -54,6 +54,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -419,7 +420,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value, String format) {
+        public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -465,7 +466,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value, String format) {
+        public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -588,11 +589,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value.toString();
+        return sourceValueFetcher(lookup, Object::toString);
     }
 
     @Override

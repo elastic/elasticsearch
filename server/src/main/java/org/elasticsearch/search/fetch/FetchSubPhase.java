@@ -40,8 +40,12 @@ public interface FetchSubPhase {
         private IndexSearcher searcher;
         private LeafReaderContext readerContext;
         private int docId;
-        private final SourceLookup sourceLookup = new SourceLookup();
+        private final SourceLookup sourceLookup;
         private Map<String, Object> cache;
+
+        public HitContext(SourceLookup sourceLookup) {
+            this.sourceLookup = sourceLookup; 
+        }
 
         public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
             this.hit = hit;

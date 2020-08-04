@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -151,7 +152,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
         SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext);
 
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(new SourceLookup());
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.

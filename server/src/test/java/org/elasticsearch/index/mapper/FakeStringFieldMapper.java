@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -134,8 +135,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
-        return value.toString();
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
+        return sourceValueFetcher(lookup, Object::toString);
     }
 
     @Override

@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
@@ -68,7 +69,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        HitContext mockHitContext = new HitContext();
+        HitContext mockHitContext = new HitContext(new SourceLookup());
         AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer, mockHitContext);
         
         AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];

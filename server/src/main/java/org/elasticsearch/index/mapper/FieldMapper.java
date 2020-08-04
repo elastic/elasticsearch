@@ -21,9 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
@@ -33,8 +36,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -231,12 +236,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return null;
     }
 
-    /**
-     * Whether this mapper can handle an array value during document parsing. If true,
-     * when an array is encountered during parsing, the document parser will pass the
-     * whole array to the mapper. If false, the array is split into individual values
-     * and each value is passed to the mapper for parsing.
-     */
     public boolean parsesArrayValue() {
         return false;
     }
@@ -279,13 +278,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
     /**
-     * Given access to a document's _source, return this field's values.
+     * Build a {@linkplain ValueFetcher} to fetch values for the fields fetch api.
      *
-     * In addition to pulling out the values, mappers can parse them into a standard form. This
-     * method delegates parsing to {@link #parseSourceValue} for parsing. Most mappers will choose
-     * to override {@link #parseSourceValue} -- for example numeric field mappers make sure to
-     * parse the source value into a number of the right type. Some mappers may need more
-     * flexibility and can override this entire method instead.
+     * Subclasses should return a fetcher that resolves the values for the
+     * document, normalizes the values into a standard form, and then applies the
+     * specified format. They can use {@link #sourceValueFetcher} to implement this
+     * by loading from source.
+     *
+     * For example, {@link DateFieldMapper} parses the values as a date and then
+     * format the date with the format provided.
      *
      * Note that for array values, the order in which values are returned is undefined and should
      * not be relied on.
@@ -294,35 +295,95 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param format an optional format string used when formatting values, for example a date format.
      * @return a list a standardized field values.
      */
-    public List<?> lookupValues(SourceLookup lookup, @Nullable String format) {
-        Object sourceValue = lookup.extractValue(name(), nullValue());
-        if (sourceValue == null) {
-            return List.of();
-        }
+    public abstract ValueFetcher valueFetcher(SearchLookup lookup, @Nullable String format);
 
-        List<Object> values = new ArrayList<>();
-        if (parsesArrayValue()) {
-            return (List<?>) parseSourceValue(sourceValue, format);
-        } else {
-            List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
-            for (Object value : sourceValues) {
-                Object parsedValue = parseSourceValue(value, format);
-                if (parsedValue != null) {
-                    values.add(parsedValue);
-                }
-            }
-        }
-        return values;
+    /**
+     * Fetch values for a particular document.
+     */
+    @FunctionalInterface
+    public interface ValueFetcher {
+        LeafValueFetcher leaf(LeafReaderContext context) throws IOException;
+    }
+    /**
+     * Fetch values for a particular document.
+     */
+    @FunctionalInterface
+    public interface LeafValueFetcher {
+        List<?> fetch(int docId) throws IOException;
     }
 
     /**
-     * Given a value that has been extracted from a document's source, parse it into a standard
-     * format. This parsing logic should closely mirror the value parsing in
-     * {@link #parseCreateField} or {@link #parse}.
-     *
-     * Note that when overriding this method, {@link #lookupValues} should *not* be overridden.
+     * Build a {@linkplain ValueFetcher} that reads values from the source
+     * then calls {@code convertSourceValues} to parse, normalize, and format each value.
+     * <p>
+     * If the source doesn't contain any values then this will return an
+     * empty list and won't call {@code convertSourceValues} at all.
      */
-    protected abstract Object parseSourceValue(Object value, @Nullable String format);
+    protected final ValueFetcher sourceValueFetcher(SearchLookup lookup, CheckedFunction<Object, Object, IOException> convertSourceValue) {
+        assert parsesArrayValue() == false;
+        return uncheckedSourceValueFetcher(lookup, sourceValue -> {
+            if (sourceValue instanceof List) {
+                List<?> sourceValues = (List<?>) sourceValue;
+                List<Object> values = new ArrayList<>(sourceValues.size());
+                for (Object value : sourceValues) {
+                    Object converted = convertSourceValue.apply(value);
+                    if (converted != null) {
+                        values.add(converted);
+                    }
+                }
+                return values;
+            }
+            Object converted = convertSourceValue.apply(sourceValue);
+            if (converted != null) {
+                return List.of(converted);
+            }
+            return List.of();
+        });
+    }
+
+    /**
+     * Build a {@linkplain ValueFetcher} that reads values from the source
+     * then calls {@code convertSourceValues} to parse, normalize, and format the value.
+     * <p>
+     * If the source doesn't contain the value then this will return an
+     * empty list and won't call {@code convertSourceValues} at all.
+     */
+    protected final ValueFetcher sourceListValueFetcher(
+        SearchLookup lookup,
+        CheckedFunction<Object, List<?>, IOException> convertSourceValues
+    ) {
+        assert parsesArrayValue();
+        return uncheckedSourceValueFetcher(lookup, convertSourceValues);
+    }
+
+    private ValueFetcher uncheckedSourceValueFetcher(
+        SearchLookup lookup,
+        CheckedFunction<Object, List<?>, IOException> convertSourceValues
+    ) {
+        return ctx -> docId -> {
+            /*
+             * setSegmentAndDocument out of pure paranoia. The fetch phase should already
+             * have positioned us at the right document. So we assert that too.
+             */
+            boolean alreadyPositioned = lookup.source().setSegmentAndDocument(ctx, docId);
+            assert alreadyPositioned;
+            Object sourceValue = lookup.source().extractValue(name(), nullValue());
+            if (sourceValue == null) {
+                return List.of();
+            }
+            return convertSourceValues.apply(sourceValue);
+        };
+    }
+
+    /**
+     * Build a {@linkplain ValueFetcher} that reads values from doc values using the
+     * same logic as the doc values fetch phase.
+     */
+    protected final ValueFetcher docValuesFetcher(SearchLookup lookup, String format) {
+        DocValueFormat dvFormat = fieldType().docValueFormat(format, null);
+        IndexFieldData<?> fd = lookup.doc().getForField(fieldType());
+        return ctx -> fd.load(ctx).buildFetcher(dvFormat);
+    }
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

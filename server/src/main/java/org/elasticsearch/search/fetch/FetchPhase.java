@@ -53,6 +53,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -142,6 +143,11 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
+            SearchLookup lookup = new SearchLookup(context.mapperService(), context.getQueryShardContext()::getForField);
+            if (context.fetchFieldsContext() != null) {
+                context.fetchFieldsContext().prepare(lookup);
+            }
+
             DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
@@ -150,7 +156,7 @@ public class FetchPhase implements SearchPhase {
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
             SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(lookup.source());
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");

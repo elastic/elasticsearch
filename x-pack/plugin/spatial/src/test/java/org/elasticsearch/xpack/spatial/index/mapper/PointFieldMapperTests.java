@@ -21,16 +21,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -305,12 +303,11 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(ignoreZValue, equalTo(false));
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         AbstractGeometryFieldMapper<?, ?> mapper = new PointFieldMapper.Builder("field").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";
@@ -318,23 +315,27 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         String otherWktPoint = "POINT (30.0 50.0)";
 
         // Test a single point in [x, y] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(42.0, 27.1)));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        Object value = List.of(42.0, 27.1);
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a single point in "x, y" string format.
-        sourceLookup.setSource(Collections.singletonMap("field", "42.0,27.1"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = "42.0,27.1";
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a list of points in [x, y] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0))));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint, otherWktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a single point in well-known text format.
-        sourceLookup.setSource(Collections.singletonMap("field", "POINT (42.0 27.1)"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = "POINT (42.0 27.1)";
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
     }
 }

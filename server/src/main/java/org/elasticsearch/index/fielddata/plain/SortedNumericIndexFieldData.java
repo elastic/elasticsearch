@@ -39,7 +39,9 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -172,6 +174,16 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
+        }
+
+        @Override
+        public LeafValueFetcher buildFetcher(DocValueFormat format) {
+            /*
+             * When we fetch values from doc values we want nanos and
+             * the superclass implementation of this calls getLongValues
+             * which is milliseconds.
+             */
+            return buildLongFetcher(format, getLongValuesAsNanos());
         }
     }
 

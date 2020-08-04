@@ -39,5 +39,4 @@ public interface LeafNumericFieldData extends LeafFieldData {
      * same ones as you would get from casting to a double.
      */
     SortedNumericDoubleValues getDoubleValues();
-
 }

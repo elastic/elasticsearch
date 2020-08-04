@@ -46,7 +46,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -171,7 +170,7 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        assertEquals("1234", fieldMapper.parseSourceValue("1234", null));
+        assertEquals(List.of("1234"), fetchFromSource(fieldMapper, null, "1234"));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -631,37 +630,35 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("value"), fetchFromSource(mapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(mapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(mapper, null, true));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.valueFetcher(null, "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
         KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
             .build(context);
-        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
-        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
-        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+        assertEquals(List.of(), fetchFromSource(ignoreAboveMapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(ignoreAboveMapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(ignoreAboveMapper, null, true));
 
         KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field")
             .normalizer(indexService.getIndexAnalyzers(), "lowercase")
             .build(context);
-        assertEquals("value", normalizerMapper.parseSourceValue("VALUE", null));
-        assertEquals("42", normalizerMapper.parseSourceValue(42L, null));
-        assertEquals("value", normalizerMapper.parseSourceValue("value", null));
+        assertEquals(List.of("value"), fetchFromSource(normalizerMapper, null, "VALUE"));
+        assertEquals(List.of("42"), fetchFromSource(normalizerMapper, null, 42L));
+        assertEquals(List.of("value"), fetchFromSource(normalizerMapper, null, "value"));
 
         KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of("NULL"), fetchFromSource(nullValueMapper, null, null));
     }
 }

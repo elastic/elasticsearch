@@ -938,19 +938,19 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer).build(context);
 
-        assertEquals(List.of("value"), mapper.parseSourceValue("value", null));
+        assertEquals(List.of("value"), fetchFromSource(mapper, null, "value"));
 
         List<String> list = List.of("first", "second");
-        assertEquals(list, mapper.parseSourceValue(list, null));
+        assertEquals(list, fetchFromSource(mapper, null, list));
 
         Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
-        assertEquals(List.of(object), mapper.parseSourceValue(object, null));
+        assertEquals(List.of(object), fetchFromSource(mapper, null, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

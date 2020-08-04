@@ -25,9 +25,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +49,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
@@ -97,29 +97,30 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Supported formats include 'geojson' and 'wkt'. The different formats are defined
          * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
          */
-        public abstract Object format(Parsed value, String format);
+        protected abstract Function<Parsed, Object> formatter(String format);
 
         /**
          * Parses the given value, then formats it according to the 'format' string.
          *
          * By default, this method simply parses the value using {@link Parser#parse}, then formats
-         * it with {@link Parser#format}. However some {@link Parser} implementations override this
-         * as they can avoid parsing the value if it is already in the right format.
+         * it with {@link Parser#formatter(String)}. However some {@link Parser} implementations
+         * override this as they can avoid parsing the value if it is already in the right format.
          */
-        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
-            Parsed geometry;
-            try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-                parser.nextToken(); // start object
-                parser.nextToken(); // field name
-                parser.nextToken(); // field value
-                geometry = parse(parser, mapper);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            } catch (ParseException e) {
-                throw new RuntimeException(e);
-            }
-            return format(geometry, format);
+        public CheckedFunction<Object, Object, IOException> formatter(AbstractGeometryFieldMapper mapper, String format) {
+            Function<Parsed, Object> formatter = formatter(format);
+            return value -> {
+                Parsed geometry;
+                try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                    Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+                    parser.nextToken(); // start object
+                    parser.nextToken(); // field name
+                    parser.nextToken(); // field value
+                    geometry = parse(parser, mapper);
+                } catch (ParseException e) {
+                    throw new IOException(e);
+                }
+                return formatter.apply(geometry);
+            };
         }
     }
 
@@ -180,17 +181,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             this.ignoreZValue = ignoreZValue;
             return this;
         }
-    }
-
-    @Override
-    protected Object parseSourceValue(Object value, String format) {
-        if (format == null) {
-            format = GeoJsonGeometryFormat.NAME;
-        }
-
-        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
-        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        return geometryParser.parseAndFormatObject(value, this, format);
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {

@@ -19,6 +19,17 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +37,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -331,17 +343,48 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertFalse(fields.containsKey("object"));
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern) {
+    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
+        throws IOException {
         List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
         return retrieveFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields) {
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
+    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+        throws IOException {
         FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, fields);
-        return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of()); // An empty document is fine because we're setting the source.
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher indexSearcher = newSearcher(reader);
+                SearchLookup lookup = new SearchLookup(null, null);
+                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(lookup.source());
+                fetchFieldsLookup.prepare(lookup);
+                SetOnce<Map<String, DocumentField>> result = new SetOnce<>();
+                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        return new LeafCollector() {
+                            @Override
+                            public void setScorer(Scorable scorer) throws IOException {}
+
+                            @Override
+                            public void collect(int doc) throws IOException {
+                                // Position the lookup and set the source to mimick the fetch phase
+                                hitContext.reset(null, context, doc, indexSearcher);
+                                hitContext.sourceLookup().setSource(BytesReference.bytes(source));
+                                result.set(fetchFieldsLookup.retrieve(hitContext, Set.of()));
+                            }
+                        };
+                    }
+                });
+                return result.get();
+            }
+        }
     }
 
     public MapperService createMapperService() throws IOException {

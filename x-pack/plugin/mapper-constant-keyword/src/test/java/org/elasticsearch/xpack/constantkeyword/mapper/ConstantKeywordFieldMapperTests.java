@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
@@ -29,6 +28,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.empty;
 
 public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<ConstantKeywordFieldMapper.Builder> {
 
@@ -146,8 +147,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         assertEquals(mapping, mapper.mappingSource().toString());
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        List<?> values = fieldMapper.lookupValues(new SourceLookup(), null);
-        assertTrue(values.isEmpty());
+        assertThat(fetchFromSource(fieldMapper, null, null), empty());
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "constant_keyword")
@@ -155,7 +155,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
 
         fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        values = fieldMapper.lookupValues(new SourceLookup(), null);
+        List<?> values = fetchFromSource(fieldMapper, null, null);
         assertEquals(1, values.size());
         assertEquals("foo", values.get(0));
     }

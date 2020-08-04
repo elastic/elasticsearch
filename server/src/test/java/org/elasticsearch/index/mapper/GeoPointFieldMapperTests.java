@@ -34,14 +34,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -593,37 +591,39 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         AbstractGeometryFieldMapper<?, ?> mapper = new GeoPointFieldMapper.Builder("field").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
         String wktPoint = "POINT (42.0 27.1)";
         String otherWktPoint = "POINT (30.0 50.0)";
 
         // Test a single point in [lon, lat] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(42.0, 27.1)));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        Object value = List.of(42.0, 27.1);
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a single point in "lat, lon" string format.
-        sourceLookup.setSource(Collections.singletonMap("field", "27.1,42.0"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = "27.1,42.0";
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a list of points in [lon, lat] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0))));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint, otherWktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchFromSource(mapper, "wkt", value));
 
         // Test a single point in well-known text format.
-        sourceLookup.setSource(Collections.singletonMap("field", "POINT (42.0 27.1)"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        value = "POINT (42.0 27.1)";
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, null, value));
+        assertEquals(List.of(jsonPoint), fetchFromSource(mapper, "geojson", value));
+        assertEquals(List.of(wktPoint), fetchFromSource(mapper, "wkt", value));
     }
 
     @Override

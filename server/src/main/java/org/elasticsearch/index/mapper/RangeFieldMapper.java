@@ -377,28 +377,28 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         RangeType rangeType = fieldType().rangeType();
-        if (!(value instanceof Map)) {
-            assert rangeType == RangeType.IP;
-            Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
-            return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
-        }
+        DateFormatter dtFormatter = format == null
+            ? fieldType().dateTimeFormatter()
+            : DateFormatter.forPattern(format).withLocale(fieldType().dateTimeFormatter().locale());
 
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
-
-        Map<String, Object> range = (Map<String, Object>) value;
-        Map<String, Object> parsedRange = new HashMap<>();
-        for (Map.Entry<String, Object> entry : range.entrySet()) {
-            Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-            Object formattedValue = rangeType.formatValue(parsedValue, dateTimeFormatter);
-            parsedRange.put(entry.getKey(), formattedValue);
-        }
-        return parsedRange;
+        return sourceValueFetcher(lookup, value -> {
+            if (!(value instanceof Map)) {
+                assert rangeType == RangeType.IP;
+                Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+            }
+    
+            Map<?, ?> range = (Map<?, ?>) value;
+            Map<String, Object> parsedRange = new HashMap<>();
+            for (Map.Entry<?, ?> entry : range.entrySet()) {
+                Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+                Object formattedValue = rangeType.formatValue(parsedValue, dtFormatter);
+                parsedRange.put(entry.getKey().toString(), formattedValue);
+            }
+            return parsedRange;
+        });
     }
 
     @Override

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -43,7 +42,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloatFieldMapper.Builder> {
 
@@ -403,25 +405,27 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloat
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field")
             .scalingFactor(100)
             .build(context);
-        assertEquals(3.14, mapper.parseSourceValue(3.1415926, null), 0.00001);
-        assertEquals(3.14, mapper.parseSourceValue("3.1415", null), 0.00001);
-        assertNull(mapper.parseSourceValue("", null));
+        assertThat(fetchFromSource(mapper, null, 3.1415926), hasSize(1));
+        assertThat(((Double) fetchFromSource(mapper, null, 3.1415926).get(0)).doubleValue(), closeTo(3.14, 0.00001));
+        assertThat(fetchFromSource(mapper, null, "3.1415"), hasSize(1));
+        assertThat(((Double) fetchFromSource(mapper, null, "3.1415").get(0)).doubleValue(), closeTo(3.14, 0.00001));
+        assertThat(fetchFromSource(mapper, null, ""), equalTo(List.of()));
+        assertThat(fetchFromSource(mapper, null, null), equalTo(List.of()));
 
         ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field")
             .scalingFactor(100)
             .nullValue(2.71)
             .build(context);
-        assertEquals(2.71, nullValueMapper.parseSourceValue("", null), 0.00001);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of(2.71), nullValueMapper.lookupValues(sourceLookup, null));
+        assertThat(fetchFromSource(nullValueMapper, null, ""), hasSize(1));
+        assertThat(((Double) fetchFromSource(nullValueMapper, null, "").get(0)).doubleValue(), closeTo(2.71, 0.00001));
+        assertThat(fetchFromSource(nullValueMapper, null, null), hasSize(1));
+        assertThat(((Double) fetchFromSource(nullValueMapper, null, null).get(0)).doubleValue(), closeTo(2.71, 0.00001));
     }
 }

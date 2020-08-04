@@ -489,26 +489,27 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("value"), fetchFromSource(mapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(mapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(mapper, null, true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
             .build(context);
-        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
-        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
-        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+        assertEquals(List.of(), fetchFromSource(ignoreAboveMapper, null, "value"));
+        assertEquals(List.of("42"), fetchFromSource(ignoreAboveMapper, null, 42L));
+        assertEquals(List.of("true"), fetchFromSource(ignoreAboveMapper, null, true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of("NULL"), fetchFromSource(nullValueMapper, null, null));
     }
 }

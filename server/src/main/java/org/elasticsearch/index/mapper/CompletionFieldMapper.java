@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -532,16 +533,18 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected List<?> parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof List) {
-            return (List<?>) value;
-        } else {
-            return List.of(value);
-        }
+        return sourceListValueFetcher(lookup, value -> {
+            if (value instanceof List) {
+                return (List<?>) value;
+            } else {
+                return List.of(value);
+            }
+        });
     }
 
     static class CompletionInputMetadata {

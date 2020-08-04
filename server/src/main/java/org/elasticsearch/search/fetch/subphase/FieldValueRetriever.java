@@ -19,13 +19,18 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.index.mapper.FieldMapper.ValueFetcher;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,14 +38,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toList;
+
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
-    private final DocumentFieldMappers fieldMappers;
-    private final List<FieldContext> fieldContexts;
-
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<FieldAndFormat> fieldAndFormats) {
         DocumentFieldMappers fieldMappers = mapperService.documentMapper().mappers();
@@ -53,23 +57,42 @@ public class FieldValueRetriever {
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
                 if (fieldMappers.getMapper(field) != null && mapperService.isMetadataField(field) == false) {
-                    Set<String> sourcePath = mapperService.sourcePath(field);
-                    fields.add(new FieldContext(field, sourcePath, format));
+                    Set<String> sourcePaths = mapperService.sourcePath(field);
+                    List<FieldMapper> mappers = sourcePaths.stream()
+                        .map(path -> (FieldMapper) fieldMappers.getMapper(path))
+                        .collect(toList());
+                    fields.add(new FieldContext(field, mappers, format));
                 }
             }
         }
 
-        return new FieldValueRetriever(fieldMappers, fields);
+        return new FieldValueRetriever(fields);
     }
 
+    private final List<FieldContext> fieldContexts;
+    private LeafReaderContext lastLeaf;
 
-    private FieldValueRetriever(DocumentFieldMappers fieldMappers,
-                                List<FieldContext> fieldContexts) {
-        this.fieldMappers = fieldMappers;
+    private FieldValueRetriever(List<FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
 
-    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
+    public void prepare(SearchLookup lookup) throws IOException {
+        fieldContexts.stream().forEach(field -> field.buildFetchers(lookup));
+    }
+
+    public Map<String, DocumentField> retrieve(HitContext hitContext, Set<String> ignoredFields) throws IOException {
+        /*
+         * The fields fetch APIs are leaf by leaf but Fetch sub phases don't
+         * work that way so we have to track the last leaf. This should be
+         * fairly safe because this is called in sorted order which sorts
+         * by leafs. 
+         */
+        if (lastLeaf != hitContext.readerContext()) {
+            lastLeaf = hitContext.readerContext();
+            for (FieldContext fieldContext : fieldContexts) {
+                fieldContext.prepareForLeaf(hitContext.readerContext());
+            }
+        }
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts) {
             String field = context.fieldName;
@@ -78,12 +101,9 @@ public class FieldValueRetriever {
             }
 
             List<Object> parsedValues = new ArrayList<>();
-            for (String path : context.sourcePath) {
-                FieldMapper fieldMapper = (FieldMapper) fieldMappers.getMapper(path);
-                List<?> values = fieldMapper.lookupValues(sourceLookup, context.format);
-                parsedValues.addAll(values);
+            for (LeafValueFetcher fetcher : context.leafFetchers) {
+                parsedValues.addAll(fetcher.fetch(hitContext.docId() - hitContext.readerContext().docBase));
             }
-
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
@@ -93,15 +113,32 @@ public class FieldValueRetriever {
 
     private static class FieldContext {
         final String fieldName;
-        final Set<String> sourcePath;
+        final List<FieldMapper> mappers;
         final @Nullable String format;
+        final List<ValueFetcher> fetchers;
+        final List<LeafValueFetcher> leafFetchers;
 
         FieldContext(String fieldName,
-                     Set<String> sourcePath,
+                     List<FieldMapper> mappers,
                      @Nullable String format) {
             this.fieldName = fieldName;
-            this.sourcePath = sourcePath;
+            this.mappers = mappers;
             this.format = format;
+            fetchers = new ArrayList<>(mappers.size());
+            leafFetchers = new ArrayList<>(mappers.size());
+        }
+
+        private void buildFetchers(SearchLookup lookup) {
+            for (FieldMapper mapper : mappers) {
+                fetchers.add(mapper.valueFetcher(lookup, format));
+            };
+        }
+
+        private void prepareForLeaf(LeafReaderContext context) throws IOException {
+            leafFetchers.clear();
+            for (ValueFetcher fetcher : fetchers) {
+                leafFetchers.add(fetcher.leaf(context));
+            }
         }
     }
 }

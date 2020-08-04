@@ -20,7 +20,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -28,7 +30,7 @@ import java.util.List;
  */
 public class FetchFieldsContext {
 
-    private FieldValueRetriever fieldValueRetriever;
+    private final FieldValueRetriever fieldValueRetriever;
 
     public static FetchFieldsContext create(String indexName,
                                             MapperService mapperService,
@@ -49,5 +51,9 @@ public class FetchFieldsContext {
 
     public FieldValueRetriever fieldValueRetriever() {
         return fieldValueRetriever;
+    }
+
+    public void prepare(SearchLookup lookup) throws IOException {
+        fieldValueRetriever.prepare(lookup);
     }
 }

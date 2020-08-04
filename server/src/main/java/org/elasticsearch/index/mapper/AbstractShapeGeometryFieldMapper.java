@@ -21,12 +21,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
+import org.elasticsearch.index.mapper.FieldMapper.ValueFetcher;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -180,11 +184,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
-    public final boolean parsesArrayValue() {
-        return false;
-    }
-
-    @Override
     protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
         AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
         if (gsfm.coerce.explicit()) {
@@ -216,5 +215,15 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     public Orientation orientation() {
         return ((AbstractShapeGeometryFieldType)mappedFieldType).orientation();
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
+        if (format == null) {
+            format = GeoJsonGeometryFormat.NAME;
+        }
+
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
+        return sourceValueFetcher(lookup, mappedFieldType.geometryParser().formatter(this, format));
     }
 }

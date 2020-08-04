@@ -20,15 +20,11 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -38,9 +34,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
-import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 
 /**
@@ -87,33 +81,13 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     format = fieldType.docValueFormat(formatDesc, null);
                 }
                 LeafReaderContext subReaderContext = null;
-                LeafFieldData data = null;
-                SortedBinaryDocValues binaryValues = null; // binary / string / ip fields
-                SortedNumericDocValues longValues = null; // int / date fields
-                SortedNumericDoubleValues doubleValues = null; // floating-point fields
+                LeafValueFetcher fetcher = null;
                 for (SearchHit hit : hits) {
                     // if the reader index has changed we need to get a new doc values reader instance
                     if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
                         int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                        data = indexFieldData.load(subReaderContext);
-                        if (indexFieldData instanceof IndexNumericFieldData) {
-                            NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
-                            if (numericType.isFloatingPoint()) {
-                                doubleValues = ((LeafNumericFieldData) data).getDoubleValues();
-                            } else {
-                                // by default nanoseconds are cut to milliseconds within aggregations
-                                // however for doc value fields we need the original nanosecond longs
-                                if (isNanosecond) {
-                                    longValues = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
-                                } else {
-                                    longValues = ((LeafNumericFieldData) data).getLongValues();
-                                }
-                            }
-                        } else {
-                            data = indexFieldData.load(subReaderContext);
-                            binaryValues = data.getBytesValues();
-                        }
+                        fetcher = indexFieldData.load(subReaderContext).buildFetcher(format);
                     }
                     DocumentField hitField = hit.field(field);
                     if (hitField == null) {
@@ -122,30 +96,8 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.setDocumentField(field, hitField);
                     }
-                    final List<Object> values = hitField.getValues();
-
                     int subDocId = hit.docId() - subReaderContext.docBase;
-                    if (binaryValues != null) {
-                        if (binaryValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = binaryValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(binaryValues.nextValue()));
-                            }
-                        }
-                    } else if (longValues != null) {
-                        if (longValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = longValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(longValues.nextValue()));
-                            }
-                        }
-                    } else if (doubleValues != null) {
-                        if (doubleValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = doubleValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(doubleValues.nextValue()));
-                            }
-                        }
-                    } else {
-                        throw new AssertionError("Unreachable code");
-                    }
+                    hitField.getValues().addAll(fetcher.fetch(subDocId));
                 }
             }
         }

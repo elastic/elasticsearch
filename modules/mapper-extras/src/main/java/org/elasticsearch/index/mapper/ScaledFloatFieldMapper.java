@@ -482,23 +482,24 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Double parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-
-        double doubleValue;
-        if (value.equals("")) {
-            if (nullValue == null) {
-                return null;
+        return sourceValueFetcher(lookup, value -> {
+            double doubleValue;
+            if (value.equals("")) {
+                if (nullValue == null) {
+                    return null;
+                }
+                doubleValue = nullValue;
+            } else {
+                doubleValue = objectToDouble(value);
             }
-            doubleValue = nullValue;
-        } else {
-            doubleValue = objectToDouble(value);
-        }
 
-        double scalingFactor = fieldType().getScalingFactor();
-        return Math.round(doubleValue * scalingFactor) / scalingFactor;
+            double scalingFactor = fieldType().getScalingFactor();
+            return Math.round(doubleValue * scalingFactor) / scalingFactor;
+        });
     }
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
@@ -624,5 +625,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public LeafValueFetcher buildFetcher(DocValueFormat format) {
+            SortedNumericDoubleValues doubles = getDoubleValues();
+            return docId -> {
+                if (false == doubles.advanceExact(docId)) {
+                    return List.of();
+                }
+                List<Object> result = new ArrayList<>(doubles.docValueCount());
+                for (int i = 0, count = doubles.docValueCount(); i < count; ++i) {
+                    result.add(format.format(doubles.nextValue()));
+                }
+                return result;
+            };
+        }
     }
 }

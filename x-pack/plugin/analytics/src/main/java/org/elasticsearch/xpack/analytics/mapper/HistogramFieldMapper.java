@@ -167,11 +167,11 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value;
+        return sourceValueFetcher(lookup, v -> v);
     }
 
     public static class HistogramFieldType extends MappedFieldType {

@@ -252,17 +252,19 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Boolean parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        } else {
-            String textValue = value.toString();
-            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
-        }
+        return sourceValueFetcher(lookup, value -> {
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            } else {
+                String textValue = value.toString();
+                return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+            }
+        });
     }
 
     @Override

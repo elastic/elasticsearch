@@ -576,16 +576,17 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public String parseSourceValue(Object value, String format) {
-        String date = value.toString();
-        long timestamp = fieldType().parse(date);
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
+        DateFormatter dtFormatter = format == null
+            ? fieldType().dateTimeFormatter()
+            : DateFormatter.forPattern(format).withLocale(fieldType().dateTimeFormatter().locale());
+       return sourceValueFetcher(lookup, value -> {
+           String date = value.toString();
+           long timestamp = fieldType().parse(date);
+           ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
 
-        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
-        return dateTimeFormatter.format(dateTime);
+           return dtFormatter.format(dateTime);
+       });
     }
 
     public boolean getIgnoreMalformed() {

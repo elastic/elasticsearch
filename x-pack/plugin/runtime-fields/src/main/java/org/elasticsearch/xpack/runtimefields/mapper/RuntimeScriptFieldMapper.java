@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
@@ -69,8 +70,8 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
-        throw new UnsupportedOperationException();
+    public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
+        return docValuesFetcher(lookup, format);
     }
 
     @Override

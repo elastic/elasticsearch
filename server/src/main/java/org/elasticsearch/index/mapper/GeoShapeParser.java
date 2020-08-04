@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -29,9 +30,9 @@ import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.Collections;
+import java.util.function.Function;
 
 public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -46,29 +47,30 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
     }
 
     @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
+    public Function<Geometry, Object> formatter(String format) {
+        return geometryParser.geometryFormat(format)::toXContentAsObject;
     }
 
     @Override
-    public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-            parser.nextToken(); // start object
-            parser.nextToken(); // field name
-            parser.nextToken(); // field value
-
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(parser);
-            if (geometryFormat.name().equals(format)) {
-                return value;
+    public CheckedFunction<Object, Object, IOException> formatter(AbstractGeometryFieldMapper mapper, String format) {
+        Function<Geometry, Object> formatter = formatter(format);
+        return value -> {
+            try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+    
+                GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(parser);
+                if (geometryFormat.name().equals(format)) {
+                    return value;
+                }
+    
+                Geometry geometry = geometryFormat.fromXContent(parser);
+                return formatter.apply(geometry);
+            } catch (ParseException e) {
+                throw new IOException(e);
             }
-
-            Geometry geometry = geometryFormat.fromXContent(parser);
-            return format(geometry, format);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
+        };
     }
 }

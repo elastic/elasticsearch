@@ -20,8 +20,15 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.search.DocValueFormat;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -75,4 +82,22 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     @Override
     public void close() {}
+
+    @Override
+    public LeafValueFetcher buildFetcher(DocValueFormat format) {
+        return buildLongFetcher(format, getLongValues());
+    }
+    
+    protected LeafValueFetcher buildLongFetcher(DocValueFormat format, SortedNumericDocValues longs) {
+        return docId -> {
+            if (false == longs.advanceExact(docId)) {
+                return List.of();
+            }
+            List<Object> result = new ArrayList<>(longs.docValueCount());
+            for (int i = 0, count = longs.docValueCount(); i < count; ++i) {
+                result.add(format.format(longs.nextValue()));
+            }
+            return result;
+        };
+    }
 }

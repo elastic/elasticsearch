@@ -41,6 +41,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.hasSize;
+
 public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeatureFieldMapper.Builder> {
 
     IndexService indexService;
@@ -189,12 +192,14 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
                 e.getCause().getMessage());
     }
 
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
 
-        assertEquals(3.14f, mapper.parseSourceValue(3.14, null), 0.0001);
-        assertEquals(42.9f, mapper.parseSourceValue("42.9", null), 0.0001);
+        assertThat(fetchFromSource(mapper, null, 3.14), hasSize(1));
+        assertThat(((Number) fetchFromSource(mapper, null, 3.14).get(0)).doubleValue(), closeTo(3.14, 0.0001));
+        assertThat(fetchFromSource(mapper, null, "42.9"), hasSize(1));
+        assertThat(((Number) fetchFromSource(mapper, null, "42.9").get(0)).doubleValue(), closeTo(42.9, 0.0001));
     }
 }

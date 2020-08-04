@@ -6,7 +6,7 @@ Parts of the suggest feature are still under development.
 
 [source,console]
 --------------------------------------------------
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query" : {
     "match": {
@@ -23,7 +23,7 @@ POST twitter/_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 [[search-suggesters-api-request]]
@@ -67,7 +67,7 @@ POST _search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 The below suggest response example includes the suggestion response for

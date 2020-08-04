@@ -13,12 +13,12 @@ GET _search/template
   },
   "params" : {
     "my_field" : "message",
-    "my_value" : "some message",
+    "my_value" : "foo",
     "my_size" : 5
   }
 }
 ------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[search-template-api-request]]
 ==== {api-request-title}
@@ -306,7 +306,7 @@ GET _search/template
   }
 }
 ------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[search-template-converting-to-json]]
 ===== Converting parameters to JSON

@@ -5,12 +5,12 @@ Gets the number of matches for a search query.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_count?q=user:kimchy
+GET /my-index-000001/_count?q=user:kimchy
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works.
+the <<search-search,search API>> works.
 
 
 [[search-count-api-request]]
@@ -97,23 +97,23 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_doc/1?refresh
+PUT /my-index-000001/_doc/1?refresh
 {
-  "user": "kimchy"
+  "user.id": "kimchy"
 }
 
-GET /twitter/_count?q=user:kimchy
+GET /my-index-000001/_count?q=user:kimchy
 
-GET /twitter/_count
+GET /my-index-000001/_count
 {
   "query" : {
-    "term" : { "user" : "kimchy" }
+    "term" : { "user.id" : "kimchy" }
   }
 }
 --------------------------------------------------
 
-Both examples above do the same: count the number of tweets from the `twitter` 
-index for a certain user. The API returns the following response:
+Both examples above do the same: count the number of documents in
+`my-index-000001` with a `user.id` of `kimchy`. The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------

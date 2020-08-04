@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -47,6 +48,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final boolean keyed;
     private final long minDocCount;
     private final double minBound, maxBound;
+    private final DoubleBounds hardBounds;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
@@ -66,6 +68,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         long minDocCount,
                                         double minBound,
                                         double maxBound,
+                                        DoubleBounds hardBounds,
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
@@ -78,6 +81,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         this.minDocCount = minDocCount;
         this.minBound = minBound;
         this.maxBound = maxBound;
+        this.hardBounds = hardBounds;
     }
 
     public long minDocCount() {
@@ -87,7 +91,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             HistogramAggregationBuilder.NAME);
@@ -97,7 +101,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         }
         HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
         return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            config, searchContext, parent, collectsFromSingleBucket, metadata);
+            hardBounds, config, searchContext, parent, cardinality, metadata);
     }
 
     @Override
@@ -105,6 +109,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            config, searchContext, parent, false, metadata);
+            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

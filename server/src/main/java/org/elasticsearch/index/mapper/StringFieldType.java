@@ -55,10 +55,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
-    protected StringFieldType(MappedFieldType ref) {
-        super(ref);
-    }
-
     @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {

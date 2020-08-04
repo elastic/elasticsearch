@@ -1,7 +1,4 @@
 import org.elasticsearch.gradle.info.BuildParams
-
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -20,12 +17,6 @@ archivesBaseName = 'x-pack-eql'
 
 // All integration tests live in qa modules
 integTest.enabled = false
-
-tasks.named('internalClusterTest').configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.eql_feature_flag_registered', 'true'
-  }
-}
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
@@ -79,7 +70,7 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
 
-task cleanGenerated(type: Delete) {
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -88,8 +79,8 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn cleanGenerated
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -104,8 +95,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/EqlBase.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/EqlBase.tokens", toDir: grammarPath)

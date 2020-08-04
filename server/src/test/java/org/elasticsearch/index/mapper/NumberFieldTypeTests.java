@@ -61,25 +61,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NumberFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     NumberType type;
 
     @Before
     public void pickType() {
         type = RandomPicks.randomFrom(random(), NumberFieldMapper.NumberType.values());
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new NumberFieldMapper.NumberFieldType(name, type, true, true, meta);
     }
 
     public void testEqualsWithDifferentNumberTypes() {
@@ -94,7 +88,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     }
 
     public void testIsFieldWithinQuery() throws IOException {
-        MappedFieldType ft = createDefaultFieldType("field", Collections.emptyMap());
+        MappedFieldType ft = new NumberFieldType("field", NumberType.INTEGER);
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
                 randomBoolean(), randomBoolean(), null, null, null));
@@ -453,8 +447,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index")
-            .build(indexSettings, fieldType, null, null, null);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index").build(null, null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();

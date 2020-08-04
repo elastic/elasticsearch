@@ -65,9 +65,14 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                         model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
-                    inferenceResultsInterfaces ->
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build()),
-                    listener::onFailure
+                    inferenceResultsInterfaces -> {
+                        model.release();
+                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build());
+                    },
+                    e -> {
+                        model.release();
+                        listener.onFailure(e);
+                    }
                 ));
             },
             listener::onFailure

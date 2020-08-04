@@ -28,6 +28,7 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -70,7 +71,7 @@ dependencies {
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
   }
 }
 
@@ -159,7 +160,6 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       }
     }
 
-    runner {
       onlyIf { BuildParams.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
         Path portsFile
@@ -198,7 +198,6 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
           )
         }
       }
-    }
   }
 
   testClusters."${integTestTaskName}" {
@@ -240,7 +239,7 @@ if (legalPath == false) {
 
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
-integTest.runner {
+integTest {
   onlyIf { BuildParams.inFipsJvm == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
@@ -254,12 +253,12 @@ if (fixtureSupported) {
   integTestHa.dependsOn haHdfsFixture
 
   // The normal test runner only runs the standard hdfs rest tests
-  integTest.runner {
+  integTest {
     systemProperty 'tests.rest.suite', 'hdfs_repository'
   }
 
   // Only include the HA integration tests for the HA test task
-  integTestHa.runner {
+  integTestHa {
     setIncludes(['**/Ha*TestSuiteIT.class'])
   }
 } else {
@@ -270,7 +269,7 @@ if (fixtureSupported) {
   }
 
   // The normal integration test runner will just test that the plugin loads
-  integTest.runner {
+  integTest {
     systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   }
   // HA fixture is unsupported. Don't run them.
@@ -280,15 +279,15 @@ if (fixtureSupported) {
 check.dependsOn(integTestSecure, integTestSecureHa)
 
 // Run just the secure hdfs rest test suite.
-integTestSecure.runner {
+integTestSecure {
   systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 }
 // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
-integTestSecure.runner {
+integTestSecure {
   exclude('**/Ha*TestSuiteIT.class')
 }
 // Only include the HA integration tests for the HA test task
-integTestSecureHa.runner {
+integTestSecureHa {
   setIncludes(['**/Ha*TestSuiteIT.class'])
 }
 

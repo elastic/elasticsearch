@@ -20,16 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ThrowNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -51,29 +42,12 @@ public class SThrow extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitThrow(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitThrow(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
-
-        semanticScope.setCondition(expressionNode, Read.class);
-        semanticScope.putDecoration(expressionNode, new TargetType(Exception.class));
-        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
-        PainlessCast expressionCast = expressionNode.cast(semanticScope);
-
-        semanticScope.setCondition(this, MethodEscape.class);
-        semanticScope.setCondition(this, LoopEscape.class);
-        semanticScope.setCondition(this, AllEscape.class);
-
-        ThrowNode throwNode = new ThrowNode();
-        throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        throwNode.setLocation(getLocation());
-
-        output.statementNode = throwNode;
-
-        return output;
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        expressionNode.visit(userTreeVisitor, scope);
     }
 }

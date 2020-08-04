@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -46,11 +47,12 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
 
-    private String NUMBER_FIELD_NAME = "number";
-    private String DATE_FIELD_NAME = "date";
+    private static final String NUMBER_FIELD_NAME = "number";
+    private static final String DATE_FIELD_NAME = "date";
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -264,6 +266,35 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             }, range -> fail("Should have thrown exception"), fieldType));
     }
 
+    public void testSubAggCollectsFromSingleBucketIfOneRange() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test")
+            .field(NUMBER_FIELD_NAME)
+            .addRange(0d, 10d)
+            .subAggregation(aggCardinality("c"));
+
+        simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.ONE));
+        });
+    }
+
+    public void testSubAggCollectsFromManyBucketsIfManyRanges() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test")
+            .field(NUMBER_FIELD_NAME)
+            .addRange(0d, 10d)
+            .addRange(10d, 100d)
+            .subAggregation(aggCardinality("c"));
+
+        simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+            pc = ranges.get(1).getAggregations().get("c");
+            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+        });
+    }
+
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
@@ -274,6 +305,18 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.addRange(0d, 5d);
         aggregationBuilder.addRange(10d, 20d);
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,
+                          Query query,
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+        }, verify, fieldType);
     }
 
     private void testCase(RangeAggregationBuilder aggregationBuilder,

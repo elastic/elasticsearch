@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -66,13 +67,13 @@ public class OptimizerTests extends ESTestCase {
         return TypesTests.loadMapping(name);
     }
 
-    private IndexResolution loadIndexResolution(String name) {
+    public static IndexResolution loadIndexResolution(String name) {
         return IndexResolution.valid(new EsIndex(INDEX_NAME, loadEqlMapping(name)));
     }
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return optimizer.optimize(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)));
     }
 

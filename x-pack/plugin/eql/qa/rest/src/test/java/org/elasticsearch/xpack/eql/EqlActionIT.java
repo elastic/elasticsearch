@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.test.eql.CommonEqlActionTestCase;
-import org.elasticsearch.test.eql.EqlSpec;
 
 public class EqlActionIT extends CommonEqlActionTestCase {
-    // Constructor for parameterized test
-    public EqlActionIT(int num, String name, EqlSpec spec) {
-        super(num, name, spec);
+
+    public EqlActionIT(String query, String name, long[] eventIds, boolean caseSensitive) {
+        super(query, name, eventIds, caseSensitive);
     }
+
 }

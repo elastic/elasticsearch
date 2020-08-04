@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
@@ -127,28 +126,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         public FieldNamesFieldType() {
             super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-        }
-
-        protected FieldNamesFieldType(FieldNamesFieldType ref) {
-            super(ref);
-            this.enabled = ref.enabled;
-        }
-
-        @Override
-        public FieldNamesFieldType clone() {
-            return new FieldNamesFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            FieldNamesFieldType that = (FieldNamesFieldType) o;
-            return enabled == that.enabled;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), enabled);
         }
 
         @Override

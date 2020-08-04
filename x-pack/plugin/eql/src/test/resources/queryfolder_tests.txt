@@ -534,3 +534,27 @@ process where subtract(43, serial_event_id) == 41
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
 "params":{"v0":43,"v1":"serial_event_id","v2":41}
 ;
+
+eventQueryDefaultLimit
+process where true
+;
+"size":10,
+;
+
+eventQueryWithHead
+process where true | head 5
+;
+"size":5,
+;
+
+eventQueryWithTail
+process where true | tail 5
+;
+"size":5,
+;
+
+eventQueryWithHeadAndTail
+process where true | tail 10 | head 7
+;
+"size":7,
+;

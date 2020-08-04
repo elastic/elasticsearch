@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -58,7 +59,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         IncludeExclude.LongFilter filter,
         int maxDocCount,
         double precision,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(
@@ -69,12 +70,11 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
             metadata,
             maxDocCount,
             precision,
-            format,
-            collectsFromSingleBucket
+            format
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {

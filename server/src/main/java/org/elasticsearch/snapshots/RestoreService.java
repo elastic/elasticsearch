@@ -199,6 +199,11 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 final SnapshotId snapshotId = matchingSnapshotId.get();
+                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                    throw new SnapshotRestoreException(repositoryName, snapshotName,
+                        "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got [" + snapshotId.getUUID() + "]");
+                }
+
                 final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
                 final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 

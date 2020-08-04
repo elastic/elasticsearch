@@ -87,14 +87,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
             super(name, false, false, TextSearchInfo.NONE, meta);
         }
 
-        protected SparseVectorFieldType(SparseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public SparseVectorFieldType clone() {
-            return new SparseVectorFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -145,10 +137,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
-
     @Override
     protected void parseCreateField(ParseContext context) {
         throw new IllegalStateException("parse is implemented directly");
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
     @Override

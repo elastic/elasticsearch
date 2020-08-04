@@ -81,7 +81,7 @@ public class LogicalPlanTests extends ESTestCase {
         Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
         LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
         LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
-        LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.FETCH_SIZE, DataTypes.INTEGER), sorted);
+        LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
         return head;
     }
     

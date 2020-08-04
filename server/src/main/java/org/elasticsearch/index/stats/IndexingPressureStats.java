@@ -238,6 +238,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(PRIMARY, primaryQueueLag);
         builder.field(REPLICA, replicaQueueLag);
         builder.endObject();
+        builder.endObject();
         builder.startObject("queued_operations");
         builder.startObject("current");
         builder.field(PRIMARY, primaryQueueLag);

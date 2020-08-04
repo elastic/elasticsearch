@@ -71,8 +71,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return first.getText().compareTo(second.getText());
      };
 
-    private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
-    private boolean hasScoreDocs;
+    private final List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private final boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 

@@ -27,6 +27,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
+import static org.hamcrest.Matchers.containsString;
 
 public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
@@ -79,6 +80,13 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(2);
     }
 
+    public void testDeletingMultipleJobsInOneRequestIsImpossible() {
+        String jobIdA = "delete-multiple-jobs-a";
+        String jobIdB = "delete-multiple-jobs-b";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> deleteJob(jobIdA + "," + jobIdB));
+        assertThat(e.getMessage(), containsString("Invalid job_id"));
+    }
+
     private void runJob(String jobId, String datafeedId) throws Exception {
         Detector.Builder detector = new Detector.Builder().setFunction("count");
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
@@ -110,6 +118,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
                 .source(xContentBuilder)
+                .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
     }

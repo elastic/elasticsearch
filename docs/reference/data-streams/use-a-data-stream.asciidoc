@@ -197,9 +197,7 @@ The following search APIs support data streams:
 * <<async-search, Async search>>
 * <<search-multi-search, Multi search>>
 * <<search-field-caps, Field capabilities>>
-////
 * <<eql-search-api, EQL search>>
-////
 
 The following <<search-search,search API>> request searches the `logs` data
 stream for documents with a timestamp between today and yesterday that also have

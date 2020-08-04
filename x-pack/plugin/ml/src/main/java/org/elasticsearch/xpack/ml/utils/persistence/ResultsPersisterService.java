@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -44,6 +45,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ExceptionsHelper.status;
+
 public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
@@ -52,6 +55,7 @@ public class ResultsPersisterService {
         Arrays.asList(
             RestStatus.GONE,
             RestStatus.NOT_IMPLEMENTED,
+            // Not found is returned when we require an alias but the index is NOT an alias.
             RestStatus.NOT_FOUND,
             RestStatus.BAD_REQUEST,
             RestStatus.UNAUTHORIZED,
@@ -105,9 +109,10 @@ public class ResultsPersisterService {
                                        ToXContent.Params params,
                                        WriteRequest.RefreshPolicy refreshPolicy,
                                        String id,
+                                       boolean requireAlias,
                                        Supplier<Boolean> shouldRetry,
                                        Consumer<String> msgHandler) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy).requireAlias(requireAlias);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
         }
@@ -144,19 +149,18 @@ public class ResultsPersisterService {
                 return bulkResponse;
             }
             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
-                if (itemResponse.isFailed()) {
-                    if (isIrrecoverable(itemResponse.getFailure().getCause())) {
-                        Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
-                        LOGGER.warn(new ParameterizedMessage(
-                            "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
-                                jobId,
-                                bulkResponse.buildFailureMessage()),
-                            unwrappedParticular);
-                        throw new ElasticsearchException(
-                            "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
-                            unwrappedParticular,
-                            jobId);
-                    }
+                if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
+                    Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                    LOGGER.warn(new ParameterizedMessage(
+                        "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                            jobId,
+                            bulkResponse.buildFailureMessage()),
+                        unwrappedParticular);
+                    throw new ElasticsearchStatusException(
+                        "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
+                        status(unwrappedParticular),
+                        unwrappedParticular,
+                        jobId);
                 }
             }
             retryContext.nextIteration("index", bulkResponse.buildFailureMessage());
@@ -183,7 +187,11 @@ public class ResultsPersisterService {
                 failureMessage = e.getDetailedMessage();
                 if (isIrrecoverable(e)) {
                     LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
-                    throw new ElasticsearchException("{} experienced failure that cannot be automatically retried", e, jobId);
+                    throw new ElasticsearchStatusException(
+                        "{} experienced failure that cannot be automatically retried",
+                        status(e),
+                        e,
+                        jobId);
                 }
             }
 
@@ -197,10 +205,7 @@ public class ResultsPersisterService {
      */
     private static boolean isIrrecoverable(Exception ex) {
         Throwable t = ExceptionsHelper.unwrapCause(ex);
-        if (t instanceof ElasticsearchException) {
-            return IRRECOVERABLE_REST_STATUSES.contains(((ElasticsearchException) t).status());
-        }
-        return false;
+        return IRRECOVERABLE_REST_STATUSES.contains(status(t));
     }
 
     /**

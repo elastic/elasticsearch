@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -113,6 +114,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Set<String> excludedFileTypes;
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
+    private final ShardPath shardPath;
     private final AtomicBoolean closed;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
@@ -130,6 +132,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         CacheService cacheService,
         Path cacheDir,
+        ShardPath shardPath,
         ThreadPool threadPool
     ) {
         super(new SingleInstanceLockFactory());
@@ -142,6 +145,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.statsCurrentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Objects.requireNonNull(cacheDir);
+        this.shardPath = Objects.requireNonNull(shardPath);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
         this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
@@ -182,6 +186,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.blobContainer = blobContainerSupplier.get();
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
+                    cleanExistingRegularShardFiles();
                     prewarmCache();
                 }
             }
@@ -374,6 +379,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory;
     }
 
+    private void cleanExistingRegularShardFiles() {
+        try {
+            IOUtils.rm(shardPath.resolveIndex(), shardPath.resolveTranslog());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private void prewarmCache() {
         if (prewarmCache) {
             final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
@@ -513,6 +526,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 currentTimeNanosSupplier,
                 cache,
                 cacheDir,
+                shardPath,
                 threadPool
             )
         );

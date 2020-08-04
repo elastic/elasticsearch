@@ -44,13 +44,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -60,7 +56,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
 
-        private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
+        private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
 
         private final RootObjectMapper rootObjectMapper;
 
@@ -111,7 +107,7 @@ public class DocumentMapper implements ToXContentFragment {
             Mapping mapping = new Mapping(
                     mapperService.getIndexSettings().getIndexVersionCreated(),
                     rootObjectMapper,
-                    metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
+                    metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                     meta);
             return new DocumentMapper(mapperService, mapping);
         }
@@ -128,11 +124,8 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final DocumentParser documentParser;
 
-    private final DocumentFieldMappers fieldMappers;
+    private final MappingLookup fieldMappers;
 
-    private final Map<String, ObjectMapper> objectMappers;
-
-    private final boolean hasNestedObjects;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
@@ -144,39 +137,8 @@ public class DocumentMapper implements ToXContentFragment {
         this.mapping = mapping;
         this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
-        // collect all the mappers for this type
-        List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper> newFieldMappers = new ArrayList<>();
-        List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : this.mapping.metadataMappers) {
-            if (metadataMapper instanceof FieldMapper) {
-                newFieldMappers.add(metadataMapper);
-            }
-        }
-        MapperUtils.collect(this.mapping.root,
-            newObjectMappers, newFieldMappers, newFieldAliasMappers);
-
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
-        this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
-                newFieldAliasMappers,
-                indexAnalyzers.getDefaultIndexAnalyzer());
-
-        Map<String, ObjectMapper> builder = new HashMap<>();
-        for (ObjectMapper objectMapper : newObjectMappers) {
-            ObjectMapper previous = builder.put(objectMapper.fullPath(), objectMapper);
-            if (previous != null) {
-                throw new IllegalStateException("duplicate key " + objectMapper.fullPath() + " encountered");
-            }
-        }
-
-        boolean hasNestedObjects = false;
-        this.objectMappers = Collections.unmodifiableMap(builder);
-        for (ObjectMapper objectMapper : newObjectMappers) {
-            if (objectMapper.nested().isNested()) {
-                hasNestedObjects = true;
-            }
-        }
-        this.hasNestedObjects = hasNestedObjects;
+        this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -251,15 +213,19 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public boolean hasNestedObjects() {
-        return hasNestedObjects;
+        return mappers().hasNested();
     }
 
-    public DocumentFieldMappers mappers() {
+    public MappingLookup mappers() {
         return this.fieldMappers;
     }
 
+    public FieldTypeLookup fieldTypes() {
+        return mappers().fieldTypes();
+    }
+
     public Map<String, ObjectMapper> objectMappers() {
-        return this.objectMappers;
+        return mappers().objectMappers();
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -296,7 +262,7 @@ public class DocumentMapper implements ToXContentFragment {
                 continue;
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
-            // therefor is guaranteed to be a live doc.
+            // therefore is guaranteed to be a live doc.
             final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer scorer = nestedWeight.scorer(context);
             if (scorer == null) {
@@ -321,6 +287,22 @@ public class DocumentMapper implements ToXContentFragment {
         return new DocumentMapper(mapperService, merged);
     }
 
+    public void validate(IndexSettings settings, boolean checkLimits) {
+        this.mapping.validate(this.fieldMappers);
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
+            if (routingFieldMapper().required() == false) {
+                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
+                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+            }
+        }
+        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
+            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+        }
+        if (checkLimits) {
+            this.fieldMappers.checkLimits(settings);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);
@@ -336,8 +318,8 @@ public class DocumentMapper implements ToXContentFragment {
             ", mapping=" + mapping +
             ", documentParser=" + documentParser +
             ", fieldMappers=" + fieldMappers +
-            ", objectMappers=" + objectMappers +
-            ", hasNestedObjects=" + hasNestedObjects +
+            ", objectMappers=" + objectMappers() +
+            ", hasNestedObjects=" + hasNestedObjects() +
             ", deleteTombstoneMetadataFieldMappers=" + Arrays.toString(deleteTombstoneMetadataFieldMappers) +
             ", noopTombstoneMetadataFieldMappers=" + Arrays.toString(noopTombstoneMetadataFieldMappers) +
             '}';

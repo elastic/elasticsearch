@@ -26,6 +26,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -94,9 +95,16 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
+    public static void assumeNotJava8() {
+        assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
+            "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
+            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
+            "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+    }
+
     @BeforeClass
     public static void skipJava8() {
-        GoogleCloudStorageBlobStoreRepositoryTests.assumeNotJava8();
+        assumeNotJava8();
     }
 
     @Override

@@ -25,6 +25,9 @@ import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -55,8 +58,13 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply(JdkDownloadPlugin.class);
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        if (BuildParams.isInternal()) {
+            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
+        } else {
+            project.getPlugins().apply(DistributionDownloadPlugin.class);
+        }
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
@@ -106,12 +114,15 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
-        Task listTask = project.getTasks().create(LIST_TASK_NAME);
-        listTask.setGroup("ES cluster formation");
-        listTask.setDescription("Lists all ES clusters configured for this project");
-        listTask.doLast(
-            (Task task) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
-        );
+        // Task is never up to date so we can pass an lambda for the task action
+        project.getTasks().register(LIST_TASK_NAME, task -> {
+            task.setGroup("ES cluster formation");
+            task.setDescription("Lists all ES clusters configured for this project");
+            task.doLast(
+                (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
+            );
+        });
+
     }
 
     static class TestClustersHookPlugin implements Plugin<Project> {

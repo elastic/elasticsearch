@@ -9,9 +9,9 @@ returns information about the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /twitter
+GET /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
 in responses no longer contain a type name by default, you can still request the old format

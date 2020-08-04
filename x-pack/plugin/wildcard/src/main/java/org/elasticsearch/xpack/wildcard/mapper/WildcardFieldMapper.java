@@ -938,6 +938,19 @@ public class WildcardFieldMapper extends FieldMapper {
         parseDoc.addAll(fields);
     }
 
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
+    }
+
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
         if (value == null || value.length() > ignoreAbove) {
             return;
@@ -966,6 +979,11 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected String nullValue() {
+        return nullValue;
     }
 
     @Override

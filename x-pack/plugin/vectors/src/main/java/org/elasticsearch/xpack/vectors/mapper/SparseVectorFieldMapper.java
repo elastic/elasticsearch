@@ -204,6 +204,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

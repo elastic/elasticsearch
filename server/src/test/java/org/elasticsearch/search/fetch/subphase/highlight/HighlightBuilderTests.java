@@ -52,7 +52,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
@@ -269,7 +269,7 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
      /**
-     * test that build() outputs a {@link SearchContextHighlight} that is has similar parameters
+     * test that build() outputs a {@link SearchHighlightContext} that is has similar parameters
      * than what we have in the random {@link HighlightBuilder}
      */
     public void testBuildSearchContextHighlight() throws IOException {
@@ -292,8 +292,8 @@ public class HighlightBuilderTests extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
             highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
-            SearchContextHighlight highlight = highlightBuilder.build(mockShardContext);
-            for (SearchContextHighlight.Field field : highlight.fields()) {
+            SearchHighlightContext highlight = highlightBuilder.build(mockShardContext);
+            for (SearchHighlightContext.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
                 assertEquals(encoder, field.fieldOptions().encoder());
                 final Field fieldBuilder = getFieldBuilderByName(highlightBuilder, field.field());

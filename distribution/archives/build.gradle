@@ -341,11 +341,9 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   integTest {
     dependsOn assemble
-    runner {
-      if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-        // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-        systemProperty 'tests.timeoutSuite', '1800000!'
-      }
+    if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
+      // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+      systemProperty 'tests.timeoutSuite', '1800000!'
     }
   }
 

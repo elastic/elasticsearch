@@ -118,6 +118,11 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
+    /**
+     * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
+     */
+    private volatile boolean failOnIndexLatest = false;
+
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetadata metadata, Environment environment,
@@ -205,6 +210,10 @@ public class MockRepository extends FsRepository {
         return blocked;
     }
 
+    public void setFailOnIndexLatest(boolean failOnIndexLatest) {
+        this.failOnIndexLatest = failOnIndexLatest;
+    }
+
     private synchronized boolean blockExecution() {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
@@ -272,6 +281,11 @@ public class MockRepository extends FsRepository {
             }
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
+                if (INDEX_LATEST_BLOB.equals(blobName)) {
+                    // Don't mess with the index.latest blob here, failures to write to it are ignored by upstream logic and we have
+                    // specific tests that cover the error handling around this blob.
+                    return;
+                }
                 if (blobName.startsWith("__")) {
                     if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
@@ -397,6 +411,9 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
                 if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
                     blockExecutionAndFail(blobName);
                 }

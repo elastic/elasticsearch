@@ -243,6 +243,7 @@ public class SSLDriverTests extends ESTestCase {
         serverDriver.read(networkReadBuffer, applicationBuffer);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59992")
     public void testCloseDuringHandshakePreJDK11() throws Exception {
         assumeTrue("this tests ssl engine for pre-JDK11", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         SSLContext sslContext = getSSLContext();

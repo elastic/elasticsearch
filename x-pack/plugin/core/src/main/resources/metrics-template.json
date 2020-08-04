@@ -6,6 +6,7 @@
     "metrics-mappings",
     "metrics-settings"
   ],
+  "allow_auto_create": true,
   "_meta": {
     "description": "default metrics template installed by x-pack",
     "managed": true

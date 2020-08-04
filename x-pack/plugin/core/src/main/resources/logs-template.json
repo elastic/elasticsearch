@@ -6,6 +6,7 @@
     "logs-mappings",
     "logs-settings"
   ],
+  "allow_auto_create": true,
   "_meta": {
     "description": "default logs template installed by x-pack",
     "managed": true

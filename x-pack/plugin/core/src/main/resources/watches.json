@@ -8,6 +8,7 @@
     "index.format": 6,
     "index.priority": 800
   },
+  "allow_auto_create": true,
   "mappings": {
     "_doc": {
       "dynamic" : "strict",

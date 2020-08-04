@@ -10,6 +10,7 @@
       "codec": "best_compression"
     }
   },
+  "allow_auto_create": true,
   "mappings": {
     "_doc": {
       "dynamic": false,

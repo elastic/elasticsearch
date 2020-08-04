@@ -11,6 +11,7 @@
       "hidden": true
     }
   },
+  "allow_auto_create": true,
   "mappings" : {
     "_doc": {
       "_meta" : {

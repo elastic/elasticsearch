@@ -13,11 +13,9 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -35,11 +33,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.stack.StackPlugin;
 import org.hamcrest.Matcher;
 
@@ -50,12 +52,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
@@ -64,10 +65,10 @@ import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingApp
 import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
@@ -83,17 +84,26 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, StackPlugin.class, TestDeprecationPlugin.class);
+        return List.of(
+            ConstantKeywordMapperPlugin.class,
+            DataStreamsPlugin.class,
+            Deprecation.class,
+            IndexLifecycle.class,
+            Netty4Plugin.class,
+            StackPlugin.class,
+            TestDeprecationPlugin.class,
+            XPackPlugin.class
+        );
     }
 
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
             // change values of deprecated settings so that accessing them is logged
-            .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
-            .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
+            .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), !TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
+            .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), !TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
             // non-deprecated setting to ensure not everything is logged
-            .put(TEST_NOT_DEPRECATED_SETTING.getKey(), ! TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
+            .put(TEST_NOT_DEPRECATED_SETTING.getKey(), !TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
             .build();
     }
 
@@ -135,7 +145,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
 
         // trigger all index deprecations
         Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
-        request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}");
+        request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME + "\":{}}]}}}");
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
@@ -143,7 +153,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         final List<Matcher<String>> headerMatchers = new ArrayList<>(indices.length);
 
         for (String index : indices) {
-            headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object)index)));
+            headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object) index)));
         }
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
@@ -202,9 +212,14 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         }
         for (Setting<?> setting : settings) {
             if (setting.isDeprecated()) {
-                headerMatchers.add(equalTo(
-                        "[" + setting.getKey() + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                        "See the breaking changes documentation for the next major version."));
+                headerMatchers.add(
+                    equalTo(
+                        "["
+                            + setting.getKey()
+                            + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."
+                    )
+                );
             }
         }
 
@@ -212,9 +227,9 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         for (final String deprecatedWarning : deprecatedWarnings) {
             assertThat(deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
         }
-        final List<String> actualWarningValues =
-                deprecatedWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-                    .collect(Collectors.toList());
+        final List<String> actualWarningValues = deprecatedWarnings.stream()
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+            .collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }
@@ -230,22 +245,32 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             doTestDeprecationWarningsAppearInHeaders();
 
             assertBusy(() -> {
-                final SearchResponse searchResponse = client().search(new SearchRequest(DEPRECATION_MESSAGES_DATA_STREAM)).actionGet();
-                assertHitCount(searchResponse, 1);
+                final SearchResponse searchResponse;
+                try {
+                    searchResponse = client().search(new SearchRequest(DEPRECATION_MESSAGES_DATA_STREAM)).actionGet();
+                } catch (IndexNotFoundException e) {
+                    throw new AssertionError("Index does not exist");
+                }
+
+                assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
 
                 final SearchHit hit = searchResponse.getHits().getHits()[0];
                 final Map<String, Object> document = hit.getSourceAsMap();
 
-                assertThat(document, hasEntry("", ""));
-            });
+                assertThat(document, hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"));
+            }, 120, TimeUnit.SECONDS);
         } finally {
-            configureWriteDeprecationLogsToIndex(false);
+            configureWriteDeprecationLogsToIndex(null);
+            restClient.performRequest(new Request("DELETE", "_data_stream/" + DEPRECATION_MESSAGES_DATA_STREAM));
         }
     }
 
-    private void configureWriteDeprecationLogsToIndex(boolean value) {
+    private void configureWriteDeprecationLogsToIndex(Boolean value) {
         final ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        request.transientSettings(Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), value));
+        Settings settings = value == null
+            ? Settings.builder().putNull(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey()).build()
+            : Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), value).build();
+        request.transientSettings(settings);
         assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 
@@ -286,7 +311,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         return restClient;
     }
 
-    private static RestClient buildRestClient(Client client ) {
+    private static RestClient buildRestClient(Client client) {
         NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         assertThat(nodesInfoResponse.getNodes(), hasSize(1));

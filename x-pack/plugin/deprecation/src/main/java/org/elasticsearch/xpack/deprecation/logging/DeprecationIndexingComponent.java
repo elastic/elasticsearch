@@ -46,9 +46,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     );
 
     private final DeprecationIndexingAppender appender;
+    private final BulkProcessor processor;
 
     public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
-        final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool, client);
+        this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN));
+        final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool);
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
@@ -72,7 +74,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        // Nothing to do at present
+        this.processor.close();
     }
 
     /**
@@ -97,11 +99,28 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      *
      * @param threadPool due to <a href="https://github.com/elastic/elasticsearch/issues/50440">#50440</a>,
      *                   extra care must be taken to avoid blocking the thread that writes a deprecation message.
-     * @param client     the client to pass to {@link BulkProcessor}
      * @return           a consumer that accepts an index request and handles all the details of writing it
      *                   into the cluster
      */
-    private Consumer<IndexRequest> buildIndexRequestConsumer(ThreadPool threadPool, Client client) {
+    private Consumer<IndexRequest> buildIndexRequestConsumer(ThreadPool threadPool) {
+        return indexRequest -> {
+            try {
+                // TODO: remove the threadpool wrapping when the .add call is non-blocking
+                // (it can currently execute the bulk request occasionally)
+                // see: https://github.com/elastic/elasticsearch/issues/50440
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> this.processor.add(indexRequest));
+            } catch (Exception e) {
+                logger.error("Failed to queue deprecation message index request: " + e.getMessage(), e);
+            }
+        };
+    }
+
+    /**
+     * Constructs a bulk processor for writing documents
+     * @param client the client to use
+     * @return an initialised bulk processor
+     */
+    private BulkProcessor getBulkProcessor(Client client) {
         final OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN);
 
         final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
@@ -117,20 +136,9 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             }
         };
 
-        BulkProcessor processor = BulkProcessor.builder(originSettingClient::bulk, listener)
+        return BulkProcessor.builder(originSettingClient::bulk, listener)
             .setBulkActions(100)
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .build();
-
-        return indexRequest -> {
-            try {
-                // TODO: remove the threadpool wrapping when the .add call is non-blocking
-                // (it can currently execute the bulk request occasionally)
-                // see: https://github.com/elastic/elasticsearch/issues/50440
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> processor.add(indexRequest));
-            } catch (Exception e) {
-                logger.error("Failed to queue deprecation message index request: " + e.getMessage(), e);
-            }
-        };
     }
 }

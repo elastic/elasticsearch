@@ -11,6 +11,10 @@ archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
+  // The following are only required for testing
+  compileOnly project(':x-pack:plugin:data-streams')
+  compileOnly project(':x-pack:plugin:mapper-constant-keyword')
+  compileOnly project(':x-pack:plugin:ilm')
   compileOnly project(':x-pack:plugin:stack')
 }
 

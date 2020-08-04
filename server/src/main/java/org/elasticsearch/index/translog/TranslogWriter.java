@@ -446,7 +446,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return closed.get();
     }
 
-
     private final class BufferedChannelOutputStream extends BufferedOutputStream {
 
         BufferedChannelOutputStream(OutputStream out, int size) throws IOException {

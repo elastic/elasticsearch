@@ -83,6 +83,16 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         Property.NodeScope
     );
 
+    /**
+     * If the uncommitted translog files for a given shard reach this age, the shard will be flushed.
+     */
+    public static final Setting<TimeValue> SHARD_UNCOMMITTED_TRANSLOG_MAX_AGE_SETTING = Setting.timeSetting(
+        "indices.memory.shard_uncommitted_translog_max_age",
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
     /** How frequently we check indexing memory usage (default: 5 seconds). */
     public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
         "indices.memory.interval",
@@ -96,6 +106,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private final ByteSizeValue indexingBuffer;
 
     private final TimeValue inactiveTime;
+    private final TimeValue uncommittedTranslogMaxAge;
     private final TimeValue interval;
 
     /** Contains shards currently being throttled because we can't write segments quickly enough */
@@ -131,6 +142,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough
         this.interval = SHARD_MEMORY_INTERVAL_TIME_SETTING.get(settings);
+        this.uncommittedTranslogMaxAge = SHARD_UNCOMMITTED_TRANSLOG_MAX_AGE_SETTING.get(settings);
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
@@ -305,6 +317,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
                 // Give shard a chance to transition to inactive so we can flush
                 checkIdle(shard, inactiveTime.nanos());
+                // Flush when the uncommitted translog age is older than the threshold
+                checkUncommittedTranslogAge(shard);
 
                 // How many bytes this shard is currently (async'd) moving from heap to disk:
                 long shardWritingBytes = getShardWritingBytes(shard);
@@ -401,6 +415,14 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {
             shard.flushOnIdle(inactiveTimeNS);
+        } catch (AlreadyClosedException e) {
+            logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
+        }
+    }
+
+    protected void checkUncommittedTranslogAge(IndexShard shard) {
+        try {
+            shard.flushIfUncommittedTranslogIsOlderThanMaxAge(uncommittedTranslogMaxAge.millis());
         } catch (AlreadyClosedException e) {
             logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }

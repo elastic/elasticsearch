@@ -318,6 +318,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public long getOldestUncommittedTranslogAgeInMillis() {
+        return 0;
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }

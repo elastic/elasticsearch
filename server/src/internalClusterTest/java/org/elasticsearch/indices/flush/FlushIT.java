@@ -25,9 +25,13 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -132,5 +136,39 @@ public class FlushIT extends ESIntegTestCase {
                 assertThat(shardStats.getStats().getTranslog().getUncommittedOperations(), equalTo(0));
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testFlushOnceUncommittedTranslogReachesMaxAge() throws Exception {
+        final String indexName = "flush_on_old_translog";
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
+            .put(IndexingMemoryController.SHARD_UNCOMMITTED_TRANSLOG_MAX_AGE_SETTING.getKey(), TimeValue.timeValueSeconds(3))
+            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueDays(1)).build());
+        ByteSizeValue translogGenerationThreshold =
+            new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES);
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES))
+            .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), translogGenerationThreshold)
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+            .build()));
+        ensureGreen(indexName);
+        int numDocs = randomIntBetween(1, 50);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(indexName)
+                .setSource("f", "v".repeat((int) translogGenerationThreshold.getBytes())).get(); // force multiple translog generations
+        }
+
+        if (randomBoolean()) {
+            internalCluster().restartNode(randomFrom(dataNodes), new InternalTestCluster.RestartCallback());
+            ensureGreen(indexName);
+        }
+
+        assertBusy(() -> {
+            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+                assertThat(shardStats.getStats().getTranslog().getUncommittedOperations(), equalTo(0));
+            }
+        }, 10, TimeUnit.SECONDS);
     }
 }

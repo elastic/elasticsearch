@@ -473,6 +473,26 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Returns the age of the oldest translog file with at least the given generation
+     */
+    public long getOldestTranslogAgeInMillisByMinGen(long minGeneration) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+
+            if (current.getGeneration() < minGeneration) {
+                return 0;
+            }
+
+            List<TranslogReader> readersWithAtLeastMinGeneration = readers.stream()
+                .filter(r -> r.getGeneration() >= minGeneration)
+                .collect(Collectors.toList());
+            return findEarliestLastModifiedAge(System.currentTimeMillis(), readersWithAtLeastMinGeneration, current);
+        } catch (IOException e) {
+            throw new TranslogException(shardId, "Unable to get the earliest last modified time for the transaction log");
+        }
+    }
+
+    /**
      * Creates a new translog for the specified generation.
      *
      * @param fileGeneration the translog generation

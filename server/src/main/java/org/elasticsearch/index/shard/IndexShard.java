@@ -1795,24 +1795,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void flushOnIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
-            boolean wasActive = active.getAndSet(false);
-            if (wasActive) {
-                logger.debug("flushing shard on inactive");
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            logger.warn("failed to flush shard on inactive", e);
-                        }
-                    }
+            flush();
+        }
+    }
 
-                    @Override
-                    protected void doRun() {
-                        flush(new FlushRequest().waitIfOngoing(false).force(false));
-                        periodicFlushMetric.inc();
+    /**
+     * Called by {@link IndexingMemoryController} to check whether
+     */
+    public void flushIfUncommittedTranslogIsOlderThanMaxAge(long maxUncommittedTranslogAgeInMillis) {
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null && engineOrNull.getOldestUncommittedTranslogAgeInMillis() >= maxUncommittedTranslogAgeInMillis) {
+            flush();
+        }
+    }
+
+    private void flush() {
+        boolean wasActive = active.getAndSet(false);
+        if (wasActive) {
+            logger.debug("flushing shard on inactive");
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    if (state != IndexShardState.CLOSED) {
+                        logger.warn("failed to flush shard on inactive", e);
                     }
-                });
-            }
+                }
+
+                @Override
+                protected void doRun() {
+                    flush(new FlushRequest().waitIfOngoing(false).force(false));
+                    periodicFlushMetric.inc();
+                }
+            });
         }
     }
 

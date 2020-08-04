@@ -1591,10 +1591,7 @@ public class InternalEngine extends Engine {
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
         }
-        final long localCheckpointOfLastCommit =
-            Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        final long translogGenerationOfLastCommit =
-            translog.getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1).translogFileGeneration;
+        final long translogGenerationOfLastCommit = getTranslogGenerationAfterLastCommit();
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
         if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
             return false;
@@ -2450,6 +2447,19 @@ public class InternalEngine extends Engine {
      */
     long getNumDocUpdates() {
         return numDocUpdates.count();
+    }
+
+    @Override
+    public long getOldestUncommittedTranslogAgeInMillis() {
+        ensureOpen();
+        final long translogGenerationAfterLastCommit = getTranslogGenerationAfterLastCommit();
+        return translog.getOldestTranslogAgeInMillisByMinGen(translogGenerationAfterLastCommit);
+    }
+
+    private long getTranslogGenerationAfterLastCommit() {
+        final long localCheckpointOfLastCommit =
+            Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        return translog.getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1).translogFileGeneration;
     }
 
     @Override

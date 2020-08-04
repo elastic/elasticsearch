@@ -47,6 +47,12 @@ public class IndexingPressure {
     private final AtomicLong primaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
 
+    private final AtomicLong currentPrimaryQueuedOps = new AtomicLong(0);
+    private final AtomicLong currentReplicaQueuedOps = new AtomicLong(0);
+
+    private final AtomicLong totalPrimaryQueuedOps = new AtomicLong(0);
+    private final AtomicLong totalReplicaQueuedOps = new AtomicLong(0);
+
     private final AtomicLong primaryQueueLag = new AtomicLong(0);
     private final AtomicLong replicaQueueLag = new AtomicLong(0);
 
@@ -114,9 +120,13 @@ public class IndexingPressure {
         };
     }
 
-    public Releasable markPrimaryOperationQueued(long costFactor) {
+    public Releasable markPrimaryOperationQueued(long costFactor, long operationCount) {
         this.primaryQueueLag.getAndAdd(costFactor);
-        return () -> this.primaryQueueLag.getAndAdd(-costFactor);
+        this.currentPrimaryQueuedOps.getAndAdd(operationCount);
+        return () -> {
+            this.primaryQueueLag.getAndAdd(-costFactor);
+            this.currentPrimaryQueuedOps.getAndAdd(-operationCount);
+        };
     }
 
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
@@ -134,9 +144,13 @@ public class IndexingPressure {
         return () -> this.currentReplicaBytes.getAndAdd(-bytes);
     }
 
-    public Releasable markReplicaOperationQueued(long costFactor) {
+    public Releasable markReplicaOperationQueued(long costFactor, long operationCount) {
         this.replicaQueueLag.getAndAdd(costFactor);
-        return () -> this.replicaQueueLag.getAndAdd(-costFactor);
+        this.currentReplicaQueuedOps.getAndAdd(operationCount);
+        return () -> {
+            this.replicaQueueLag.getAndAdd(-costFactor);
+            this.currentReplicaQueuedOps.getAndAdd(-operationCount);
+        };
     }
 
     public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
@@ -167,6 +181,8 @@ public class IndexingPressure {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
             currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits, primaryQueueLag.get(), replicaQueueLag.get());
+            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits, currentPrimaryQueuedOps.get(),
+            currentReplicaQueuedOps.get(), totalPrimaryQueuedOps.get(), totalReplicaQueuedOps.get(), primaryQueueLag.get(),
+            replicaQueueLag.get());
     }
 }

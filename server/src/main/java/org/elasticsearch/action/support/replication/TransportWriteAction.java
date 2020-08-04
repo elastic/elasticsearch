@@ -109,6 +109,10 @@ public abstract class TransportWriteAction<
         return Stream.empty();
     }
 
+    protected int primaryOperationCount(Request request) {
+        return 0;
+    }
+
     protected long primaryOperationSize(Request request) {
         return 0;
     }
@@ -116,6 +120,10 @@ public abstract class TransportWriteAction<
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
         return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
+    }
+
+    protected int replicaOperationCount(ReplicaRequest request) {
+        return 0;
     }
 
     protected Stream<DocWriteRequest<?>> replicaOperations(ReplicaRequest request) {
@@ -168,7 +176,8 @@ public abstract class TransportWriteAction<
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
         final long estimatedCostFactor = getEstimatedCostFactor(primaryOperations(request), primary);
-        final Releasable releasable = indexingPressure.markPrimaryOperationQueued(estimatedCostFactor);
+        final int operationCount = primaryOperationCount(request);
+        final Releasable releasable = indexingPressure.markPrimaryOperationQueued(estimatedCostFactor, operationCount);
         threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
@@ -202,7 +211,8 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         final long estimatedCostFactor = getEstimatedCostFactor(replicaOperations(request), replica);
-        final Releasable releasable = indexingPressure.markReplicaOperationQueued(estimatedCostFactor);
+        final int operationCount = replicaOperationCount(request);
+        final Releasable releasable = indexingPressure.markReplicaOperationQueued(estimatedCostFactor, operationCount);
         threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {

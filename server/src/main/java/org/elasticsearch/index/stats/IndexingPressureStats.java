@@ -41,10 +41,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long currentCoordinatingBytes;
     private final long currentPrimaryBytes;
     private final long currentReplicaBytes;
+
     private final long coordinatingRejections;
     private final long primaryRejections;
     private final long replicaRejections;
     private final long memoryLimit;
+
+    private final long currentPrimaryOps;
+    private final long currentReplicaOps;
+
+    private final long totalPrimaryOps;
+    private final long totalReplicaOps;
+
     private final long primaryQueueLag;
     private final long replicaQueueLag;
 
@@ -71,9 +79,17 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         // TODO: 7.10 after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            currentPrimaryOps = in.readVLong();
+            currentReplicaOps = in.readVLong();
+            totalPrimaryOps = in.readVLong();
+            totalReplicaOps = in.readVLong();
             primaryQueueLag = in.readVLong();
             replicaQueueLag = in.readVLong();
         } else {
+            currentPrimaryOps = -1L;
+            currentReplicaOps = -1L;
+            totalPrimaryOps = -1L;
+            totalReplicaOps = -1L;
             primaryQueueLag = -1L;
             replicaQueueLag = -1L;
         }
@@ -82,7 +98,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
                                  long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
                                  long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit, long primaryQueueLag, long replicaQueueLag) {
+                                 long replicaRejections, long memoryLimit, long currentPrimaryOps, long currentReplicaOps,
+                                 long totalPrimaryOps, long totalReplicaOps, long primaryQueueLag, long replicaQueueLag) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -95,6 +112,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
         this.memoryLimit = memoryLimit;
+        this.currentPrimaryOps = currentPrimaryOps;
+        this.currentReplicaOps = currentReplicaOps;
+        this.totalPrimaryOps = totalPrimaryOps;
+        this.totalReplicaOps = totalReplicaOps;
         this.primaryQueueLag = primaryQueueLag;
         this.replicaQueueLag = replicaQueueLag;
     }
@@ -120,6 +141,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         }
         // TODO: 7.10 after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVLong(currentPrimaryOps);
+            out.writeVLong(currentReplicaOps);
+            out.writeVLong(totalPrimaryOps);
+            out.writeVLong(totalReplicaOps);
             out.writeVLong(primaryQueueLag);
             out.writeVLong(replicaQueueLag);
         }
@@ -210,8 +235,17 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.startObject("queue_lag");
         builder.startObject("current");
-        builder.field("primary", primaryQueueLag);
-        builder.field("replica", replicaQueueLag);
+        builder.field(PRIMARY, primaryQueueLag);
+        builder.field(REPLICA, replicaQueueLag);
+        builder.endObject();
+        builder.startObject("queued_operations");
+        builder.startObject("current");
+        builder.field(PRIMARY, primaryQueueLag);
+        builder.field(REPLICA, replicaQueueLag);
+        builder.endObject();
+        builder.startObject("total");
+        builder.field(PRIMARY, primaryQueueLag);
+        builder.field(REPLICA, replicaQueueLag);
         builder.endObject();
         builder.endObject();
         return builder.endObject();

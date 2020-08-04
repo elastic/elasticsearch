@@ -143,7 +143,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Stream<DocWriteRequest<?>> primaryOperations(BulkShardRequest request) {
-        return Stream.of(request.items()).map(i -> i.request());
+        return Stream.of(request.items()).map(BulkItemRequest::request);
+    }
+
+    @Override
+    protected int primaryOperationCount(BulkShardRequest request) {
+        return request.items().length;
     }
 
     @Override
@@ -427,6 +432,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardRequest request) {
+        return request.items().length;
     }
 
     @Override

@@ -455,9 +455,6 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public ByteArray newByteArray(long size, boolean clearOnResize) {
-        if (size == 0L) {
-            return ByteArray.EMPTY;
-        }
         if (size > PageCacheRecycler.BYTE_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate

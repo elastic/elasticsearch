@@ -53,7 +53,7 @@ Consider using EQL if you:
 
 A good intro on EQL and its purpose is available
 https://www.elastic.co/blog/introducing-event-query-language[in this blog
-post]. See the <<eql,EQL in Elasticsearch>> documentaton for an in-depth
+post]. See the {ref}/eql.html[EQL in Elasticsearch] documentaton for an in-depth
 explanation, and also the
 https://eql.readthedocs.io/en/latest/query-guide/index.html[language
 reference].
@@ -75,7 +75,7 @@ A _data stream_ is a convenient, scalable way to ingest, search, and manage
 continuously generated time series data. They provide a simpler way to split
 data across multiple indices and still query it via a single named resource.
 
-See the <<data-streams,Data streams documentation>> to get started.
+See the {ref}/data-streams.html[Data streams documentation] to get started.
 // end::notable-highlights[]
 
 
@@ -200,7 +200,7 @@ for wildcard grep-like queries. While such queries are possible with other
 field types, they suffer from constraints that limit their usefulness.
 
 This field type is especially well suited for running grep-like queries on
-log lines. See the <<wildcard,wildcard datatype>> documentation for more
+log lines. See the {ref}/wildcard.html[wildcard datatype] documentation for more
 information.
 // end::notable-highlights[]
 

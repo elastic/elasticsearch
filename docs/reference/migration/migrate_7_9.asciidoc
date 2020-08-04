@@ -114,13 +114,14 @@ you dynamically update the index mapping based on the template's mapping configu
 [%collapsible]
 ====
 *Details* +
-Automatically importing <<dangling-indices,dangling indices>> into the cluster
+Automatically importing
+{ref}/modules-gateway.html#dangling-indices[dangling indices] into the cluster
 is unsafe and is now disabled by default. This feature will be removed entirely
 in {es} 8.0.0.
 
 *Impact* +
-Use the <<dangling-indices-api,Dangling indices API>> to list, delete or import
-any dangling indices manually.
+Use the {ref}/indices.html#dangling-indices-api[dangling indices API] to list,
+delete or import any dangling indices manually.
 
 Alternatively you can enable automatic imports of dangling indices, recovering
 the unsafe behaviour of earlier versions, by setting

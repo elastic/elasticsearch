@@ -57,7 +57,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true), // bucket 0 5
                 new RangeFieldMapper.Range(rangeType, -3.1, 4.2, true, true), // bucket -5, 0
                 new RangeFieldMapper.Range(rangeType, 4.2, 13.3, true, true), // bucket 0, 5, 10
-                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 40, 45
+                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 20, 25
             }) {
                 Document doc = new Document();
                 BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
@@ -107,7 +107,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 new RangeFieldMapper.Range(rangeType, 1L, 5L, true, true), // bucket 0 5
                 new RangeFieldMapper.Range(rangeType, -3L, 4L, true, true), // bucket -5, 0
                 new RangeFieldMapper.Range(rangeType, 4L, 13L, true, true), // bucket 0, 5, 10
-                new RangeFieldMapper.Range(rangeType, 22L, 29L, true, true), // bucket 40, 45
+                new RangeFieldMapper.Range(rangeType, 22L, 29L, true, true), // bucket 20, 25
             }) {
                 Document doc = new Document();
                 BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
@@ -158,7 +158,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 new RangeFieldMapper.Range(rangeType, 1L, 5L, true, true), // bucket 0 5
                 new RangeFieldMapper.Range(rangeType, -3L, 4L, true, true), // bucket -5, 0
                 new RangeFieldMapper.Range(rangeType, 4L, 13L, true, true), // bucket 0, 5, 10
-                new RangeFieldMapper.Range(rangeType, 22L, 29L, true, true) // bucket 40, 45
+                new RangeFieldMapper.Range(rangeType, 22L, 29L, true, true) // bucket 20, 25, 30
             ));
             doc.add(new BinaryDocValuesField("field", encodedRange));
             w.addDocument(doc);
@@ -329,7 +329,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true), // bucket -1, 4
                 new RangeFieldMapper.Range(rangeType, -3.1, 4.2, true, true), // bucket -6 -1 4
                 new RangeFieldMapper.Range(rangeType, 4.2, 13.3, true, true), // bucket 4, 9
-                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 39, 44, 49
+                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 19, 24, 29
             }) {
                 Document doc = new Document();
                 BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
@@ -383,7 +383,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true), // bucket 0 5
                 new RangeFieldMapper.Range(rangeType, -3.1, 4.2, true, true), // bucket -5, 0
                 new RangeFieldMapper.Range(rangeType, 4.2, 13.3, true, true), // bucket 0, 5, 10
-                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 40, 45
+                new RangeFieldMapper.Range(rangeType, 22.5, 29.3, true, true), // bucket 20, 25
             }) {
                 Document doc = new Document();
                 BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));

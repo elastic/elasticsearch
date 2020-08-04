@@ -138,8 +138,11 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             return state;
         });
         SCRIPTS.put("reduceScript", params -> {
-            List<Number> states = (List<Number>) params.get("states");
-            return states.stream().mapToInt(Number::intValue).sum();
+            List<?> states = (List<?>) params.get("states");
+            return states.stream()
+                .filter(a -> a instanceof Number)
+                .map(a -> (Number) a)
+                .mapToInt(Number::intValue).sum();
         });
 
         SCRIPTS.put("initScriptScore", params -> {
@@ -266,7 +269,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     searchAndReduce(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
-                assertEquals(0, ((HashMap<Object, String>) scriptedMetric.aggregation()).size());
+                assertEquals(0, scriptedMetric.aggregation());
             }
         }
     }
@@ -362,6 +365,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < 100; i++) {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
+                // force a single aggregator
+                indexWriter.forceMerge(1);
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {

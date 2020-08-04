@@ -316,6 +316,16 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testBoost() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", "keyword").field("boost", 2f).endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+    }
+
     public void testEnableNorms() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")

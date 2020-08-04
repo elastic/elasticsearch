@@ -91,7 +91,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), defaultAnalyzer).init(this);
+        return new Builder(simpleName(), defaultAnalyzer, indexVersionCreated).init(this);
     }
 
     public static class Defaults {
@@ -148,15 +148,17 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
+        private final Version indexVersionCreated;
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
 
         /**
          * @param name of the completion field to build
          */
-        public Builder(String name, NamedAnalyzer defaultAnalyzer) {
+        public Builder(String name, NamedAnalyzer defaultAnalyzer, Version indexVersionCreated) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
+            this.indexVersionCreated = indexVersionCreated;
             this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer);
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
@@ -202,7 +204,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             ft.setPreserveSep(preserveSeparators.getValue());
             ft.setIndexAnalyzer(analyzer.getValue());
             return new CompletionFieldMapper(name, ft, defaultAnalyzer,
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), indexVersionCreated, this);
         }
 
         private void checkCompletionContextsLimit(BuilderContext context) {
@@ -220,7 +222,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
             Fields.CONTENT_FIELD_NAME_WEIGHT, Fields.CONTENT_FIELD_NAME_CONTEXTS);
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple")));
+    public static final TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple"), c.indexVersionCreated()));
 
     public static final class CompletionFieldType extends TermBasedFieldType {
 
@@ -329,9 +332,10 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     private final NamedAnalyzer analyzer;
     private final NamedAnalyzer searchAnalyzer;
     private final ContextMappings contexts;
+    private final Version indexVersionCreated;
 
     public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, NamedAnalyzer defaultAnalyzer,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+                                 MultiFields multiFields, CopyTo copyTo, Version indexVersionCreated, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.defaultAnalyzer = defaultAnalyzer;
         this.maxInputLength = builder.maxInputLength.getValue();
@@ -340,6 +344,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         this.analyzer = builder.analyzer.getValue();
         this.searchAnalyzer = builder.searchAnalyzer.getValue();
         this.contexts = builder.contexts.getValue();
+        this.indexVersionCreated = indexVersionCreated;
     }
 
     @Override
@@ -568,6 +573,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
-
-
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (fieldType().hasContextMappings()) {
+            for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
+                contextMapping.validateReferences(indexVersionCreated, s -> mappers.fieldTypes().get(s));
+            }
+        }
+    }
 }

@@ -137,19 +137,13 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("Field [_id] is defined more than once"));
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
-        }
+        MapperParsingException e2 = expectThrows(MapperParsingException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e2.getMessage(), containsString("Field [_id] is defined more than once"));
     }
 
     public void testRejectFieldDefinedTwice() throws IOException {

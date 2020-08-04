@@ -25,24 +25,51 @@ POST /follower_index/_ccr/pause_follow
 [[ccr-managing]]
 === Manage {ccr}
 Use the following information to manage {ccr} tasks, such as inspecting
-replication progress, pausing and resuming replication, and terminating
-replication.
+replication progress, pausing and resuming replication, recreating a follower
+index, and terminating replication.
 
 [[ccr-inspect-progress]]
 ==== Inspecting replication progress
+You can inspect the progress of replication for a follower index and view
+
+. Open a browser to access {kib} on your _local_ cluster.
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+  . Choose the *Follower indices* tab.
+  . Select the name of the follower index you want to view replication details
+  for.
+
+The slide-out panel shows settings and replication statistics for the follower
+index, including read and write that are managed by the follower shard.
+
+To view more detailed statistics, click *View in Index Management*, and
+then select the name of the follower index on the *Index Management* page. Choose the *Stats* tab to view detailed statistics at the shard level.
 
 [%collapsible]
 .Use the API
 ====
-You can inspect the progress of replication at the shard level with the
-<<ccr-get-follow-stats,get follower stats API>>. This API gives you
-insight into the read and writes managed by the follower shard task. It also
-reports read exceptions that can be retried and fatal exceptions that require
-user intervention.
+Use the <<ccr-get-follow-stats,get follower stats API>> to inspect replication
+progress at the shard level. This API provides insight into the read and writes
+managed by the follower shard. The API also reports read exceptions that can be
+retried and fatal exceptions that require user intervention.
 ====
 
 [[ccr-pause-replication]]
 ==== Pausing and resuming replication
+Pause and resume replication of follower indices. When resuming, you can choose
+to modify advanced settings.
+
+. Open a browser to access {kib} on your _local_ cluster.
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+  . Choose the *Follower indices* tab.
+  . Select the follower index you want to pause and
+  choose *Manage -> Pause Replication*.
+
+The follower index status changes to *Paused*.
+
+To resume replication, select the follower index and choose
+*Resume replication*.
 
 [%collapsible]
 .Use the API
@@ -80,8 +107,8 @@ Lucene segment files are deleted on the cluster containing the follower index.
 . From the {kib} menu, click *Management -> Stack Management*.
 . Under *Data*, select *Cross Cluster Replication*.
   . Choose the *Follower indices* tab.
-  . Choose the follower index you want to pause and
-  select *Manage -> Pause Replication*.
+  . Select the follower index you want to pause and
+  choose *Manage -> Pause Replication*.
   . When the follower index status changes to *Paused*, select the follower index and choose *Unfollow leader index*.
   . When prompted to unfollow the leader index, choose *Unfollow leader*.
   +
@@ -114,11 +141,30 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 
 [[ccr-terminate-replication]]
 ==== Terminating replication
+Unfollow a leader index to terminate replication and convert the follower index
+to a standard index.
+
+. Open a browser to access {kib} on your _local_ cluster.
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+  . Choose the *Follower indices* tab.
+  . Select the follower index you want to pause and
+  choose *Manage -> Pause Replication*.
+  . When the follower index status changes to *Paused*, select the follower index and choose *Unfollow leader index*.
+  . When prompted to unfollow the leader index, choose *Unfollow leader*.
+  +
+  The follower index will be converted to a standard index and will no longer appear in *Cross-Cluster Replication*.
+
+After terminating replication, you can also choose to close the index.
+
+. From the {kib} menu, under *Data*, click *Index Management*.
+. Select the follower index from the previous steps and choose
+  *Manage index -> Close index* to close the follower index.
 
 [%collapsible]
 .Use the API
 ====
 You can terminate replication with the
 <<ccr-post-unfollow,unfollow API>>. This API converts a follower index
-to a regular (non-follower) index.
+to a standard (non-follower) index.
 ====

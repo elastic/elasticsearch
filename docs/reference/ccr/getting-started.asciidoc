@@ -225,7 +225,8 @@ PUT /server-metrics
 ==== Enable soft deletes on leader indices
 <<ccr-leader-requirements,Soft deletes>> must be enabled for indices that you want to
 use as leader indices. Soft deletes are enabled by default on new indices
-created on or after {es} 7.0.0.
+created on or after {es} 7.0.0, so no further action is required if your
+cluster is running {es} 7.0.0 or later.
 
 include::{es-ref-dir}/ccr/index.asciidoc[tag=ccr-existing-indices-tag]
 

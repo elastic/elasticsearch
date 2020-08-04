@@ -89,7 +89,7 @@ Sometimes you need to know the exact type of an aggregation in order to parse it
  can be used to change the aggregation's name in the response so that it will be prefixed by its internal type.
 
 Considering the following <<search-aggregations-bucket-datehistogram-aggregation,`date_histogram` aggregation>> named
-`requests_over_time` which has a sub <<search-aggregations-metrics-top-hits-aggregation, 'top_hits` aggregation>> named
+`requests_over_time` which has a sub <<search-aggregations-metrics-top-hits-aggregation, `top_hits` aggregation>> named
  `top_users`:
 
 [source,console,id=returning-aggregation-type-example]

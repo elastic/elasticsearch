@@ -12,8 +12,8 @@ except you can search for multiple values.
 [[terms-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains `kimchy`
-or `elasticsearch`.
+The following search returns documents where the `user.id` field contains `kimchy`
+or `elkbee`.
 
 [source,console]
 ----
@@ -21,7 +21,7 @@ GET /_search
 {
   "query": {
     "terms": {
-      "user": [ "kimchy", "elasticsearch" ],
+      "user.id": [ "kimchy", "elkbee" ],
       "boost": 1.0
     }
   }

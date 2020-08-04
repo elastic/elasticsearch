@@ -11,26 +11,28 @@ exception of the <<search-explain>> endpoints.
 When executing a search, Elasticsearch will pick the "best" copy of the data
 based on the <<search-adaptive-replica,adaptive replica selection>> formula.
 Which shards will be searched on can also be controlled by providing the
-`routing` parameter. For example, when indexing tweets, the routing value can be
-the user name:
+`routing` parameter.
+
+For example, the following indexing request routes documents to shard `1`:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_doc?routing=kimchy
+POST /my-index-000001/_doc?routing=1
 {
-  "user" : "kimchy",
-  "post_date" : "2009-11-15T14:12:12",
-  "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
-In such a case, if we want to search only on the tweets for a specific
-user, we can specify it as the routing, resulting in the search hitting
-only the relevant shard:
+Later, you can use the `routing` parameter in a search request to search only
+the specified shard. The following search requests hits only shard `1`.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?routing=kimchy
+POST /my-index-000001/_search?routing=1
 {
   "query": {
     "bool": {
@@ -40,7 +42,7 @@ POST /twitter/_search?routing=kimchy
         }
       },
       "filter": {
-        "term": { "user": "kimchy" }
+        "term": { "user.id": "kimchy" }
       }
     }
   }
@@ -102,7 +104,7 @@ POST /_search
   "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[global-search-timeout]]

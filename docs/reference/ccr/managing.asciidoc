@@ -1,5 +1,27 @@
 [role="xpack"]
 [testenv="platinum"]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
 [[ccr-managing]]
 === Manage {ccr}
 Use the following information to manage {ccr} tasks, such as inspecting
@@ -37,8 +59,8 @@ your use case.
 ==== Recreating a follower index
 When a document is updated or deleted, the underlying operation is retained in
 the Lucene index for a period of time defined by the
-`index.soft_deletes.retention_lease.period` parameter. You configure this
-setting on the <<ccr-leader-requirements,leader index>>.
+<<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>> parameter. You configure
+this setting on the <<ccr-leader-requirements,leader index>>.
 
 When a follower index starts, it acquires a retention lease from
 the leader index. This lease informs the leader that it should not allow a soft
@@ -53,6 +75,22 @@ Lucene segment files from the leader.
 
 IMPORTANT: Recreating the follower index is a destructive action. All existing
 Lucene segment files are deleted on the cluster containing the follower index.
+
+. Open a browser to access {kib} on your _local_ cluster.
+. From the {kib} menu, click *Management -> Stack Management*.
+. Under *Data*, select *Cross Cluster Replication*.
+  . Choose the *Follower indices* tab.
+  . Choose the follower index you want to pause and
+  select *Manage -> Pause Replication*.
+  . When the follower index status changes to *Paused*, select the follower index and choose *Unfollow leader index*.
+  . When prompted to unfollow the leader index, choose *Unfollow leader*.
+  +
+  The follower index will be converted to a standard index and will no longer appear in *Cross-Cluster Replication*.
+. From the {kib} menu, under *Data*, click *Index Management*.
+  . Select the follower index from the previous steps and choose
+  *Manage index -> Close index* to close the follower index.
+. <<ccr-getting-started-follower-index,Recreate the follower index>> to restart
+the replication process.
 
 [%collapsible]
 .Use the API

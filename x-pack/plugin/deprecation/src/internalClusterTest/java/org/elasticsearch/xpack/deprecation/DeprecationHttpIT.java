@@ -1,52 +1,54 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.http;
+package org.elasticsearch.xpack.deprecation;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -55,7 +57,9 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
-public class DeprecationHttpIT extends HttpSmokeTestCase {
+public class DeprecationHttpIT extends ESSingleNodeTestCase {
+
+    private static RestClient restClient;
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -63,22 +67,19 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // change values of deprecated settings so that accessing them is logged
-                .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
-                .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
-                // non-deprecated setting to ensure not everything is logged
-                .put(TEST_NOT_DEPRECATED_SETTING.getKey(), ! TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
-                .build();
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(Netty4Plugin.class, XPackPlugin.class, Deprecation.class, TestDeprecationPlugin.class);
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestDeprecationPlugin.class);
-        return plugins;
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            // change values of deprecated settings so that accessing them is logged
+            .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
+            .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
+            // non-deprecated setting to ensure not everything is logged
+            .put(TEST_NOT_DEPRECATED_SETTING.getKey(), ! TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
+            .build();
     }
 
     /**
@@ -93,18 +94,29 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             indices[i] = "test" + i;
 
             // create indices with a single shard to reduce noise; the query only deprecates uniquely by index anyway
-            assertTrue(prepareCreate(indices[i]).setSettings(Settings.builder().put("number_of_shards", 1)).get().isAcknowledged());
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareCreate(indices[i])
+                    .setSettings(Settings.builder().put("number_of_shards", 1))
+                    .get()
+                    .isAcknowledged()
+            );
 
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                index(indices[i], Integer.toString(j), "{\"field\":" + j + "}");
+                client().prepareIndex(indices[i])
+                    .setId(Integer.toString(j))
+                    .setSource("{\"field\":" + j + "}", XContentType.JSON)
+                    .execute()
+                    .actionGet();
             }
         }
 
-        refresh(indices);
+        client().admin().indices().refresh(new RefreshRequest(indices));
 
-        final String commaSeparatedIndices = Stream.of(indices).collect(Collectors.joining(","));
+        final String commaSeparatedIndices = String.join(",", indices);
 
         // trigger all index deprecations
         Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
@@ -219,4 +231,38 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
     }
 
+    protected RestClient getRestClient() {
+        return getRestClient(client());
+    }
+
+    private static synchronized RestClient getRestClient(Client client) {
+        if (restClient == null) {
+            restClient = buildRestClient(client);
+        }
+        return restClient;
+    }
+
+    private static RestClient buildRestClient(Client client ) {
+        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        assertThat(nodesInfoResponse.getNodes(), hasSize(1));
+
+        NodeInfo node = nodesInfoResponse.getNodes().get(0);
+        assertNotNull(node.getInfo(HttpInfo.class));
+
+        TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
+        InetSocketAddress address = publishAddress.address();
+        final HttpHost host = new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http");
+        RestClientBuilder builder = RestClient.builder(host);
+        return builder.build();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        if (restClient != null) {
+            IOUtils.closeWhileHandlingException(restClient);
+            restClient = null;
+        }
+    }
 }

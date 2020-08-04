@@ -39,7 +39,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
             return;
         }
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = context.lookup().source();
+        SourceLookup source = hitContext.sourceLookup();
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
 

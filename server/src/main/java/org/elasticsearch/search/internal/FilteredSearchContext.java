@@ -47,7 +47,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -469,11 +468,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void keepAlive(long keepAlive) {
         in.keepAlive(keepAlive);
-    }
-
-    @Override
-    public SearchLookup lookup() {
-        return in.lookup();
     }
 
     @Override

@@ -136,9 +136,9 @@ PUT _component_template/template_1
         "alias1" : {},
         "alias2" : {
             "filter" : {
-                "term" : {"user" : "kimchy" }
+                "term" : {"user.id" : "kimchy" }
             },
-            "routing" : "kimchy"
+            "routing" : "shard-1"
         },
         "{index}-alias" : {} <1>
     }

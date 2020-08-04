@@ -13,7 +13,7 @@ index becomes the data stream's write index and its generation is incremented.
 
 [source,console]
 ----
-POST /alias1/_rollover/twitter
+POST /alias1/_rollover/my-index-000002
 {
   "conditions": {
     "max_age":   "7d",
@@ -191,8 +191,8 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"my-index-000001"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created
@@ -233,7 +233,6 @@ PUT _index_template/template
   "data_stream": { }
 }
 -----------------------------------
-// TEST
 
 [source,console]
 --------------------------------------------------
@@ -251,8 +250,8 @@ POST /my-data-stream/_rollover <2>
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream","op_type":"create"},"script":{"source":"ctx._source.put('@timestamp',ctx._source.remove('date'))"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-data-stream", "op_type": "create" } }/]
 <1> Creates a data stream called `my-data-stream` with one initial backing index
 named `my-data-stream-000001`.
 <2> This request creates a new backing index, `my-data-stream-000002`, and adds

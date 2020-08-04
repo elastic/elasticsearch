@@ -63,7 +63,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
     public void testBackwardsSerialization72() throws IOException {
         // version 7.7 introduced scripts, so test before that
         DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
-            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_7_0)
+            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_6_2)
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {

@@ -93,11 +93,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
     protected boolean sortRequiresCustomComparator() {
         return numericType == NumericType.HALF_FLOAT;
     }

@@ -68,7 +68,7 @@ public abstract class CancellableTask extends Task {
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
-    public final String getReasonCancelled() {
+    public String getReasonCancelled() {
         return reason;
     }
 

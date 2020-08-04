@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,8 +66,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         int shardCount = randomIntBetween(2, 10);
         createIndex("test",
             Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
 
         // create index and mapping up front to avoid master involvement, since that can result in an item failing with NodeClosedException.
@@ -81,8 +81,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
                     .endObject()
                 .endObject())
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build()));
 
         int numberOfDocuments = randomIntBetween(10, 50);

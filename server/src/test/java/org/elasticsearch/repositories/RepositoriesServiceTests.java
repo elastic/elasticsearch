@@ -29,17 +29,23 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -47,17 +53,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
@@ -71,8 +76,14 @@ public class RepositoriesServiceTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
-        Map<String, Repository.Factory> typesRegistry = Map.of(TestRepository.TYPE, TestRepository::new,
-                                                               SecondTestRepository.TYPE, SecondTestRepository::new);
+        final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
+        when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
+        Map<String, Repository.Factory> typesRegistry =
+            Map.of(TestRepository.TYPE, TestRepository::new,
+                MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+                MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
             transportService, Collections.emptyMap(), typesRegistry, threadPool);
         repositoriesService.start();
@@ -123,23 +134,23 @@ public class RepositoriesServiceTests extends ESTestCase {
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
         String repoName = "name";
         expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
+        repositoriesService.registerInternalRepository(repoName, MeteredRepositoryTypeA.TYPE);
         assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
 
         repositoriesService.unregisterInternalRepository(repoName);
         assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
 
-        repositoriesService.registerInternalRepository(repoName, SecondTestRepository.TYPE);
+        repositoriesService.registerInternalRepository(repoName, MeteredRepositoryTypeB.TYPE);
 
         List<RepositoryStatsSnapshot> repositoriesStats = repositoriesService.repositoriesStats();
         assertThat(repositoriesStats.size(), equalTo(2));
-        RepositoryStatsSnapshot repositoryStats = repositoriesStats.get(0);
-        assertThat(repositoryStats.getRepositoryInfo().type, equalTo(TestRepository.TYPE));
-        assertThat(repositoryStats.getRepositoryStats().requestCounts, equalTo(Map.of("TEST-REPO", 10L)));
+        RepositoryStatsSnapshot repositoryStatsTypeA = repositoriesStats.get(0);
+        assertThat(repositoryStatsTypeA.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeA.TYPE));
+        assertThat(repositoryStatsTypeA.getRepositoryStats(), equalTo(MeteredRepositoryTypeA.STATS));
 
-        RepositoryStatsSnapshot repositoryStats2 = repositoriesStats.get(1);
-        assertThat(repositoryStats2.getRepositoryInfo().type, equalTo(SecondTestRepository.TYPE));
-        assertThat(repositoryStats2.getRepositoryStats().requestCounts, equalTo(Map.of("SECOND-TEST", 20L)));
+        RepositoryStatsSnapshot repositoryStatsTypeB = repositoriesStats.get(1);
+        assertThat(repositoryStatsTypeB.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeB.TYPE));
+        assertThat(repositoryStatsTypeB.getRepositoryStats(), equalTo(MeteredRepositoryTypeB.STATS));
     }
 
     private void assertThrowsOnRegister(String repoName) {
@@ -150,7 +161,6 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
-        private static final String LOCATION = "location";
         private boolean isClosed;
         private boolean isStarted;
 
@@ -285,29 +295,53 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void close() {
             isClosed = true;
         }
+    }
 
-        @Override
-        public Optional<RepositoryStatsSnapshot> statsSnapshot() {
-            RepositoryInfo repositoryInfo =
-                new RepositoryInfo(UUIDs.randomBase64UUID(), metadata.name(), metadata.type(), LOCATION, Instant.now());
-            return Optional.of(new RepositoryStatsSnapshot(repositoryInfo, getRepositoryStats()));
+    private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
+        private static final String TYPE = "type-a";
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
+
+        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+            super(metadata,
+                mock(NamedXContentRegistry.class),
+                clusterService,
+                mock(RecoverySettings.class),
+                BlobPath.cleanPath(),
+                "bucket-a");
         }
 
-        protected RepositoryStats getRepositoryStats() {
-            return new RepositoryStats(Map.of("TEST-REPO", 10L));
+        @Override
+        protected BlobStore createBlobStore() {
+            return mock(BlobStore.class);
+        }
+
+        @Override
+        public RepositoryStats stats() {
+            return STATS;
         }
     }
 
-    private static class SecondTestRepository extends TestRepository {
-        private static final String TYPE = "second-internal";
+    private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
+        private static final String TYPE = "type-b";
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
 
-        private SecondTestRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+            super(metadata,
+                mock(NamedXContentRegistry.class),
+                clusterService,
+                mock(RecoverySettings.class),
+                BlobPath.cleanPath(),
+                "bucket-b");
         }
 
         @Override
-        protected RepositoryStats getRepositoryStats() {
-            return new RepositoryStats(Map.of("SECOND-TEST", 20L));
+        protected BlobStore createBlobStore() {
+            return mock(BlobStore.class);
+        }
+
+        @Override
+        public RepositoryStats stats() {
+            return STATS;
         }
     }
 }

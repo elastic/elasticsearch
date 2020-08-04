@@ -69,4 +69,11 @@ public class RepositoryStats implements Writeable {
     public int hashCode() {
         return Objects.hash(requestCounts);
     }
+
+    @Override
+    public String toString() {
+        return "RepositoryStats{" +
+            "requestCounts=" + requestCounts +
+            '}';
+    }
 }

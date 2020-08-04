@@ -27,29 +27,37 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
-
-import java.time.Instant;
-import java.util.Optional;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
-    private final String ephemeralId;
-    private final Instant startedAt;
+    private final RepositoryInfo repositoryInfo;
 
     public MeteredBlobStoreRepository(RepositoryMetadata metadata,
                                       NamedXContentRegistry namedXContentRegistry,
                                       ClusterService clusterService,
                                       RecoverySettings recoverySettings,
-                                      BlobPath basePath) {
+                                      BlobPath basePath,
+                                      String bucket) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, basePath);
-        this.ephemeralId = UUIDs.randomBase64UUID();
-        this.startedAt = Instant.now();
+        ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
+        this.repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
+            metadata.name(),
+            metadata.type(),
+            getLocation(basePath, bucket),
+            threadPool.absoluteTimeInMillis());
     }
 
-    @Override
-    public Optional<RepositoryStatsSnapshot> statsSnapshot() {
-        RepositoryInfo repositoryInfo = new RepositoryInfo(ephemeralId, metadata.name(), metadata.type(), location(), startedAt);
-        return Optional.of(new RepositoryStatsSnapshot(repositoryInfo, stats()));
+    public RepositoryStatsSnapshot statsSnapshot() {
+        return new RepositoryStatsSnapshot(repositoryInfo, stats(), threadPool.relativeTimeInMillis());
     }
 
-    protected abstract String location();
+    private static String getLocation(BlobPath basePath, String bucket) {
+        BlobPath location = BlobPath.cleanPath();
+
+        location = location.add(bucket);
+        for (String path : basePath) {
+            location = location.add(path);
+        }
+        return location.buildAsString();
+    }
 }

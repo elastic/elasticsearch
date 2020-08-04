@@ -15,8 +15,6 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -71,12 +69,13 @@ public class RepositoriesStatsResponseTests extends ESTestCase {
                 String repoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoType = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoLocation = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                Instant startedAt = Instant.now().minus(Duration.ofMinutes(randomLongBetween(1, 30)));
-                Instant stoppedAt = randomBoolean() ? Instant.now() : null;
+                Long startedAt = System.currentTimeMillis() - 1;
+                Long stoppedAt = randomBoolean() ? System.currentTimeMillis() : null;
                 RepositoryInfo repositoryInfo = new RepositoryInfo(repoId, repoName, repoType, repoLocation, startedAt, stoppedAt);
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
                     repositoryInfo,
-                    new RepositoryStats(Map.of("GET", randomLongBetween(0, 2000)))
+                    new RepositoryStats(Map.of("GET", randomLongBetween(0, 2000))),
+                    null
                 );
                 nodeRepoStats.add(statsSnapshot);
             }

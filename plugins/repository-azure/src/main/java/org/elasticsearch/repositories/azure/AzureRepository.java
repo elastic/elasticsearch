@@ -75,7 +75,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
-    private final String container;
 
     public AzureRepository(
         final RepositoryMetadata metadata,
@@ -83,7 +82,12 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
+        super(metadata,
+            namedXContentRegistry,
+            clusterService,
+            recoverySettings,
+            buildBasePath(metadata),
+            Repository.CONTAINER_SETTING.get(metadata.settings()));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -95,7 +99,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }
-        this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
@@ -135,17 +138,5 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     @Override
     public boolean isReadOnly() {
         return readonly;
-    }
-
-    @Override
-    protected String location() {
-        BlobPath location = BlobPath.cleanPath();
-
-        location = location.add(container);
-        for (String path : basePath()) {
-            location = location.add(path);
-        }
-
-        return location.buildAsString();
     }
 }

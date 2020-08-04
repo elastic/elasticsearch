@@ -23,37 +23,32 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RepositoriesStatsArchiveTests extends ESTestCase {
     public void testStatsAreEvictedOnceTheyAreOlderThanRetentionPeriod() {
-        int retentionTimeInHours = randomIntBetween(1, 4);
+        int retentionTimeInMillis = randomIntBetween(100, 1000);
+
+        AtomicLong fakeRelativeClock = new AtomicLong();
         RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueHours(retentionTimeInHours));
+            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
+                100,
+                fakeRelativeClock::get,
+                System::currentTimeMillis);
 
-        int statsOlderThanRetentionPeriodCount = randomInt(10);
-        for (int i = 0; i < statsOlderThanRetentionPeriodCount; i++) {
-            RepositoryInfo repositoryInfo =
-                createRepositoryInfo(retentionTimeInHours + 2, retentionTimeInHours + 1);
-
-            RepositoryStatsSnapshot repoStats =
-                new RepositoryStatsSnapshot(repositoryInfo, RepositoryStats.EMPTY_STATS);
-
+        for (int i = 0; i < randomInt(10); i++) {
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(RepositoryStats.EMPTY_STATS);
             repositoriesStatsArchive.archive(repoStats);
         }
 
+        fakeRelativeClock.set(retentionTimeInMillis * 2);
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
-            RepositoryInfo repositoryInfo =
-                createRepositoryInfo(0);
-
-            RepositoryStatsSnapshot repoStats =
-                new RepositoryStatsSnapshot(repositoryInfo, new RepositoryStats(Map.of("GET", 10L)));
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", 10L)));
             repositoriesStatsArchive.archive(repoStats);
         }
 
@@ -64,22 +59,52 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         }
     }
 
-    private RepositoryInfo createRepositoryInfo(int hoursSinceRepoStarted) {
-        return new RepositoryInfo(UUIDs.randomBase64UUID(),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            Instant.now().minus(Duration.ofHours(hoursSinceRepoStarted)),
-            null);
+    public void testStatsAreRejectedIfTheArchiveIsFull() {
+        int retentionTimeInMillis = randomIntBetween(100, 1000);
+
+        AtomicLong fakeRelativeClock = new AtomicLong();
+        RepositoriesStatsArchive repositoriesStatsArchive =
+            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
+                1,
+                fakeRelativeClock::get,
+                System::currentTimeMillis);
+
+        assertTrue(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
+
+        fakeRelativeClock.set(retentionTimeInMillis * 2);
+        // Now there's room since the previous stats should be evicted
+        assertTrue(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
+        // There's no room for stats with the same creation time
+        assertFalse(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
     }
 
-    private RepositoryInfo createRepositoryInfo(int hoursSinceRepoStarted, int hoursSinceRepoStopped) {
-        assert hoursSinceRepoStarted > hoursSinceRepoStopped;
-        return new RepositoryInfo(UUIDs.randomBase64UUID(),
+    public void testClearArchive() {
+        int retentionTimeInMillis = randomIntBetween(100, 1000);
+        AtomicLong fakeRelativeClock = new AtomicLong();
+        RepositoriesStatsArchive repositoriesStatsArchive =
+            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
+                100,
+                fakeRelativeClock::get,
+                System::currentTimeMillis);
+
+        int archivedStats = randomInt(20);
+        for (int i = 0; i < archivedStats; i++) {
+            repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS));
+        }
+
+        List<RepositoryStatsSnapshot> removedStats = repositoriesStatsArchive.clear();
+        assertThat(removedStats.size(), equalTo(archivedStats));
+
+        assertThat(repositoriesStatsArchive.getArchivedStats().size(), equalTo(0));
+    }
+
+    private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats) {
+        RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            Instant.now().minus(Duration.ofHours(hoursSinceRepoStarted)),
-            Instant.now().minus(Duration.ofHours(hoursSinceRepoStopped)));
+            System.currentTimeMillis(),
+            null);
+        return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, null);
     }
 }

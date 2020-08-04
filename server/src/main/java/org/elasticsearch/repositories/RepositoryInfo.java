@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Objects;
 
 public final class RepositoryInfo implements Writeable, ToXContentFragment {
@@ -35,15 +34,15 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
     public final String name;
     public final String type;
     public final String location;
-    public final Instant startedAt;
+    public final long startedAt;
     @Nullable
-    public final Instant stoppedAt;
+    public final Long stoppedAt;
 
     public RepositoryInfo(String ephemeralId,
                           String name,
                           String type,
                           String location,
-                          Instant startedAt) {
+                          Long startedAt) {
         this(ephemeralId, name, type, location, startedAt, null);
     }
 
@@ -51,14 +50,14 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
                           String name,
                           String type,
                           String location,
-                          Instant startedAt,
-                          @Nullable Instant stoppedAt) {
+                          Long startedAt,
+                          @Nullable Long stoppedAt) {
         this.ephemeralId = ephemeralId;
         this.name = name;
         this.type = type;
         this.location = location;
         this.startedAt = startedAt;
-        if (stoppedAt != null && startedAt.isAfter(stoppedAt)) {
+        if (stoppedAt != null && startedAt > stoppedAt) {
             throw new IllegalArgumentException("createdAt must be before or equal to stoppedAt");
         }
         this.stoppedAt = stoppedAt;
@@ -69,21 +68,14 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         this.name = in.readString();
         this.type = in.readString();
         this.location = in.readString();
-        this.startedAt = in.readInstant();
-        this.stoppedAt = in.readOptionalInstant();
+        this.startedAt = in.readLong();
+        this.stoppedAt = in.readOptionalLong();
     }
 
-    public RepositoryInfo stopped() {
+    public RepositoryInfo stopped(long stoppedAt) {
         assert isStopped() == false : "The repository is already stopped";
 
-        return new RepositoryInfo(ephemeralId, name, type, location, startedAt, Instant.now());
-    }
-
-    public boolean wasStoppedBefore(Instant instant) {
-        if (stoppedAt == null) {
-            return false;
-        }
-        return stoppedAt.isBefore(instant);
+        return new RepositoryInfo(ephemeralId, name, type, location, startedAt, stoppedAt);
     }
 
     public boolean isStopped() {
@@ -96,8 +88,8 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         out.writeString(name);
         out.writeString(type);
         out.writeString(location);
-        out.writeInstant(startedAt);
-        out.writeOptionalInstant(stoppedAt);
+        out.writeLong(startedAt);
+        out.writeOptionalLong(stoppedAt);
     }
 
     @Override
@@ -106,9 +98,9 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         builder.field("repository_type", type);
         builder.field("repository_location", location);
         builder.field("repository_ephemeral_id", ephemeralId);
-        builder.field("repository_started_at", startedAt.toEpochMilli());
+        builder.field("repository_started_at", startedAt);
         if (stoppedAt != null) {
-            builder.field("repository_stopped_at", stoppedAt.toEpochMilli());
+            builder.field("repository_stopped_at", stoppedAt);
         }
         return builder;
     }
@@ -129,5 +121,17 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(ephemeralId, name, type, location, startedAt, stoppedAt);
+    }
+
+    @Override
+    public String toString() {
+        return "RepositoryInfo{" +
+            "ephemeralId='" + ephemeralId + '\'' +
+            ", name='" + name + '\'' +
+            ", type='" + type + '\'' +
+            ", location='" + location + '\'' +
+            ", startedAt=" + startedAt +
+            ", stoppedAt=" + stoppedAt +
+            '}';
     }
 }

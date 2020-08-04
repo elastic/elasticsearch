@@ -39,7 +39,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
-import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -54,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -213,10 +211,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                 }
             })
             .filter(Objects::nonNull)
-            .map(Repository::statsSnapshot)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .map(RepositoryStatsSnapshot::getRepositoryStats)
+            .map(Repository::stats)
             .reduce(RepositoryStats::merge)
             .get();
 

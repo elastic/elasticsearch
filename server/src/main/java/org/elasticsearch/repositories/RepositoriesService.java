@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -58,7 +59,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -71,6 +71,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     public static final Setting<TimeValue> REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD =
         Setting.positiveTimeSetting("repositories.stats.archive.retention_period", TimeValue.timeValueHours(2), Setting.Property.NodeScope);
+
+    public static final Setting<Integer> REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS =
+        Setting.intSetting("repositories.stats.archive.max_archived_stats", 100, 0, Setting.Property.NodeScope);
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
@@ -98,7 +101,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             clusterService.addHighPriorityApplier(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
-        this.repositoriesStatsArchive = new RepositoriesStatsArchive(REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings));
+        this.repositoriesStatsArchive = new RepositoriesStatsArchive(REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
+            REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
+            threadPool::relativeTimeInMillis,
+            threadPool::absoluteTimeInMillis);
     }
 
     /**
@@ -418,14 +424,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {
         return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
-            .map(Repository::statsSnapshot)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
+            .filter(r -> r instanceof MeteredBlobStoreRepository)
+            .map(r -> (MeteredBlobStoreRepository) r)
+            .map(MeteredBlobStoreRepository::statsSnapshot)
             .collect(Collectors.toList());
     }
 
-    public void clearRepositoriesStatsArchive() {
-        repositoriesStatsArchive.clear();
+    public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive() {
+        return repositoriesStatsArchive.clear();
     }
 
     public void registerInternalRepository(String name, String type) {
@@ -460,9 +466,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private void closeRepository(Repository repository, boolean archiveStats) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
-        if (archiveStats) {
-            Optional<RepositoryStatsSnapshot> stats = repository.statsSnapshot();
-            stats.ifPresent(repositoriesStatsArchive::archive);
+        if (archiveStats && repository instanceof MeteredBlobStoreRepository) {
+            RepositoryStatsSnapshot stats = ((MeteredBlobStoreRepository) repository).statsSnapshot();
+            if (repositoriesStatsArchive.archive(stats) == false) {
+                logger.warn("Unable to archive the repository stats [{}] as the archive is full.", stats);
+            }
         }
     }
 

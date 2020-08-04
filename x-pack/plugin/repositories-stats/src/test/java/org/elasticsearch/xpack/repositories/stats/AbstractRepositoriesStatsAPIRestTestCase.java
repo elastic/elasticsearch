@@ -23,7 +23,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -315,7 +314,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().longValue()));
                 RepositoryStats repositoryStats = new RepositoryStats(requestCounters);
-                RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(repositoryInfo, repositoryStats);
+                RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, null);
                 repositoriesStats.add(statsSnapshot);
             }
         }
@@ -329,14 +328,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
         String location = extractValue(nodeStatSnapshot, "repository_location");
         Long startedAt = extractValue(nodeStatSnapshot, "repository_started_at");
         Long stoppedAt = extractValue(nodeStatSnapshot, "repository_stopped_at");
-        return new RepositoryInfo(
-            id,
-            name,
-            type,
-            location,
-            Instant.ofEpochMilli(startedAt),
-            stoppedAt != null ? Instant.ofEpochMilli(stoppedAt) : null
-        );
+        return new RepositoryInfo(id, name, type, location, startedAt, stoppedAt);
     }
 
     private Set<String> getNodeIds() throws IOException {

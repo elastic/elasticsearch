@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,22 +27,27 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
     private final RepositoryInfo repositoryInfo;
     private final RepositoryStats repositoryStats;
+    @Nullable
+    private final Long createdAtMillis;
 
     public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo,
-                                   RepositoryStats repositoryStats) {
+                                   RepositoryStats repositoryStats,
+                                   @Nullable Long createdAtMillis) {
         this.repositoryInfo = repositoryInfo;
         this.repositoryStats = repositoryStats;
+        this.createdAtMillis = createdAtMillis;
     }
 
     public RepositoryStatsSnapshot(StreamInput in) throws IOException {
         this.repositoryInfo = new RepositoryInfo(in);
         this.repositoryStats = new RepositoryStats(in);
+        this.createdAtMillis = null;
     }
 
     public RepositoryInfo getRepositoryInfo() {
@@ -52,12 +58,8 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
         return repositoryStats;
     }
 
-    public boolean wasRepoStoppedBefore(Instant instant) {
-        return repositoryInfo.wasStoppedBefore(instant);
-    }
-
-    public RepositoryStatsSnapshot withStoppedRepo() {
-        return new RepositoryStatsSnapshot(repositoryInfo.stopped(), repositoryStats);
+    public long ageInMillis(LongSupplier relativeTimeInMillis) {
+        return createdAtMillis == null ? 0 : relativeTimeInMillis.getAsLong() - createdAtMillis;
     }
 
     @Override
@@ -81,11 +83,21 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStatsSnapshot that = (RepositoryStatsSnapshot) o;
         return Objects.equals(repositoryInfo, that.repositoryInfo) &&
-            Objects.equals(repositoryStats, that.repositoryStats);
+            Objects.equals(repositoryStats, that.repositoryStats) &&
+            Objects.equals(createdAtMillis, that.createdAtMillis);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(repositoryInfo, repositoryStats);
+        return Objects.hash(repositoryInfo, repositoryStats, createdAtMillis);
+    }
+
+    @Override
+    public String toString() {
+        return "RepositoryStatsSnapshot{" +
+            "repositoryInfo=" + repositoryInfo +
+            ", repositoryStats=" + repositoryStats +
+            ", createdAtMillis=" + createdAtMillis +
+            '}';
     }
 }

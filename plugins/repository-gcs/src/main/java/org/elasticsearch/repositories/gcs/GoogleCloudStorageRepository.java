@@ -72,7 +72,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata), getSetting(BUCKET, metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
@@ -117,17 +117,5 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
-    }
-
-    @Override
-    protected String location() {
-        BlobPath location = BlobPath.cleanPath();
-
-        location = location.add(bucket);
-        for (String path : basePath()) {
-            location = location.add(path);
-        }
-
-        return location.buildAsString();
     }
 }

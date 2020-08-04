@@ -21,26 +21,46 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 public final class RepositoriesStatsArchive {
     private final TimeValue retentionPeriod;
+    private final int maxCapacity;
+    private final LongSupplier relativeTimeSupplier;
+    private final LongSupplier absoluteTimeSupplier;
     private final Deque<RepositoryStatsSnapshot> archive = new ArrayDeque<>();
 
-    RepositoriesStatsArchive(TimeValue retentionPeriod) {
+    public RepositoriesStatsArchive(TimeValue retentionPeriod,
+                                    int maxCapacity,
+                                    LongSupplier relativeTimeSupplier,
+                                    LongSupplier absoluteTimeSupplier) {
         this.retentionPeriod = retentionPeriod;
+        this.maxCapacity = maxCapacity;
+        this.relativeTimeSupplier = relativeTimeSupplier;
+        this.absoluteTimeSupplier = absoluteTimeSupplier;
     }
 
-    synchronized void archive(RepositoryStatsSnapshot repositoryStats) {
-        if (repositoryStats.getRepositoryInfo().isStopped() == false) {
-            repositoryStats = repositoryStats.withStoppedRepo();
-        }
-        archive.add(repositoryStats);
+    /**
+     * Archives the specified repository stats snapshot into the archive
+     * if it's possible without violating the capacity constraints.
+     *
+     * @return {@code true} if the repository stats were archived, {@code false} otherwise.
+     */
+    synchronized boolean archive(RepositoryStatsSnapshot repositoryStats) {
         evict();
+
+        if (archive.size() >= maxCapacity) {
+            return false;
+        }
+
+        RepositoryInfo stoppedRepoInfo =
+            repositoryStats.getRepositoryInfo().stopped(absoluteTimeSupplier.getAsLong());
+        repositoryStats =
+            new RepositoryStatsSnapshot(stoppedRepoInfo, repositoryStats.getRepositoryStats(), relativeTimeSupplier.getAsLong());
+        return archive.add(repositoryStats);
     }
 
     synchronized List<RepositoryStatsSnapshot> getArchivedStats() {
@@ -48,23 +68,21 @@ public final class RepositoriesStatsArchive {
         return List.copyOf(archive);
     }
 
-    synchronized void clear() {
+    /**
+     * Clears the archive, returning the valid archived entries up until that point.
+     *
+     * @return the repository stats that were stored before clearing the archive.
+     */
+    synchronized List<RepositoryStatsSnapshot> clear() {
+        List<RepositoryStatsSnapshot> archivedStats = getArchivedStats();
         archive.clear();
+        return archivedStats;
     }
 
     private void evict() {
-        Instant retentionDeadline = getRetentionDeadline();
         RepositoryStatsSnapshot stats;
-        while ((stats = archive.peek()) != null && shouldEvict(stats, retentionDeadline)) {
+        while ((stats = archive.peek()) != null && stats.ageInMillis(relativeTimeSupplier) >= retentionPeriod.getMillis()) {
             archive.poll();
         }
-    }
-
-    private boolean shouldEvict(RepositoryStatsSnapshot stats, Instant deadline) {
-        return stats.wasRepoStoppedBefore(deadline);
-    }
-
-    private Instant getRetentionDeadline() {
-        return Instant.now().minus(Duration.ofMillis(retentionPeriod.getMillis()));
     }
 }

@@ -194,7 +194,12 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
+        super(metadata,
+            namedXContentRegistry,
+            clusterService,
+            recoverySettings,
+            buildBasePath(metadata),
+            BUCKET_SETTING.get(metadata.settings()));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -327,18 +332,5 @@ class S3Repository extends MeteredBlobStoreRepository {
             cancellable.cancel();
         }
         super.doClose();
-    }
-
-    @Override
-    protected String location() {
-        logger.info("LOCATION {}", bucket);
-        BlobPath location = BlobPath.cleanPath();
-
-        location = location.add(bucket);
-        for (String path : basePath()) {
-            location = location.add(path);
-        }
-
-        return location.buildAsString();
     }
 }

@@ -130,7 +130,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
-                        .startObject("field")
+                        .startObject("text")
                             .field("type", "text")
                             .field("store", true)
                             .startObject("fields")
@@ -162,16 +162,16 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField shape = doc.rootDoc().getField("field.shape");
         assertThat(shape, notNullValue());
 
-        IndexableField field = doc.rootDoc().getField("field.field");
+        IndexableField field = doc.rootDoc().getField("field.text");
         assertThat(field, notNullValue());
         assertThat(field.stringValue(), is("foo"));
 
-        IndexableField raw = doc.rootDoc().getField("field.field.raw");
+        IndexableField raw = doc.rootDoc().getField("field.text.raw");
 
         assertThat(raw, notNullValue());
         assertThat(raw.binaryValue(), is(new BytesRef("foo")));
 
-        assertWarnings("At least one multi-field, [field], was " +
+        assertWarnings("At least one multi-field, [text], was " +
             "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
             "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
             "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
@@ -198,7 +198,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
-                        .startObject("field")
+                        .startObject("text")
                             .field("type", "text")
                             .startObject("fields")
                                 .startObject("generated")
@@ -230,19 +230,19 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
-        assertThat(doc.rootDoc().getField("field.field"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
+        assertThat(doc.rootDoc().getField("field.text"), notNullValue());
+        assertThat(doc.rootDoc().getField("field.text").stringValue(), is("foo"));
 
-        assertThat(doc.rootDoc().getField("field.field.generated.generated"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.generated.generated").stringValue(), is("bar"));
+        assertThat(doc.rootDoc().getField("field.text.generated.generated"), notNullValue());
+        assertThat(doc.rootDoc().getField("field.text.generated.generated").stringValue(), is("bar"));
 
-        assertThat(doc.rootDoc().getField("field.field.raw"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.raw").stringValue(), is("foo"));
+        assertThat(doc.rootDoc().getField("field.text.raw"), notNullValue());
+        assertThat(doc.rootDoc().getField("field.text.raw").stringValue(), is("foo"));
 
         assertThat(doc.rootDoc().getField("field.raw"), notNullValue());
         assertThat(doc.rootDoc().getField("field.raw").stringValue(), is("foo"));
 
-        assertWarnings("At least one multi-field, [field], was " +
+        assertWarnings("At least one multi-field, [text], was " +
             "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
             "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
             "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +

@@ -47,22 +47,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<NumberFieldMapper.Builder> {
+public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -297,42 +291,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         }
     }
 
-    public void testRejectNorms() throws IOException {
-        // not supported as of 5.0
-        for (String type : TYPES) {
-            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", type)
-                        .field("norms", random().nextBoolean())
-                    .endObject()
-                .endObject().endObject().endObject());
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
-        }
-    }
-
-    /**
-     * `index_options` was deprecated and is rejected as of 7.0
-     */
-    public void testRejectIndexOptions() throws IOException {
-        for (String type : TYPES) {
-            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", type)
-                    .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
-                    .endObject()
-                .endObject().endObject().endObject());
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertThat(e.getMessage(), containsString("index_options not allowed in field [foo] of type [" + type +"]"));
-        }
-    }
-
     @Override
     protected void doTestNullValue(String type) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
@@ -410,11 +368,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER).build(context);
+        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true).build(context);
         assertEquals(3, mapper.parseSourceValue(3.14, null));
         assertEquals(42, mapper.parseSourceValue("42.9", null));
 
-        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT)
+        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)
             .build(context);
         assertEquals(2.71f, (float) nullValueMapper.parseSourceValue("", null), 0.00001);
@@ -501,17 +459,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         assertTrue(response.status() == RestStatus.CREATED);
     }
 
-    public void testDeprecatedSimilarityParameter() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("field")
-            .field("type", "long")
-            .field("similarity", "bm25")
-            .endObject().endObject().endObject().endObject());
-
-        parser.parse("type", new CompressedXContent(mapping));
-        assertWarnings("The [similarity] parameter has no effect on field [field] and will be removed in 8.0");
-    }
-
     private void parseRequest(NumberType type, BytesReference content) throws IOException {
         createDocumentMapper(type).parse(new SourceToParse("test", "1", content, XContentType.JSON));
     }
@@ -543,8 +490,4 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         }
     }
 
-    @Override
-    protected NumberFieldMapper.Builder newBuilder() {
-        return new NumberFieldMapper.Builder("number", NumberType.LONG);
-    }
 }

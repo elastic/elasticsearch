@@ -413,7 +413,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
-                recoveryState.ignoreFile(file.physicalName());
+                if (file.metadata().hashEqualsContents()) {
+                    recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), true);
+                } else {
+                    recoveryState.ignoreFile(file.physicalName());
+                }
                 completionListener.onResponse(null);
                 continue;
             }

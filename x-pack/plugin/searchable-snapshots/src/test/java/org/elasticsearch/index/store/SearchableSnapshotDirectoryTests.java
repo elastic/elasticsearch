@@ -833,7 +833,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
                 boolean fileHasExcludedType = fileTypesExcludedFromCaching.stream().anyMatch(type -> fileDetail.name().endsWith(type));
-                assertThat(fileHasExcludedType, equalTo(false));
+                assertFalse(fileHasExcludedType);
             }
         });
     }

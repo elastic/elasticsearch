@@ -30,6 +30,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         // Pre-warm is still running, hold the state transition
         // until the pre-warm process finishes
         if (preWarmFinished == false && stage == Stage.DONE) {
+            validateCurrentStage(Stage.FINALIZE);
             return this;
         }
 

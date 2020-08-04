@@ -33,6 +33,11 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
     }
 
+    public void testsetStageThrowsAnExceptionOnInvalidTransitions() {
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        expectThrows(AssertionError.class, () -> recoveryState.setStage(RecoveryState.Stage.DONE));
+    }
+
     public void testStageTransitionsToDoneOncePreWarmingHasFinished() {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.INIT));

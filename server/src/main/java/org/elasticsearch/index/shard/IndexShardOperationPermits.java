@@ -238,7 +238,7 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     private void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
-                         final Object debugInfo, final StackTraceElement[] stackTrace) {
+                        final Object debugInfo, final StackTraceElement[] stackTrace) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
@@ -271,7 +271,7 @@ final class IndexShardOperationPermits implements Closeable {
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
-                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo, stackTrace, forceExecution));
+                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo, stackTrace));
                     return;
                 } else {
                     releasable = acquire(debugInfo, stackTrace);
@@ -341,12 +341,9 @@ final class IndexShardOperationPermits implements Closeable {
         private final ActionListener<Releasable> listener;
         private final String debugInfo;
         private final StackTraceElement[] stackTrace;
-        private final boolean forceExecution;
 
-        private DelayedOperation(ActionListener<Releasable> listener, Object debugInfo, StackTraceElement[] stackTrace,
-                                 boolean forceExecution) {
+        private DelayedOperation(ActionListener<Releasable> listener, Object debugInfo, StackTraceElement[] stackTrace) {
             this.listener = listener;
-            this.forceExecution = forceExecution;
             if (Assertions.ENABLED) {
                 this.debugInfo = "[delayed] " + debugInfo;
                 this.stackTrace = stackTrace;

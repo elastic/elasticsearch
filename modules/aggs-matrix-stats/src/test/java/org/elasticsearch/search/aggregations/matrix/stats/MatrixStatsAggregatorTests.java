@@ -55,7 +55,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                     .fields(Collections.singletonList("field"));
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
-                assertFalse(MatrixAggregationInspectionHelper.hasValue(stats));
+                assertEquals(0L, stats.getDocCount());
             }
         }
     }
@@ -74,7 +74,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                     .fields(Collections.singletonList("bogus"));
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
-                assertFalse(MatrixAggregationInspectionHelper.hasValue(stats));
+                assertEquals(0L, stats.getDocCount());
             }
         }
     }

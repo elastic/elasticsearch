@@ -166,6 +166,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     compensatedSumWeight.add(weight);
                 }
             }
+            // force using a single aggregator to compute the centroid
+            w.forceMerge(1);
             GeoPoint expectedCentroid = new GeoPoint(compensatedSumLat.value() / compensatedSumWeight.value(),
                 compensatedSumLon.value() / compensatedSumWeight.value());
             assertCentroid(w, expectedCentroid);

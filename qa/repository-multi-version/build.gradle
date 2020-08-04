@@ -19,7 +19,7 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -47,7 +47,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     "${newClusterName}" clusterSettings(project.version)
   }
 
-  tasks.register("${baseName}#Step1OldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step1OldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${oldClusterName}"
     mustRunAfter(precommit)
     doFirst {
@@ -56,19 +56,19 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     systemProperty 'tests.rest.suite', 'step1'
   }
 
-  tasks.register("${baseName}#Step2NewClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step2NewClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${newClusterName}"
     dependsOn "${baseName}#Step1OldClusterTest"
     systemProperty 'tests.rest.suite', 'step2'
   }
 
-  tasks.register("${baseName}#Step3OldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${oldClusterName}"
     dependsOn "${baseName}#Step2NewClusterTest"
     systemProperty 'tests.rest.suite', 'step3'
   }
 
-  tasks.register("${baseName}#Step4NewClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${newClusterName}"
     dependsOn "${baseName}#Step3OldClusterTest"
     systemProperty 'tests.rest.suite', 'step4'

@@ -21,10 +21,8 @@ def clusterCredentials = [username: System.getProperty('tests.rest.cluster.usern
 
 task restTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-  }
+  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.restTest {

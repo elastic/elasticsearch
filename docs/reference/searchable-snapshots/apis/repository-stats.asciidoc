@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-repository-stats]]
 === Searchable snapshot repository statistics API
 ++++

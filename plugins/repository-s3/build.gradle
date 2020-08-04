@@ -166,7 +166,6 @@ internalClusterTest {
 }
 
 yamlRestTest {
-  runner {
     systemProperty 'tests.rest.blacklist', (
       useFixture ?
         ['repository_s3/50_repository_ecs_credentials/*']
@@ -177,7 +176,6 @@ yamlRestTest {
           'repository_s3/50_repository_ecs_credentials/*'
         ]
     ).join(",")
-  }
 }
 
 testClusters.yamlRestTest {
@@ -218,19 +216,17 @@ if (useFixture) {
   task yamlRestTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.bundlePlugin
-    runner {
-      SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-      SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
-      setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-      setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
 
-      // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-      systemProperty 'tests.rest.blacklist', [
-        'repository_s3/30_repository_temporary_credentials/*',
-        'repository_s3/40_repository_ec2_credentials/*',
-        'repository_s3/50_repository_ecs_credentials/*'
-      ].join(",")
-    }
+    // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*'
+    ].join(",")
   }
   check.dependsOn(yamlRestTestMinio)
 
@@ -248,18 +244,16 @@ if (useFixture) {
   task yamlRestTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
     dependsOn('bundlePlugin')
-    runner {
-      SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-      SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
-      setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-      setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-      systemProperty 'tests.rest.blacklist', [
-        'repository_s3/10_basic/*',
-        'repository_s3/20_repository_permanent_credentials/*',
-        'repository_s3/30_repository_temporary_credentials/*',
-        'repository_s3/40_repository_ec2_credentials/*'
-      ].join(",")
-    }
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/10_basic/*',
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*'
+    ].join(",")
   }
   check.dependsOn(yamlRestTestECS)
 

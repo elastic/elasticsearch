@@ -959,7 +959,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeStartObject();
             generator.writeFieldName("test");
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
-            assertFalse(closed.get());
+            assertFalse("Generator should not have closed the output stream", closed.get());
             generator.writeEndObject();
         }
 

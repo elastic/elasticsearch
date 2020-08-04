@@ -10,7 +10,7 @@ Performs a synced flush on one or more indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_flush/synced
+POST /my-index-000001/_flush/synced
 --------------------------------------------------
 // TEST[skip: Synced flush can conflict with scheduled flushes in doc tests]
 
@@ -80,7 +80,7 @@ section of the shard stats returned by the <<indices-stats,indices stats>> API:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_stats?filter_path=**.commit&level=shards <1>
+GET /my-index-000001/_stats?filter_path=**.commit&level=shards <1>
 --------------------------------------------------
 // TEST[skip: Synced flush can conflict with scheduled flushes in doc tests]
 
@@ -92,7 +92,7 @@ The API returns the following response:
 --------------------------------------------------
 {
    "indices": {
-      "twitter": {
+      "my-index-000001": {
          "shards": {
             "0": [
                {
@@ -208,7 +208,7 @@ successfully sync-flushed:
       "successful": 2,
       "failed": 0
    },
-   "twitter": {
+   "my-index-000001": {
       "total": 2,
       "successful": 2,
       "failed": 0
@@ -228,7 +228,7 @@ due to pending operations:
       "successful": 2,
       "failed": 2
    },
-   "twitter": {
+   "my-index-000001": {
       "total": 4,
       "successful": 2,
       "failed": 2,
@@ -255,7 +255,7 @@ This case is reported as follows:
       "successful": 1,
       "failed": 1
    },
-   "twitter": {
+   "my-index-000001": {
       "total": 4,
       "successful": 3,
       "failed": 1,
@@ -269,7 +269,7 @@ This case is reported as follows:
                "node": "SZNr2J_ORxKTLUCydGX4zA",
                "relocating_node": null,
                "shard": 1,
-               "index": "twitter"
+               "index": "my-index-000001"
             }
          }
       ]

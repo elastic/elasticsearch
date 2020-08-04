@@ -244,11 +244,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return configuration.iterator();
     }
 
-    // TODO: remove this when distro tests are per distribution
-    public Configuration getConfiguration() {
-        return configuration;
-    }
-
     // internal, make this distribution's configuration unmodifiable
     void finalizeValues() {
 

@@ -98,7 +98,7 @@ s|Description
 
 |cbor
 |application/cbor
-|http://cbor.io/[Concise Binary Object Representation]
+|https://cbor.io/[Concise Binary Object Representation]
 
 |smile
 |application/smile
@@ -337,7 +337,7 @@ Which looks like:
 Note that the `columns` object is only part of the first page.
 
 You've reached the last page when there is no `cursor` returned
-in the results. Like Elasticsearch's <<request-body-search-scroll,scroll>>,
+in the results. Like Elasticsearch's <<scroll-search-results,scroll>>,
 SQL may keep state in Elasticsearch to support the cursor. Unlike
 scroll, receiving the last page is enough to guarantee that the
 Elasticsearch state is cleared.

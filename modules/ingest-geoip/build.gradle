@@ -43,40 +43,41 @@ restResources {
   }
 }
 
-task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
+tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
   from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"
   include "*.mmdb"
 }
 
-project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
-
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
+  dependsOn("copyDefaultGeoIp2DatabaseFiles")
   from("${project.buildDir}/ingest-geoip") {
     into '/'
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-  'org.apache.http.HttpEntity',
-  'org.apache.http.HttpHost',
-  'org.apache.http.HttpResponse',
-  'org.apache.http.StatusLine',
-  'org.apache.http.auth.UsernamePasswordCredentials',
-  'org.apache.http.client.config.RequestConfig$Builder',
-  'org.apache.http.client.config.RequestConfig',
-  'org.apache.http.client.methods.CloseableHttpResponse',
-  'org.apache.http.client.methods.HttpGet',
-  'org.apache.http.client.utils.URIBuilder',
-  'org.apache.http.impl.auth.BasicScheme',
-  'org.apache.http.impl.client.CloseableHttpClient',
-  'org.apache.http.impl.client.HttpClientBuilder',
-  'org.apache.http.util.EntityUtils'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
+          'org.apache.http.HttpEntity',
+          'org.apache.http.HttpHost',
+          'org.apache.http.HttpResponse',
+          'org.apache.http.StatusLine',
+          'org.apache.http.auth.UsernamePasswordCredentials',
+          'org.apache.http.client.config.RequestConfig$Builder',
+          'org.apache.http.client.config.RequestConfig',
+          'org.apache.http.client.methods.CloseableHttpResponse',
+          'org.apache.http.client.methods.HttpGet',
+          'org.apache.http.client.utils.URIBuilder',
+          'org.apache.http.impl.auth.BasicScheme',
+          'org.apache.http.impl.client.CloseableHttpClient',
+          'org.apache.http.impl.client.HttpClientBuilder',
+          'org.apache.http.util.EntityUtils'
+  )
+}
 
-test {
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
     systemProperty 'es.geoip.load_db_on_heap', 'true'

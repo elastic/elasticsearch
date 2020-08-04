@@ -231,7 +231,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
     protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
         if (isReady() == false) {
-            logger.debug("blob cache system index [{}] is not ready", index);
+            logger.debug("not ready : [{}]", CachedBlob.generateId(repository, name, path, offset));
             listener.onResponse(null);
             return;
         }
@@ -239,14 +239,14 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
             client.get(request, ActionListener.wrap(response -> {
                 if (response.isExists()) {
-                    logger.debug("found cached blob with id [{}] in cache", request.id());
+                    logger.debug("cache hit : [{}]", request.id());
                     assert response.isSourceEmpty() == false;
 
                     final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
                     assert response.getId().equals(cachedBlob.generatedId());
                     listener.onResponse(cachedBlob);
                 } else {
-                    logger.debug("no cached blob found with id [{}] in cache", request.id());
+                    logger.debug("cache miss: [{}]", request.id());
                     listener.onResponse(null);
                 }
             }, e -> {
@@ -289,11 +289,11 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                 }
                 client.index(request, ActionListener.wrap(response -> {
                     if (response.status() == RestStatus.CREATED) {
-                        logger.trace("cached blob [{}] successfully indexed in [{}]", request, index);
+                        logger.trace("cache fill: [{}]", request.id());
                     }
                 }, listener::onFailure));
             } catch (IOException e) {
-                logger.warn("failed to index cached blob in cache", e);
+                logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
             } finally {
                 IOUtils.closeWhileHandlingException(content);
             }

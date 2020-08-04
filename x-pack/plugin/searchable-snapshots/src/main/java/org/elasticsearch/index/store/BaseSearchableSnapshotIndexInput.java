@@ -157,6 +157,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     ) throws IOException {
         final InputStream stream = openInputStream(position, length);
         if (regions == null || regions.isEmpty()) {
+            logger.trace("returning bare stream for [{}]", fileInfo);
             return stream;
         }
 
@@ -170,6 +171,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         // we first have to sort the regions and exclude the ones that we're not going to see anyway.
         //
         // TODO we should check overlapping regions too
+
+        logger.trace("returning caching stream for [{}] with regions [{}]", this, regions);
 
         final Iterator<Tuple<Long, Integer>> sortedRegions = regions.stream()
             .filter(region -> position <= region.v1())
@@ -198,7 +201,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                             logger.trace(
                                 () -> new ParameterizedMessage(
                                     "indexing bytes of file [{}] for region [{}-{}] in blob cache index",
-                                    fileInfo.physicalName(),
+                                    this,
                                     nextRegion.v1(),
                                     nextRegion.v1() + nextRegion.v2()
                                 )
@@ -208,7 +211,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                             logger.trace(
                                 () -> new ParameterizedMessage(
                                     "fail to index bytes of file [{}] for region [{}-{}] in blob cache index",
-                                    fileInfo.physicalName(),
+                                    this,
                                     nextRegion.v1(),
                                     nextRegion.v1() + nextRegion.v2()
                                 ),

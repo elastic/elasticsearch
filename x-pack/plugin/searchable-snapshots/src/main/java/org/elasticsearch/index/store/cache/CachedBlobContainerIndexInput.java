@@ -143,6 +143,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
+        logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
+
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
         if (length == CodecUtil.footerLength()) {
@@ -166,7 +168,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // - we're reading the first N bytes of the file
             final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
             // - the file is small enough to be fully cached in the blob cache
-            final boolean canBeFullyCached = (fileInfo.length() <= (BlobStoreCacheService.DEFAULT_SIZE * 2));
+            final boolean canBeFullyCached = (fileInfo.length() <= (BlobStoreCacheService.DEFAULT_SIZE));
 
             if (canBeFullyCached || isStartOfFile) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
@@ -191,6 +193,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             } else {
                 regions = List.of(Tuple.tuple(0L, BlobStoreCacheService.DEFAULT_SIZE));
             }
+            logger.trace("recovery cache miss for [{}], falling through with regions [{}]", this, regions);
         } else {
             regions = List.of();
         }
@@ -499,6 +502,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             + getFilePointer()
             + ", rangeSize="
             + getDefaultRangeSize()
+            + ", directory="
+            + directory
             + '}';
     }
 

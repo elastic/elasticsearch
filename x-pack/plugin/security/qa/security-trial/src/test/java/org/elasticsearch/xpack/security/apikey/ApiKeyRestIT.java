@@ -121,10 +121,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
-        final Map<String, Object> requestBody = Map.ofEntries(
-            Map.entry("grant_type", "password"),
-            Map.entry("username", END_USER),
-            Map.entry("password", END_USER_PASSWORD.toString())
+        final Map<String, Object> requestBody = org.elasticsearch.common.collect.Map.ofEntries(
+            org.elasticsearch.common.collect.Map.entry("grant_type", "password"),
+            org.elasticsearch.common.collect.Map.entry("username", END_USER),
+            org.elasticsearch.common.collect.Map.entry("password", END_USER_PASSWORD.toString())
         );
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 

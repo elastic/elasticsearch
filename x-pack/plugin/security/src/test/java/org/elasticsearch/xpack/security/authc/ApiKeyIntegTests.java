@@ -228,8 +228,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
         final ActionRequestValidationException e =
-            expectThrows(ActionRequestValidationException.class, () -> new CreateApiKeyRequestBuilder(client).get());
+            expectThrows(ActionRequestValidationException.class, () -> securityClient.prepareCreateApiKey().get());
         assertThat(e.getMessage(), containsString("api key name is required"));
     }
 

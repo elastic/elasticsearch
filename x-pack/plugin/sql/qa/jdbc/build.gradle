@@ -64,10 +64,8 @@ subprojects {
     }
 
     integTest {
-      runner {
         classpath += configurations.jdbcDriver
         systemProperty 'jdbc.driver.version', VersionProperties.elasticsearch
-      }
     }
 
     // Configure compatibility testing tasks
@@ -92,10 +90,8 @@ subprojects {
         }
 
         tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
-          runner {
             classpath += driverConfiguration
             systemProperty 'jdbc.driver.version', bwcVersion.toString()
-          }
         }
       }
     }

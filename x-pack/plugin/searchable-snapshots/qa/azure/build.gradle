@@ -44,10 +44,8 @@ if (useFixture) {
 
 integTest {
   dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.azure.container', azureContainer
-    nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
-  }
+  systemProperty 'test.azure.container', azureContainer
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
 testClusters.integTest {

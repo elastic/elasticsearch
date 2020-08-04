@@ -37,7 +37,7 @@ public class RestGetReindexTaskAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return null;
+        return "reindex_get_task_action";
     }
 
     @Override

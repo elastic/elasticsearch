@@ -61,14 +61,14 @@ POST _search
     "my-suggest-2" : {
       "text" : "kmichy",
       "term" : {
-        "field" : "user"
+        "field" : "user.id"
       }
     }
   }
 }
 --------------------------------------------------
 // TEST[setup:messages]
-
+// TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The below suggest response example includes the suggestion response for
 `my-suggest-1` and `my-suggest-2`. Each suggestion part contains

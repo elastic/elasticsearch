@@ -259,6 +259,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                     case 'basic':
                     case 'gold':
                     case 'platinum':
+                    case 'enterprise':
                         current.println("        - xpack")
                         break;
                     default:

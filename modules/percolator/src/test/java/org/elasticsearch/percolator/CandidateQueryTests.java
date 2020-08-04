@@ -128,7 +128,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private MapperService mapperService;
 
     private PercolatorFieldMapper fieldMapper;
-    private PercolatorFieldMapper.FieldType fieldType;
+    private PercolatorFieldMapper.PercolatorFieldType fieldType;
 
     private List<Query> queries;
     private PercolateQuery.QueryStore queryStore;
@@ -167,7 +167,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
-        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
         queryStore = ctx -> docId -> this.queries.get(docId);

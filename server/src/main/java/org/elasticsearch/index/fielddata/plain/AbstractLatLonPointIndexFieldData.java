@@ -26,29 +26,27 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPointFieldData {
 
-    protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    AbstractLatLonPointIndexFieldData(Index index, String fieldName) {
-        this.index = index;
+    AbstractLatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
@@ -57,13 +55,8 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -79,8 +72,8 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     }
 
     public static class LatLonPointIndexFieldData extends AbstractLatLonPointIndexFieldData {
-        public LatLonPointIndexFieldData(Index index, String fieldName) {
-            super(index, fieldName);
+        public LatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+            super(fieldName, valuesSourceType);
         }
 
         @Override
@@ -111,11 +104,18 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final String name;
+        private final ValuesSourceType valuesSourceType;
+
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this.name = name;
+            this.valuesSourceType =  valuesSourceType;
+        }
+
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonPointIndexFieldData(indexSettings.getIndex(), fieldType.name());
+            return new LatLonPointIndexFieldData(name, valuesSourceType);
         }
     }
 }

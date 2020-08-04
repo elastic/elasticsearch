@@ -104,3 +104,74 @@ SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
 ---------------
 74999
 ;
+
+selectTimeParse
+schema::tp_time1:time|tp_time2:time
+SELECT TIME_PARSE('11:22:33', 'HH:mm:ss') AS tp_time1,
+TIME_PARSE('11:22:33 -05:33', 'HH:mm:ss zz') AS tp_time2;
+
+       tp_time1             |    tp_time2
+----------------------------+----------------------------
+11:22:33.000Z               | 16:55:33.000Z
+;
+
+selectTimeParseWithField
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH mm SSS ss'), 'HH mm SSS ss') AS tp_time
+FROM logs WHERE client_ip = '10.0.1.13' ORDER BY "@timestamp" desc;
+
+       @timestamp        | tp_time
+-------------------------+-------------------------
+2017-11-10 20:36:15.000Z | 20:36:15.000Z
+2017-11-10 20:36:07.000Z | 20:36:07.000Z
+2017-11-10 20:35:55.000Z | 20:35:55.000Z
+2017-11-10 20:35:54.000Z | 20:35:54.000Z 
+2017-11-10 17:54:43.000Z | 17:54:43.000Z
+;
+
+timeParseWhere
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH.mm.ss'), 'HH.mm.ss') AS tp_time
+FROM logs WHERE "@timestamp" > '2017-11-10'::date and tp_time = '21:15:39'::time ORDER BY id;
+
+       @timestamp        |     tp_time
+-------------------------+------------------------
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
+2017-11-10 21:15:39.000Z | 21:15:39.000Z
+;
+
+timeParseOrderBy
+schema::@timestamp:ts|tp_time:time
+SELECT "@timestamp", TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH:mm:ss.SSS'), 'HH:mm:ss.SSS') AS tp_time
+FROM logs ORDER BY 2 DESC, 1 DESC LIMIT 5;
+
+       @timestamp        | tp_time
+-------------------------+-------------------------
+2017-11-10 23:56:36.000Z | 23:56:36.000Z
+2017-11-10 23:43:10.000Z | 23:43:10.000Z
+2017-11-10 23:36:41.000Z | 23:36:41.000Z
+2017-11-10 23:36:33.000Z | 23:36:33.000Z
+2017-11-10 23:36:32.000Z | 23:36:32.000Z
+;
+
+timeParseGroupBy
+schema::count:l|df_tp_time:s
+SELECT count(*) AS count, CAST(TIME_PARSE(DATETIME_FORMAT("@timestamp", 'HH:mm:ss'), 'HH:mm:ss') AS VARCHAR) AS df_tp_time
+FROM logs GROUP BY df_tp_time ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 1;
+
+ count | df_tp_time
+-------+---------------
+7      | 20:35:57.000Z
+;
+
+timeParseHaving
+schema::max:ts|tt_month:s
+SELECT MAX("@timestamp") AS max, DATETIME_FORMAT("@timestamp", 'MM') AS tt_month FROM logs GROUP BY tt_month
+HAVING TIME_PARSE(DATETIME_FORMAT(MAX("@timestamp"), 'HH:mm:ss'), 'HH:mm:ss') > '21:15:39'::time  ORDER BY 1 DESC NULLS LAST;
+
+          max            | tt_month
+-------------------------+---------------
+2017-11-10 23:56:36.000Z | 11
+;
+

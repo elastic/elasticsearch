@@ -46,7 +46,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -63,6 +63,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -215,7 +216,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        internalCluster().startNode(nonDataNode());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
@@ -224,7 +225,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().fullRestart(new RestartCallback(){
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+                return nonDataNode();
             }
         });
 
@@ -242,8 +243,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
-        internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build());
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -487,14 +488,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final Metadata metadata = state.getMetadata();
         final Metadata brokenMeta = Metadata.builder(metadata).persistentSettings(Settings.builder()
                 .put(metadata.persistentSettings()).put("this.is.unknown", true)
-                .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), "broken").build()).build();
+                .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), "broken").build()).build();
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(brokenMeta));
 
         ensureYellow("test"); // wait for state recovery
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals("true", state.metadata().persistentSettings().get("archived.this.is.unknown"));
         assertEquals("broken", state.metadata().persistentSettings().get("archived."
-            + Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
+            + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
 
         // delete these settings
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get();
@@ -502,7 +503,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().get().getState();
         assertNull(state.metadata().persistentSettings().get("archived.this.is.unknown"));
         assertNull(state.metadata().persistentSettings().get("archived."
-            + Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
+            + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 

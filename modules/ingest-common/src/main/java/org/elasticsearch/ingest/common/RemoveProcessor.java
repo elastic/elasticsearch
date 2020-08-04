@@ -41,8 +41,8 @@ public final class RemoveProcessor extends AbstractProcessor {
     private final List<TemplateScript.Factory> fields;
     private final boolean ignoreMissing;
 
-    RemoveProcessor(String tag, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
-        super(tag);
+    RemoveProcessor(String tag, String description, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
+        super(tag, description);
         this.fields = new ArrayList<>(fields);
         this.ignoreMissing = ignoreMissing;
     }
@@ -81,7 +81,7 @@ public final class RemoveProcessor extends AbstractProcessor {
 
         @Override
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+                                      String description, Map<String, Object> config) throws Exception {
             final List<String> fields = new ArrayList<>();
             final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
             if (field instanceof List) {
@@ -96,7 +96,7 @@ public final class RemoveProcessor extends AbstractProcessor {
                 .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
                 .collect(Collectors.toList());
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RemoveProcessor(processorTag, compiledTemplates, ignoreMissing);
+            return new RemoveProcessor(processorTag, description, compiledTemplates, ignoreMissing);
         }
     }
 }

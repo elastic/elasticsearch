@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -143,11 +144,7 @@ public abstract class RetryableAction<Response> {
                 if (elapsedMillis >= timeoutMillis) {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
                         TimeValue.timeValueMillis(elapsedMillis)), e);
-                    addException(e);
-                    if (isDone.compareAndSet(false, true)) {
-                        onFinished();
-                        finalListener.onFailure(buildFinalException());
-                    }
+                    onFinalFailure(e);
                 } else {
                     addException(e);
 
@@ -158,15 +155,23 @@ public abstract class RetryableAction<Response> {
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
-                        retryTask = threadPool.schedule(runnable, delay, executor);
+                        try {
+                            retryTask = threadPool.schedule(runnable, delay, executor);
+                        } catch (EsRejectedExecutionException ree) {
+                            onFinalFailure(ree);
+                        }
                     }
                 }
             } else {
-                addException(e);
-                if (isDone.compareAndSet(false,true)) {
-                    onFinished();
-                    finalListener.onFailure(buildFinalException());
-                }
+                onFinalFailure(e);
+            }
+        }
+
+        private void onFinalFailure(Exception e) {
+            addException(e);
+            if (isDone.compareAndSet(false, true)) {
+                onFinished();
+                finalListener.onFailure(buildFinalException());
             }
         }
 

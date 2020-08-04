@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -9,17 +9,17 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
   // Currently needed for ml tests are using the building for datafeed and job config)
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-  testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
-  testCompile project(':x-pack:qa')
+  testImplementation project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+  testImplementation project(':x-pack:qa')
 }
 
-licenseHeaders {
+tasks.named("licenseHeaders").configure {
   approvedLicenses << 'Apache'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns") {
   exclude '**/system_key'
 }
 
@@ -65,7 +65,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter(precommit)
     useCluster testClusters."${baseName}"
     dependsOn copyTestNodeKeyMaterial
@@ -79,7 +79,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter(precommit)
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"
@@ -93,7 +93,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
-  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+  tasks.matching { it.name.startsWith("${baseName}#") && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")

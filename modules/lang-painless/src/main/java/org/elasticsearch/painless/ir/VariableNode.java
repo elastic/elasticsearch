@@ -21,8 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Opcodes;
 
 public class VariableNode extends ExpressionNode {
@@ -39,11 +40,18 @@ public class VariableNode extends ExpressionNode {
         return name;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        Variable variable = scopeTable.getVariable(name);
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitVariable(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        Variable variable = writeScope.getVariable(name);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
@@ -53,19 +61,19 @@ public class VariableNode extends ExpressionNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         // do nothing
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        Variable variable = scopeTable.getVariable(name);
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        Variable variable = writeScope.getVariable(name);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        Variable variable = scopeTable.getVariable(name);
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        Variable variable = writeScope.getVariable(name);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

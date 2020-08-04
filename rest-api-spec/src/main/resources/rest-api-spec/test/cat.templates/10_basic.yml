@@ -284,7 +284,7 @@
               $/
 
 ---
-"Mixture of V1 and V2 templates":
+"Mixture of legacy and composable templates":
     - skip:
         version: " - 7.7.99"
         reason: "format changed in 7.8 to accomodate V2 index templates"

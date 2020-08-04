@@ -856,7 +856,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     "writing cluster state took [*] which is above the warn threshold of [*]; " +
                         "wrote global metadata [false] and metadata for [1] indices and skipped [0] unchanged indices"));
 
-                writeDurationMillis.set(randomLongBetween(1, writeDurationMillis.get() - 1));
+                writeDurationMillis.set(randomLongBetween(0, writeDurationMillis.get() - 1));
                 assertExpectedLogs(1L, clusterState, newClusterState, writer, new MockLogAppender.UnseenEventExpectation(
                     "should not see warning below threshold",
                     PersistedClusterStateService.class.getCanonicalName(),

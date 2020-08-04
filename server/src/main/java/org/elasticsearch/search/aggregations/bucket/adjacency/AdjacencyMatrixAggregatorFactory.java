@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,16 +51,16 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
         keys = new String[filters.size()];
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
-            this.keys[i] = keyedFilter.key();
+            keys[i] = keyedFilter.key();
             Query filter = keyedFilter.filter().toQuery(queryShardContext);
-            this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
     }

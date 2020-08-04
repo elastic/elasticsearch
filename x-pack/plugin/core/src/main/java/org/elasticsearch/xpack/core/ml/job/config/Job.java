@@ -248,6 +248,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
     }
 
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocumentId(String docId) {
+        String jobId = docId.replaceAll("^" + ANOMALY_DETECTOR_JOB_TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
+    }
+
 
     /**
      * Return the Job Id.
@@ -694,12 +703,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-            // for removed last_data_time field
-            if (in.getVersion().before(Version.V_7_0_0)) {
-                if (in.readBoolean()) {
-                    in.readVLong();
-                }
-            }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
             analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
             dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -897,10 +900,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            // for removed last_data_time field
-            if (out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false);
-            }
+
             out.writeOptionalWriteable(analysisConfig);
             out.writeOptionalWriteable(analysisLimits);
             out.writeOptionalWriteable(dataDescription);

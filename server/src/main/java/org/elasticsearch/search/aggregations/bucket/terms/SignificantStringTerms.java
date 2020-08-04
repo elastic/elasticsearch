@@ -57,7 +57,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             score = in.readDouble();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override

@@ -32,6 +32,11 @@ import java.text.ParseException;
 public interface GeometryFormat<ParsedFormat> {
 
     /**
+     * The name of the format, for example 'wkt'.
+     */
+    String name();
+
+    /**
      * Parser JSON representation of a geometry
      */
     ParsedFormat fromXContent(XContentParser parser) throws IOException, ParseException;
@@ -41,4 +46,10 @@ public interface GeometryFormat<ParsedFormat> {
      */
     XContentBuilder toXContent(ParsedFormat geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
+    /**
+     * Serializes the geometry into a standard Java object.
+     *
+     * For example, the GeoJson format returns the geometry as a map, while WKT returns a string.
+     */
+    Object toXContentAsObject(ParsedFormat geometry);
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -70,16 +71,19 @@ public class MetadataUpdateSettingsService {
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
+    private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
 
     @Inject
     public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService,
+                                         ShardLimitValidator shardLimitValidator, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
+        this.shardLimitValidator = shardLimitValidator;
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
@@ -154,7 +158,7 @@ public class MetadataUpdateSettingsService {
                         int totalNewShards = Arrays.stream(request.indices())
                             .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                             .sum();
-                        Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
+                        Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
                         if (error.isPresent()) {
                             ValidationException ex = new ValidationException();
                             ex.addValidationError(error.get());
@@ -174,16 +178,9 @@ public class MetadataUpdateSettingsService {
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_BLOCK,
-                    IndexMetadata.INDEX_READ_ONLY_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_METADATA_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_METADATA_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_WRITE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_SETTING, openSettings);
+                for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
+                    maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                }
 
                 if (!openIndices.isEmpty()) {
                     for (Index index : openIndices) {

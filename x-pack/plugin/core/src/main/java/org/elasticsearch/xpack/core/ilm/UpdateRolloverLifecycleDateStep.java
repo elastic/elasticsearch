@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -52,16 +53,11 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             // so just use the current time.
             newIndexTime = fallbackTimeSupplier.getAsLong();
         } else {
-            // find the newly created index from the rollover and fetch its index.creation_date
-            String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
-            if (Strings.isNullOrEmpty(rolloverAlias)) {
-                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                    + "] is not set on index [" + indexMetadata.getIndex().getName() + "]");
-            }
-            RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(rolloverAlias);
+            final String rolloverTarget = getRolloverTarget(index, currentState);
+            RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(rolloverTarget);
             if (rolloverInfo == null) {
-                throw new IllegalStateException("no rollover info found for [" + indexMetadata.getIndex().getName() + "] with alias [" +
-                    rolloverAlias + "], the index has not yet rolled over with that alias");
+                throw new IllegalStateException("no rollover info found for [" + indexMetadata.getIndex().getName() +
+                    "] with rollover target [" + rolloverTarget + "], the index has not yet rolled over with that target");
             }
             newIndexTime = rolloverInfo.getTime();
         }
@@ -74,6 +70,24 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata())
             .put(newIndexMetadata)).build();
+    }
+
+    private static String getRolloverTarget(Index index, ClusterState currentState) {
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
+        final String rolloverTarget;
+        if (indexAbstraction.getParentDataStream() != null) {
+            rolloverTarget = indexAbstraction.getParentDataStream().getName();
+        } else {
+            // find the newly created index from the rollover and fetch its index.creation_date
+            IndexMetadata indexMetadata = currentState.metadata().index(index);
+            String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
+            if (Strings.isNullOrEmpty(rolloverAlias)) {
+                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                    + "] is not set on index [" + indexMetadata.getIndex().getName() + "]");
+            }
+            rolloverTarget = rolloverAlias;
+        }
+        return rolloverTarget;
     }
 
     @Override

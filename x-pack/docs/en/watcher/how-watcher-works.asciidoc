@@ -14,7 +14,7 @@ search in the logs data indicates that there are too many 503 errors in the last
 
 This topic describes the elements of a watch and how watches operate.
 
-[float]
+[discrete]
 [[watch-definition]]
 === Watch definition
 
@@ -129,7 +129,7 @@ PUT _watcher/watch/log_errors
                 The watch payload that contains the errors is attached to the
                 email.
 
-[float]
+[discrete]
 [[watch-execution]]
 === Watch execution
 
@@ -196,7 +196,7 @@ The following diagram shows the watch execution process:
 
 image::images/watch-execution.jpg[align="center"]
 
-[float]
+[discrete]
 [[watch-acknowledgment-throttling]]
 === Watch acknowledgment and throttling
 
@@ -216,7 +216,7 @@ the watch actions normally.
 
 For more information, see <<actions-ack-throttle>>.
 
-[float]
+[discrete]
 [[watch-active-state]]
 === Watch active state
 
@@ -245,7 +245,7 @@ reporting availability issues during the maintenance window.
 Deactivating a watch also enables you to keep it around for future use without
 deleting it from the system.
 
-[float]
+[discrete]
 [[scripts-templates]]
 === Scripts and templates
 
@@ -261,7 +261,7 @@ and cached by Elasticsearch to optimize recurring execution. Autoloading is also
 supported. For more information, see <<modules-scripting>> and
 <<modules-scripting-using>>.
 
-[float]
+[discrete]
 [[watch-execution-context]]
 ==== Watch execution context
 
@@ -295,7 +295,7 @@ The following snippet shows the basic structure of the _Watch Execution Context_
     (i.e they're not persisted and can't be used between different executions
     of the same watch)
 
-[float]
+[discrete]
 [[scripts]]
 ==== Using scripts
 
@@ -320,7 +320,7 @@ For example, if the watch metadata contains a `color` field
 condition or transform definition (e.g. `"params" : {"color": "red"}`), you can
 access its value via the `color` variable.
 
-[float]
+[discrete]
 [[templates]]
 ==== Using templates
 
@@ -350,7 +350,7 @@ in sent emails:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[inline-templates-scripts]]
 ===== Inline templates and scripts
 
@@ -412,7 +412,7 @@ The formal object definition for a script would be:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[stored-templates-scripts]]
 ===== Stored templates and scripts
 

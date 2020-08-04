@@ -33,11 +33,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceFieldMapperTests extends ESSingleNodeTestCase {
@@ -118,23 +117,6 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
-    }
-
-    private void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
-        docMapper = parser.parse("type", docMapper.mappingSource());
-        if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
-        } else {
-            try {
-                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
-                fail();
-            } catch (IllegalArgumentException e) {
-                for (String conflict : conflicts) {
-                    assertThat(e.getMessage(), containsString(conflict));
-                }
-            }
-        }
     }
 
     public void testEnabledNotUpdateable() throws Exception {

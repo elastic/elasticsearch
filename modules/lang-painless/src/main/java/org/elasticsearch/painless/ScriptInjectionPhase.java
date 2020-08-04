@@ -39,7 +39,7 @@ import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Method;
@@ -58,7 +58,7 @@ import java.util.Map;
  */
 public class ScriptInjectionPhase {
 
-    public static void phase(ScriptRoot scriptRoot, ClassNode classNode) {
+    public static void phase(ScriptScope scriptScope, ClassNode classNode) {
         FunctionNode executeFunctionNode = null;
 
         // look up the execute method for decoration
@@ -74,8 +74,8 @@ public class ScriptInjectionPhase {
         }
 
         injectStaticFieldsAndGetters(classNode);
-        injectGetsDeclarations(scriptRoot, executeFunctionNode);
-        injectNeedsMethods(scriptRoot, classNode);
+        injectGetsDeclarations(scriptScope, executeFunctionNode);
+        injectNeedsMethods(scriptScope, classNode);
         injectSandboxExceptions(executeFunctionNode);
     }
 
@@ -206,7 +206,7 @@ public class ScriptInjectionPhase {
     // requires the gets method name be modified from "getExample" to "example"
     // if a get method variable isn't used it's declaration node is removed from
     // the ir tree permanently so there is no frivolous variable slotting
-    protected static void injectGetsDeclarations(ScriptRoot scriptRoot, FunctionNode functionNode) {
+    protected static void injectGetsDeclarations(ScriptScope scriptScope, FunctionNode functionNode) {
         Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectGetsDeclarations", 0);
         BlockNode blockNode = functionNode.getBlockNode();
         int statementIndex = 0;
@@ -218,14 +218,14 @@ public class ScriptInjectionPhase {
                 DeclarationNode declarationNode = (DeclarationNode)statementNode;
                 boolean isRemoved = false;
 
-                for (int getIndex = 0; getIndex < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++getIndex) {
-                    Class<?> returnType = scriptRoot.getScriptClassInfo().getGetReturns().get(getIndex);
-                    Method getMethod = scriptRoot.getScriptClassInfo().getGetMethods().get(getIndex);
+                for (int getIndex = 0; getIndex < scriptScope.getScriptClassInfo().getGetMethods().size(); ++getIndex) {
+                    Class<?> returnType = scriptScope.getScriptClassInfo().getGetReturns().get(getIndex);
+                    Method getMethod = scriptScope.getScriptClassInfo().getGetMethods().get(getIndex);
                     String name = getMethod.getName().substring(3);
                     name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
                     if (name.equals(declarationNode.getName())) {
-                        if (scriptRoot.getUsedVariables().contains(name)) {
+                        if (scriptScope.getUsedVariables().contains(name)) {
                             MemberCallNode memberCallNode = new MemberCallNode();
                             memberCallNode.setLocation(internalLocation);
                             memberCallNode.setExpressionType(declarationNode.getDeclarationType());
@@ -251,10 +251,10 @@ public class ScriptInjectionPhase {
     }
 
     // injects needs methods as defined by ScriptClassInfo
-    protected static void injectNeedsMethods(ScriptRoot scriptRoot, ClassNode classNode) {
+    protected static void injectNeedsMethods(ScriptScope scriptScope, ClassNode classNode) {
         Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectNeedsMethods", 0);
 
-        for (org.objectweb.asm.commons.Method needsMethod : scriptRoot.getScriptClassInfo().getNeedsMethods()) {
+        for (org.objectweb.asm.commons.Method needsMethod : scriptScope.getScriptClassInfo().getNeedsMethods()) {
             String name = needsMethod.getName();
             name = name.substring(5);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
@@ -285,7 +285,7 @@ public class ScriptInjectionPhase {
             ConstantNode constantNode = new ConstantNode();
             constantNode.setLocation(internalLocation);
             constantNode.setExpressionType(boolean.class);
-            constantNode.setConstant(scriptRoot.getUsedVariables().contains(name));
+            constantNode.setConstant(scriptScope.getUsedVariables().contains(name));
 
             returnNode.setExpressionNode(constantNode);
         }
@@ -311,16 +311,10 @@ public class ScriptInjectionPhase {
 
             CatchNode catchNode = new CatchNode();
             catchNode.setLocation(internalLocation);
+            catchNode.setExceptionType(PainlessExplainError.class);
+            catchNode.setSymbol("#painlessExplainError");
 
             tryNode.addCatchNode(catchNode);
-
-            DeclarationNode declarationNode = new DeclarationNode();
-            declarationNode.setLocation(internalLocation);
-            declarationNode.setDeclarationType(PainlessExplainError.class);
-            declarationNode.setName("#painlessExplainError");
-            declarationNode.setRequiresDefault(false);
-
-            catchNode.setDeclarationNode(declarationNode);
 
             BlockNode catchBlockNode = new BlockNode();
             catchBlockNode.setLocation(internalLocation);
@@ -403,16 +397,10 @@ public class ScriptInjectionPhase {
 
                 catchNode = new CatchNode();
                 catchNode.setLocation(internalLocation);
+                catchNode.setExceptionType(throwable);
+                catchNode.setSymbol(name);
 
                 tryNode.addCatchNode(catchNode);
-
-                declarationNode = new DeclarationNode();
-                declarationNode.setLocation(internalLocation);
-                declarationNode.setDeclarationType(throwable);
-                declarationNode.setName(name);
-                declarationNode.setRequiresDefault(false);
-
-                catchNode.setDeclarationNode(declarationNode);
 
                 catchBlockNode = new BlockNode();
                 catchBlockNode.setLocation(internalLocation);

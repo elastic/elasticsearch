@@ -49,7 +49,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -335,6 +337,49 @@ public class ExportersTests extends ESTestCase {
         }
 
         exporters.close();
+    }
+
+    /**
+     * All dynamic monitoring settings should have dependency on type.
+     */
+    public void testSettingsDependency() {
+        List<Setting.AffixSetting<?>> settings = Exporters.getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        settings.stream().filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false)
+            .forEach(setting -> assertThat(setting.getKey() + " does not have a dependency on type",
+                setting.getDependencies().stream().map(Setting.AffixSettingDependency::getSetting).distinct().collect(Collectors.toList()),
+                contains(Exporter.TYPE_SETTING)));
+    }
+
+    /**
+     * This is a variation of testing that all settings validated at cluster state update ensure that the type is set. This workflow
+     * emulates adding valid settings, then attempting to remove the type. This should never be allowed since type if type is null
+     * then any associated settings are extraneous and thus invalid (and can cause validation issues on cluster state application).
+     */
+    public void testRemoveType() {
+        //run the update for all dynamic settings and ensure that they correctly throw an exception
+        List<Setting.AffixSetting<?>> settings = Exporters.getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        settings.stream().filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false)
+            .forEach(setting -> {
+                String fullSettingName = setting.getKey().replace("*", "foobar");
+                Settings nodeSettings = Settings.builder()
+                    .put("xpack.monitoring.exporters.foobar.type", randomFrom("local, http")) //actual type should not matter
+                    .put(fullSettingName, "")
+                    .build();
+
+                clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Exporters.getSettings()));
+                when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+                Settings update = Settings.builder()
+                    .put("xpack.monitoring.exporters.foobar.type", (String) null)
+                    .build();
+
+                Settings.Builder target = Settings.builder().put(nodeSettings);
+                clusterSettings.updateDynamicSettings(update, target, Settings.builder(), "persistent");
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> clusterSettings.validate(target.build(), true));
+                assertThat(e.getMessage(),
+                    containsString("missing required setting [xpack.monitoring.exporters.foobar.type] for setting [" + fullSettingName));
+            });
     }
 
     /**

@@ -22,7 +22,8 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
@@ -67,15 +68,22 @@ public class MemberFieldStoreNode extends UnaryNode {
         return isStatic;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitMemberFieldStore(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         if (isStatic == false) {
             methodWriter.loadThis();
         }
 
-        getChildNode().write(classWriter, methodWriter, scopeTable);
+        getChildNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.writeDebugInfo(location);
 

@@ -8,14 +8,26 @@ package org.elasticsearch.xpack.core.ml;
 import org.elasticsearch.Version;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
-public class MlConfigIndex {
+public final class MlConfigIndex {
 
+    private static final String INDEX_NAME = ".ml-config";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
-    private MlConfigIndex() {}
+    /**
+     * The name of the index where job, datafeed and analytics configuration is stored
+     *
+     * @return The index name
+     */
+    public static String indexName() {
+        return INDEX_NAME;
+    }
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/config_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/org/elasticsearch/xpack/core/ml/config_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE);
     }
+
+    private MlConfigIndex() {}
 }

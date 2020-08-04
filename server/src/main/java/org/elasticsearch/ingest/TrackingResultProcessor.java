@@ -66,9 +66,10 @@ public final class TrackingResultProcessor implements Processor {
                     if (elasticsearchException.getCause() instanceof IllegalStateException) {
                         if (ignoreFailure) {
                             processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
-                                new IngestDocument(ingestDocument), e));
+                                pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e));
                         } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(), e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(), e));
                         }
                         handler.accept(null, elasticsearchException);
                     }
@@ -86,17 +87,21 @@ public final class TrackingResultProcessor implements Processor {
         actualProcessor.execute(ingestDocument, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), e));
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
+                        actualProcessor.getDescription(), e));
                 }
                 handler.accept(null, e);
             } else {
                 if (result != null) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument)));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument)));
                     handler.accept(result, null);
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag()));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
+                        actualProcessor.getDescription()));
                     handler.accept(null, null);
                 }
             }
@@ -116,6 +121,11 @@ public final class TrackingResultProcessor implements Processor {
     @Override
     public String getTag() {
         return actualProcessor.getTag();
+    }
+
+    @Override
+    public String getDescription() {
+        return actualProcessor.getDescription();
     }
 
     public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, ConditionalProcessor parentCondition,

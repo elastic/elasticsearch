@@ -40,6 +40,7 @@ import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -60,9 +61,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
                 .field("field");
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -84,15 +84,13 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName("another_field");
+                MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("another_field",
+                    true, true, Collections.emptyMap());
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
 
-                fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName("field");
+                fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field",
+                    true, true, Collections.emptyMap());
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -116,9 +114,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName("another_field");
+                MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("another_field",
+                    true, true, Collections.emptyMap());
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(result.centroid(), equalTo(expectedCentroid));
                 assertTrue(AggregationInspectionHelper.hasValue(result));
@@ -176,9 +173,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
     }
 
     private void assertCentroid(RandomIndexWriter w, GeoPoint expectedCentroid) throws IOException {
-        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName("field");
+        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field",
+            true, true, Collections.emptyMap());
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
             .field("field");
         try (IndexReader reader = w.getReader()) {

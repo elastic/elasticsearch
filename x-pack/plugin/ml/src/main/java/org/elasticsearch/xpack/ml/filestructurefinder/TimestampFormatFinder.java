@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -48,6 +50,7 @@ public final class TimestampFormatFinder {
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
 
+    private static final Logger logger = LogManager.getLogger(TimestampFormatFinder.class);
     private static final String PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX = "\\|()[]{}^$.*?";
     private static final String FRACTIONAL_SECOND_SEPARATORS = ":.,";
     private static final char INDETERMINATE_FIELD_PLACEHOLDER = '?';
@@ -1400,8 +1403,9 @@ public final class TimestampFormatFinder {
             this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
-                "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
-            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$", TimeoutChecker.watchdog);
+                "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog, logger::warn);
+            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$", TimeoutChecker.watchdog,
+                logger::warn);
             this.outputGrokPatternName = Objects.requireNonNull(outputGrokPatternName);
             this.quickRuleOutBitSets = quickRuleOutPatterns.stream().map(TimestampFormatFinder::stringToNumberPosBitSet)
                 .collect(Collectors.toList());

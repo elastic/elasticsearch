@@ -36,8 +36,9 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
     private final Pattern pattern;
     private final String replacement;
 
-    GsubProcessor(String tag, String field, Pattern pattern, String replacement, boolean ignoreMissing, String targetField) {
-        super(tag, field, ignoreMissing, targetField);
+    GsubProcessor(String tag, String description, String field, Pattern pattern, String replacement, boolean ignoreMissing,
+                  String targetField) {
+        super(tag, description, ignoreMissing, targetField, field);
         this.pattern = pattern;
         this.replacement = replacement;
     }
@@ -67,7 +68,7 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected GsubProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
+        protected GsubProcessor newProcessor(String processorTag, String description, Map<String, Object> config, String field,
                                              boolean ignoreMissing, String targetField) {
             String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
             String replacement = readStringProperty(TYPE, processorTag, config, "replacement");
@@ -77,7 +78,7 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "pattern", "Invalid regex pattern. " + e.getMessage());
             }
-            return new GsubProcessor(processorTag, field, searchPattern, replacement, ignoreMissing, targetField);
+            return new GsubProcessor(processorTag, description, field, searchPattern, replacement, ignoreMissing, targetField);
         }
     }
 }

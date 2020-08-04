@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.persistence;
 
+import org.elasticsearch.Version;
+
 public final class TransformInternalIndexConstants {
 
     /* Constants for internal indexes of the transform plugin
@@ -24,6 +26,7 @@ public final class TransformInternalIndexConstants {
     // internal index
 
     // version is not a rollover pattern, however padded because sort is string based
+    public static final Version INDEX_VERSION_LAST_CHANGED = Version.V_7_7_0;
     public static final String INDEX_VERSION = "005";
     public static final String INDEX_PATTERN = ".transform-internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
@@ -42,7 +45,6 @@ public final class TransformInternalIndexConstants {
     public static final String AUDIT_INDEX_READ_ALIAS = ".transform-notifications-read";
     public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
-    private TransformInternalIndexConstants() {
-    }
+    private TransformInternalIndexConstants() {}
 
 }

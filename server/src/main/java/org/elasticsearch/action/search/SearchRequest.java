@@ -202,11 +202,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            preFilterShardSize = in.readOptionalVInt();
-        } else {
-            preFilterShardSize = in.readVInt();
-        }
+        preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -236,11 +232,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalVInt(preFilterShardSize);
-        } else {
-            out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
-        }
+        out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -346,6 +338,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
@@ -607,22 +604,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public String getDescription() {
-                StringBuilder sb = new StringBuilder();
-                sb.append("indices[");
-                Strings.arrayToDelimitedString(indices, ",", sb);
-                sb.append("], ");
-                sb.append("search_type[").append(searchType).append("], ");
-                if (scroll != null) {
-                    sb.append("scroll[").append(scroll.keepAlive()).append("], ");
-                }
-                if (source != null) {
-                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-                } else {
-                    sb.append("source[]");
-                }
-                return sb.toString();
+                return buildDescription();
             }
         };
+    }
+
+    public String buildDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append("search_type[").append(searchType).append("], ");
+        if (scroll != null) {
+            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+        }
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     @Override

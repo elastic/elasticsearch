@@ -68,16 +68,14 @@ following line:
 [[sysconfig]]
 ==== Sysconfig file
 
-When using the RPM or Debian packages, system settings and environment
-variables can be specified in the system configuration file, which is located
-in:
+When using the RPM or Debian packages, environment variables can be specified
+in the system configuration file, which is located in:
 
 [horizontal]
 RPM::     `/etc/sysconfig/elasticsearch`
 Debian::  `/etc/default/elasticsearch`
 
-However, for systems which uses `systemd`, system limits need to be specified
-via <<systemd,systemd>>.
+However, system limits need to be specified via <<systemd,systemd>>.
 
 [[systemd]]
 ==== Systemd configuration

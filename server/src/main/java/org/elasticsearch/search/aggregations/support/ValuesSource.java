@@ -86,6 +86,13 @@ public abstract class ValuesSource {
      */
     public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
 
+    /**
+     * Check if this values source supports using global ordinals
+     */
+    public boolean hasGlobalOrdinals() {
+        return false;
+    }
+
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
         protected final IndexFieldData<?> indexFieldData;
@@ -171,6 +178,11 @@ public abstract class ValuesSource {
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
             public boolean supportsGlobalOrdinalsMapping() {
+                return true;
+            }
+
+            @Override
+            public boolean hasGlobalOrdinals() {
                 return true;
             }
 

@@ -24,7 +24,23 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
+
 public class SnapshotShardsServiceTests extends ESTestCase {
+
+    public void testSummarizeFailure() {
+        final RuntimeException wrapped = new RuntimeException("wrapped");
+        assertThat(SnapshotShardsService.summarizeFailure(wrapped), is("RuntimeException[wrapped]"));
+        final RuntimeException wrappedWithNested = new RuntimeException("wrapped", new IOException("nested"));
+        assertThat(SnapshotShardsService.summarizeFailure(wrappedWithNested),
+                is("RuntimeException[wrapped]; nested: IOException[nested]"));
+        final RuntimeException wrappedWithTwoNested =
+                new RuntimeException("wrapped", new IOException("nested", new IOException("root")));
+        assertThat(SnapshotShardsService.summarizeFailure(wrappedWithTwoNested),
+                is("RuntimeException[wrapped]; nested: IOException[nested]; nested: IOException[root]"));
+    }
 
     public void testEqualsAndHashcodeUpdateIndexShardSnapshotStatusRequest() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(

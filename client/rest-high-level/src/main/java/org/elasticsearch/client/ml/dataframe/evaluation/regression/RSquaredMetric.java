@@ -42,15 +42,17 @@ public class RSquaredMetric implements EvaluationMetric {
 
     public static final String NAME = "r_squared";
 
-    private static final ObjectParser<RSquaredMetric, Void> PARSER =
-        new ObjectParser<>("r_squared", true, RSquaredMetric::new);
+    private static final ObjectParser<RSquaredMetric, Void> PARSER = new ObjectParser<>(NAME, true, RSquaredMetric::new);
 
     public static RSquaredMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RSquaredMetric() {
+    public RSquaredMetric() {}
 
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override
@@ -73,11 +75,6 @@ public class RSquaredMetric implements EvaluationMetric {
         return Objects.hashCode(NAME);
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
     public static class Result implements EvaluationMetric.Result {
 
         public static final ParseField VALUE = new ParseField("value");
@@ -88,7 +85,7 @@ public class RSquaredMetric implements EvaluationMetric {
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("r_squared_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);
@@ -120,12 +117,12 @@ public class RSquaredMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(that.value, this.value);
+            return this.value == that.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return Double.hashCode(value);
         }
     }
 }

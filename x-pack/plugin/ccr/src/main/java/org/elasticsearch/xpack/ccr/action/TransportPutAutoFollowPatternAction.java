@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -77,6 +79,17 @@ public class TransportPutAutoFollowPatternAction extends
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+            return;
+        }
+
+        final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
+        if (replicatedRequestSettings.isEmpty() == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "can not put auto-follow pattern that could override leader settings %s",
+                replicatedRequestSettings
+            );
+            listener.onFailure(new IllegalArgumentException(message));
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
@@ -161,6 +174,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
+            request.getSettings(),
             true,
             request.getParameters().getMaxReadRequestOperationCount(),
             request.getParameters().getMaxWriteRequestOperationCount(),

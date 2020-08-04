@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,23 +41,33 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                      Map<String, Object> metadata) throws IOException {
-        ValuesSource vs = config.toValuesSource();
-        if (vs == null) {
+        if (config.hasValues() == false) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(vs, searchContext, parent, collectsFromSingleBucket, metadata);
+        return doCreateInternal(searchContext, parent, cardinality, metadata);
     }
 
+    /**
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that
+     * doesn't have values.
+     */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
                                                  Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
-                                                   SearchContext searchContext,
+    /**
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that has
+     * values.
+     *
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
+     */
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext,
                                                    Aggregator parent,
-                                                   boolean collectsFromSingleBucket,
+                                                   CardinalityUpperBound cardinality,
                                                    Map<String, Object> metadata) throws IOException;
 
     @Override

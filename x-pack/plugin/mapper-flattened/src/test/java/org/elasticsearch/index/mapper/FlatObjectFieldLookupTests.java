@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -39,8 +40,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String fieldName = "object1.object2.field";
         FlatObjectFieldMapper mapper = createFlatObjectMapper(fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(singletonList(mapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList());
         assertEquals(mapper.fieldType(), lookup.get(fieldName));
 
         String objectKey = "key1.key2";
@@ -61,8 +61,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String aliasName = "alias";
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(singletonList(mapper), singletonList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias));
         assertEquals(mapper.fieldType(), lookup.get(aliasName));
 
         String objectKey = "key1.key2";
@@ -85,12 +84,11 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         FlatObjectFieldMapper mapper2 = createFlatObjectMapper(field2);
         FlatObjectFieldMapper mapper3 = createFlatObjectMapper(field3);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(Arrays.asList(mapper1, mapper2), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
 
-        lookup = lookup.copyAndAddAll(singletonList(mapper3), emptyList());
+        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
         assertNotNull(lookup.get(field3 + ".some.key"));
@@ -127,8 +125,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         MockFieldMapper mapper = new MockFieldMapper("foo");
         FlatObjectFieldMapper flatObjectMapper = createFlatObjectMapper("object1.object2.field");
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(Arrays.asList(mapper, flatObjectMapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flatObjectMapper), emptyList());
 
         Set<String> fieldNames = new HashSet<>();
         for (MappedFieldType fieldType : lookup) {
@@ -156,10 +153,12 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        KeyedFlatObjectFieldType fieldType1 = new KeyedFlatObjectFieldType("key1");
+        KeyedFlatObjectFieldType fieldType1
+            = new KeyedFlatObjectFieldType("field", true, true, "key1", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key1")).thenReturn(fieldType1);
 
-        KeyedFlatObjectFieldType fieldType2 = new KeyedFlatObjectFieldType( "key2");
+        KeyedFlatObjectFieldType fieldType2
+            = new KeyedFlatObjectFieldType( "field", true, true, "key2", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {

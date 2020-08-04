@@ -1,0 +1,208 @@
+[role="xpack"]
+[[data-stream-stats-api]]
+=== Data stream stats API
+++++
+<titleabbrev>Data stream stats</titleabbrev>
+++++
+
+Retrieves statistics for one or more <<data-streams,data streams>>.
+
+////
+[source,console]
+----
+PUT /_index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": { }
+}
+
+PUT /my-data-stream/_bulk?refresh
+{"create":{ }}
+{ "@timestamp": "2020-12-08T11:04:05.000Z" }
+{"create":{ }}
+{ "@timestamp": "2020-12-08T11:06:07.000Z" }
+{"create":{ }}
+{ "@timestamp": "2020-12-09T11:07:08.000Z" }
+
+POST /my-data-stream/_rollover/
+POST /my-data-stream/_rollover/
+
+PUT /my-data-stream-two/_bulk?refresh
+{"create":{ }}
+{ "@timestamp": "2020-12-08T11:04:05.000Z" }
+{"create":{ }}
+{ "@timestamp": "2020-12-08T11:06:07.000Z" }
+
+POST /my-data-stream-two/_rollover/
+----
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+GET /_data_stream/my-data-stream/_stats
+----
+
+
+[[data-stream-stats-api-request]]
+==== {api-request-title}
+
+`GET /_data_stream/<data-stream>`
+
+
+[[data-stream-stats-api-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Optional, string)
+Comma-separated list of data streams used to limit the request. Wildcard
+expressions (`*`) are supported.
++
+To target all data streams in a cluster, omit this parameter or use `*`.
+
+[[data-stream-stats-api-query-params]]
+==== {api-query-parms-title}
+
+`human`::
+(Optional, boolean)
+If `true`, the response includes statistics in human-readable <<byte-units,byte
+values>>. Defaults to `false`.
+
+
+[role="child_attributes"]
+[[data-stream-stats-api-response-body]]
+==== {api-response-body-title}
+
+`_shards`::
+(object)
+Contains information about shards that attempted to execute the request.
++
+.Properties of `_shards`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of shards that attempted to execute the request.
+
+`successful`::
+(integer)
+Number of shards that successfully executed the request.
+
+`failed`::
+(integer)
+Number of shards that failed to execute the request.
+====
+
+`data_stream_count`::
+(integer)
+Total number of selected data streams.
+
+`backing_indices`::
+(integer)
+Total number of backing indices for the selected data streams.
+
+`total_store_sizes`::
+(<<byte-units,byte value>>)
+Total size of all shards for the selected data streams.
+This property is included only if the `human` query parameter is `true`.
+
+`total_store_size_bytes`::
+(integer)
+Total size, in bytes, of all shards for the selected data streams.
+
+`data_streams`::
+(array of objects)
+Contains statistics for the selected data streams.
++
+.Properties of objects in `data_streams`
+[%collapsible%open]
+====
+`data_stream`::
+(string)
+Name of the data stream.
+
+`backing_indices`::
+(integer)
+Current number of backing indices for the data stream.
+
+`store_size`::
+(<<byte-units,byte value>>)
+Total size of all shards for the data stream's backing indices.
+This parameter is only returned if the `human` query parameter is `true`.
+
+`store_size_bytes`::
+(integer)
+Total size, in bytes, of all shards for the data stream's backing indices.
+
+`maximum_timestamp`::
+(integer)
+The data stream's highest `@timestamp` value, converted to milliseconds since
+the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
++
+[NOTE]
+=====
+This timestamp is provided as a best effort. The data stream may contain
+`@timestamp` values higher than this if one or more of the following conditions
+are met:
+
+* The stream contains <<indices-open-close,closed>> backing indices.
+* Backing indices with a <<data-streams-generation,lower generation>> contain
+higher `@timestamp` values.
+=====
+====
+
+[[data-stream-stats-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET /_data_stream/my-data-stream*/_stats?human=true
+----
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "_shards": {
+    "total": 10,
+    "successful": 5,
+    "failed": 0
+  },
+  "data_stream_count": 2,
+  "backing_indices": 5,
+  "total_store_size": "7kb",
+  "total_store_size_bytes": 7268,
+  "data_streams": [
+    {
+      "data_stream": "my-data-stream",
+      "backing_indices": 3,
+      "store_size": "3.7kb",
+      "store_size_bytes": 3772,
+      "maximum_timestamp": 1607512028000
+    },
+    {
+      "data_stream": "my-data-stream-two",
+      "backing_indices": 2,
+      "store_size": "3.4kb",
+      "store_size_bytes": 3496,
+      "maximum_timestamp": 1607425567000
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"total_store_size": "7kb"/"total_store_size": $body.total_store_size/]
+// TESTRESPONSE[s/"total_store_size_bytes": 7268/"total_store_size_bytes": $body.total_store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "3.7kb"/"store_size": $body.data_streams.0.store_size/]
+// TESTRESPONSE[s/"store_size_bytes": 3772/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "3.4kb"/"store_size": $body.data_streams.1.store_size/]
+// TESTRESPONSE[s/"store_size_bytes": 3496/"store_size_bytes": $body.data_streams.1.store_size_bytes/]

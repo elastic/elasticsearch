@@ -49,7 +49,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
         String processorTag = randomAlphaOfLength(10);
-        DateProcessor processor = factory.create(null, processorTag, config);
+        DateProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
@@ -65,7 +65,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("processor creation should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[field] required property is missing"));
@@ -80,7 +80,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("target_field", targetField);
 
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("processor creation should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] required property is missing"));
@@ -95,7 +95,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
         config.put("locale", locale.toLanguageTag());
 
-        DateProcessor processor = factory.create(null, null, config);
+        DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getLocale().newInstance(Collections.emptyMap()).execute(), equalTo(locale.toLanguageTag()));
     }
 
@@ -107,7 +107,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
 
         ZoneId timezone = randomZone();
         config.put("timezone", timezone.getId());
-        DateProcessor processor = factory.create(null, null, config);
+        DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));
     }
 
@@ -117,7 +117,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("field", sourceField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
 
-        DateProcessor processor = factory.create(null, null, config);
+        DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getFormats(), equalTo(Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy")));
     }
 
@@ -128,7 +128,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("formats", "dd/MM/yyyy");
 
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("processor creation should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] property isn't a list, but of type [java.lang.String]"));
@@ -143,7 +143,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("target_field", targetField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
 
-        DateProcessor processor = factory.create(null, null, config);
+        DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getTargetField(), equalTo(targetField));
     }
 }

@@ -74,7 +74,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.INDEX_NAME);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.indexName());
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setRefresh(true);
 

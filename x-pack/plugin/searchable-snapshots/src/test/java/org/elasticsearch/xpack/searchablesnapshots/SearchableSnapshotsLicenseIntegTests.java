@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -68,10 +67,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
 
     @Before
     public void createAndMountSearchableSnapshot() throws Exception {
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
+        createRepo(repoName);
 
         createIndex(indexName);
 

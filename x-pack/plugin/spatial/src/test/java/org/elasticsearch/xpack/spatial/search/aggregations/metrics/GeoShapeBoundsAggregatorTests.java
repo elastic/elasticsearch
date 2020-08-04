@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -56,9 +57,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -85,9 +85,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .field("non_existent")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -108,9 +107,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
@@ -141,9 +139,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
 
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -203,9 +200,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

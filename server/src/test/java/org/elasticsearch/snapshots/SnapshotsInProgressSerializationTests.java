@@ -36,6 +36,7 @@ import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,14 +49,13 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         for (int i = 0; i < numberOfSnapshots; i++) {
             entries.add(randomSnapshot());
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     private Entry randomSnapshot() {
         Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
-        State state = randomFrom(State.values());
         int numberOfIndices = randomIntBetween(0, 10);
         List<IndexId> indices = new ArrayList<>();
         for (int i = 0; i < numberOfIndices; i++) {
@@ -66,6 +66,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final List<Index> esIndices =
             indices.stream().map(i -> new Index(i.getName(), randomAlphaOfLength(10))).collect(Collectors.toList());
+        List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
             for (int j = 0; j < shardsCount; j++) {
@@ -77,8 +78,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             }
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
-            SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+        return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams,
+                startTime, repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override
@@ -106,11 +107,12 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             // modify some elements
             for (int i = 0; i < entries.size(); i++) {
                 if (randomBoolean()) {
-                    entries.set(i, new Entry(entries.get(i), randomFrom(State.values()), entries.get(i).shards()));
+                    final Entry entry = entries.get(i);
+                    entries.set(i, entry.fail(entry.shards(), randomState(entry.shards()), entry.failure()));
                 }
             }
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     @Override
@@ -132,7 +134,11 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         } else {
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
+    public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+        return SnapshotsInProgress.completed(shards.values())
+                ? randomFrom(State.SUCCESS, State.FAILED) : randomFrom(State.STARTED, State.INIT, State.ABORTED);
+    }
 }

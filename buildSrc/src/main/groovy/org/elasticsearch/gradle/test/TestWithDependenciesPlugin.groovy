@@ -44,7 +44,7 @@ class TestWithDependenciesPlugin implements Plugin<Project> {
             return
         }
 
-        project.configurations.testCompile.dependencies.all { Dependency dep ->
+        project.configurations.testImplementation.dependencies.all { Dependency dep ->
             // this closure is run every time a compile dependency is added
             if (dep instanceof ProjectDependency && dep.dependencyProject.plugins.hasPlugin(PluginBuildPlugin)) {
                 project.gradle.projectsEvaluated {

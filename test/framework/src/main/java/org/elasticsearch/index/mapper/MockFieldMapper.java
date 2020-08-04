@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -29,24 +30,29 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
-    static Settings dummySettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+    static Settings DEFAULT_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+        .build();
 
     public MockFieldMapper(String fullName) {
-        this(fullName, new FakeFieldType());
+        this(new FakeFieldType(fullName));
     }
 
-    public MockFieldMapper(String fullName, MappedFieldType fieldType) {
-        super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings,
+    public MockFieldMapper(MappedFieldType fieldType) {
+        super(findSimpleName(fieldType.name()), new FieldType(), fieldType,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
-    static MappedFieldType setName(String fullName, MappedFieldType fieldType) {
-        fieldType.setName(fullName);
-        return fieldType;
+    public MockFieldMapper(String fullName,
+                           MappedFieldType fieldType,
+                           MultiFields multifields,
+                           CopyTo copyTo) {
+        super(findSimpleName(fullName), new FieldType(), fieldType, multifields, copyTo);
     }
 
     static String findSimpleName(String fullName) {
@@ -55,16 +61,8 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public static class FakeFieldType extends TermBasedFieldType {
-        public FakeFieldType() {
-        }
-
-        protected FakeFieldType(FakeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
+        public FakeFieldType(String name) {
+            super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -92,7 +90,28 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
+    }
+
+    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder> {
+        private MappedFieldType fieldType;
+
+        protected Builder(String name) {
+            super(name, new FieldType());
+            this.fieldType = new FakeFieldType(name);
+            this.builder = this;
+        }
+
+        @Override
+        public MockFieldMapper build(BuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            return new MockFieldMapper(name(), fieldType, multiFields, copyTo);
+        }
     }
 }

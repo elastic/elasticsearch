@@ -34,7 +34,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 {es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
 highlighter). You can specify the highlighter `type` you want to use
@@ -286,7 +286,7 @@ individual fields.
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "number_of_fragments" : 3,
@@ -300,7 +300,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[specify-highlight-query]]
@@ -369,7 +369,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[set-highlighter-type]]
@@ -384,7 +384,7 @@ The following is an example that forces the use of the plain highlighter:
 GET /_search
 {
   "query": {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight": {
     "fields": {
@@ -393,7 +393,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[configure-tags]]
 [discrete]
@@ -408,7 +408,7 @@ for example:
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "pre_tags" : ["<tag1>"],
@@ -419,7 +419,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 When using the fast vector highlighter, you can specify additional tags and the
 "importance" is ordered.
@@ -429,7 +429,7 @@ When using the fast vector highlighter, you can specify additional tags and the
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "pre_tags" : ["<tag1>", "<tag2>"],
@@ -440,7 +440,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You can also use the built-in `styled` tag schema:
 
@@ -449,7 +449,7 @@ You can also use the built-in `styled` tag schema:
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "tags_schema" : "styled",
@@ -459,7 +459,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[highlight-source]]
@@ -473,7 +473,7 @@ are stored separately. Defaults to `false`.
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "fields" : {
@@ -482,7 +482,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[highlight-all]]
@@ -497,7 +497,7 @@ By default, only fields that contains a query match are highlighted. Set
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "require_field_match": false,
@@ -507,7 +507,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[matched-fields]]
 [discrete]
@@ -546,7 +546,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above matches both "run with scissors" and "running with scissors"
 and would highlight "running" and "scissors" but not "run". If both
@@ -575,7 +575,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above highlights "run" as well as "running" and "scissors" but
 still sorts "running with scissors" above "run with scissors" because
@@ -602,7 +602,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above query wouldn't highlight "run" or "scissor" but shows that
 it is just fine not to list the field to which the matches are combined
@@ -662,7 +662,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 None of the highlighters built into Elasticsearch care about the order that the
 fields are highlighted but a plugin might.
@@ -684,7 +684,7 @@ For example:
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "fields" : {
@@ -693,7 +693,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 On top of this it is possible to specify that highlighted fragments need
 to be sorted by score:
@@ -703,7 +703,7 @@ to be sorted by score:
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "order" : "score",
@@ -713,7 +713,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If the `number_of_fragments` value is set to `0` then no fragments are
 produced, instead the whole content of the field is returned, and of
@@ -726,7 +726,7 @@ is required. Note that `fragment_size` is ignored in this case.
 GET /_search
 {
   "query" : {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight" : {
     "fields" : {
@@ -736,7 +736,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 When using `fvh` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
@@ -752,7 +752,7 @@ specified as it tries to break on a word boundary.
 GET /_search
 {
   "query": {
-    "match": { "user": "kimchy" }
+    "match": { "user.id": "kimchy" }
   },
   "highlight": {
     "fields": {
@@ -765,7 +765,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[highlight-postings-list]]
@@ -816,7 +816,7 @@ When using the `plain` highlighter, you can choose between the `simple` and
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_phrase": { "message": "number 1" }
@@ -833,7 +833,7 @@ GET twitter/_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 Response:
 
@@ -849,14 +849,11 @@ Response:
     "max_score": 1.6011951,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "user": "test",
-          "message": "some message with the number 1",
-          "date": "2009-11-15T14:12:12",
-          "likes": 1
+          "message": "some message with the number 1"
         },
         "highlight": {
           "message": [
@@ -873,7 +870,7 @@ Response:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_phrase": { "message": "number 1" }
@@ -890,7 +887,7 @@ GET twitter/_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 Response:
 
@@ -906,14 +903,11 @@ Response:
     "max_score": 1.6011951,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "user": "test",
-          "message": "some message with the number 1",
-          "date": "2009-11-15T14:12:12",
-          "likes": 1
+          "message": "some message with the number 1"
         },
         "highlight": {
           "message": [

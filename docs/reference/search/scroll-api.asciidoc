@@ -18,7 +18,7 @@ GET /_search?scroll=1m
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 ////
 
 [source,console]

@@ -31,6 +31,20 @@
             }
           }
         },
+        "datastream": {
+          "properties": {
+            "type": {
+              "type": "constant_keyword",
+              "value": "metrics"
+            },
+            "dataset": {
+              "type": "constant_keyword"
+            },
+            "namespace": {
+              "type": "constant_keyword"
+            }
+          }
+        },
         "ecs": {
           "properties": {
             "version": {

@@ -13,21 +13,21 @@ Suppose that the query to retrieve the first page looks like this:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "size": 10,
   "query": {
     "match" : {
-      "title" : "elasticsearch"
+      "message" : "foo"
     }
   },
   "sort": [
-    {"date": "asc"},
+    {"@timestamp": "asc"},
     {"tie_breaker_id": "asc"}      <1>
   ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 // TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 <1> A copy of the `_id` field with `doc_values` enabled
@@ -56,22 +56,22 @@ For instance we can use the `sort values` of the last document and pass it to `s
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "size": 10,
   "query": {
     "match" : {
-      "title" : "elasticsearch"
+      "message" : "foo"
     }
   },
   "search_after": [1463538857, "654323"],
   "sort": [
-    {"date": "asc"},
+    {"@timestamp": "asc"},
     {"tie_breaker_id": "asc"}
   ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 // TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.

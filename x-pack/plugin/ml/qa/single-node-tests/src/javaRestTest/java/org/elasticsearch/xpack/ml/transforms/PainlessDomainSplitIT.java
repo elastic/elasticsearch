@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -29,6 +28,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessDomainSplitIT extends ESRestTestCase {
+
+    private static final String BASE_PATH = "/_ml/";
 
     static class TestConfiguration {
         public String subDomainExpected;
@@ -242,7 +243,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     public void testHRDSplit() throws Exception {
         // Create job
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job");
+        Request createJobRequest = new Request("PUT", BASE_PATH + "anomaly_detectors/hrd-split-job");
         createJobRequest.setJsonEntity(
                 "{\n" +
                 "    \"description\":\"Domain splitting\",\n" +
@@ -257,7 +258,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "    }\n" +
                 "}");
         client().performRequest(createJobRequest);
-        client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
+        client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
@@ -297,7 +298,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         client().performRequest(new Request("POST", "/painless/_refresh"));
 
         // Create and start datafeed
-        Request createFeedRequest = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed");
+        Request createFeedRequest = new Request("PUT", BASE_PATH + "datafeeds/hrd-split-datafeed");
         createFeedRequest.setJsonEntity(
                 "{\n" +
                 "   \"job_id\":\"hrd-split-job\",\n" +
@@ -310,7 +311,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "}");
 
         client().performRequest(createFeedRequest);
-        Request startDatafeedRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
+        Request startDatafeedRequest = new Request("POST", BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
         startDatafeedRequest.addParameter("start", baseTime.format(DateTimeFormatter.ISO_DATE_TIME));
         startDatafeedRequest.addParameter("end", ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME));
         client().performRequest(startDatafeedRequest);
@@ -321,7 +322,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         client().performRequest(new Request("POST", "/.ml-anomalies-*/_refresh"));
 
         Response records = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+            BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
         String responseBody = EntityUtils.toString(records.getEntity());
         assertThat("response body [" + responseBody + "] did not contain [\"count\":2]",
             responseBody,
@@ -353,7 +354,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response jobStatsResponse = client().performRequest(new Request("GET",
-                    MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                    BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
                 assertThat(EntityUtils.toString(jobStatsResponse.getEntity()), containsString("\"state\":\"closed\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -365,7 +366,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest(new Request("GET",
-                    MachineLearning.BASE_PATH + "datafeeds/" + dfId + "/_stats"));
+                    BASE_PATH + "datafeeds/" + dfId + "/_stats"));
                 assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()),
                     containsString("\"state\":\"stopped\""));
             } catch (Exception e) {

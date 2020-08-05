@@ -1425,7 +1425,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked" +
+        "")
     public void testSystemIndexGetsUpdatedMetadata() throws Exception {
         assumeFalse("only run in upgraded cluster", isRunningAgainstOldCluster());
 

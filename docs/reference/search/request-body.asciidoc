@@ -149,6 +149,11 @@ See <<scroll-search-results>>.
 
 See <<clear-scroll-api>>.
 
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
+
 [[request-body-search-search-after]]
 ==== Search After
 

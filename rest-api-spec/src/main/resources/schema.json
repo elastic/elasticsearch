@@ -80,6 +80,7 @@
             "required": [
                 "documentation",
                 "stability",
+                "headers",
                 "url"
             ],
             "title": "API components",

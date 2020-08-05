@@ -5,6 +5,10 @@
       "description": "Simulate matching the given index name against the index templates in the system"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

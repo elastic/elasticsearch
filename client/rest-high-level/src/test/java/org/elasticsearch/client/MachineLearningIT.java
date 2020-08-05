@@ -389,9 +389,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.jobStats().size() >= 2L);
         assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
-        // Test when allow_no_jobs is false
+        // Test when allow_no_match is false
         final GetJobStatsRequest erroredRequest = new GetJobStatsRequest("jobs-that-do-not-exist*");
-        erroredRequest.setAllowNoJobs(false);
+        erroredRequest.setAllowNoMatch(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
@@ -563,7 +563,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     hasItems(datafeedId1, datafeedId2));
         }
 
-        // Test get missing pattern with allow_no_datafeeds set to true
+        // Test get missing pattern with allow_no_match set to true
         {
             GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
 
@@ -572,10 +572,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(response.count(), equalTo(0L));
         }
 
-        // Test get missing pattern with allow_no_datafeeds set to false
+        // Test get missing pattern with allow_no_match set to false
         {
             GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
 
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                     () -> execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync));
@@ -703,7 +703,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             StopDatafeedRequest request = new StopDatafeedRequest(datafeedId1);
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             StopDatafeedResponse stopDatafeedResponse = execute(request,
                 machineLearningClient::stopDatafeed,
                 machineLearningClient::stopDatafeedAsync);
@@ -711,7 +711,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         {
             StopDatafeedRequest request = new StopDatafeedRequest(datafeedId2, datafeedId3);
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             StopDatafeedResponse stopDatafeedResponse = execute(request,
                 machineLearningClient::stopDatafeed,
                 machineLearningClient::stopDatafeedAsync);
@@ -725,7 +725,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         {
             StopDatafeedRequest request = new StopDatafeedRequest("datafeed_that_doesnot_exist*");
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
             assertThat(exception.status().getStatus(), equalTo(404));
@@ -792,9 +792,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
             hasItems(datafeedId1, datafeedId2));
 
-        // Test when allow_no_jobs is false
+        // Test when allow_no_match is false
         final GetDatafeedStatsRequest erroredRequest = new GetDatafeedStatsRequest("datafeeds-that-do-not-exist*");
-        erroredRequest.setAllowNoDatafeeds(false);
+        erroredRequest.setAllowNoMatch(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));

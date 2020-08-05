@@ -120,15 +120,12 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         // Define the repository if we haven't already
         if (repositories.findByName(repoName) == null) {
-            IvyArtifactRepository ivyRepo = repositories.ivy(repo -> {
+            repositories.ivy(repo -> {
                 repo.setName(repoName);
                 repo.setUrl(repoUrl);
                 repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
                 repo.patternLayout(layout -> layout.artifact(artifactPattern));
-            });
-            repositories.exclusiveContent(exclusiveContentRepository -> {
-                exclusiveContentRepository.filter(config -> config.includeGroup(groupName(jdk)));
-                exclusiveContentRepository.forRepositories(ivyRepo);
+                repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeGroup(groupName(jdk)));
             });
         }
     }

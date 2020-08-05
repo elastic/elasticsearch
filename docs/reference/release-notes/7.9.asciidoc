@@ -69,7 +69,7 @@ Geo::
 Machine Learning::
 * Add update data frame analytics jobs API {es-pull}58302[#58302] (issue: {es-issue}45720[#45720])
 * Introduce model_plot_config.annotations_enabled setting for anomaly detection jobs {es-pull}57539[#57539] (issue: {es-issue}55781[#55781])
-* Report significant changes to anomaly detection models in annotations of the results {ml-pull}1247[#1247], {pull}56342[#56342], {pull}56417[#56417], {pull}57144[#57144], {pull}57278[#57278], {pull}57539[#57539]
+* Report significant changes to anomaly detection models in annotations of the results {ml-pull}1247[#1247], {ml-pull}56342[#56342], {ml-pull}56417[#56417], {ml-pull}57144[#57144], {ml-pull}57278[#57278], {ml-pull}57539[#57539]
 
 Mapping::
 * Merge mappings for composable index templates {es-pull}58521[#58521] (issue: {es-issue}53101[#53101])
@@ -330,5 +330,4 @@ Snapshot/Restore::
 
 Search::
 * Update to lucene snapshot e7c625430ed {es-pull}57981[#57981]
-
 

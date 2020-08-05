@@ -501,9 +501,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-1-31", "year_month_day");
         assertSameDate("2012-12-1", "year_month_day");
 
-        assertSameDate("2018", "week_year");
-        assertSameDate("1", "week_year");
-        assertSameDate("2017", "week_year");
+        assertSameDate("2018", "weekyear");
+        assertSameDate("1", "weekyear");
+        assertSameDate("2017", "weekyear");
 
         assertSameDate("2018-W29", "weekyear_week");
         assertSameDate("2018-W1", "weekyear_week");
@@ -778,7 +778,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput("week_date", javaDate, jodaDate);
         assertSamePrinterOutput("week_date_time", javaDate, jodaDate);
         assertSamePrinterOutput("week_date_time_no_millis", javaDate, jodaDate);
-        assertSamePrinterOutput("week_year", javaDate, jodaDate);
+        assertSamePrinterOutput("weekyear", javaDate, jodaDate);
         assertSamePrinterOutput("weekyear_week", javaDate, jodaDate);
         assertSamePrinterOutput("weekyear_week_day", javaDate, jodaDate);
         assertSamePrinterOutput("year", javaDate, jodaDate);

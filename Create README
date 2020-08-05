@@ -201,3 +201,4 @@ See the xref:TESTING.asciidoc[TESTING] for more information about running the El
 === Upgrading from older Elasticsearch versions
 
 In order to ensure a smooth upgrade process from earlier versions of Elasticsearch, please see our https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[upgrade documentation] for more details on the upgrade process.
+CREATE README

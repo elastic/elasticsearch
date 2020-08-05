@@ -33,7 +33,8 @@ GET /_search
 ==== Top-level parameters for `match`
 
 `<field>`::
-(Required, object) Field you wish to search.
+(Required, object) Field you wish to search. Supports <<mapping-fields,metadata
+fields>>.
 
 
 [[match-field-params]]

@@ -45,6 +45,7 @@ GET /_search
 +
 --
 (Optional, array of strings) Array of fields you wish to search.
+Supports <<mapping-fields,metadata fields>>.
 
 This field accepts wildcard expressions. You also can boost relevance scores for
 matches to particular fields using a caret (`^`) notation. See

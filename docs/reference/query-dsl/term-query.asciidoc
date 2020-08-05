@@ -42,7 +42,8 @@ GET /_search
 [[term-top-level-params]]
 ==== Top-level parameters for `term`
 `<field>`::
-(Required, object) Field you wish to search.
+(Required, object) Field you wish to search. Supports <<mapping-fields,metadata
+fields>>.
 
 [[term-field-params]]
 ==== Parameters for `<field>`

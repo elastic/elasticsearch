@@ -29,7 +29,8 @@ GET /_search
 [[prefix-query-top-level-params]]
 ==== Top-level parameters for `prefix`
 `<field>`::
-(Required, object) Field you wish to search.
+(Required, object) Field you wish to search. Supports <<mapping-fields,metadata
+fields>>.
 
 [[prefix-query-field-params]]
 ==== Parameters for `<field>`

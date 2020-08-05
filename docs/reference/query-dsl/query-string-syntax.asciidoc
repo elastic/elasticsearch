@@ -16,7 +16,8 @@ explained below.
 
 ====== Field names
 
-You can specify fields to search in the query syntax:
+You can specify fields to search in the query syntax. <<mapping-fields,Metadata
+fields>>, such as `_routing`, are supported. For example:
 
 * where the `status` field contains `active`
 
@@ -43,6 +44,10 @@ You can specify fields to search in the query syntax:
 * where the field `title` has any non-null value:
 
     _exists_:title
+
+* where the `_routing` metadata field contains `shard-1:
+
+    _routing:shard-1
 
 [[query-string-wildcard]]
 ====== Wildcards

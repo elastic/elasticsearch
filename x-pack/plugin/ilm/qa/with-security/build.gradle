@@ -10,10 +10,8 @@ def clusterCredentials = [username: System.getProperty('tests.rest.cluster.usern
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
 integTest {
-  runner {
-    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-  }
+  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.integTest {

@@ -190,14 +190,14 @@ custom roles providers.  If you need to integrate with another system to retriev
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-authorization>>.
 
-[float]
+[discrete]
 [[roles-management-ui]]
 === Role management UI
 
 You can manage users and roles easily in {kib}. To
 manage roles, log in to {kib} and go to *Management / Security / Roles*. 
 
-[float]
+[discrete]
 [[roles-management-api]]
 === Role management API
 
@@ -206,7 +206,7 @@ dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
 see <<security-role-apis>>. 
 
-[float]
+[discrete]
 [[roles-management-file]]
 === File-based role management
 

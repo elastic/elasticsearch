@@ -20,20 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.FunctionTable;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
@@ -109,84 +100,12 @@ public class SFunction extends ANode {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitFunction(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitFunction(this, scope);
     }
 
-    void buildClassScope(ScriptScope scriptScope) {
-        if (canonicalTypeNameParameters.size() != parameterNames.size()) {
-            throw createError(new IllegalStateException(
-                "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
-                "parameter names size [" + parameterNames.size() + "]"));
-        }
-
-        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
-        FunctionTable functionTable = scriptScope.getFunctionTable();
-
-        String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
-
-        if (functionTable.getFunction(functionKey) != null) {
-            throw createError(new IllegalArgumentException("illegal duplicate functions [" + functionKey + "]."));
-        }
-
-        Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
-
-        if (returnType == null) {
-            throw createError(new IllegalArgumentException(
-                "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
-        }
-
-        List<Class<?>> typeParameters = new ArrayList<>();
-
-        for (String typeParameter : canonicalTypeNameParameters) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
-
-            if (paramType == null) {
-                throw createError(new IllegalArgumentException(
-                    "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
-            }
-
-            typeParameters.add(paramType);
-        }
-
-        functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
-    }
-
-    void analyze(ScriptScope scriptScope) {
-        FunctionTable.LocalFunction localFunction =
-                scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
-        Class<?> returnType = localFunction.getReturnType();
-        List<Class<?>> typeParameters = localFunction.getTypeParameters();
-        FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
-
-        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
-            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
-            String parameterName = parameterNames.get(index);
-            functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
-        }
-
-        if (blockNode.getStatementNodes().isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
-        }
-
-        functionScope.setCondition(blockNode, LastSource.class);
-        blockNode.analyze(functionScope.newLocalScope());
-        boolean methodEscape = functionScope.getCondition(blockNode, MethodEscape.class);
-
-        if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
-            throw createError(new IllegalArgumentException("not all paths provide a return value " +
-                    "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
-        }
-
-        if (methodEscape) {
-            functionScope.setCondition(this, MethodEscape.class);
-        }
-
-        // TODO: do not specialize for execute
-        // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(functionName)) {
-            scriptScope.setUsedVariables(functionScope.getUsedVariables());
-        }
-        // TODO: end
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        blockNode.visit(userTreeVisitor, scope);
     }
 }

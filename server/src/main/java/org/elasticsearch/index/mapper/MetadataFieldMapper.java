@@ -67,14 +67,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     /**
-     * Called when mapping gets merged. Provides the opportunity to validate other fields a metadata field mapper
-     * is supposed to work with before a mapping update is completed.
-     */
-    public void validate(DocumentFieldMappers lookup) {
-        // noop by default
-    }
-
-    /**
      * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */
     public abstract void preParse(ParseContext context) throws IOException;
@@ -84,6 +76,11 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public void postParse(ParseContext context) throws IOException {
         // do nothing
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
     }
 
     @Override

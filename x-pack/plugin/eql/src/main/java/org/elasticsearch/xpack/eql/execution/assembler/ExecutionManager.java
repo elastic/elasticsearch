@@ -74,7 +74,7 @@ public class ExecutionManager {
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
                 Criterion<BoxedQueryRequest> criterion =
-                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i > 0 && descending);
+                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
                 criteria.add(criterion);
             } else {
                 // until
@@ -87,7 +87,7 @@ public class ExecutionManager {
         }
         
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, maxSpan, limit);
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
 
         TumblingWindow w = new TumblingWindow(new BasicQueryClient(session),
                 criteria.subList(0, completionStage),

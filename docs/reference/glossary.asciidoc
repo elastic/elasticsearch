@@ -53,6 +53,12 @@ In the cold phase, an index is no longer updated and seldom queried.
 The information still needs to be searchable, but it’s okay if those queries are slower.
 // end::cold-phase-def[]
 
+[[glossary-component-template]] component template ::
+// tag::component-template-def[]
+A building block for constructing <<indices-templates,index templates>> that specifies index
+<<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>. 
+// end::component-template-def[]
+
 [[glossary-ccr]] {ccr} (CCR)::
 // tag::ccr-def[]
 A feature that enables you to replicate indices in remote clusters to your

@@ -162,7 +162,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), reason);
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
-        DocumentFieldMappers dfm = documentMapper.mappers();
+        MappingLookup dfm = documentMapper.mappers();
         try {
             assertNotNull(dfm.indexAnalyzer().tokenStream("non_existing_field", "foo"));
             fail();

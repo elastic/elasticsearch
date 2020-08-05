@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
@@ -130,9 +131,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testWritesViaAliasIfItExists() {
-        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
-        serviceProviderIndex.installIndexTemplate(installTemplate);
-        assertTrue(installTemplate.actionGet());
+        assertTrue(installTemplate());
 
         // Create an index that will trigger the template, but isn't the standard index name
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
@@ -170,9 +169,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         assertBusy(() -> assertThat("template should have been installed", templateMeta, notNullValue()));
 
-        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
-        serviceProviderIndex.installIndexTemplate(installTemplate);
-        assertFalse("Template is already installed, should not install again", installTemplate.actionGet());
+        assertFalse("Template is already installed, should not install again", installTemplate());
     }
 
     public void testInstallTemplateAutomaticallyOnDocumentWrite() {
@@ -184,44 +181,43 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         IndexTemplateMetadata templateMeta = clusterService.state().metadata().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
         assertThat("template should have been installed", templateMeta, notNullValue());
 
-        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
-        serviceProviderIndex.installIndexTemplate(installTemplate);
-        assertFalse("Template is already installed, should not install again", installTemplate.actionGet());
+        assertFalse("Template is already installed, should not install again", installTemplate());
     }
 
     private boolean installTemplate() {
         final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
-        serviceProviderIndex.installIndexTemplate(installTemplate);
+        serviceProviderIndex.installIndexTemplate(assertListenerIsOnlyCalledOnce(installTemplate));
         return installTemplate.actionGet();
     }
 
     private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findAll(ActionListener.wrap(
+        serviceProviderIndex.findAll(assertListenerIsOnlyCalledOnce(ActionListener.wrap(
             set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
             future::onFailure
-        ));
+        )));
         return future.actionGet();
     }
 
     private SamlServiceProviderDocument readDocument(String docId) {
         final PlainActionFuture<SamlServiceProviderIndex.DocumentSupplier> future = new PlainActionFuture<>();
-        serviceProviderIndex.readDocument(docId, future);
+        serviceProviderIndex.readDocument(docId, assertListenerIsOnlyCalledOnce(future));
         final SamlServiceProviderIndex.DocumentSupplier supplier = future.actionGet();
         return supplier == null ? null : supplier.getDocument();
     }
 
     private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL, future);
+        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            assertListenerIsOnlyCalledOnce(future));
         doc.setDocId(future.actionGet().getId());
     }
 
     private DeleteResponse deleteDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.readDocument(doc.docId, ActionListener.wrap(
+        serviceProviderIndex.readDocument(doc.docId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
             info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-            future::onFailure));
+            future::onFailure)));
         return future.actionGet();
     }
 
@@ -233,16 +229,16 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> findAllByEntityId(String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findByEntityId(entityId, ActionListener.wrap(
+        serviceProviderIndex.findByEntityId(entityId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
             set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
             future::onFailure
-        ));
+        )));
         return future.actionGet();
     }
 
     private void refresh() {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        serviceProviderIndex.refresh(future);
+        serviceProviderIndex.refresh(assertListenerIsOnlyCalledOnce(future));
         future.actionGet();
     }
 
@@ -297,6 +293,15 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     private static String randomUri(String scheme) {
         return scheme + "://" + randomAlphaOfLengthBetween(2, 6) + "."
             + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 4) + "/";
+    }
+
+    private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
+        final AtomicInteger callCount = new AtomicInteger(0);
+        return ActionListener.runBefore(delegate, () -> {
+            if (callCount.incrementAndGet() != 1) {
+                fail("Listener was called twice");
+            }
+        });
     }
 
 }

@@ -302,7 +302,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract ValueFetcher valueFetcher(SearchLookup lookup, @Nullable String format);
 
     /**
-     * Fetch values for a particular document.
+     * Reads values for documents in a leaf. 
      */
     @FunctionalInterface
     public interface ValueFetcher {

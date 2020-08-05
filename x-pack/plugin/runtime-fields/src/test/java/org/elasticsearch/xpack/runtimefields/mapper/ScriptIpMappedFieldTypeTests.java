@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptIpScriptDocValues;
+import org.elasticsearch.xpack.runtimefields.fielddata.ScriptIpFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -155,7 +155,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                         return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                ScriptIpScriptDocValues bytes = (ScriptIpScriptDocValues) getDoc().get("test");
+                                ScriptIpFieldData.IpScriptDocValues bytes = (ScriptIpFieldData.IpScriptDocValues) getDoc().get("test");
                                 return Integer.parseInt(bytes.getValue().substring(bytes.getValue().lastIndexOf(".") + 1));
                             }
                         };

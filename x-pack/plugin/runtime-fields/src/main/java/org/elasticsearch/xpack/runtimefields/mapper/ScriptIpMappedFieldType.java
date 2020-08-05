@@ -7,12 +7,11 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
@@ -96,7 +95,6 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
         QueryShardContext context

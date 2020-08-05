@@ -146,9 +146,8 @@ GET _search
 ==== Named queries
 
 Each query accepts a `_name` in its top level definition. You can use named
-queries to track which queries matched documents returned by a search. If named
-queries are used, the response includes a `matched_queries` property for each
-hit.
+queries to track which queries matched returned documents. If named queries are
+used, the response includes a `matched_queries` property for each hit.
 
 [source,console]
 ----

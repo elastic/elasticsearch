@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
@@ -55,6 +56,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -99,7 +101,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, IndexStorePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -174,7 +176,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
+                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver,
+                repositoriesServiceSupplier))
         );
         return components;
     }
@@ -494,6 +497,20 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+        final Map<String, ExistingShardsAllocator> allocators = new HashMap<>();
+        filterPlugins(ClusterPlugin.class).stream().forEach(p -> allocators.putAll(p.getExistingShardsAllocators()));
+        return allocators;
+    }
+
+    @Override
+    public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
+        final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getDirectoryFactories()));
+        return factories;
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

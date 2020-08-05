@@ -959,6 +959,21 @@ See <<run-an-es-search>>.
 
 See <<how-es-highlighters-work-internally>>.
 
+[role="exclude",id="eql-search"]
+=== Run an EQL search
+
+See <<run-an-eql-search>>.
+
+[role="exclude",id="eql-limitations"]
+=== EQL limitations
+
+See <<eql-syntax-limitations>>.
+
+[role="exclude",id="eql-requirements"]
+=== EQL requirements
+
+See <<eql-required-fields>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search

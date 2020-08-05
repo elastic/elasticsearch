@@ -446,7 +446,6 @@ your bandwidth to S3 may be limited by that NAT instance's networking bandwidth
 limitations. Instead we recommend creating a https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html[VPC endpoint]
 that enables connecting to S3 in instances that reside in a private subnet in an
 AWS VPC. This will eliminate any limitations imposed by the network bandwidth of your VPC's NAT instance. 
-network bandwith limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.

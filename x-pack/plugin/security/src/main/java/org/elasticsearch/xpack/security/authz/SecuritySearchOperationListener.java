@@ -73,13 +73,12 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
                 // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
-                if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
+                if (null == threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
                     // fill in the DLS and FLS permissions for the scroll search action from the scroll context
                     IndicesAccessControl scrollIndicesAccessControl =
                             searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
-                    securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                            scrollIndicesAccessControl);
+                    threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, scrollIndicesAccessControl);
                 }
             }
         }
@@ -96,11 +95,11 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
-        if (licenseState.isSecurityEnabled() && searchContext.scrollContext() != null) {
+        if (licenseState.isAuthAllowed() && searchContext.scrollContext() != null) {
             IndicesAccessControl scrollIndicesAccessControl =
                     searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl threadIndicesAccessControl =
-                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    threadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             if (scrollIndicesAccessControl != threadIndicesAccessControl) {
                 throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected scroll indices access control [" +
                         scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +

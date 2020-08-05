@@ -139,12 +139,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.dataStreams = dataStreams;
             this.startTime = startTime;
             this.shards = shards;
-            assert assertShardsConsistent(state, indices, shards);
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
             this.userMetadata = userMetadata;
             this.version = version;
             this.source = source;
+            assert assertShardsConsistent(source, state, indices, shards);
         }
 
         private Entry(StreamInput in) throws IOException {
@@ -171,14 +171,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
 
-        private static boolean assertShardsConsistent(State state, List<IndexId> indices,
+        private static boolean assertShardsConsistent(SnapshotId source, State state, List<IndexId> indices,
                                                       ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
             }
             final Set<String> indexNames = indices.stream().map(IndexId::getName).collect(Collectors.toSet());
             final Set<String> indexNamesInShards = new HashSet<>();
-            shards.keysIt().forEachRemaining(s -> indexNamesInShards.add(s.getIndexName()));
+            shards.iterator().forEachRemaining(s -> {
+                indexNamesInShards.add(s.key.getIndexName());
+                assert source == null || s.value.nodeId == null :
+                        "Shard snapshot must not be assigned to data node when copying from snapshot [" + source + "]";
+            });
             assert indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
             final boolean shardsCompleted = completed(shards.values());
@@ -306,6 +310,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public Version version() {
             return version;
+        }
+
+        @Nullable
+        public SnapshotId source() {
+            return source;
         }
 
         @Override

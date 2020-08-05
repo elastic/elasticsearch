@@ -27,6 +27,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -992,9 +994,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
                 entry.includeGlobalState(), entry.userMetadata());
-            repositoriesService.repository(snapshot.getRepository()).finalizeSnapshot(
+            final StepListener<Metadata> metadataListener = new StepListener<>();
+            final Repository repo = repositoriesService.repository(snapshot.getRepository());
+            if (entry.source() == null) {
+                metadataListener.onResponse(metadata);
+            } else {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(
+                        ActionRunnable.supply(metadataListener, () -> repo.getSnapshotGlobalMetadata(entry.source())));
+            }
+            metadataListener.whenComplete(meta -> repo.finalizeSnapshot(
                     shardGenerations,
-            repositoryData.getGenId(),
+                    repositoryData.getGenId(),
                     metadataForSnapshot(entry, metadata),
                     snapshotInfo,
                     entry.version(),
@@ -1002,10 +1012,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ActionListener.wrap(newRepoData -> {
                         endingSnapshots.remove(snapshot);
                         completeListenersIgnoringException(
-                            snapshotCompletionListeners.remove(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                                snapshotCompletionListeners.remove(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                         runNextQueuedOperation(newRepoData, repository, true);
-                    }, e -> handleFinalizationFailure(e, entry, repositoryData)));
+                    }, e -> handleFinalizationFailure(e, entry, repositoryData))),
+                    e -> handleFinalizationFailure(e, entry, repositoryData));
         } catch (Exception e) {
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);

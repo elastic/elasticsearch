@@ -52,9 +52,9 @@ shards*.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search?search_type=query_then_fetch
+GET my-index-000001/_search?search_type=query_then_fetch
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
@@ -70,6 +70,6 @@ scoring.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search?search_type=dfs_query_then_fetch
+GET my-index-000001/_search?search_type=dfs_query_then_fetch
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

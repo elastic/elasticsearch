@@ -24,8 +24,13 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
         ScriptConfig scriptConfig = version.onOrAfter(Version.V_7_7_0)
             ? randomBoolean() ? null : ScriptConfigTests.randomScriptConfig()
             : null;
-        boolean missingBucket = version.onOrAfter(Version.V_8_0_0) ? randomBoolean() : false; // todo: V_7_10_0
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
         return new TermsGroupSource(field, scriptConfig, missingBucket);
+    }
+
+    public static TermsGroupSource randomTermsGroupSourceNoScript() {
+        String field = randomAlphaOfLengthBetween(1, 20);
+        return new TermsGroupSource(field, null, randomBoolean());
     }
 
     @Override
@@ -41,6 +46,11 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
     @Override
     protected Reader<TermsGroupSource> instanceReader() {
         return TermsGroupSource::new;
+    }
+
+    public void testSupportsIncrementalBucketUpdate() {
+        TermsGroupSource terms = randomTermsGroupSource();
+        assertEquals(terms.getScriptConfig() == null, terms.supportsIncrementalBucketUpdate());
     }
 
 }

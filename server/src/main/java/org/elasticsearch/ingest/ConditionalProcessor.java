@@ -144,6 +144,10 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return TYPE;
     }
 
+    public String getCondition(){
+        return condition.getIdOrCode();
+    }
+
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable

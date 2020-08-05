@@ -69,7 +69,9 @@ public class PagedBytesReference extends AbstractBytesReference {
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
         // if length <= pagesize this will dereference the page, or materialize the byte[]
-        byteArray.get(offset, length, bref);
+        if (byteArray != null) {
+            byteArray.get(offset, length, bref);
+        }
         return bref;
     }
 

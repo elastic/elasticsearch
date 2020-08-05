@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -342,15 +341,20 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.canReturnNullResponseIfMatchNoDocs = value;
     }
 
+    private static final ThreadLocal<BytesStreamOutput> scratch = ThreadLocal.withInitial(BytesStreamOutput::new);
+
     /**
      * Returns the cache key for this shard search request, based on its content
      */
     public BytesReference cacheKey() throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        this.innerWriteTo(out, true);
-        // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
-        // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
-        return new BytesArray(out.bytes().toBytesRef(), true);// do a deep copy
+        BytesStreamOutput out = scratch.get();
+        try {
+            this.innerWriteTo(out, true);
+            // copy it over since we don't want to share the thread-local bytes in #scratch
+            return out.copyBytes();
+        } finally {
+            out.reset();
+        }
     }
 
     public String getClusterAlias() {

@@ -47,7 +47,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             CloseJobAction.Request request = new CloseJobAction.Request(jobId);
-            request.setAllowNoJobs(false);
+            request.setAllowNoMatch(false);
             client().execute(CloseJobAction.INSTANCE, request).actionGet();
         });
         assertThat(ex.getMessage(), equalTo("No known job with id 'job-with-missing-config'"));
@@ -87,7 +87,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedConfig.getId());
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
         });
         assertThat(ex.getMessage(), equalTo("No datafeed with id [job-with-missing-datafeed-with-config-datafeed] exists"));

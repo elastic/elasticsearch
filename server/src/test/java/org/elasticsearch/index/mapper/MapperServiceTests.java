@@ -89,7 +89,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1), updateOrPreflight());
         });
         assertTrue(e.getMessage(),
-                e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] in index [test2] has been exceeded"));
+                e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
 
     private CompressedXContent createMappingSpecifyingNumberOfFields(int numberOfFields) throws IOException {
@@ -123,7 +123,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight()));
-        assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
+        assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
     }
 
     public void testUnmappedFieldType() {
@@ -236,7 +236,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields).build())
                             .mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
-        assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
+        assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
@@ -270,9 +270,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mappingUpdate, updateOrPreflight());
         });
 
-        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
-            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
-            + testString.length() + "] characters", e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
+            e.getMessage());
     }
 
     public void testObjectNameLengthLimit() throws Throwable {
@@ -295,9 +294,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mapping, updateOrPreflight());
         });
 
-        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
-            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
-            + testString.length() + "] characters", e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
+            e.getMessage());
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
@@ -324,9 +322,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mapping, updateOrPreflight());
         });
 
-        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
-            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
-            + testString.length() + "] characters", e.getMessage());
+        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters",
+            e.getMessage());
     }
 
     public void testMappingRecoverySkipFieldNameLengthLimit() throws Throwable {

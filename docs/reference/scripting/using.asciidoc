@@ -116,7 +116,7 @@ Short form:
 
 [source,js]
 ----------------------
-  "script": "ctx._source.likes++"
+  "script": "ctx._source.my-int++"
 ----------------------
 // NOTCONSOLE
 
@@ -125,7 +125,7 @@ The same script in the normal form:
 [source,js]
 ----------------------
   "script": {
-    "source": "ctx._source.likes++"
+    "source": "ctx._source.my-int++"
   }
 ----------------------
 // NOTCONSOLE
@@ -163,7 +163,7 @@ POST _scripts/calculate-score
   }
 }
 -----------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You may also specify a context as part of the url path to compile a
 stored script against that specific context in the form of
@@ -179,7 +179,7 @@ POST _scripts/calculate-score/score
   }
 }
 -----------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 This same script can be retrieved with:
 
@@ -193,7 +193,7 @@ Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {

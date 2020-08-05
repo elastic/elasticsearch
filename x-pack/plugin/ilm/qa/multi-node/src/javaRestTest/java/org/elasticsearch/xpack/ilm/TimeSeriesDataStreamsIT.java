@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.TimeSeriesRestDriver;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +33,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -42,51 +49,51 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         assertBusy(() -> assertTrue(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2))));
         assertBusy(() -> assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(
             DataStream.getDefaultBackingIndexName(dataStream, 2)).get("index.hidden"))));
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(dataStream, 1)),
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(dataStream, 1)),
             equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertThat(
             "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-            TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(CheckNotDataStreamWriteIndexStep.NAME)), 30, TimeUnit.SECONDS);
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)), 30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
-        TimeSeriesRestDriver.rolloverMaxOneDocCondition(client(), dataStream);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> assertThat("the original index must've been deleted", indexExists(backingIndexName), is(false)));
     }
 
     public void testShrinkAfterRollover() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createFullPolicy(client(), policyName, TimeValue.ZERO);
+        createFullPolicy(client(), policyName, TimeValue.ZERO);
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
@@ -100,75 +107,75 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     public void testSearchableSnapshotAction() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(5, 10);
-        TimeSeriesRestDriver.createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
+        createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
 
         assertBusy(() -> assertThat(
             "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-            TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(CheckNotDataStreamWriteIndexStep.NAME)),
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
-        TimeSeriesRestDriver.rolloverMaxOneDocCondition(client(), dataStream);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
         assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.explainIndex(client(), restoredIndexName).get("step"), Matchers.is(PhaseCompleteStep.NAME)), 30,
+        assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
     }
 
     public void testReadOnlyAction() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "warm", new ReadOnlyAction());
+        createNewSingletonPolicy(client(), policyName, "warm", new ReadOnlyAction());
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(() -> assertThat(
             "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-            TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(CheckNotDataStreamWriteIndexStep.NAME)),
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
-        TimeSeriesRestDriver.rolloverMaxOneDocCondition(client(), dataStream);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(PhaseCompleteStep.NAME)), 30,
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
-        assertThat(TimeSeriesRestDriver.getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
+        assertThat(getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
             equalTo("true"));
     }
 
     public void testFreezeAction() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(() -> assertThat(
             "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-            TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(CheckNotDataStreamWriteIndexStep.NAME)),
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
-        TimeSeriesRestDriver.rolloverMaxOneDocCondition(client(), dataStream);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(PhaseCompleteStep.NAME)), 30,
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
 
-        Map<String, Object> settings = TimeSeriesRestDriver.getOnlyIndexSettings(client(), backingIndexName);
+        Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
         assertThat(settings.get(IndexMetadata.SETTING_BLOCKS_WRITE), equalTo("true"));
         assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
         assertThat(settings.get("index.frozen"), equalTo("true"));
@@ -176,31 +183,31 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     public void testForceMergeAction() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
 
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(() -> assertThat(
             "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-            TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(CheckNotDataStreamWriteIndexStep.NAME)),
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
-        TimeSeriesRestDriver.rolloverMaxOneDocCondition(client(), dataStream);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(() -> assertThat(TimeSeriesRestDriver.explainIndex(client(), backingIndexName).get("step"), Matchers.is(PhaseCompleteStep.NAME)), 30,
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
     public void testGetDataStreamReturnsILMPolicy() throws Exception {
         String policyName = "logs-policy";
-        TimeSeriesRestDriver.createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
-        TimeSeriesRestDriver.indexDocument(client(), dataStream, true);
+        indexDocument(client(), dataStream, true);
 
         Request explainRequest = new Request("GET",   "/_data_stream/logs-foo");
         Response response = client().performRequest(explainRequest);

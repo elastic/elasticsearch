@@ -69,6 +69,7 @@ Geo::
 Machine Learning::
 * Add update data frame analytics jobs API {es-pull}58302[#58302] (issue: {es-issue}45720[#45720])
 * Introduce model_plot_config.annotations_enabled setting for anomaly detection jobs {es-pull}57539[#57539] (issue: {es-issue}55781[#55781])
+* Report significant changes to anomaly detection models in annotations of the results {ml-pull}1247[#1247], {es-pull}56342[#56342], {es-pull}56417[#56417], {es-pull}57144[#57144], {es-pull}57278[#57278], {es-pull}57539[#57539]
 
 Mapping::
 * Merge mappings for composable index templates {es-pull}58521[#58521] (issue: {es-issue}53101[#53101])
@@ -184,6 +185,18 @@ Machine Learning::
 * Delete auto-generated annotations when model snapshot is reverted {es-pull}58240[#58240] (issue: {es-issue}57982[#57982])
 * Delete expired data by job {es-pull}57337[#57337]
 * Introduce Annotation.event field {es-pull}57144[#57144] (issue: {es-issue}55781[#55781])
+* Add support for larger forecasts in memory via max_model_memory setting {ml-pull}1238[#1238], {es-pull}57254[#57254]
+* Don't lose precision when saving model state {ml-pull}1274[#1274]
+* Parallelize the feature importance calculation for classification and regression over trees {ml-pull}1277[#1277]
+* Add an option to do categorization independently for each partition {ml-pull}1293[#1293], {ml-pull}1318[#1318], {ml-pull}1356[#1356], {es-pull}57683[#57683]
+* Memory usage is reported during job initialization {ml-pull}1294[#1294]
+* More realistic memory estimation for classification and regression means that these analyses will require lower memory limits than before {ml-pull}1298[#1298]
+* Checkpoint state to allow efficient failover during coarse parameter search for classification and regression {ml-pull}1300[#1300]
+* Improve data access patterns to speed up classification and regression {ml-pull}1312[#1312]
+* Performance improvements for classification and regression, particularly running multithreaded {ml-pull}1317[#1317]
+* Improve runtime and memory usage training deep trees for classification and regression {ml-pull}1340[#1340]
+* Improvement in handling large inference model definitions {ml-pull}1349[#1349]
+* Add a peak_model_bytes field to model_size_stats {ml-pull}1389[#1389]
 
 Mapping::
 * Add regex query support to wildcard field {es-pull}55548[#55548] (issue: {es-issue}54725[#54725])
@@ -290,6 +303,9 @@ Machine Learning::
 * Fix wire serialization for flush acknowledgements {es-pull}58413[#58413]
 * Make waiting for renormalization optional for internally flushing job {es-pull}58537[#58537] (issue: {es-issue}58395[#58395])
 * Tail the C++ logging pipe before connecting other pipes {es-pull}56632[#56632] (issue: {es-issue}56366[#56366])
+* Fix numerical issues leading to blow up of the model plot bounds {ml-pull}1268[#1268]
+* Fix causes for inverted forecast confidence interval bounds {ml-pull}1369[#1369] (issue: {ml-issue}1357[#1357])
+* Restrict growth of max matching string length for categories {ml-pull}1406[#1406]
 
 Mapping::
 * Wildcard field fix for scripts - changed value type from BytesRef to String  {es-pull}58060[#58060] (issue: {es-issue}58044[#58044])
@@ -314,5 +330,3 @@ Snapshot/Restore::
 
 Search::
 * Update to lucene snapshot e7c625430ed {es-pull}57981[#57981]
-
-

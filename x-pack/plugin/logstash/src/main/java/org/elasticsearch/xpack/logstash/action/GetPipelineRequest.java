@@ -42,4 +42,17 @@ public class GetPipelineRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         return null;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetPipelineRequest that = (GetPipelineRequest) o;
+        return Objects.equals(ids, that.ids);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(ids);
+    }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 public class GetPipelineResponse extends ActionResponse implements ToXContentObject {
 
@@ -46,5 +47,18 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
             builder.rawField(entry.getKey(), entry.getValue().streamInput());
         }
         return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetPipelineResponse that = (GetPipelineResponse) o;
+        return Objects.equals(pipelines, that.pipelines);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(pipelines);
     }
 }

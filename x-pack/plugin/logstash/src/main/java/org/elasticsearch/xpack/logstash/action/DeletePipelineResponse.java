@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class DeletePipelineResponse extends ActionResponse {
 
@@ -32,5 +33,18 @@ public class DeletePipelineResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(deleted);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DeletePipelineResponse that = (DeletePipelineResponse) o;
+        return deleted == that.deleted;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(deleted);
     }
 }

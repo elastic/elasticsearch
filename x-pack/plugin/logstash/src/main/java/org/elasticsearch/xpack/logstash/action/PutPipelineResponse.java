@@ -35,4 +35,17 @@ public class PutPipelineResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PutPipelineResponse that = (PutPipelineResponse) o;
+        return status == that.status;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(status);
+    }
 }

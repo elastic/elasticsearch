@@ -122,6 +122,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             },
             IpFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
                 IpScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
                     builder.script.getValue(),
                     IpScriptFieldScript.CONTEXT

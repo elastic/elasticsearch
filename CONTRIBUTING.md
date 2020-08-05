@@ -62,7 +62,7 @@ cycle.
 * Add appropriate unit tests (details on writing tests can be found in the
   [TESTING](TESTING.asciidoc) file)
 * Add integration tests, if applicable
-* Make sure the code you add follows the [formatting guidlines](#java-language-formatting-guidelines)
+* Make sure the code you add follows the [formatting guidelines](#java-language-formatting-guidelines)
 * Lines that are not part of your change should not be edited (e.g. don't format
   unchanged lines, don't reorder existing imports)
 * Add the appropriate [license headers](#license-headers) to any new files

@@ -79,9 +79,9 @@ ccr_user:
 --------------------------------------------------
 
 If you are managing
-<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> via the
-cluster update settings API, you will also need a user with the `all` cluster
-privilege.
+<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> using
+the cluster update settings API, you will also need a user with the `all`
+cluster privilege.
 
 [[ccr-getting-started-remote-cluster]]
 ==== Connect to a remote cluster
@@ -235,12 +235,11 @@ To enable soft deletes on indices created on versions of
 
 [[ccr-getting-started-follower-index]]
 ==== Create a follower index
-
 When you create a {kibana-ref}/managing-cross-cluster-replication.html#_create_specific_follower_indices[follower index], you
 must reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> and the
 <<ccr-getting-started-leader-index,leader index>> that you created in the remote
-cluster.
+cluster:
 
 . Open a browser to access {kib} on your _local_ cluster.
 . From the {kib} menu, click *Management -> Stack Management*.

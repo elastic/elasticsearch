@@ -29,7 +29,7 @@ new auto-follow pattern configuration.
 [[ccr-auto-follow-retrieve]]
 ==== Retrieve auto-follow patterns
 You can view existing auto-follow patterns and make changes to the backing
-patterns.
+patterns:
 
 . Open a browser to access {kib} on your _remote_ cluster.
 . From the {kib} menu, click *Management -> Stack Management*.
@@ -50,7 +50,7 @@ all configured auto-follow pattern collections.
 
 [[ccr-auto-follow-pause]]
 ==== Pause and resume auto-follow patterns
-Pause and resume replication of auto-follow pattern collections.
+Pause and resume replication of auto-follow pattern collections:
 
 . Open a browser to access {kib} on your _local_ cluster.
 . From the {kib} menu, click *Management -> Stack Management*.
@@ -75,7 +75,7 @@ resume auto-follow patterns.
 
 [[ccr-auto-follow-delete]]
 ==== Delete auto-follow patterns
-Delete an auto-follow pattern collection.
+Delete an auto-follow pattern collection:
 
 . Open a browser to access {kib} on your _local_ cluster.
 . From the {kib} menu, click *Management -> Stack Management*.

@@ -31,6 +31,7 @@ index, and terminating replication.
 [[ccr-inspect-progress]]
 ==== Inspect replication statistics
 You can inspect the progress of replication for a follower index and view
+detailed shard statistics.
 
 . Open a browser to access {kib} on your _local_ cluster.
 . From the {kib} menu, click *Management -> Stack Management*.

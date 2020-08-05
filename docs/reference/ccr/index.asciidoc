@@ -4,47 +4,43 @@
 == {ccr-cap}
 
 Use {ccr} (CCR) to enable replication of indices in remote clusters to a
-local cluster. {ccr-cap} enables several use cases within the Elastic Stack:
-
-* *Disaster recovery* in case a primary cluster fails, with a secondary
-cluster serving as a hot backup
-* *Data locality* to serve reads locally and reduce costly latency
-* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
+local cluster.
 
 {ccr-cap} is done on an index-by-index basis, so replication is
 configured at the index level. For each configured replica, there is a
 replication source index called the _leader index_ and a replication target
 index called the _follower index_.
 
-The following points are important concepts regarding {ccr}:
+{ccr-cap} is designed around an active-passive index model. While the leader
+index can be directly written into, the follower index cannot directly receive
+writes. The follower index drives replication, which simplifies state
+management on the leader index and ensures that {ccr} does not interfere with
+indexing on the leader index.
 
-* Replication is active-passive. While the leader index
-can directly be written into, the follower index can not directly receive
-writes.
-* Replication is driven by the follower index. This model simplifies
-state management on the leader index and means
-that {ccr} does not interfere with indexing on the leader index.
-* Replication is pull-based. The cluster performing this pull is called
-the _local cluster_, and the cluster being replicated is called the
-_remote cluster_.
-
-[discrete]
-[[ccr-version-compatibility]]
-=== Version compatibility
+Replication is pull-based, where the cluster that is pulling data is called
+the _local cluster_, and the cluster being replicated is the _remote cluster_.
 The {es} version of the local cluster must be **the same as or newer** than
 the remote cluster. If newer, the versions must also be compatible as outlined
 in the following matrix.
 
 [%collapsible]
+[[ccr-version-compatibility]]
 .Version compatibility matrix
 ====
 include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
+{ccr-cap} enables several use cases within the Elastic Stack:
+
+* *Disaster recovery* in case a primary cluster fails, with a secondary
+cluster serving as a hot backup
+* *Data locality* to serve reads locally and reduce costly latency
+* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
+
 [discrete]
 [[ccr-replication-mechanics]]
 === Replication mechanics
-Although you configure {ccr} replication at the index level, {es}
+Although you <<ccr-getting-started,configure {ccr}>> at the index level, {es}
 achieves replication at the shard level. When a follower index is created,
 each shard in that index pulls changes form its corresponding shard in the
 leader index, which means that a follower index has the same number of
@@ -66,8 +62,8 @@ termination from an external sources such as a firewall.
 If a read request fails, the cause of the failure is inspected. If the
 cause of the failure is deemed to be recoverable (such as a network
 failure), the follower shard enters into a retry loop. Otherwise, the
-follower shard pauses until you resume it, either through {kib} or by
-using the <<ccr-post-resume-follow,resume follower API>>.
+follower shard pauses
+<<ccr-pause-replication,until you resume it>>.
 
 When a follower shard receives operations from the leader shard, it places
 those operations in a write buffer. The follower shard uses the write buffer
@@ -77,8 +73,8 @@ provides a back-pressure against read requests, allowing the follower shard
 to resume sending read requests when the write buffer is no longer full.
 
 To manage how operations are replicated from the leader index, you can
-configure settings when creating the follower index in {kib}, or use the
-<<ccr-put-follow,create follower API>>.
+configure settings when
+<<ccr-getting-started-follower-index,creating the follower index in {kib}>>.
 
 The follower index automatically retrieves some updates applied to the leader
 index, while other updates are retrieved as needed:
@@ -91,10 +87,8 @@ h| Update type h| Automatic  h| As needed
 | Settings     | {no-icon}  | {yes-icon}
 |===
 
-The follower index automatically retrieves alias updates. Mapping updates and
-settings updates are retrieved as needed by the follower index. For example,
-changing the number of replicas on the leader index is not replicated by the
-follower index, so that setting might not be retrieved.
+For example, changing the number of replicas on the leader index is not
+replicated by the follower index, so that setting might not be retrieved.
 
 NOTE: You cannot manually modify the mapping or alias of a follower index.
 
@@ -119,12 +113,12 @@ Remote recovery is a network intensive process that transfers all of the Lucene
 segment files from the leader cluster to the follower cluster. The follower
 requests that a recovery session be initiated on the primary shard in the
 leader cluster. The follower then requests file chunks concurrently from the
-leader. By default, the process concurrently requests five `1Mb` file
+leader. By default, the process concurrently requests five 1MB file
 chunks. This default behavior is designed to support leader and follower
 clusters with high network latency between them.
 
-You can modify dynamic <<ccr-recovery-settings,remote recovery settings>> to
-rate-limit the transmitted data and manage the resources consumed by remote
+TIP: You can modify dynamic <<ccr-recovery-settings,remote recovery settings>>
+to rate-limit the transmitted data and manage the resources consumed by remote
 recoveries.
 
 Use the <<cat-recovery,recovery API>> on the follower cluster to obtain
@@ -137,8 +131,8 @@ infrastructure, running remote recoveries are labelled as type
 [[ccr-leader-requirements]]
 === Requirements for leader indices
 {ccr-cap} works by replaying the history of individual write
-operations that were performed on the shards of the leader index. This means
-that the history of these operations needs to be retained on the leader shards
+operations that were performed on the shards of the leader index. The history
+of these operations needs to be retained on the leader shards
 so that they can be pulled by the follower shard tasks. The underlying
 mechanism used to retain these operations is _soft deletes_.
 
@@ -161,7 +155,7 @@ enabled.
 
 [discrete]
 [[ccr-learn-more]]
-=== Learn more
+=== Use {ccr}
 This following sections provide more information about how to configure
 and use {ccr}:
 

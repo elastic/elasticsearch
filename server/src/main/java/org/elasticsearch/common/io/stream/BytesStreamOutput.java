@@ -159,8 +159,8 @@ public class BytesStreamOutput extends BytesStream {
         final byte[] keyBytes = new byte[count];
         int offset = 0;
         final BytesRefIterator iterator = bytes().iterator();
-        BytesRef slice;
         try {
+            BytesRef slice;
             while ((slice = iterator.next()) != null) {
                 System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
                 offset += slice.length;

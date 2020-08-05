@@ -74,9 +74,9 @@ Adds an index block to an index.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_block/write
+PUT /my-index-000001/_block/write
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [discrete]

@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -103,7 +103,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
-    public void validate(DocumentFieldMappers lookup) {
+    public void doValidate(MappingLookup lookup) {
         if (enabled == false) {
             // not configured, so skip the validation
             return;

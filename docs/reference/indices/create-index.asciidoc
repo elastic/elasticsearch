@@ -149,7 +149,7 @@ PUT /test
       "filter": {
         "term": { "user.id": "kimchy" }
       },
-      "routing": "kimchy"
+      "routing": "shard-1"
     }
   }
 }

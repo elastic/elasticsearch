@@ -58,4 +58,10 @@ abstract class AbstractGradleFuncTest extends Specification{
         return input.readLines().join("\n")
     }
 
+    File file(String path) {
+        File newFile = new File(testProjectDir.root, path)
+        newFile.getParentFile().mkdirs()
+        newFile
+    }
+
 }

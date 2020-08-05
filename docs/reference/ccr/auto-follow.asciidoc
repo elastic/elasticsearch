@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-auto-follow]]
-=== Manage auto-follow index patterns
+=== Manage auto-follow patterns
 
 In time series use cases where you want to follow new indices that are
 periodically created (such as daily {beats} indices), manually configuring

@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper.ValueFetcher;
@@ -47,7 +47,7 @@ import static java.util.stream.Collectors.toList;
 public class FieldValueRetriever {
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<FieldAndFormat> fieldAndFormats) {
-        DocumentFieldMappers fieldMappers = mapperService.documentMapper().mappers();
+        MappingLookup fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fields = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {

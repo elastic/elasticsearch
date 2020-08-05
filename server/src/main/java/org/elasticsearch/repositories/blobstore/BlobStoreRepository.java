@@ -208,6 +208,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ByteSizeValue.parseBytesSizeValue("128kb", "io_buffer_size"), ByteSizeValue.parseBytesSizeValue("8kb", "buffer_size"),
         ByteSizeValue.parseBytesSizeValue("16mb", "io_buffer_size"), Setting.Property.NodeScope);
 
+    /**
+     * Setting to disable writing the {@code index.latest} blob which enables the contents of this repository to be used with a
+     * url-repository.
+     */
+    public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
+
+    protected final boolean supportURLRepo;
+
     private final boolean compress;
 
     private final boolean cacheRepositoryData;
@@ -299,6 +307,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
+        this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = metadata.settings().getAsBoolean("readonly", false);
@@ -1548,15 +1557,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BytesReference serializedRepoData =
                     BytesReference.bytes(newRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version));
             writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);
-            // write the current generation to the index-latest file
-            final BytesReference genBytes;
-            try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-                bStream.writeLong(newGen);
-                genBytes = bStream.bytes();
-            }
-            logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
-
-            writeAtomic(blobContainer(), INDEX_LATEST_BLOB, genBytes, false);
+            maybeWriteIndexLatest(newGen);
 
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask("set safe repository generation [" + metadata.name() + "][" + newGen + "]",
@@ -1607,6 +1608,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 });
         }, listener::onFailure);
+    }
+
+    /**
+     * Write {@code index.latest} blob to support using this repository as the basis of a url repository.
+     *
+     * @param newGen new repository generation
+     */
+    private void maybeWriteIndexLatest(long newGen) {
+        if (supportURLRepo) {
+            logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
+            try {
+                writeAtomic(blobContainer(), INDEX_LATEST_BLOB, new BytesArray(Numbers.longToBytes(newGen)), false);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("Failed to write index.latest blob. If you do not intend to use this " +
+                        "repository as the basis for a URL repository you may turn off attempting to write the index.latest blob by " +
+                        "setting repository setting [{}] to [false]", SUPPORT_URL_REPO.getKey()), e);
+            }
+        }
     }
 
     /**

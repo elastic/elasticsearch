@@ -14,26 +14,6 @@ Returns search results for an <<eql,Event Query Language (EQL)>> query.
 In {es}, EQL assumes each document in a data stream or index corresponds to an
 event.
 
-////
-[source,console]
-----
-PUT /my-index-000001/_bulk?refresh
-{"index":{ }}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:10.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
-----
-// TESTSETUP
-////
-
 [source,console]
 ----
 GET /my-index-000001/_eql/search
@@ -43,6 +23,7 @@ GET /my-index-000001/_eql/search
   """
 }
 ----
+// TEST[setup:sec_logs]
 
 [[eql-search-api-request]]
 ==== {api-request-title}
@@ -54,12 +35,12 @@ GET /my-index-000001/_eql/search
 [[eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-requirements,EQL requirements>>.
+See <<eql-required-fields>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations
 
-See <<eql-limitations,EQL limitations>>.
+See <<eql-syntax-limitations,EQL limitations>>.
 
 [[eql-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -163,6 +144,9 @@ Field containing the event classification, such as `process`, `file`, or
 Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
++
+The event category field is typically mapped as a <<keyword,`keyword`>> or
+<<constant-keyword,constant keyword>> field.
 
 `fetch_size`::
 (Optional, integer)
@@ -275,6 +259,9 @@ does not contain the `@timestamp` field, this value is required.
 Events in the API response are sorted by this field's value, converted to
 milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
 ascending order.
+
+The timestamp field is typically mapped as a <<date,`date`>> or
+<<date_nanos,`date_nanos`>> field.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]
@@ -506,17 +493,18 @@ The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
 
 * A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* An `process.pid` other than `2013`
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
   "query": """
-    file where (file.name == "cmd.exe" and agent.id != "my_user")
+    file where (file.name == "cmd.exe" and process.pid != 2013)
   """
 }
 ----
+// TEST[setup:sec_logs]
 // TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
@@ -547,9 +535,6 @@ the events in ascending, lexicographic order.
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:07.000Z",
-          "agent": {
-            "id": "8a4f500d"
-          },
           "event": {
             "category": "file",
             "id": "dGCHwoeS",
@@ -564,7 +549,8 @@ the events in ascending, lexicographic order.
           },
           "process": {
             "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe",
+            "pid": 2012
           }
         }
       },
@@ -574,9 +560,6 @@ the events in ascending, lexicographic order.
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:07:08.000Z",
-          "agent": {
-            "id": "8a4f500d"
-          },
           "event": {
             "category": "file",
             "id": "bYA7gPay",
@@ -591,7 +574,8 @@ the events in ascending, lexicographic order.
           },
           "process": {
             "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe",
+            "pid": 2012
           }
         }
       }
@@ -614,7 +598,7 @@ that:
 --
 * An `event.category` of `file`
 * A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* An `process.pid` other than `2013`
 --
 . Followed by an event with:
 +
@@ -623,29 +607,24 @@ that:
 * A `process.executable` that contains the substring `regsvr32`
 --
 
-These events must also share the same `agent.id` value.
+These events must also share the same `process.pid` value.
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
   "query": """
-    sequence by agent.id
-      [ file where file.name == "cmd.exe" and agent.id != "my_user" ]
+    sequence by process.pid
+      [ file where file.name == "cmd.exe" and process.pid != 2013 ]
       [ process where stringContains(process.executable, "regsvr32") ]
   """
 }
 ----
+// TEST[setup:sec_logs]
 
-The API returns the following response. The `hits.sequences.join_keys` property
-contains the shared `agent.id` value for each matching event. Matching events in
-the `hits.sequences.events` property are sorted by
-<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
-the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
-
-If two or more events share the same timestamp, the
-<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
-the events in ascending, lexicographic order.
+The API returns the following response. Matching sequences are included in the
+`hits.sequences` property. The `hits.sequences.join_keys` property contains the
+shared `process.pid` value for each matching event.
 
 [source,console-result]
 ----
@@ -662,7 +641,7 @@ the events in ascending, lexicographic order.
     "sequences": [
       {
         "join_keys": [
-          "8a4f500d"
+          "2012"
         ],
         "events": [
           {
@@ -674,9 +653,6 @@ the events in ascending, lexicographic order.
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
-              "agent": {
-                "id": "8a4f500d"
-              },
               "event": {
                 "category": "file",
                 "id": "bYA7gPay",
@@ -689,9 +665,10 @@ the events in ascending, lexicographic order.
                 "type": "file",
                 "size": 16384
               },
-              "process": {
+              "process": { 
                 "name": "cmd.exe",
-                "executable": "C:\\Windows\\System32\\cmd.exe"
+                "executable": "C:\\Windows\\System32\\cmd.exe",
+                "pid": 2012
               }
             }
           },
@@ -704,17 +681,15 @@ the events in ascending, lexicographic order.
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
-              "agent": {
-                "id": "8a4f500d"
-              },
               "event": {
                 "category": "process",
                 "id": "aR3NWVOs",
                 "sequence": 5
               },
-              "process": {
+              "process": { 
                 "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+                "executable": "C:\\Windows\\System32\\regsvr32.exe",
+                "pid": 2012
               }
             }
           }

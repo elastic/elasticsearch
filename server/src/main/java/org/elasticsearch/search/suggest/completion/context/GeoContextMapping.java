@@ -290,7 +290,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    protected void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {

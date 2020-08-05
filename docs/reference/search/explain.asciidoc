@@ -6,14 +6,14 @@ query.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
   "query" : {
     "match" : { "message" : "elasticsearch" }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 [[sample-api-request]]
@@ -87,14 +87,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
   "query" : {
     "match" : { "message" : "elasticsearch" }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 The API returns the following response:
@@ -102,7 +102,7 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-   "_index":"twitter",
+   "_index":"my-index-000001",
    "_id":"0",
    "matched":true,
    "explanation":{
@@ -180,9 +180,9 @@ explain API:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0?q=message:search
+GET /my-index-000001/_explain/0?q=message:search
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 The API returns the same result as the previous request.

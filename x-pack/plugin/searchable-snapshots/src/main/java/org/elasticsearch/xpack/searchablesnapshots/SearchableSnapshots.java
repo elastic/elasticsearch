@@ -33,6 +33,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -80,6 +81,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -324,6 +326,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             return org.elasticsearch.common.collect.List.of(executorBuilders());
         } else {
             return org.elasticsearch.common.collect.List.of();
+        }
+    }
+
+    @Override
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            return Collections.singletonMap(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, SearchableSnapshotRecoveryState::new);
+        } else {
+            return Collections.emptyMap();
         }
     }
 

@@ -224,12 +224,12 @@ void addBuildDockerImage(Architecture architecture, Variant variant) {
         "elasticsearch-oss:test"
       ]
     } else {
-      String suffix = variant == Variant.UBI ? '-ubi' : ''
+      String suffix = variant == Variant.UBI ? '-ubi8' : ''
       tags = [
-        "elasticsearch:${version}${suffix}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${version}${suffix}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${version}${suffix}",
-        "elasticsearch:test${suffix}",
+        "elasticsearch${suffix}:${version}",
+        "docker.elastic.co/elasticsearch/elasticsearch${suffix}:${version}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full${suffix}:${version}",
+        "elasticsearch${suffix}:test",
       ]
     }
   }
@@ -266,16 +266,13 @@ subprojects { Project subProject ->
     final Variant variant = isOss ? Variant.OSS : isUbi ? Variant.UBI : Variant.DEFAULT
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    // A suffix isn't added for UBI because in that case we're still distributing the Elasticsearch default
-    // distribution, it just has a different base image.
-    final String suffix = isOss ? '-oss' : ''
-    final String tag = 'test' + (isUbi ? '-ubi' : '')
+    final String suffix = isOss ? '-oss' : isUbi ? '-ubi8' : ''
     final String extension = isUbi ? 'ubi.tar' : 'docker.tar'
-    final String artifactName = "elasticsearch${arch}${suffix}_${tag}"
+    final String artifactName = "elasticsearch${arch}${suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, variant, "DockerImage")
     final String buildTaskName = taskName("build", architecture, variant, "DockerImage")
-    final String tarFile = "${parent.projectDir}/build/${artifactName}.${VersionProperties.elasticsearch}.${extension}"
+    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
@@ -284,7 +281,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${suffix}:${tag}"
+        "elasticsearch${suffix}:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }

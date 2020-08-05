@@ -168,7 +168,7 @@ public class BytesStreamOutput extends BytesStream {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesArray(keyBytes);// do a deep copy
+        return new BytesArray(keyBytes);
     }
 
     /**

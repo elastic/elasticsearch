@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle.transform;
 
 import org.apache.commons.io.IOUtils;
-import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.logging.Logging;
 
 import java.io.BufferedInputStream;
@@ -31,11 +30,9 @@ import java.io.IOException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-@CacheableTransform
 public abstract class UnzipTransform implements UnpackTransform {
 
     public void unpack(File zipFile, File targetDir) throws IOException {
-
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
 

@@ -141,7 +141,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     @Unroll
-    def "transforms of type #transformType are cached across builds"() {
+    def "transforms of type #transformType are kept across builds"() {
         given:
         def mockRepoUrl = urlPath(VENDOR_ADOPTOPENJDK, ADOPT_JDK_VERSION, platform)
         def mockedContent = filebytes(VENDOR_ADOPTOPENJDK, platform)
@@ -161,12 +161,6 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
               }
             }
             
-            tasks.register('clean') {
-                doLast {
-                    project.delete(jdks.myJdk)
-                }
-            }
-
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
                 doLast {
@@ -181,14 +175,13 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            gradleRunner('getJdk', '--build-cache', '-g', commonGradleUserHome).build()
-            gradleRunner('clean', '--build-cache', '-g', commonGradleUserHome).build()
-            // run against cached transformations
-            gradleRunner('getJdk', '--build-cache', '-i', '-g', commonGradleUserHome).build()
+            gradleRunner('getJdk', '-g', commonGradleUserHome).build()
+            // run against up-to-date transformations
+            gradleRunner('getJdk', '-i', '-g', commonGradleUserHome).build()
         }
 
         then:
-        assertOutputContains(result.output, "Loaded cache entry for $transformType")
+        assertOutputContains(result.output, "Skipping $transformType")
 
         where:
         platform  | transformType

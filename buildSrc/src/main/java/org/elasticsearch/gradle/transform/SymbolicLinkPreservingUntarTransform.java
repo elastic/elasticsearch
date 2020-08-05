@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.transform;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
@@ -37,7 +36,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
-@CacheableTransform
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
     public void unpack(File tarFile, File targetDir) throws IOException {

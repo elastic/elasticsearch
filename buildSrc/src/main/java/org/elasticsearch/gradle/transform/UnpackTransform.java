@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.transform;
 
-import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.artifacts.transform.InputArtifact;
 import org.gradle.api.artifacts.transform.TransformAction;
 import org.gradle.api.artifacts.transform.TransformOutputs;
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-@CacheableTransform
 public interface UnpackTransform extends TransformAction<TransformParameters.None> {
 
     @PathSensitive(PathSensitivity.NAME_ONLY)
@@ -45,8 +43,7 @@ public interface UnpackTransform extends TransformAction<TransformParameters.Non
     @Override
     default void transform(TransformOutputs outputs) {
         File archiveFile = getArchiveFile().get().getAsFile();
-        String unpackedDirName = removeExtension(archiveFile.getName());
-        File unzipDir = outputs.dir(unpackedDirName);
+        File unzipDir = outputs.dir(archiveFile.getName());
         try {
             unpack(archiveFile, unzipDir);
         } catch (IOException e) {
@@ -54,25 +51,7 @@ public interface UnpackTransform extends TransformAction<TransformParameters.Non
         }
     }
 
-    void unpack(File tarFile, File targetDir) throws IOException;
-
-    static String removeExtension(String inputFileName) {
-        String filename = inputFileName;
-        if (filename == null) {
-            return null;
-        } else {
-            int index;
-            if (filename.endsWith(".gz")) {
-                index = filename.lastIndexOf(".");
-                filename = filename.substring(0, index);
-            }
-            if (filename.endsWith(".tar")) {
-                index = filename.lastIndexOf(".");
-                filename = filename.substring(0, index);
-            }
-            return filename;
-        }
-    }
+    void unpack(File archiveFile, File targetDir) throws IOException;
 
     /*
      * We want to remove up to the and including the jdk-.* relative paths. That is a JDK archive is structured as:

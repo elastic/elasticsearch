@@ -203,8 +203,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return ((GeoTileCompositeSuppier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(GeoTileCompositeSuppier.class, config))
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(GeoTileCompositeSuppier.class, config)
             .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 

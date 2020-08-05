@@ -318,8 +318,8 @@ public class DateHistogramValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        return ((DateHistogramCompositeSupplier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(DateHistogramCompositeSupplier.class, config))
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(DateHistogramCompositeSupplier.class, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

@@ -207,8 +207,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return ((TermsCompositeSupplier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(TermsCompositeSupplier.class, config))
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(TermsCompositeSupplier.class, config)
             .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

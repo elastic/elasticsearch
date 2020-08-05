@@ -173,8 +173,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return ((HistogramCompositeSupplier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(HistogramCompositeSupplier.class, config))
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(HistogramCompositeSupplier.class, config)
             .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

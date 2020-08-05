@@ -99,6 +99,8 @@ public class ValuesSourceRegistry {
             ValuesSourceType valuesSourceType,
             CompositeSupplier compositeSupplier
         ) {
+            // TODO: Assert is almost definitely wrong here, but I don't know what the right thing to throw is.
+            assert compositeSupplier.getClass() == supplierClass;
             if (compositeRegistry.containsKey(supplierClass) == false) {
                 compositeRegistry.put(supplierClass, new ArrayList<>());
             }
@@ -193,7 +195,7 @@ public class ValuesSourceRegistry {
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
     }
 
-    public CompositeSupplier getComposite(Class<? extends CompositeSupplier> supplierClass, ValuesSourceConfig config) {
+    public <T extends CompositeSupplier> T getComposite(Class<T> supplierClass, ValuesSourceConfig config) {
         if (supplierClass != null && compositeRegistry.containsKey(supplierClass)) {
             CompositeSupplier supplier = compositeRegistry.get(supplierClass).get(config.valueSourceType());
             if (supplier == null) {
@@ -202,7 +204,7 @@ public class ValuesSourceRegistry {
                     config.getDescription() + " is not supported for composite source [" + supplierClass.getCanonicalName() + "]"
                 );
             }
-            return supplier;
+            return (T) supplier; // Safe because we checked the type matched the key at load time
         }
         // TODO: Fix this error message! The class name of the supplier isn't going to mean anything to a user
         throw new AggregationExecutionException("Unregistered composite source [" + supplierClass.getCanonicalName() + "]");

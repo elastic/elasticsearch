@@ -21,77 +21,77 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
+public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
 
     private static final String ROLES =
-                    "all_cluster_role:\n" +
-                    "  cluster: [ all ]\n" +
-                    "all_indices_role:\n" +
-                    "  indices:\n" +
-                    "    - names: '*'\n" +
-                    "      privileges: [ all ]\n" +
-                    "all_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ all ]\n" +
-                    "read_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ read ]\n" +
-                    "read_b_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [ read ]\n" +
-                    "write_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ write ]\n" +
-                    "read_ab_role:\n" +
-                    "  indices:\n" +
-                    "    - names: [ 'a', 'b' ]\n" +
-                    "      privileges: [ read ]\n" +
-                    "all_regex_ab_role:\n" +
-                    "  indices:\n" +
-                    "    - names: '/a|b/'\n" +
-                    "      privileges: [ all ]\n" +
-                    "manage_starts_with_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a*'\n" +
-                    "      privileges: [ manage ]\n" +
-                    "read_write_all_role:\n" +
-                    "  indices:\n" +
-                    "    - names: '*'\n" +
-                    "      privileges: [ read, write ]\n" +
-                    "create_c_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'c'\n" +
-                    "      privileges: [ create_index ]\n" +
-                    "monitor_b_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [ monitor ]\n" +
-                    "maintenance_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ maintenance ]\n" +
-                    "read_write_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ read, write ]\n" +
-                    "delete_b_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [ delete ]\n" +
-                    "index_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ index ]\n" +
-                    "\n";
+        "all_cluster_role:\n" +
+            "  cluster: [ all ]\n" +
+            "all_indices_role:\n" +
+            "  indices:\n" +
+            "    - names: '*'\n" +
+            "      privileges: [ all ]\n" +
+            "all_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ all ]\n" +
+            "read_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ read ]\n" +
+            "read_b_role:\n" +
+            "  indices:\n" +
+            "    - names: 'b'\n" +
+            "      privileges: [ read ]\n" +
+            "write_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ write ]\n" +
+            "read_ab_role:\n" +
+            "  indices:\n" +
+            "    - names: [ 'a', 'b' ]\n" +
+            "      privileges: [ read ]\n" +
+            "all_regex_ab_role:\n" +
+            "  indices:\n" +
+            "    - names: '/a|b/'\n" +
+            "      privileges: [ all ]\n" +
+            "manage_starts_with_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a*'\n" +
+            "      privileges: [ manage ]\n" +
+            "read_write_all_role:\n" +
+            "  indices:\n" +
+            "    - names: '*'\n" +
+            "      privileges: [ read, write ]\n" +
+            "create_c_role:\n" +
+            "  indices:\n" +
+            "    - names: 'c'\n" +
+            "      privileges: [ create_index ]\n" +
+            "monitor_b_role:\n" +
+            "  indices:\n" +
+            "    - names: 'b'\n" +
+            "      privileges: [ monitor ]\n" +
+            "maintenance_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ maintenance ]\n" +
+            "read_write_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ read, write ]\n" +
+            "delete_b_role:\n" +
+            "  indices:\n" +
+            "    - names: 'b'\n" +
+            "      privileges: [ delete ]\n" +
+            "index_a_role:\n" +
+            "  indices:\n" +
+            "    - names: 'a'\n" +
+            "      privileges: [ index ]\n" +
+            "\n";
 
     private static final String USERS_ROLES =
-            "all_indices_role:admin,u8\n" +
+        "all_indices_role:admin,u8\n" +
             "all_cluster_role:admin\n" +
             "all_a_role:u1,u2,u6\n" +
             "read_a_role:u1,u5,u14\n" +
@@ -138,7 +138,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "u12:" + usersPasswdHashed + "\n" +
             "u13:" + usersPasswdHashed + "\n" +
             "u14:" + usersPasswdHashed + "\n" +
-            "u15:" + usersPasswdHashed + "\n" ;
+            "u15:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -172,7 +172,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u1", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u1",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU2() throws Exception {
@@ -189,7 +189,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u2", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u2",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU3() throws Exception {
@@ -203,7 +203,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u3", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u3",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU4() throws Exception {
@@ -227,7 +227,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("u4", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u4",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU5() throws Exception {
@@ -246,7 +246,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("u5", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u5",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU6() throws Exception {
@@ -262,7 +262,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u6", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u6",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU7() throws Exception {
@@ -276,7 +276,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("u7", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u7",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU8() throws Exception {
@@ -290,7 +290,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u8", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u8",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU9() throws Exception {
@@ -307,7 +307,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u9", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u9",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU11() throws Exception {
@@ -332,7 +332,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertBodyHasAccessIsDenied("u11", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u11",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU12() throws Exception {
@@ -349,7 +349,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u12", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u12",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU13() throws Exception {
@@ -371,7 +371,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("u13", "PUT", "/a/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertBodyHasAccessIsDenied("u13", "PUT", "/b/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u13",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU14() throws Exception {
@@ -393,7 +393,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("u14", "PUT",
                 "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u14",
-                "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
     public void testUserU15() throws Exception {
@@ -406,18 +406,18 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             Request request = new Request("GET", "/");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecureString("passwd".toCharArray())));
+                UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecureString("passwd".toCharArray())));
             request.setOptions(options);
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {
         switch (action) {
-            case "all" :
+            case "all":
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "crud", index);
                     assertUserIsAllowed(user, "manage", index);
@@ -427,7 +427,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "create_index" :
+            case "create_index":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "PUT", "/" + index);
                 } else {
@@ -435,7 +435,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "maintenance" :
+            case "maintenance":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
@@ -449,7 +449,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "manage" :
+            case "manage":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index);
                     assertUserIsAllowed(user, "create_index", index);
@@ -484,7 +484,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "monitor" :
+            case "monitor":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_stats");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_segments");
@@ -496,7 +496,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "data_access" :
+            case "data_access":
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "crud", index);
                 } else {
@@ -504,7 +504,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "crud" :
+            case "crud":
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "read", index);
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
@@ -515,7 +515,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "read" :
+            case "read":
                 if (userIsAllowed) {
                     // admin refresh before executing
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_refresh");
@@ -534,7 +534,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "search" :
+            case "search":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_search");
                 } else {
@@ -542,7 +542,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "get" :
+            case "get":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1");
                 } else {
@@ -550,23 +550,23 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "index" :
+            case "index":
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
                     Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
-                            UUIDs.randomBase64UUID() + "\" : \"foo\" }");
+                        UUIDs.randomBase64UUID() + "\" : \"foo\" }");
                     String warningHeader = response.getHeader("Warning");
                     assertThat(warningHeader, containsString("the index privilege [index] allowed the update mapping action " +
-                            "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
-                            " the next major release - users who require access to update mappings must be granted explicit privileges"));
+                        "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
+                        " the next major release - users who require access to update mappings must be granted explicit privileges"));
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                     response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
-                            "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
+                        "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
                     warningHeader = response.getHeader("Warning");
                     assertThat(warningHeader, containsString("the index privilege [index] allowed the update mapping action " +
-                            "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
-                            " the next major release - users who require access to update mappings must be granted explicit privileges"));
+                        "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
+                        " the next major release - users who require access to update mappings must be granted explicit privileges"));
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
@@ -574,7 +574,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "delete" :
+            case "delete":
                 String jsonDoc = "{ \"name\" : \"docToDelete\"}";
                 assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc);
                 assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc);
@@ -585,23 +585,23 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 }
                 break;
 
-            case "write" :
+            case "write":
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "delete", index);
 
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
                     Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
-                            UUIDs.randomBase64UUID() + "\" : \"foo\" }");
+                        UUIDs.randomBase64UUID() + "\" : \"foo\" }");
                     String warningHeader = response.getHeader("Warning");
                     assertThat(warningHeader, containsString("the index privilege [write] allowed the update mapping action [" +
-                            "indices:admin/mapping/auto_put] on index [" + index + "]"));
+                        "indices:admin/mapping/auto_put] on index [" + index + "]"));
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                     response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
-                            "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
+                        "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
                     warningHeader = response.getHeader("Warning");
                     assertThat(warningHeader, containsString("the index privilege [write] allowed the update mapping action [" +
-                            "indices:admin/mapping/auto_put] on index [" + index + "]"));
+                        "indices:admin/mapping/auto_put] on index [" + index + "]"));
                 } else {
                     assertUserIsDenied(user, "index", index);
                     assertUserIsDenied(user, "delete", index);

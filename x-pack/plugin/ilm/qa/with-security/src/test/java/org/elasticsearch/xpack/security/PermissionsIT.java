@@ -143,7 +143,10 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
                 Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
                 assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized for user [test_ilm]"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
+                    " for user [test_ilm]" +
+                    " on indices [not-ilm]," +
+                    " this action is granted by the privileges [monitor,manage,all]"));
             }
         });
     }

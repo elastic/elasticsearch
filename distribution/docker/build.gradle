@@ -8,8 +8,6 @@ import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 import java.nio.file.Path
-import java.security.MessageDigest
-import java.util.stream.Collectors
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -35,7 +33,7 @@ dependencies {
 
 ext.expansions = { Architecture architecture, Variant variant, boolean local ->
   String classifier
-  if (local || variant == Variant.UBI) {
+  if (local) {
     if (architecture == Architecture.AARCH64) {
       classifier = "linux-aarch64"
     } else if (architecture == Architecture.X64) {
@@ -52,32 +50,13 @@ ext.expansions = { Architecture architecture, Variant variant, boolean local ->
 
   final String elasticsearch = "elasticsearch-${variant == Variant.OSS ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
-  String buildArgs = '#'
-  if (variant == Variant.UBI) {
-    buildArgs = """
-ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
-ARG BASE_IMAGE=redhat/ubi/ubi8
-ARG BASE_TAG=8.2
-ARG TARBALL=${elasticsearch}
-"""
-  }
-
-  String baseImage = 'centos:7'
-  if (variant == Variant.UBI) {
-    baseImage = '${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG} AS builder'
-  } else if (variant == Variant.UBI_MINIMAL) {
-    baseImage = 'registry.access.redhat.com/ubi8/ubi-minimal:8.2'
-  }
-
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
    * follow in the Dockerfile don't have to know about the runtime
    * architecture. */
   String sourceElasticsearch
   if (local) {
-    sourceElasticsearch = "COPY ${elasticsearch} /opt/elasticsearch.tar.gz"
-  } else if (variant == Variant.UBI) {
-    sourceElasticsearch = 'COPY ${TARBALL} /opt/elasticsearch.tar.gz'
+    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
   } else {
     sourceElasticsearch = """
 RUN curl --retry 8 -S -L \\
@@ -87,55 +66,24 @@ RUN curl --retry 8 -S -L \\
   }
 
   return [
-    'base_image'          : baseImage,
-    'bin_dir'             : variant == Variant.UBI ? 'scripts' : 'bin',
-    'build_args'          : buildArgs,
+    'base_image'          : variant == Variant.UBI ? 'registry.access.redhat.com/ubi8/ubi-minimal:8.2' : 'centos:7',
     'build_date'          : BuildParams.buildDate,
-    'config_dir'          : variant == Variant.UBI ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
     'license'             : variant == Variant.OSS ? 'Apache-2.0' : 'Elastic-License',
-    'package_manager'     : variant == Variant.UBI_MINIMAL ? 'microdnf' : 'yum',
+    'package_manager'     : variant == Variant.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'variant'             : variant.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : variant == Variant.UBI ? getChecksum(configurations.dockerSource.singleFile) : ''
+    'version'             : VersionProperties.elasticsearch
   ]
 }
 
-private static String getChecksum(File file) {
-  MessageDigest digest = MessageDigest.getInstance("SHA-512")
-
-  FileInputStream fis = new FileInputStream(file)
-  byte[] byteArray = new byte[1024]
-  int bytesCount = 0
-
-  //Read file data and update in message digest
-  while ((bytesCount = fis.read(byteArray)) != -1) {
-    digest.update(byteArray, 0, bytesCount)
-  }
-
-  fis.close()
-
-  //Get the hash's bytes
-  byte[] bytes = digest.digest()
-
-  //This bytes[] has bytes in decimal format;
-  //Convert it to hexadecimal format
-  StringBuilder sb = new StringBuilder()
-  for (int i = 0; i < bytes.length; i++) {
-    sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1))
-  }
-
-  return sb.toString()
-}
-
 private static String buildPath(Architecture architecture, Variant variant) {
-  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().replace('_', '-') + '-'
+  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase()
   return "build/${architecture == Architecture.AARCH64 ? 'aarch64-' : ''}${variantString}docker"
 }
 
 private static String taskName(String prefix, Architecture architecture, Variant variant, String suffix) {
-  String variantString = variant == Variant.DEFAULT ? '' : variant.name().tokenize("_")*.toLowerCase()*.capitalize().join()
+  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().capitalize()
   return "${prefix}${architecture == Architecture.AARCH64 ? 'Aarch64' : ''}${variantString}${suffix}"
 }
 
@@ -145,31 +93,19 @@ project.ext {
       final Map<String,String> varExpansions = expansions(architecture, variant, local)
       final Path projectDir = project.projectDir.toPath()
 
-      if (variant == Variant.UBI) {
-        into('scripts') {
-          from projectDir.resolve("src/docker/bin")
-          from(projectDir.resolve("src/docker/config")) {
-            exclude '**/oss'
-          }
-        }
-        from(projectDir.resolve("src/docker/ubi")) {
-          expand(varExpansions)
-        }
-      } else {
-        into('bin') {
-          from projectDir.resolve("src/docker/bin")
-        }
+      into('bin') {
+        from projectDir.resolve("src/docker/bin")
+      }
 
-        into('config') {
-          /*
+      into('config') {
+        /*
          * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
          * by creating config files in oss or default build-context sub-modules.
          */
-          duplicatesStrategy = DuplicatesStrategy.INCLUDE
-          from projectDir.resolve("src/docker/config")
-          if (variant == Variant.OSS) {
-            from projectDir.resolve("src/docker/config/oss")
-          }
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        from projectDir.resolve("src/docker/config")
+        if (variant == Variant.OSS) {
+          from projectDir.resolve("src/docker/config/oss")
         }
       }
 
@@ -278,18 +214,19 @@ void addBuildDockerImage(Architecture architecture, Variant variant) {
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
+    String version = VersionProperties.elasticsearch
     if (variant == Variant.OSS) {
       tags = [
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
         "elasticsearch-oss:test"
       ]
     } else {
-      String suffix = variant == Variant.UBI ? '-ubi8' : variant == Variant.UBI_MINIMAL ? '-ubi8-minimal' : ''
+      String suffix = variant == Variant.UBI ? '-ubi8' : ''
       tags = [
-        "elasticsearch${suffix}:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch${suffix}:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full${suffix}:${VersionProperties.elasticsearch}",
-        "elasticsearch${suffix}:test",
+        "elasticsearch:${version}${suffix}",
+        "docker.elastic.co/elasticsearch/elasticsearch:${version}${suffix}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${version}${suffix}",
+        "elasticsearch:test${suffix}",
       ]
     }
   }
@@ -299,9 +236,6 @@ void addBuildDockerImage(Architecture architecture, Variant variant) {
 
 for (final Architecture architecture : Architecture.values()) {
   for (Variant variant : Variant.values()) {
-    if (architecture != Architecture.X64 && variant == Variant.UBI) {
-      continue
-    }
     addCopyDockerContextTask(architecture, variant)
     addBuildDockerImage(architecture, variant)
   }
@@ -323,13 +257,15 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    final boolean oss = subProject.name.contains('oss-')
-    final boolean ubi = subProject.name.contains('ubi-')
-    final Variant variant = oss ? Variant.OSS : ubi ? Variant.UBI_MINIMAL : Variant.DEFAULT
+    final boolean isOss = subProject.name.contains('oss-')
+    final boolean isUbi = subProject.name.contains('ubi-')
+    final Variant variant = isOss ? Variant.OSS : isUbi ? Variant.UBI : Variant.DEFAULT
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String suffix = oss ? '-oss' : ''
-    final String extension = ubi ? 'ubi.tar' : 'docker.tar'
+    // A suffix isn't added for UBI because in that case we're still distributing the Elasticsearch default
+    // distribution, it just has a different base image.
+    final String suffix = isOss ? '-oss' : ''
+    final String extension = isUbi ? 'ubi.tar' : 'docker.tar'
 
     def exportTaskName = taskName("export", architecture, variant, "DockerImage")
     def buildTaskName = taskName("build", architecture, variant, "DockerImage")

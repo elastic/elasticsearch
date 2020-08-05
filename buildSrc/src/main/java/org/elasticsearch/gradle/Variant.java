@@ -19,9 +19,11 @@
 
 package org.elasticsearch.gradle;
 
+/**
+ * Models the different varieties of Docker image that the build can create.
+ */
 public enum Variant {
     DEFAULT,
     OSS,
-    UBI,
-    UBI_MINIMAL
+    UBI
 }

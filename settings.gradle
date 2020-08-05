@@ -45,7 +45,6 @@ List projects = [
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',
-  'distribution:docker:ubi-minimal-docker-build-context',
   'distribution:packages:aarch64-oss-deb',
   'distribution:packages:oss-deb',
   'distribution:packages:aarch64-deb',

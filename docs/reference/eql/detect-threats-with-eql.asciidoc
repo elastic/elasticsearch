@@ -45,13 +45,13 @@ successfully.
 GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
 ----
 // TEST[setup:atomic_red_regsvr32]
-
++
 The API returns the following response. The `docs.count` value should show `150`
 documents were indexed.
-
++
 [source,txt]
 ----
-health status index     docs.count
+health status index            docs.count
 yellow open   my-index-000001         150
 ----
 // TESTRESPONSE[non_json]

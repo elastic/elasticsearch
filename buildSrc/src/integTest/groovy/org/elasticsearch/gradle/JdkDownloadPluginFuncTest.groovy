@@ -1,0 +1,248 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.gradle
+
+import com.github.tomakehurst.wiremock.WireMockServer
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.WiremockFixture
+import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
+import org.elasticsearch.gradle.transform.UnzipTransform
+import spock.lang.Unroll
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
+class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
+
+    public static final String OPENJDK_VERSION_OLD = "1+99"
+    public static final String ADOPT_JDK_VERSION = "12.0.2+10"
+    public static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
+
+    @Unroll
+    def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
+        given:
+        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform);
+        def mockedContent = filebytes(jdkVendor, platform)
+        buildFile.text = """
+            plugins {
+             id 'elasticsearch.jdk-download'
+            }
+            
+            jdks {
+              myJdk {
+                vendor = '$jdkVendor'
+                version = '$jdkVersion'
+                platform = "$platform"
+                architecture = "x64"
+              }
+            }
+
+            tasks.register("getJdk") {
+                dependsOn jdks.myJdk
+                doLast {
+                    println "JDK HOME: " + jdks.myJdk
+                }
+            }
+        """
+
+        when:
+        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
+            buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
+            gradleRunner("getJdk").build()
+        }
+
+        then:
+        assertExtraction(result.output, expectedJavaBin);
+
+        where:
+        platform  | jdkVendor      | jdkVersion          | expectedJavaBin          | suffix
+        "linux"   | "adoptopenjdk" | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "linux"   | "openjdk"      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "linux"   | "openjdk"      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "windows" | "adoptopenjdk" | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "windows" | "openjdk"      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "windows" | "openjdk"      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "darwin"  | "adoptopenjdk" | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
+        "darwin"  | "openjdk"      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "darwin"  | "openjdk"      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+    }
+
+    def "transforms are reused across projects"() {
+        given:
+        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
+        def mockedContent = filebytes(jdkVendor, platform)
+        10.times {
+            settingsFile << """
+                include ':sub-$it'
+            """
+        }
+        buildFile.text = """
+            plugins {
+             id 'elasticsearch.jdk-download' apply false
+            }
+            
+            subprojects {
+                apply plugin: 'elasticsearch.jdk-download'
+    
+                jdks {
+                  myJdk {
+                    vendor = '$jdkVendor'
+                    version = '$jdkVersion'
+                    platform = "$platform"
+                    architecture = "x64"
+                  }
+                }
+                tasks.register("getJdk") {
+                    dependsOn jdks.myJdk
+                    doLast {
+                        println "\$path"
+                        println "JDK HOME: " + jdks.myJdk
+                    }
+                }
+            }
+        """
+
+        when:
+        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
+            buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
+            gradleRunner('getJdk', '-i', '-g', testProjectDir.newFolder().toString()).build()
+        }
+
+        then:
+        result.tasks.size() == 10
+        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
+
+        where:
+        platform | jdkVendor      | jdkVersion        | expectedJavaBin
+        "linux"  | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"
+    }
+
+    @Unroll
+    def "transforms of type #transformType are cached across builds"() {
+        given:
+        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
+        def mockedContent = filebytes(jdkVendor, platform)
+        buildFile.text = """
+            plugins {
+             id 'elasticsearch.jdk-download'
+            }
+            
+            apply plugin: 'elasticsearch.jdk-download'
+
+            jdks {
+              myJdk {
+                vendor = '$jdkVendor'
+                version = '$jdkVersion'
+                platform = "$platform"
+                architecture = "x64"
+              }
+            }
+            
+            tasks.register('clean') {
+                doLast {
+                    project.delete(jdks.myJdk)
+                }
+            }
+
+            tasks.register("getJdk") {
+                dependsOn jdks.myJdk
+                doLast {
+                    println "JDK HOME: " + jdks.myJdk
+                }
+            }
+        """
+
+        when:
+        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
+            buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
+
+            def commonGradleUserHome = testProjectDir.newFolder().toString()
+            // initial run
+            gradleRunner('getJdk', '--build-cache', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', '--build-cache', '-g', commonGradleUserHome).build()
+            // run against cached transformations
+            gradleRunner('getJdk', '--build-cache', '-i', '-g', commonGradleUserHome).build()
+        }
+
+        then:
+        assertOutputContains(result.output, "Loaded cache entry for $transformType")
+
+        where:
+        platform  | jdkVendor      | jdkVersion        | expectedJavaBin | transformType
+        "linux"   | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"      | SymbolicLinkPreservingUntarTransform.class.simpleName
+        "windows" | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"      | UnzipTransform.class.simpleName
+    }
+
+    private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
+
+    static boolean assertExtraction(String output, String javaBin) {
+        Matcher matcher = JDK_HOME_LOGLINE.matcher(output);
+        assert matcher.find() == true;
+        String jdkHome = matcher.group(1);
+        Path javaPath = Paths.get(jdkHome, javaBin);
+        assert Files.exists(javaPath) == true;
+        true
+    }
+
+    private static String urlPath(final String vendor, final String version, final String platform) {
+        if (vendor.equals('adoptopenjdk')) {
+            final String module = platform.equals("darwin") ? "mac" : platform;
+            return "/jdk-12.0.2+10/" + module + "/x64/jdk/hotspot/normal/adoptopenjdk";
+        } else if (vendor.equals('openjdk')) {
+            final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
+            final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
+            final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
+            final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
+            return "/java/GA/" + versionPath + "/GPL/" + filename;
+        }
+    }
+
+    private static byte[] filebytes(final String vendor, final String platform) throws IOException {
+        final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
+        if (vendor.equals('adoptopenjdk')) {
+            return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptopenjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
+        } else if (vendor.equals('openjdk')) {
+            JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
+        }
+    }
+
+    private static String extension(String platform) {
+        platform.equals("windows") ? "zip" : "tar.gz";
+    }
+
+    private static String repositoryMockSetup(WireMockServer server, String jdkVendor, String jdkVersion) {
+        """
+                allprojects{ p ->
+                  p.afterEvaluate {
+                
+                  // wire the jdk repo to wiremock
+                  p.repositories.all { repo ->
+                    if(repo.name == "jdk_repo_${jdkVendor}_${jdkVersion}") {
+                      repo.setUrl('${server.baseUrl()}')
+                    }
+                  }
+                }
+            }
+            """
+    }
+}

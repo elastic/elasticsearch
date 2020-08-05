@@ -61,7 +61,8 @@ public abstract class GradleUtils {
     }
 
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
+        return collection.maybeCreate(name);
+        // return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
     }
 
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {

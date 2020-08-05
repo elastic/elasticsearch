@@ -129,7 +129,10 @@ include::request/inner-hits.asciidoc[]
 
 include::request/min-score.asciidoc[]
 
-include::request/named-queries-and-filters.asciidoc[]
+[[request-body-search-queries-and-filters]]
+==== Named queries
+
+See <<named-queries>>.
 
 include::request/post-filter.asciidoc[]
 

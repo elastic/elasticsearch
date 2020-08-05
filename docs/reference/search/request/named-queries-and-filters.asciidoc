@@ -1,4 +1,0 @@
-[[request-body-search-queries-and-filters]]
-==== Named queries
-
-See <<named-queries>>.

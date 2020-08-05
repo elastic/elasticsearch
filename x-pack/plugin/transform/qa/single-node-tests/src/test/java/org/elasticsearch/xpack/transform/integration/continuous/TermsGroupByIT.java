@@ -17,11 +17,13 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -58,6 +60,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
+        aggregations.addAggregator(AggregationBuilders.max("metric.avg").field("metric"));
 
         pivotConfigBuilder.setAggregations(aggregations);
         transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
@@ -80,6 +83,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
             // missing_bucket produces `null`, we can't use `null` in aggs, so we have to use a magic value, see gh#60043
             terms.missing(MISSING_BUCKET_KEY);
         }
+        terms.subAggregation(AggregationBuilders.max("metric.avg").field("metric"));
         sourceBuilderSource.aggregation(terms);
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
@@ -127,6 +131,13 @@ public class TermsGroupByIT extends ContinuousTestCase {
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
                 XContentMapValues.extractValue("count", source),
                 equalTo(Double.valueOf(bucket.getDocCount()))
+            );
+
+            SingleValue avgAgg = (SingleValue) bucket.getAggregations().get("metric.avg");
+            assertThat(
+                "Metric aggregation did not match, source: " + source + ", expected: " + avgAgg.value() + ", iteration: " + iteration,
+                XContentMapValues.extractValue("metric.avg", source),
+                equalTo(avgAgg.value())
             );
 
             // test optimization, transform should only rewrite documents that require it

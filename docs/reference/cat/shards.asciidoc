@@ -305,8 +305,8 @@ my-index-000001 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 If your cluster has many shards, you can use a wildcard pattern in the `{index}`
 path parameter to limit the API request.
 
-The following request returns information for any indices beginning with
-`twitt`.
+The following request returns information for any data streams or indices
+beginning with `my-index-`.
 
 [source,console]
 ---------------------------------------------------------------------------

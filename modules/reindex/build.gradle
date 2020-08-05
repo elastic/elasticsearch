@@ -166,6 +166,3 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
-
-//todo: remove once test/**/client/documentation can be deleted after https://github.com/elastic/docs/pull/1920
-testingConventions.enabled = false

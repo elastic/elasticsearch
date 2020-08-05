@@ -21,13 +21,11 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
-import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -85,36 +83,36 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             if (jdk.getMajor().equals("8")) {
                 // legacy pattern for JDK 8
                 artifactPattern = "jdk"
-                        + jdk.getBaseVersion()
-                        + "-"
-                        + jdk.getBuild()
-                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + jdk.getBaseVersion()
+                    + "-"
+                    + jdk.getBuild()
+                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
             } else {
                 // current pattern since JDK 9
                 artifactPattern = "jdk-"
-                        + jdk.getBaseVersion()
-                        + "+"
-                        + jdk.getBuild()
-                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + jdk.getBaseVersion()
+                    + "+"
+                    + jdk.getBuild()
+                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
             }
         } else if (jdk.getVendor().equals("openjdk")) {
             repoUrl = "https://download.oracle.com";
             if (jdk.getHash() != null) {
                 // current pattern since 12.0.1
                 artifactPattern = "java/GA/jdk"
-                        + jdk.getBaseVersion()
-                        + "/"
-                        + jdk.getHash()
-                        + "/"
-                        + jdk.getBuild()
-                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + jdk.getBaseVersion()
+                    + "/"
+                    + jdk.getHash()
+                    + "/"
+                    + jdk.getBuild()
+                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             } else {
                 // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
                 artifactPattern = "java/GA/jdk"
-                        + jdk.getMajor()
-                        + "/"
-                        + jdk.getBuild()
-                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + jdk.getMajor()
+                    + "/"
+                    + jdk.getBuild()
+                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
@@ -142,8 +140,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("osx")
-                ? (jdk.getVendor().equals("adoptopenjdk") ? "mac" : "osx")
-                : jdk.getPlatform();
+            ? (jdk.getVendor().equals("adoptopenjdk") ? "mac" : "osx")
+            : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
         return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;

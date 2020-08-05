@@ -489,7 +489,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
     }
 
-    public void testParseSourceValue() throws IOException {
+    public void testFetchValues() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

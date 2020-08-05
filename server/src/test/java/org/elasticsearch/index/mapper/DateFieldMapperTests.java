@@ -453,7 +453,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    public void testFetchValue() throws IOException {
+    public void testFetchValues() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, null);
         String date = "2020-05-15T21:33:02.000Z";
         assertEquals(List.of(date), fetchFromSource(mapper, null, date));
@@ -474,7 +474,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(List.of(nullValueDate), fetchFromSource(nullValueMapper, null, null));
     }
 
-    public void testFetchWithFormat() throws IOException {
+    public void testFetchValuesWithFormat() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
         String date = "1990-12-29T00:00:00.000Z";
         assertEquals(List.of("1990/12/29"), fetchFromSource(mapper, "yyyy/MM/dd", date));
@@ -482,7 +482,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(List.of("1970/12/29"), fetchFromSource(mapper, "yyyy/MM/dd", null));
     }
 
-    public void testFetchNanos() throws IOException {
+    public void testFetchValuesNanos() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromSource(mapper, null, date));

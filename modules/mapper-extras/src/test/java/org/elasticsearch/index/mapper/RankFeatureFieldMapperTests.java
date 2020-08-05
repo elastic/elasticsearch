@@ -192,7 +192,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
                 e.getCause().getMessage());
     }
 
-    public void testParseSourceValue() throws IOException {
+    public void testFetchValues() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);

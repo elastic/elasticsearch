@@ -492,7 +492,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
         assertEquals("Invalid format: [[test_format]]: Unknown pattern letter: t", e.getMessage());
     }
 
-    public void testParseSourceValue() throws IOException {
+    public void testFetchValues() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
@@ -507,7 +507,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")), fetchFromSource(dateMapper, null, dateRange));
     }
 
-    public void testParseSourceValueWithFormat() throws IOException {
+    public void testFetchValuesWithFormat() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

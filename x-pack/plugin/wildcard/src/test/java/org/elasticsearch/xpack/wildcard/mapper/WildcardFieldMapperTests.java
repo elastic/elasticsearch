@@ -786,7 +786,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         return result.toString();
     }
 
-    public void testParseSourceValue() throws IOException {
+    public void testFetchValues() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

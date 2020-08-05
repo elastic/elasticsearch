@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -219,6 +220,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         for (int i = 0; i < noOfApiKeys; i++) {
             assertThat(responses.get(i).getName(), is(keyName));
         }
+    }
+
+    public void testCreateApiKeyWithoutNameWillFail() {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        final ActionRequestValidationException e =
+            expectThrows(ActionRequestValidationException.class, () -> new CreateApiKeyRequestBuilder(client).get());
+        assertThat(e.getMessage(), containsString("api key name is required"));
     }
 
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {

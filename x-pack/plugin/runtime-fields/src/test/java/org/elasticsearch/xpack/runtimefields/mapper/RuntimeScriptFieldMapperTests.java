@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -165,6 +166,13 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("double")), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testIp() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("ip")).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping("ip")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testKeyword() throws IOException {
@@ -337,6 +345,14 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                             @Override
                             public void execute() {
                                 new DoubleScriptFieldScript.Value(this).value(1.0);
+                            }
+                        };
+                    }
+                    if (context == IpScriptFieldScript.CONTEXT) {
+                        return (IpScriptFieldScript.Factory) (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
+                            @Override
+                            public void execute() {
+                                new IpScriptFieldScript.StringValue(this).stringValue("192.168.0.1");
                             }
                         };
                     }

@@ -17,7 +17,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.ScriptStringFieldData;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldPrefixQuery;
@@ -63,8 +63,8 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
-    public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new ScriptBinaryFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public ScriptStringFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new ScriptStringFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
     private StringScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {

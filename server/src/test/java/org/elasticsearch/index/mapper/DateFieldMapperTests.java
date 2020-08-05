@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
@@ -494,17 +495,19 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFetchDocValuesMillis() throws IOException {
-        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, "strict_date_time");
+        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, "strict_date_time||epoch_millis");
+        DocValueFormat format = mapper.mappedFieldType.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123Z";
-        assertEquals(List.of(date), fetchFromDocValues(mapper, null, date));
-        assertEquals(List.of(date), fetchFromDocValues(mapper, null, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, 1589578382123L));
     }
 
     public void testFetchDocValuesNanos() throws IOException {
-        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time");
+        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
+        DocValueFormat format = DocValueFormat.withNanosecondResolution(mapper.mappedFieldType.docValueFormat(null, null));
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(List.of(date), fetchFromDocValues(mapper, null, date));
-        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapper, null, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapper, format, 1589578382123L));
     }
 
     private DateFieldMapper createMapper(Resolution resolution, String format) {

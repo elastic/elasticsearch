@@ -36,10 +36,10 @@ EQL assumes each document in a data stream or index corresponds to an event. To
 search using EQL, each document in the searched data stream or index must
 include a _timestamp_ field and an _event category_ field.
 
-{es} EQL uses the ECS `@timestamp` and `event.category` fields from the
+{es} EQL uses the `@timestamp` and `event.category` fields from the
 {ecs-ref}[Elastic Common Schema (ECS)] as the default timestamp and event
-category fields. If your documents use different timestamp or event category
-fields, you must specify them in the search request. See
+category fields. If your searched documents use a different timestamp or event
+category field, you must specify it in the search request. See
 <<specify-a-timestamp-or-event-category-field>>.
 
 [discrete]
@@ -401,8 +401,12 @@ GET /my-index-000001/_eql/search
 
 By default, the EQL search API uses `@timestamp` and `event.category` as the
 required timestamp and event category fields. If your searched documents use
-another timestamp or event category field, you must specify them in the search
-request using the `timestamp_field` and `event_category_field` parameters.
+a different timestamp or event category field, you must specify it in the search
+request using the `timestamp_field` or `event_category_field` parameters.
+
+The event category field is typically mapped as a <<keyword,`keyword`>> or
+<<constant-keyword,constant keyword>> field. The timestamp field is typically
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
 
 NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
 field as the timestamp or event category field. See <<eql-nested-fields>>.

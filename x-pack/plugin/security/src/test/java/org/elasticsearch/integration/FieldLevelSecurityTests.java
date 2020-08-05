@@ -802,7 +802,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                                 .setSize(1)
                                 .setFetchSource(true)
                                 .get();
-                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getTotalHits(), is((long) 0));
                         assertThat(user2SearchResponse.getHits().getHits().length, is(0));
                     } else {
                         // make sure scroll is empty
@@ -812,7 +812,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                                 .prepareSearchScroll(user2SearchResponse.getScrollId())
                                 .setScroll(TimeValue.timeValueMinutes(10L))
                                 .get();
-                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getTotalHits(), is((long) 0));
                         assertThat(user2SearchResponse.getHits().getHits().length, is(0));
                         if (randomBoolean()) {
                             // maybe reuse the scroll even if empty
@@ -830,7 +830,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                                 .setSize(1)
                                 .setFetchSource(true)
                                 .get();
-                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        assertThat(user1SearchResponse.getHits().getTotalHits(), is((long) numDocs));
                         assertThat(user1SearchResponse.getHits().getHits().length, is(1));
                         assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));
                         assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
@@ -841,7 +841,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                                 .prepareSearchScroll(user1SearchResponse.getScrollId())
                                 .setScroll(TimeValue.timeValueMinutes(10L))
                                 .get();
-                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        assertThat(user1SearchResponse.getHits().getTotalHits(), is((long) numDocs));
                         if (scrolledDocsUser1 < numDocs) {
                             assertThat(user1SearchResponse.getHits().getHits().length, is(1));
                             assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));

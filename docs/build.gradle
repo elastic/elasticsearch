@@ -1461,28 +1461,28 @@ buildRestTests.setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-buildRestTests.setups['sec_logs'] = '''
+buildRestTests.setups['atomic_red_regsvr32'] = '''
   - do:
         indices.create:
-          index: sec_logs
+          index: my-index-000001
           body:
             settings:
               number_of_shards: 5
               number_of_routing_shards: 5
   - do:
         bulk:
-          index: sec_logs
+          index: my-index-000001
           refresh: true
           body: |
-#sec_logs_data#
+#atomic_red_data#
 '''
 /* Load the actual events only if we're going to use them. */
-File secLogsFile = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
-buildRestTests.inputs.file(secLogsFile)
+File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+buildRestTests.inputs.file(atomicRedRegsvr32File)
 buildRestTests.doFirst {
-  String events = secLogsFile.getText('UTF-8')
+  String events = atomicRedRegsvr32File.getText('UTF-8')
   // Indent like a yaml test needs
   events = events.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['sec_logs'] =
-    buildRestTests.setups['sec_logs'].replace('#sec_logs_data#', events)
+  buildRestTests.setups['atomic_red_regsvr32'] =
+    buildRestTests.setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
 }

@@ -28,12 +28,12 @@ To get started, download and index the dataset:
 
 . Download the https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
 
-. Index the data into the `sec_logs` index with the following
+. Index the data into the `my-index-000001` index with the following
 <<docs-bulk,bulk API>> request:
 +
 [source,sh]
 ----
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/sec_logs/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
 ----
 // NOTCONSOLE
 
@@ -42,9 +42,9 @@ successfully.
 +
 [source,console]
 ----
-GET /_cat/indices/sec_logs?v&h=health,status,index,docs.count
+GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
 ----
-// TEST[setup:sec_logs]
+// TEST[setup:atomic_red_regsvr32]
 
 The API returns the following response. The `docs.count` value should show `150`
 documents were indexed.
@@ -52,7 +52,7 @@ documents were indexed.
 [source,txt]
 ----
 health status index     docs.count
-yellow open   sec_logs         150
+yellow open   my-index-000001         150
 ----
 // TESTRESPONSE[non_json]
 
@@ -71,7 +71,7 @@ category>>.
 
 [source,console]
 ----
-GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
+GET /my-index-000001/_eql/search?filter_path=-hits.events  <1>
 {
   "query": """
     any where process.name == "regsvr32.exe"        <2>
@@ -79,7 +79,7 @@ GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
   "size": 150                                       <3>
 }
 ----
-// TEST[setup:sec_logs]
+// TEST[setup:atomic_red_regsvr32]
 
 <1> Uses the `?filter_path=-hits.events` query parameter to exclude the
 `hits.events` property from the response. The `hits.events` property contains
@@ -125,7 +125,7 @@ lets you retrieve the document source for any matching events.
 
 [source,console]
 ----
-GET /sec_logs/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     any where process.name == "regsvr32.exe" and process.command_line > 0
@@ -133,7 +133,7 @@ GET /sec_logs/_eql/search
   "size": 150
 }
 ----
-// TEST[setup:sec_logs]
+// TEST[setup:atomic_red_regsvr32]
 
 The query matches one event. Based on the event's `process.command_line` value,
 `regsvr32.exe` was used to register a script as `scrobj.dll`. This fits known
@@ -153,7 +153,7 @@ regsvr32 misuse behavior.
     },
     "events": [
       {
-        "_index": "sec_logs",
+        "_index": "my-index-000001",
         "_id": "gl5MJXMBMk1dGnErnBW8",
         "_score": null,
         "_source": {
@@ -207,7 +207,7 @@ the `scrobj.dll` file.
 
 [source,console]
 ----
-GET /sec_logs/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     file where process.name == "regsvr32.exe" and file.name == "scrobj.dll"
@@ -215,7 +215,7 @@ GET /sec_logs/_eql/search
   "size": 150
 }
 ----
-// TEST[setup:sec_logs]
+// TEST[setup:atomic_red_regsvr32]
 
 The query matches an event, confirming that `scrobj.dll` was later loaded by
 `regsvr32.exe`.
@@ -234,7 +234,7 @@ The query matches an event, confirming that `scrobj.dll` was later loaded by
     },
     "events": [
       {
-        "_index": "sec_logs",
+        "_index": "my-index-000001",
         "_id": "ol5MJXMBMk1dGnErnBW8",
         "_score": null,
         "_source": {
@@ -281,7 +281,7 @@ ID) field value.
 
 [source,console]
 ----
-GET /sec_logs/_eql/search
+GET /my-index-000001/_eql/search
 {
   "query": """
     sequence by process.pid
@@ -292,7 +292,7 @@ GET /sec_logs/_eql/search
   "size": 150
 }
 ----
-// TEST[setup:sec_logs]
+// TEST[setup:atomic_red_regsvr32]
 
 The query matches a sequence, indicating the attack likely succeeded.
 
@@ -315,7 +315,7 @@ The query matches a sequence, indicating the attack likely succeeded.
         ],
         "events": [
           {
-            "_index": "sec_logs",
+            "_index": "my-index-000001",
             "_id": "gl5MJXMBMk1dGnErnBW8",
             "_version": 1,
             "_seq_no": 1,
@@ -349,7 +349,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             }
           },
           {
-            "_index": "sec_logs",
+            "_index": "my-index-000001",
             "_id": "ol5MJXMBMk1dGnErnBW8",
             "_version": 1,
             "_seq_no": 7,
@@ -373,7 +373,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             }
           },
           {
-            "_index": "sec_logs",
+            "_index": "my-index-000001",
             "_id": "EF5MJXMBMk1dGnErnBa9",
             "_version": 1,
             "_seq_no": 29,

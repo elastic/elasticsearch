@@ -31,7 +31,7 @@ public class ReindexTaskStateDocTests extends AbstractXContentTestCase<ReindexTa
     @Override
     protected ReindexTaskStateDoc createTestInstance() {
         ReindexTaskStateDoc doc = new ReindexTaskStateDoc(new ReindexRequest().setSourceIndices("source").setDestIndex("dest"),
-            randomBoolean());
+            randomBoolean(), randomNonNegativeLong());
 
         if (randomBoolean()) {
             doc = doc.withNewAllocation(randomNonNegativeLong(), new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
@@ -47,8 +47,9 @@ public class ReindexTaskStateDocTests extends AbstractXContentTestCase<ReindexTa
         }
 
         if (randomBoolean()) {
-            doc = doc.withFinishedState(new BulkByScrollResponse(TimeValue.timeValueMillis(randomLong()), randomStatus(),
-                Collections.emptyList(), Collections.emptyList(), randomBoolean()), null);
+            doc = doc.withFinishedState(randomLongBetween(doc.getStartTimeMillis(), Long.MAX_VALUE),
+                new BulkByScrollResponse(TimeValue.timeValueMillis(randomNonNegativeLong()),
+                randomStatus(), Collections.emptyList(), Collections.emptyList(), randomBoolean()), null);
         } else if (randomBoolean()) {
             // todo: need fixing once #49278 is merged.
 //            doc = doc.withFinishedState(null, new ElasticsearchException("test"));
@@ -60,8 +61,8 @@ public class ReindexTaskStateDocTests extends AbstractXContentTestCase<ReindexTa
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(null, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
             randomNonNegativeLong(), randomIntBetween(0, 1000), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), TimeValue.timeValueMillis(randomLong()),
-            randomFloat(), randomBoolean() ? randomAlphaOfLength(10) : null, TimeValue.timeValueMillis(randomLong()));
+            randomNonNegativeLong(), randomNonNegativeLong(), TimeValue.timeValueMillis(randomNonNegativeLong()),
+            randomFloat(), randomBoolean() ? randomAlphaOfLength(10) : null, TimeValue.timeValueMillis(randomNonNegativeLong()));
     }
 
     @Override
@@ -95,7 +96,9 @@ public class ReindexTaskStateDocTests extends AbstractXContentTestCase<ReindexTa
             assertNull(newInstance.getException());
         }
         assertEquals(expectedInstance.getFailureStatusCode(), newInstance.getFailureStatusCode());
-        assertEquals(expectedInstance.getRequestsPerSecond(), newInstance.getRequestsPerSecond(), 0.0001d);
+        assertEquals(expectedInstance.getRethrottledReindexRequest().getRequestsPerSecond(),
+            newInstance.getRethrottledReindexRequest().getRequestsPerSecond(),
+            0.0001d);
         // todo: once BulkByScrollResponseTests is moved to reindex module, we can validate this properly.
         if (expectedInstance.getReindexResponse() != null) {
             assertEquals(expectedInstance.getReindexResponse().getCreated(), newInstance.getReindexResponse().getCreated());

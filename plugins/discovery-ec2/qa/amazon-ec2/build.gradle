@@ -77,10 +77,8 @@ yamlRestTest.enabled = false
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
   "yamlRestTest${action}" {
-    runner {
-      setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-      setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-    }
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
   }
   check.dependsOn("yamlRestTest${action}")
 

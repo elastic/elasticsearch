@@ -5,7 +5,7 @@
 ++++
 
 Returns documents that contain terms similar to the search term, as measured by
-a http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
+a https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
 
 An edit distance is the number of one-character changes needed to turn one term
 into another. These changes can include:

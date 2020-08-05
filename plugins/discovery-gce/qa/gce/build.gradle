@@ -50,7 +50,7 @@ Map<String, Object> expansions = [
   'expected_nodes': gceNumberOfNodes
 ]
 
-processYamlRestTestResources {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }

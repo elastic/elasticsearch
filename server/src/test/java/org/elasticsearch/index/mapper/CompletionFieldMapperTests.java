@@ -942,7 +942,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
-        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer).build(context);
+        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
 
         assertEquals(List.of("value"), mapper.parseSourceValue("value", null));
 

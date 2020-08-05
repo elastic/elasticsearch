@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -16,6 +17,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -43,24 +45,27 @@ public class RestStopDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
-        StopDatafeedAction.Request request;
+        Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            request = StopDatafeedAction.Request.parseRequest(datafeedId, parser);
+            request = Request.parseRequest(datafeedId, parser);
         } else {
-            request = new StopDatafeedAction.Request(datafeedId);
-            if (restRequest.hasParam(StopDatafeedAction.Request.TIMEOUT.getPreferredName())) {
-                TimeValue stopTimeout = restRequest.paramAsTime(
-                        StopDatafeedAction.Request.TIMEOUT.getPreferredName(), StopDatafeedAction.DEFAULT_TIMEOUT);
+            request = new Request(datafeedId);
+            if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
+                TimeValue stopTimeout = restRequest.paramAsTime(Request.TIMEOUT.getPreferredName(), StopDatafeedAction.DEFAULT_TIMEOUT);
                 request.setStopTimeout(stopTimeout);
             }
-            if (restRequest.hasParam(StopDatafeedAction.Request.FORCE.getPreferredName())) {
-                request.setForce(restRequest.paramAsBoolean(StopDatafeedAction.Request.FORCE.getPreferredName(), request.isForce()));
+            if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
+                request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName())) {
-                request.setAllowNoDatafeeds(restRequest.paramAsBoolean(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                        request.allowNoDatafeeds()));
+            if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
+                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                    null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         }
         return channel -> client.execute(StopDatafeedAction.INSTANCE, request, new RestBuilderListener<Response>(channel) {
 

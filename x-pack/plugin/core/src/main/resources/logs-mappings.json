@@ -17,13 +17,13 @@
         "@timestamp": {
           "type": "date"
         },
-        "dataset": {
+        "data_stream": {
           "properties": {
             "type": {
               "type": "constant_keyword",
               "value": "logs"
             },
-            "name": {
+            "dataset": {
               "type": "constant_keyword"
             },
             "namespace": {

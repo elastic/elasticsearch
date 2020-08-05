@@ -387,7 +387,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             MemberCallNode memberCallNode = new MemberCallNode();
             memberCallNode.setLocation(internalLocation);
             memberCallNode.setExpressionType(ScriptException.class);
-            memberCallNode.setLocalFunction(new LocalFunction(
+            memberCallNode.setLocalFunction(
+                    new LocalFunction(
                             "convertToScriptException",
                             ScriptException.class,
                             Arrays.asList(Throwable.class, Map.class),
@@ -422,7 +423,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             callSubNode.setLocation(internalLocation);
             callSubNode.setExpressionType(Map.class);
             callSubNode.setBox(PainlessExplainError.class);
-            callSubNode.setMethod(new PainlessMethod(
+            callSubNode.setMethod(
+                    new PainlessMethod(
                             PainlessExplainError.class.getMethod(
                                     "getHeaders",
                                     PainlessLookup.class),
@@ -473,7 +475,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 memberCallNode = new MemberCallNode();
                 memberCallNode.setLocation(internalLocation);
                 memberCallNode.setExpressionType(ScriptException.class);
-                memberCallNode.setLocalFunction(new LocalFunction(
+                memberCallNode.setLocalFunction(
+                        new LocalFunction(
                                 "convertToScriptException",
                                 ScriptException.class,
                                 Arrays.asList(Throwable.class, Map.class),
@@ -507,7 +510,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 callSubNode.setLocation(internalLocation);
                 callSubNode.setExpressionType(Map.class);
                 callSubNode.setBox(Collections.class);
-                callSubNode.setMethod(new PainlessMethod(
+                callSubNode.setMethod(
+                        new PainlessMethod(
                                 Collections.class.getMethod("emptyMap"),
                                 Collections.class,
                                 null,

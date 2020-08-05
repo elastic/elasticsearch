@@ -6,6 +6,8 @@
 <titleabbrev>EQL</titleabbrev>
 ++++
 
+experimental::[]
+
 {eql-ref}/index.html[Event Query Language (EQL)] is a query language used for
 event-based, time-series data, such as logs.
 
@@ -30,27 +32,25 @@ makes it easy to describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 == Required fields
 
-EQL assumes each document in an index corresponds to an event that includes a
-timestamp and an event category. To search using EQL, each document in the data
-stream or index must contain a _timestamp_ field and an _event category_ field.
+EQL assumes each document in a data stream or index corresponds to an event. To
+search using EQL, each document in the searched data stream or index must
+include a _timestamp_ field and an _event category_ field.
 
-In {es}, EQL uses the ECS `@timestamp` and `event.category` fields from the
+{es} EQL uses the ECS `@timestamp` and `event.category` fields from the
 {ecs-ref}[Elastic Common Schema (ECS)] as the default timestamp and event
 category fields. If your documents use different timestamp or event category
 fields, you must specify them in the search request. See
 <<specify-a-timestamp-or-event-category-field>>.
 
-
 [discrete]
 [[run-an-eql-search]]
 == Run an EQL search
 
-You can use the <<eql-search-api,EQL search API>> to search event data stored in
-one or more {es} data streams or indices.
+You can use the <<eql-search-api,EQL search API>> to run an EQL search.
 
 The following request searches `my-index-000001` for events with an
 `event.category` of `process` and a `process.name` of `cmd.exe`. Each document
-in `my-index-000001` includes a `@timestamp` and `event.category` field value.
+in `my-index-000001` includes a `@timestamp` and `event.category` field.
 
 [source,console]
 ----
@@ -130,8 +130,8 @@ ascending order.
 [[eql-search-sequence]]
 === Search for a sequence of events
 
-Many query languages allow you to match single events. However, EQL's
-<<eql-sequences,sequence syntax>> lets you match an ordered series of events.
+You can use EQL's <<eql-sequences,sequence syntax>> to search for an ordered
+series of events.
 
 The following EQL search request matches a sequence that:
 
@@ -402,14 +402,15 @@ GET /my-index-000001/_eql/search
 By default, the EQL search API uses `@timestamp` and `event.category` as the
 <<eql-required-fields,required timestamp and event category fields>>. If your data
 stream or index uses another timestamp or event category field, you must specify
-them using the `timestamp_field` or `event_category_field` parameters.
+them using the `timestamp_field` and `event_category_field` parameters.
 
 NOTE: You cannot use a <<nested,`nested`>> field  or the sub-fields of a `nested`
 field as the timestamp or event category field. See <<eql-nested-fields>>.
 
-The following request uses the `timestamp_field` to specify `file.accessed` as
-the timestamp field. The request also uses the `event_category_field` to specify
-`file.type` as the event category field.
+The following request uses the `timestamp_field` parameter to specify
+`file.accessed` as the timestamp field. The request also uses the
+`event_category_field` parameter to specify `file.type` as the event category
+field.
 
 [source,console]
 ----
@@ -428,14 +429,13 @@ GET /my-index-000001/_eql/search
 [[eql-search-filter-query-dsl]]
 === Filter using query DSL
 
-You can use the EQL search API's `filter` parameter to specify an additional
-query using <<query-dsl,query DSL>>. This query filters the documents on which
-the EQL query runs.
+You can use the `filter` parameter to specify an additional query using
+<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
+runs.
 
-The following request uses a `range` query to filter the `my-index-000001`
-index down to only documents with a `file.size` value greater than `1` but less
-than `1000000` bytes. The EQL query in `query` parameter then runs on these
-filtered documents.
+The following request uses a `range` query to filter `my-index-000001` to only
+documents with a `file.size` value greater than `1` but less than `1000000`
+bytes. The EQL query in `query` parameter then runs on these filtered documents.
 
 [source,console]
 ----
@@ -460,16 +460,16 @@ GET /my-index-000001/_eql/search
 [[eql-search-case-sensitive]]
 === Run a case-sensitive EQL search
 
-By default, matching for EQL queries is case-insensitive. You can use the EQL
-search API's `case_sensitive` parameter to toggle case sensitivity on or off.
+By default, matching for EQL queries is case-insensitive. You can use the
+`case_sensitive` parameter to toggle case sensitivity on or off.
 
 The following search request contains a query that matches `process` events
 with a `process.executable` containing `System32`.
 
-Because the `case_sensitive` parameter is `true`, this query only matches
-`process.executable` values containing `System32` with the exact same capitalization.
-A `process.executable` value containing `system32` or `SYSTEM32` would not match this
-query.
+Because `case_sensitive` is `true`, this query only matches `process.executable`
+values containing `System32` with the exact same capitalization. A
+`process.executable` value containing `system32` or `SYSTEM32` would not match
+this query.
 
 [source,console]
 ----

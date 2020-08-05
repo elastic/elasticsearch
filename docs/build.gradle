@@ -200,7 +200,7 @@ buildRestTests.setups['messages'] = '''
             {"index":{"_id": "4"}}
             {"message": "some message with the number 4"}'''
 
-// Used for several full-text search and agg examples
+// Used for EQL
 buildRestTests.setups['sec_logs'] = '''
   - do:
         indices.create:

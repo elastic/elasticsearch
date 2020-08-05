@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-apis]]
 == Searchable snapshots APIs
 

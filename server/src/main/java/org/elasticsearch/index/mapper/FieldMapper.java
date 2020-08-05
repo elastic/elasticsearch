@@ -224,6 +224,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    public MultiFields multiFields() {
+        return multiFields;
+    }
+
     /**
      * A value to use in place of a {@code null} value in the document source.
      */
@@ -347,6 +351,48 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    @Override
+    public final void validate(MappingLookup mappers) {
+        if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
+            if (mappers.isMultiField(this.name())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            }
+
+            final String sourceScope = mappers.getNestedScope(this.name());
+            for (String copyTo : this.copyTo().copyToFields()) {
+                if (mappers.isMultiField(copyTo)) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                }
+                if (mappers.isObjectField(copyTo)) {
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                final String targetScope = mappers.getNestedScope(copyTo);
+                checkNestedScopeCompatibility(sourceScope, targetScope);
+            }
+        }
+        for (Mapper multiField : multiFields()) {
+            multiField.validate(mappers);
+        }
+        doValidate(mappers);
+    }
+
+    protected void doValidate(MappingLookup mappers) { }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                    "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                    source + "] to [" + target + "]");
+        }
+    }
 
     @Override
     public FieldMapper merge(Mapper mergeWith) {

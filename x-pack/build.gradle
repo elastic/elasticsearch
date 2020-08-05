@@ -31,7 +31,7 @@ subprojects {
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
 
-  tasks.withType(LicenseHeadersTask.class) {
+  tasks.withType(LicenseHeadersTask.class).configureEach {
     approvedLicenses = ['Elastic License', 'Generated', 'Vendored']
     additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }

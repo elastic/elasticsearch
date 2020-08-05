@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
 esplugin {
@@ -143,13 +141,13 @@ configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
 }
-task testJar(type: Jar) {
+def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives jar
+  archives tasks.named("jar")
   testArtifacts testJar
 }
 

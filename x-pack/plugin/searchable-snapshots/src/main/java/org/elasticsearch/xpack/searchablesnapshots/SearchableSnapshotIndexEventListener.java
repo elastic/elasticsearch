@@ -34,7 +34,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        final boolean success = directory.loadSnapshot();
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState());
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success
             || indexShard.routingEntry()

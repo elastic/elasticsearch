@@ -536,6 +536,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         Map<String, FieldCollector> fieldCollectors = new HashMap<>();
 
         for (Entry<String, SingleGroupSource> entry : groups.entrySet()) {
+            // skip any fields that use scripts
+            if (entry.getValue().getScriptConfig() != null) {
+                continue;
+            }
+
             switch (entry.getValue().getType()) {
                 case TERMS:
                     fieldCollectors.put(
@@ -565,7 +570,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                             entry.getKey(),
                             entry.getValue().getMissingBucket(),
                             ((DateHistogramGroupSource) entry.getValue()).getRounding(),
-                            entry.getKey().equals(synchronizationField)
+                            entry.getValue().getField() != null && entry.getValue().getField().equals(synchronizationField)
                         )
                     );
                     break;

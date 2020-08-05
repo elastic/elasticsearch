@@ -43,11 +43,6 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
             boolean reverse) {
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");

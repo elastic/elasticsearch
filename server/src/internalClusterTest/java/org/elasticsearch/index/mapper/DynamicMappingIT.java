@@ -153,7 +153,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of total fields [2] in index [index] has been exceeded"));
+                Matchers.containsString("Limit of total fields [2] has been exceeded"));
         } finally {
             indexingCompletedLatch.countDown();
         }

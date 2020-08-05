@@ -386,7 +386,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             MemberCallNode irMemberCallNode = new MemberCallNode();
             irMemberCallNode.setLocation(internalLocation);
             irMemberCallNode.setExpressionType(ScriptException.class);
-            irMemberCallNode.setLocalFunction(new LocalFunction(
+            irMemberCallNode.setLocalFunction(
+                    new LocalFunction(
                             "convertToScriptException",
                             ScriptException.class,
                             Arrays.asList(Throwable.class, Map.class),
@@ -421,7 +422,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irCallSubNode.setLocation(internalLocation);
             irCallSubNode.setExpressionType(Map.class);
             irCallSubNode.setBox(PainlessExplainError.class);
-            irCallSubNode.setMethod(new PainlessMethod(
+            irCallSubNode.setMethod(
+                    new PainlessMethod(
                             PainlessExplainError.class.getMethod(
                                     "getHeaders",
                                     PainlessLookup.class),
@@ -472,7 +474,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irMemberCallNode = new MemberCallNode();
                 irMemberCallNode.setLocation(internalLocation);
                 irMemberCallNode.setExpressionType(ScriptException.class);
-                irMemberCallNode.setLocalFunction(new LocalFunction(
+                irMemberCallNode.setLocalFunction(
+                        new LocalFunction(
                                 "convertToScriptException",
                                 ScriptException.class,
                                 Arrays.asList(Throwable.class, Map.class),
@@ -506,7 +509,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irCallSubNode.setLocation(internalLocation);
                 irCallSubNode.setExpressionType(Map.class);
                 irCallSubNode.setBox(Collections.class);
-                irCallSubNode.setMethod(new PainlessMethod(
+                irCallSubNode.setMethod(
+                        new PainlessMethod(
                                 Collections.class.getMethod("emptyMap"),
                                 Collections.class,
                                 null,

@@ -638,7 +638,7 @@ When using multiple data paths, an index could be falsely reported as corrupted.
 [discrete]
 === Randomized Testing (STATUS: DONE, v1.0.0)
 
-In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of http://berlinbuzzwords.de/sites/berlinbuzzwords.de/files/media/documents/dawidweiss-randomizedtesting-pub.pdf[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
+In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of https://github.com/randomizedtesting/randomizedtesting[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
 
 Each of our integration tests runs against a cluster with a random number of nodes, and indices have a random number of shards and replicas. Merge settings change for every run, indexing is done in serial or async fashion or even wrapped in a bulk operation and thread pool sizes vary to ensure that we don’t produce a deadlock no matter what happens. The list of places we use this randomization infrastructure is long, and growing every day, and has saved us headaches several times before we shipped a particular feature.
 

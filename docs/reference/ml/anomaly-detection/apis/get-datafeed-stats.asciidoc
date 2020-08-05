@@ -56,7 +56,7 @@ all {dfeeds}.
 [[ml-get-datafeed-stats-query-parms]]
 == {api-query-parms-title}
 
-`allow_no_datafeeds`::
+`allow_no_match`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
@@ -143,7 +143,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
 == {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
 [[ml-get-datafeed-stats-example]]

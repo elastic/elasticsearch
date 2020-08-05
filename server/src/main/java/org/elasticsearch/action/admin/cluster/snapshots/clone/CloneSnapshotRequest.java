@@ -46,6 +46,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
     private final Settings updatedSettings;
 
     public CloneSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
         repository = in.readString();
         source = in.readString();
         target = in.readString();

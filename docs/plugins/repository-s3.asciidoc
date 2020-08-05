@@ -443,7 +443,7 @@ instances reside in a private subnet in an AWS VPC then all traffic to S3 will
 go through the VPC's NAT instance. If your VPC's NAT instance is a smaller
 instance size (e.g. a t2.micro) or is handling a high volume of network traffic
 your bandwidth to S3 may be limited by that NAT instance's networking bandwidth
-limitations. A recommended alternative is creating a https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html[VPC endpoint]
+limitations. Instead we recommend creating a https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html[VPC endpoint]
 that enables connecting to S3 in instances that reside in a private subnet in an
 AWS VPC. This should elminate any limitations imposed by the VPC's NAT instance 
 network bandwith limitations.

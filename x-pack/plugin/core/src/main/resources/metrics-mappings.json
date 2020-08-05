@@ -31,7 +31,7 @@
             }
           }
         },
-        "datastream": {
+        "data_stream": {
           "properties": {
             "type": {
               "type": "constant_keyword",

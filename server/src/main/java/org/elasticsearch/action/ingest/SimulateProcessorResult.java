@@ -181,8 +181,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         } else {
             this.description = null;
         }
-        //TODO: fix the version after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             this.type = in.readString();
             boolean hasConditional = in.readBoolean();
             if (hasConditional) {
@@ -204,8 +203,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalString(description);
         }
-        //TODO: fix the version after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeString(type);
             out.writeBoolean(conditionalWithResult != null);
             if (conditionalWithResult != null) {

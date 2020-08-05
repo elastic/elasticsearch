@@ -20,7 +20,7 @@ Each mapping type could have its own fields, so the `user` type might have a
 `tweet` type could have a `content` field, a `tweeted_at` field and, like the
 `user` type, a `user_name` field.
 
-Each document had a `_type` meta-field containing the type name, and searches
+Each document had a `_type` metadata field containing the type name, and searches
 could be limited to one or more types by specifying the type name(s) in the
 URL:
 

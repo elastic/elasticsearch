@@ -11,13 +11,13 @@
 
 [discrete]
 [[all-meta-field-removed]]
-==== The `_all` meta field is removed
+==== The `_all` metadata field is removed
 
 The `_all` field deprecated in 6 have now been removed.
 
 [discrete]
 [[uid-meta-field-removed]]
-==== The `_uid` meta field is removed
+==== The `_uid` metadata field is removed
 
 This field used to index a composite key formed of the `_type` and the `_id`.
 Now that indices cannot have multiple types, this has been removed in favour

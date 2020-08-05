@@ -486,8 +486,11 @@ public class TransformContinuousIT extends ESRestTestCase {
     }
 
     private static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedXContents();
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(
+            Settings.EMPTY,
+            false,
+            Collections.emptyList()
+        ).getNamedXContents();
 
         TestRestHighLevelClient() {
             super(client(), restClient -> {}, X_CONTENT_ENTRIES);

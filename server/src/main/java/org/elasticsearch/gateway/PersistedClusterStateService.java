@@ -814,6 +814,12 @@ public class PersistedClusterStateService {
             final ReleasableBytesStreamOutput releasableBytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             try {
                 final FilterOutputStream outputStream = new FilterOutputStream(releasableBytesStreamOutput) {
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        out.write(b, off, len);
+                    }
+
                     @Override
                     public void close() {
                         // closing the XContentBuilder should not release the bytes yet

@@ -642,7 +642,7 @@ For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
   "settings": {
     "index": {

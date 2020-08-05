@@ -116,7 +116,7 @@ Short form:
 
 [source,js]
 ----------------------
-  "script": "ctx._source.likes++"
+  "script": "ctx._source.my-int++"
 ----------------------
 // NOTCONSOLE
 
@@ -125,7 +125,7 @@ The same script in the normal form:
 [source,js]
 ----------------------
   "script": {
-    "source": "ctx._source.likes++"
+    "source": "ctx._source.my-int++"
   }
 ----------------------
 // NOTCONSOLE

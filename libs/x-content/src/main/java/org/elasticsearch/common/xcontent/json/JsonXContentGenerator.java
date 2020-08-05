@@ -349,7 +349,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         } else {
             writeStartRaw(name);
             flush();
-            Streams.copy(content, os, false);
+            Streams.copy(content, os);
             writeEndRaw();
         }
     }
@@ -364,7 +364,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            Streams.copy(stream, os);
+            Streams.copy(stream, os, false);
             writeEndRaw();
         }
     }

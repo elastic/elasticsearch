@@ -87,7 +87,7 @@ See <<request-body-search-min-score>>.
 
 [role="exclude",id="search-request-named-queries-and-filters"]
 === Named query parameter for request body search API
-See <<request-body-search-queries-and-filters>>.
+See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
@@ -1006,6 +1006,11 @@ See <<highlighting>>.
 
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
+
+[role="exclude",id="request-body-search-queries-and-filters"]
+=== Named queries
+
+See <<named-queries>.
 
 See <<how-es-highlighters-work-internally>>.
 

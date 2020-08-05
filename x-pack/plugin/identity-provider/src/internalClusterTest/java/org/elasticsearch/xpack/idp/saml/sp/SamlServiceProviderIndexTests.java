@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -30,7 +29,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -39,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils.randomDocument;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
@@ -240,59 +238,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         serviceProviderIndex.refresh(assertListenerIsOnlyCalledOnce(future));
         future.actionGet();
-    }
-
-    public static SamlServiceProviderDocument randomDocument() {
-        return randomDocument(randomIntBetween(1, 999_999));
-    }
-
-    public static SamlServiceProviderDocument randomDocument(int index) {
-        final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
-        document.setName(randomAlphaOfLengthBetween(5, 12));
-        document.setEntityId(randomUri() + index);
-        document.setAcs(randomUri("https") + index + "/saml/acs");
-
-        document.setEnabled(randomBoolean());
-        document.setCreatedMillis(System.currentTimeMillis() - TimeValue.timeValueDays(randomIntBetween(2, 90)).millis());
-        document.setLastModifiedMillis(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 36)).millis());
-
-        if (randomBoolean()) {
-            document.setNameIdFormat(TRANSIENT);
-        }
-        if (randomBoolean()) {
-            document.setAuthenticationExpiryMillis(TimeValue.timeValueMinutes(randomIntBetween(1, 15)).millis());
-        }
-
-        document.privileges.setResource("app:" + randomAlphaOfLengthBetween(3, 6) + ":" + Math.abs(randomLong()));
-        final int roleCount = randomIntBetween(0, 4);
-        final Set<String> roles = new HashSet<>();
-        for (int i = 0; i < roleCount; i++) {
-            roles.add(randomAlphaOfLengthBetween(3, 6) + ":(" + randomAlphaOfLengthBetween(3, 6) + ")");
-        }
-        document.privileges.setRolePatterns(roles);
-
-        document.attributeNames.setPrincipal(randomUri());
-        if (randomBoolean()) {
-            document.attributeNames.setName(randomUri());
-        }
-        if (randomBoolean()) {
-            document.attributeNames.setEmail(randomUri());
-        }
-        if (roles.isEmpty() == false) {
-            document.attributeNames.setRoles(randomUri());
-        }
-
-        assertThat(document.validate(), nullValue());
-        return document;
-    }
-
-    private static String randomUri() {
-        return randomUri(randomFrom("urn", "http", "https"));
-    }
-
-    private static String randomUri(String scheme) {
-        return scheme + "://" + randomAlphaOfLengthBetween(2, 6) + "."
-            + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 4) + "/";
     }
 
     private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {

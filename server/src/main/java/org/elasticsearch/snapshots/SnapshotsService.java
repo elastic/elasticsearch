@@ -75,6 +75,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -397,18 +398,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
-                // TODO: figure out indices by pattern matching
-                List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
-                logger.trace("[{}][{}] creating snapshot clone for indices [{}]", repositoryName, snapshotName, indices);
-
-                final List<IndexId> indexIds = repositoryData.resolveNewIndices(
-                        indices, runningSnapshots.stream().filter(entry -> entry.repository().equals(repositoryName))
-                                .flatMap(entry -> entry.indices().stream()).distinct()
-                                .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+                final List<IndexId> indexIds = repositoryData.getIndices().values().stream().filter(indexId ->
+                        repositoryData.getSnapshots(indexId).contains(sourceSnapshotId) &&
+                                Regex.simpleMatch(request.indices(), indexId.getName())).collect(Collectors.toList());
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
-                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shards(snapshots, deletionsInProgress, currentState.metadata(),
-                        currentState.routingTable(), indexIds, useShardGenerations(version), repositoryData, repositoryName);
+                // TODO: load all index metadata blobs for the indices to copy and then assign shard clones
+                // TODO: tricky here ... index uuid in shard-id does not matter
+                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.of();
                 newEntry = SnapshotsInProgress.startClone(snapshot, sourceSnapshotId,
                         indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, version);
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
@@ -425,14 +422,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                try {
-                    logger.info("snapshot clone [{}] started", snapshot);
-                    addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
-                } finally {
-                    if (newEntry.state().completed()) {
-                        endSnapshot(newEntry, newState.metadata(), repositoryData);
-                    }
-                }
+                logger.info("snapshot clone [{}] started", snapshot);
+                addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
+
             }
 
             @Override

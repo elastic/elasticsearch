@@ -15,6 +15,9 @@
 
 ---
 "Test get jobs with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       ml.get_jobs:
@@ -24,6 +27,8 @@
   - match: { jobs: [] }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.get_jobs:
         job_id: "missing-*"
         allow_no_jobs: true
@@ -32,6 +37,9 @@
 
 ---
 "Test get jobs with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       catch: missing
@@ -40,6 +48,8 @@
         allow_no_match: false
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.get_jobs:
         job_id: "missing-*"
@@ -863,6 +873,9 @@
 
 ---
 "Test close jobs with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       ml.close_job:
@@ -871,6 +884,8 @@
   - match: { closed: true }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.close_job:
         job_id: "missing-*"
         allow_no_jobs: true
@@ -878,6 +893,9 @@
 
 ---
 "Test close jobs with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       catch: missing
@@ -886,6 +904,8 @@
         allow_no_match: false
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.close_job:
         job_id: "missing-*"
@@ -1581,7 +1601,6 @@
   - skip:
       features:
        - "warnings"
-       - "allowed_warnings"
 
   - do:
       catch: missing

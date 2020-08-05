@@ -241,6 +241,9 @@ setup:
 
 ---
 "Test stop with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       ml.stop_datafeed:
@@ -249,6 +252,8 @@ setup:
   - match: { stopped: true }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
       ml.stop_datafeed:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
@@ -256,6 +261,9 @@ setup:
 
 ---
 "Test stop with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       catch: missing
@@ -264,6 +272,8 @@ setup:
         allow_no_match: false
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
       catch: missing
       ml.stop_datafeed:
         datafeed_id: "missing-*"
@@ -274,7 +284,6 @@ setup:
   - skip:
       features:
         - "warnings"
-        - "allowed_warnings"
 
   - do:
       catch: missing

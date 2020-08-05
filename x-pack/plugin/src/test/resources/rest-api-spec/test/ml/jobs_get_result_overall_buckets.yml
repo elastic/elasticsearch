@@ -240,6 +240,9 @@ setup:
 
 ---
 "Test overall buckets given non-matching expression and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       catch: missing
@@ -248,6 +251,8 @@ setup:
         allow_no_match: false
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.get_overall_buckets:
         job_id: "none-matching-*"

@@ -469,9 +469,9 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new), builder);
         registerAggregation(
-            (new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
+            new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
-                .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators)),
+                .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
             builder
         );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));

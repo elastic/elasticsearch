@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -22,9 +24,9 @@ import java.util.List;
 
 public final class TransportClearRepositoriesStatsArchiveAction extends TransportNodesAction<
     ClearRepositoriesStatsArchiveRequest,
-    ClearRepositoriesStatsArchiveResponse,
-    ClearRepositoriesStatsArchiveNodeRequest,
-    ClearRepositoriesStatsArchiveNodeResponse> {
+    RepositoriesStatsResponse,
+    TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
+    RepositoriesNodeStatsResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -45,18 +47,18 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
             ClearRepositoriesStatsArchiveRequest::new,
             ClearRepositoriesStatsArchiveNodeRequest::new,
             ThreadPool.Names.SAME,
-            ClearRepositoriesStatsArchiveNodeResponse.class
+            RepositoriesNodeStatsResponse.class
         );
         this.repositoriesService = repositoriesService;
     }
 
     @Override
-    protected ClearRepositoriesStatsArchiveResponse newResponse(
+    protected RepositoriesStatsResponse newResponse(
         ClearRepositoriesStatsArchiveRequest request,
-        List<ClearRepositoriesStatsArchiveNodeResponse> nodesResponses,
+        List<RepositoriesNodeStatsResponse> nodesResponses,
         List<FailedNodeException> failures
     ) {
-        return new ClearRepositoriesStatsArchiveResponse(clusterService.getClusterName(), nodesResponses, failures);
+        return new RepositoriesStatsResponse(clusterService.getClusterName(), nodesResponses, failures);
     }
 
     @Override
@@ -65,13 +67,21 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     }
 
     @Override
-    protected ClearRepositoriesStatsArchiveNodeResponse newNodeResponse(StreamInput in) throws IOException {
-        return new ClearRepositoriesStatsArchiveNodeResponse(in);
+    protected RepositoriesNodeStatsResponse newNodeResponse(StreamInput in) throws IOException {
+        return new RepositoriesNodeStatsResponse(in);
     }
 
     @Override
-    protected ClearRepositoriesStatsArchiveNodeResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
-        repositoriesService.clearRepositoriesStatsArchive();
-        return new ClearRepositoriesStatsArchiveNodeResponse(clusterService.localNode());
+    protected RepositoriesNodeStatsResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
+        List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive();
+        return new RepositoriesNodeStatsResponse(clusterService.localNode(), clearedStats);
+    }
+
+    static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {
+        ClearRepositoriesStatsArchiveNodeRequest() {}
+
+        ClearRepositoriesStatsArchiveNodeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 }

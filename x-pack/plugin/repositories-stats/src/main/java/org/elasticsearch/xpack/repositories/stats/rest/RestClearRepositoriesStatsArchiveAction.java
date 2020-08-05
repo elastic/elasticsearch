@@ -10,7 +10,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.repositories.stats.action.ClearRepositoriesStatsArchiveAction;
 import org.elasticsearch.xpack.repositories.stats.action.ClearRepositoriesStatsArchiveRequest;
 
@@ -34,7 +34,7 @@ public class RestClearRepositoriesStatsArchiveAction extends BaseRestHandler {
         return channel -> client.execute(
             ClearRepositoriesStatsArchiveAction.INSTANCE,
             clearArchivesRequest,
-            new RestToXContentListener<>(channel)
+            new RestActions.NodesResponseRestListener<>(channel)
         );
     }
 }

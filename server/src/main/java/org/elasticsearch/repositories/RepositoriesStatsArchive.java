@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayDeque;
@@ -27,6 +29,8 @@ import java.util.List;
 import java.util.function.LongSupplier;
 
 public final class RepositoriesStatsArchive {
+    private static final Logger logger = LogManager.getLogger(RepositoriesStatsArchive.class);
+
     private final TimeValue retentionPeriod;
     private final int maxCapacity;
     private final LongSupplier relativeTimeSupplier;
@@ -49,7 +53,9 @@ public final class RepositoriesStatsArchive {
      *
      * @return {@code true} if the repository stats were archived, {@code false} otherwise.
      */
-    synchronized boolean archive(RepositoryStatsSnapshot repositoryStats) {
+    synchronized boolean archive(final RepositoryStatsSnapshot repositoryStats) {
+        assert containsRepositoryStats(repositoryStats) == false
+            : "A repository with ephemeral id " + repositoryStats.getRepositoryInfo().ephemeralId + " is already archived";
         evict();
 
         if (archive.size() >= maxCapacity) {
@@ -58,9 +64,9 @@ public final class RepositoriesStatsArchive {
 
         RepositoryInfo stoppedRepoInfo =
             repositoryStats.getRepositoryInfo().stopped(absoluteTimeSupplier.getAsLong());
-        repositoryStats =
+        RepositoryStatsSnapshot stoppedStats =
             new RepositoryStatsSnapshot(stoppedRepoInfo, repositoryStats.getRepositoryStats(), relativeTimeSupplier.getAsLong());
-        return archive.add(repositoryStats);
+        return archive.add(stoppedStats);
     }
 
     synchronized List<RepositoryStatsSnapshot> getArchivedStats() {
@@ -76,13 +82,19 @@ public final class RepositoriesStatsArchive {
     synchronized List<RepositoryStatsSnapshot> clear() {
         List<RepositoryStatsSnapshot> archivedStats = getArchivedStats();
         archive.clear();
+        logger.debug("RepositoriesStatsArchive have been cleared. Removed stats: [{}]", archivedStats);
         return archivedStats;
     }
 
     private void evict() {
         RepositoryStatsSnapshot stats;
         while ((stats = archive.peek()) != null && stats.ageInMillis(relativeTimeSupplier) >= retentionPeriod.getMillis()) {
-            archive.poll();
+            RepositoryStatsSnapshot removedStats = archive.poll();
+            logger.debug("Evicting repository stats [{}]", removedStats);
         }
+    }
+
+    private boolean containsRepositoryStats(RepositoryStatsSnapshot repositoryStats) {
+        return archive.stream().anyMatch(r -> r.getRepositoryInfo().ephemeralId.equals(repositoryStats.getRepositoryInfo().ephemeralId));
     }
 }

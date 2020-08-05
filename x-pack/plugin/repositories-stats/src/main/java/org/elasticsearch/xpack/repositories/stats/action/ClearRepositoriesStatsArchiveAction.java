@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.repositories.stats.action;
 
 import org.elasticsearch.action.ActionType;
 
-public final class ClearRepositoriesStatsArchiveAction extends ActionType<ClearRepositoriesStatsArchiveResponse> {
+public final class ClearRepositoriesStatsArchiveAction extends ActionType<RepositoriesStatsResponse> {
     public static final ClearRepositoriesStatsArchiveAction INSTANCE = new ClearRepositoriesStatsArchiveAction();
 
     static final String NAME = "cluster:monitor/xpack/repositories_stats/clear_repositories_stats_archive";
 
     ClearRepositoriesStatsArchiveAction() {
-        super(NAME, ClearRepositoriesStatsArchiveResponse::new);
+        super(NAME, RepositoriesStatsResponse::new);
     }
 }

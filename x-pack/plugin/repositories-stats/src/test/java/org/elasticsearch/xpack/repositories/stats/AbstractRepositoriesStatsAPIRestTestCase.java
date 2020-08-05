@@ -19,7 +19,6 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,12 +54,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
     protected abstract List<String> writeCounterKeys();
 
     @Before
-    public void clear() throws Exception {
-        clearRepositoriesStats();
-    }
-
-    @After
-    public void clearStats() throws Exception {
+    public void clearArchive() throws Exception {
         clearRepositoriesStats();
     }
 
@@ -110,9 +104,12 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
         snapshotAndRestoreIndex((repository, index) -> {
             deleteRepository(repository);
 
-            assertThat(getRepositoriesStats().size(), equalTo(1));
+            List<RepositoryStatsSnapshot> repositoriesStatsBeforeClearing = getRepositoriesStats();
+            assertThat(repositoriesStatsBeforeClearing.size(), equalTo(1));
 
-            clearRepositoriesStats();
+            List<RepositoryStatsSnapshot> removedRepositoriesStats = clearRepositoriesStats();
+
+            assertThat(repositoriesStatsBeforeClearing, equalTo(removedRepositoriesStats));
 
             assertThat(getRepositoriesStats().size(), equalTo(0));
         });
@@ -300,6 +297,10 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
 
     private List<RepositoryStatsSnapshot> getRepositoriesStats() throws IOException {
         Map<String, Object> response = getAsMap("/_nodes/_all/_repositories_stats");
+        return parseRepositoriesStatsResponse(response);
+    }
+
+    private List<RepositoryStatsSnapshot> parseRepositoriesStatsResponse(Map<String, Object> response) throws IOException {
         Map<String, List<Map<String, Object>>> nodesRepoStats = extractValue(response, "nodes");
         assertThat(response.size(), greaterThan(0));
         List<RepositoryStatsSnapshot> repositoriesStats = new ArrayList<>();
@@ -336,7 +337,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
         return nodes.keySet();
     }
 
-    private void clearRepositoriesStats() throws IOException {
+    private List<RepositoryStatsSnapshot> clearRepositoriesStats() throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_nodes/_all/_repositories_stats");
         final Response response = client().performRequest(request);
         assertThat(
@@ -344,6 +345,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+        return parseRepositoriesStatsResponse(responseAsMap(response));
     }
 
     @SuppressWarnings("unchecked")

@@ -188,7 +188,7 @@ Machine Learning::
 * Add support for larger forecasts in memory via max_model_memory setting {ml-pull}1238[#1238], {ml-pull}57254[#57254]
 * Don't lose precision when saving model state {ml-pull}1274[#1274]
 * Parallelize the feature importance calculation for classification and regression over trees {ml-pull}1277[#1277]
-* Add an option to do categorization independently for each partition {ml-pull}1293[#1293], {ml-pull}1318[#1318], {ml-pull}1356[#1356], {ml-pull}57683[#57683]
+* Add an option to do categorization independently for each partition {ml-pull}1293[#1293], {ml-pull}1318[#1318], {ml-pull}1356[#1356], {es-pull}57683[#57683]
 * Memory usage is reported during job initialization {ml-pull}1294[#1294]
 * More realistic memory estimation for classification and regression means that these analyses will require lower memory limits than before {ml-pull}1298[#1298]
 * Checkpoint state to allow efficient failover during coarse parameter search for classification and regression {ml-pull}1300[#1300]

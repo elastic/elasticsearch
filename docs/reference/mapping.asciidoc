@@ -15,10 +15,10 @@ are stored and indexed. For instance, use mappings to define:
 
 A mapping definition has:
 
-<<mapping-fields,Meta-fields>>::
+<<mapping-fields,Metadata fields>>::
 
-Meta-fields are used to customize how a document's associated metadata is
-treated. Examples of meta-fields include the document's
+Metadata fields are used to customize how a document's associated metadata is
+treated. Examples of metadata fields include the document's
 <<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
 <<mapping-source-field,`_source`>> fields.
 

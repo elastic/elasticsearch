@@ -603,7 +603,7 @@ You can also use a query to reindex only a subset of documents with each
 request.
 +
 --
-The following <<docs-reindex,reindex API>> request copies documents from the
+The following <<docs-reindex,reindex API>> request copies documents from
 `my-data-stream` to `new-data-stream`. The request
 uses a <<query-dsl-range-query,`range` query>> to only reindex documents with a
 timestamp within the last week. Note the request's `op_type` is `create`.

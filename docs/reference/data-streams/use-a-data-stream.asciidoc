@@ -407,9 +407,8 @@ POST /my-data-stream/_open/
 ----
 // TEST[continued]
 
-You can resubmit the original cat indices API request to verify the
-`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002` backing indices were
-re-opened.
+You can resubmit the original cat indices API request to verify
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002` were re-opened.
 
 [source,console]
 ----

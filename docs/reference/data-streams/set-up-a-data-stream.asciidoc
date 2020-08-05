@@ -288,7 +288,7 @@ the following information about one or more data streams:
 * The current {ilm-init} lifecycle policy in the stream's matching index
 template
 
-The following get data stream API request retrieves information about the
+The following get data stream API request retrieves information about
 `my-data-stream`.
 
 ////

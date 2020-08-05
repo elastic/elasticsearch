@@ -34,7 +34,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -93,7 +93,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
         DocumentMapper mapper = service.documentMapper();
         String joinField = fieldType.getJoinField();
-        DocumentFieldMappers fieldMappers = mapper.mappers();
+        MappingLookup fieldMappers = mapper.mappers();
         return (ParentJoinFieldMapper) fieldMappers.getMapper(joinField);
     }
 

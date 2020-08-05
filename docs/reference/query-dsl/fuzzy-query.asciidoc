@@ -31,7 +31,7 @@ GET /_search
 {
   "query": {
     "fuzzy": {
-      "user": {
+      "user.id": {
         "value": "ki"
       }
     }
@@ -48,7 +48,7 @@ GET /_search
 {
   "query": {
     "fuzzy": {
-      "user": {
+      "user.id": {
         "value": "ki",
         "fuzziness": "AUTO",
         "max_expansions": 50,

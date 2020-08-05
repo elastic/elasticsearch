@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.Util
@@ -54,7 +55,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
-        project.pluginManager.apply(TestClustersPlugin)
+        project.pluginManager.apply(RestTestBasePlugin)
         project.pluginManager.apply(CompileOnlyResolvePlugin.class);
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)

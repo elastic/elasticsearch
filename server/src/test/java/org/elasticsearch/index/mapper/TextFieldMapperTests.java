@@ -1014,9 +1014,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
                 .endObject().endObject()
                 .endObject().endObject());
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            MapperParsingException e = expectThrows(MapperParsingException.class, () ->
                 indexService.mapperService().merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE));
-            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice."));
+            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined more than once"));
 
         }
 

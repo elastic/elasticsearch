@@ -20,7 +20,7 @@ restResources {
   }
 }
 
-integTest.runner {
+integTest {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -167,7 +167,7 @@ integTest.runner {
     'ml/jobs_get_result_categories/Test with invalid param combinations',
     'ml/jobs_get_result_categories/Test with invalid param combinations via body',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given missing job',
-    'ml/jobs_get_result_overall_buckets/Test overall buckets given non-matching expression and not allow_no_jobs',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given non-matching expression and not allow_no_match',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is 0',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is negative',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',

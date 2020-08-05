@@ -32,7 +32,7 @@ import java.util.Map;
  * reasons to do this:
  * <ul>
  * <li>{@link Inet4Address}es and {@link Inet6Address} are not comparable with one another.
- * That is correct in some contexts, but not for our queries. Our queries most consider the
+ * That is correct in some contexts, but not for our queries. Our queries must consider the
  * IPv4 address equal to the address that it maps to in IPv6 <a href="https://tools.ietf.org/html/rfc4291">rfc4291</a>).
  * <li>{@link InetAddress}es are not ordered, but we need to implement range queries with
  * same same ordering as {@link IpFieldMapper}. That also uses {@link InetAddressPoint}

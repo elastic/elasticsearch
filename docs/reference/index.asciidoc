@@ -28,7 +28,7 @@ include::search/search-your-data.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-include::eql/index.asciidoc[]
+include::eql/eql.asciidoc[]
 
 include::sql/index.asciidoc[]
 

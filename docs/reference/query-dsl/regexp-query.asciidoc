@@ -14,7 +14,7 @@ characters, called operators. For a list of operators supported by the
 [[regexp-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains any term
+The following search returns documents where the `user.id` field contains any term
 that begins with `k` and ends with `y`. The `.*` operators match any
 characters of any length, including no characters. Matching
 terms can include `ky`, `kay`, and `kimchy`.
@@ -25,7 +25,7 @@ GET /_search
 {
   "query": {
     "regexp": {
-      "user": {
+      "user.id": {
         "value": "k.*y",
         "flags": "ALL",
         "max_determinized_states": 10000,

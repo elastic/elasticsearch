@@ -8,16 +8,16 @@ Deletes documents that match the specified query.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": {
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -207,7 +207,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
@@ -250,16 +250,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": { <1>
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 //////////////////////////
 
@@ -350,38 +350,38 @@ version conflicts.
 [[docs-delete-by-query-api-example]]
 ==== {api-examples-title}
 
-Delete all tweets from the `twitter` data stream or index:
+Delete all documents from the `my-index-000001` data stream or index:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?conflicts=proceed
+POST my-index-000001/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Delete documents from multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
-POST /twitter,blog/_delete_by_query
+POST /my-index-000001,my-index-000002/_delete_by_query
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Limit the delete by query operation to shards that a particular routing
 value: 
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?routing=1
+POST my-index-000001/_delete_by_query?routing=1
 {
   "query": {
     "range" : {
@@ -392,23 +392,23 @@ POST twitter/_delete_by_query?routing=1
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default `_delete_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?scroll_size=5000
+POST my-index-000001/_delete_by_query?scroll_size=5000
 {
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[docs-delete-by-query-manual-slice]]
@@ -419,7 +419,7 @@ slices:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 0,
@@ -427,13 +427,13 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 1,
@@ -441,26 +441,26 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
@@ -492,29 +492,29 @@ the number of slices to use:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query?refresh&slices=5
+POST my-index-000001/_delete_by_query?refresh&slices=5
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you also can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }

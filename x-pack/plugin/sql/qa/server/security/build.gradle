@@ -47,7 +47,7 @@ subprojects {
     into testArtifactsDir
   }
 
-  integTest.runner {
+  integTest {
     dependsOn copyTestClasses
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts

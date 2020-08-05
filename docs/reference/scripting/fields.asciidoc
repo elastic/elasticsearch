@@ -14,7 +14,7 @@ API will have access to the `ctx` variable which exposes:
 [horizontal]
 `ctx._source`::     Access to the document <<mapping-source-field,`_source` field>>.
 `ctx.op`::          The operation that should be applied to the document: `index` or `delete`.
-`ctx._index` etc::  Access to <<mapping-fields,document meta-fields>>, some of which may be read-only.
+`ctx._index` etc::  Access to <<mapping-fields,document metadata fields>>, some of which may be read-only.
 
 [discrete]
 == Search and aggregation scripts

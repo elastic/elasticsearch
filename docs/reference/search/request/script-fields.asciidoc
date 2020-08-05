@@ -54,7 +54,7 @@ GET /_search
         }
     }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note the `_source` keyword here to navigate the json-like model.
 

@@ -93,7 +93,7 @@ See <<request-body-search-min-score>>.
 
 [role="exclude",id="search-request-named-queries-and-filters"]
 === Named query parameter for request body search API
-See <<request-body-search-queries-and-filters>>.
+See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
@@ -966,6 +966,21 @@ See <<run-an-es-search>>.
 
 See <<how-es-highlighters-work-internally>>.
 
+[role="exclude",id="eql-search"]
+=== Run an EQL search
+
+See <<run-an-eql-search>>.
+
+[role="exclude",id="eql-limitations"]
+=== EQL limitations
+
+See <<eql-syntax-limitations>>.
+
+[role="exclude",id="eql-requirements"]
+=== EQL requirements
+
+See <<eql-required-fields>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -999,12 +1014,27 @@ See <<highlighting>>.
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
 
+[role="exclude",id="request-body-search-queries-and-filters"]
+=== Named queries
+
+See <<named-queries>.
+
 See <<how-es-highlighters-work-internally>>.
 
 [role="exclude",id="request-body-search-scroll"]
 ==== Scroll
 
 See <<scroll-search-results>>.
+
+[[_clear_scroll_api]]
+===== Clear scroll API
+
+See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
 
 [role="exclude",id="request-body-search-search-after"]
 ==== Search After

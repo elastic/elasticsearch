@@ -78,7 +78,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
-        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, tasks, true, ActionListener.wrap(
+        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoMatch(), true, tasks, true, ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedJobsIds(new ArrayList<>(expandedIds));
                     ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(

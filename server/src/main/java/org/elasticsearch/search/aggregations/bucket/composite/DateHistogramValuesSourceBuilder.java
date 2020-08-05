@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -58,6 +59,19 @@ import java.util.function.LongConsumer;
  */
 public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
+    @FunctionalInterface
+    public interface DateHistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+        CompositeValuesSourceConfig apply(
+            ValuesSourceConfig config,
+            Rounding rounding,
+            String name,
+            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
+            String format,
+            boolean missingBucket,
+            SortOrder order
+        );
+    }
+
     static final String TYPE = "date_histogram";
 
     static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
@@ -256,11 +270,10 @@ public class DateHistogramValuesSourceBuilder
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            ((valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+            (DateHistogramCompositeSupplier) (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
-                Rounding rounding = compositeBucketStrategy.getRounding();
                 Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
                 RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
                 // is specified in the builder.
@@ -293,7 +306,7 @@ public class DateHistogramValuesSourceBuilder
                         );
                     }
                 );
-            })
+            }
         );
     }
 
@@ -305,8 +318,8 @@ public class DateHistogramValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config)
-            .apply(config, new CompositeBucketStrategy(rounding), name, config.script() != null, format(), missingBucket(), order());
+        return ((DateHistogramCompositeSupplier) queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config))
+            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

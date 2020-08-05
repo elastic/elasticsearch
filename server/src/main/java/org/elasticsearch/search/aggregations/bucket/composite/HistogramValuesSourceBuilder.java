@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,6 +46,19 @@ import java.util.function.LongConsumer;
  * using the provided interval.
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
+    @FunctionalInterface
+    public interface HistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+        CompositeValuesSourceConfig apply(
+            ValuesSourceConfig config,
+            double interval,
+            String name,
+            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
+            String format,
+            boolean missingBucket,
+            SortOrder order
+        );
+    }
+
     static final String TYPE = "histogram";
 
     private static final ObjectParser<HistogramValuesSourceBuilder, Void> PARSER;
@@ -61,9 +75,9 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+            (HistogramCompositeSupplier) (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
-                final HistogramValuesSource vs = new HistogramValuesSource(numeric, compositeBucketStrategy.getInterval());
+                final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
                 return new CompositeValuesSourceConfig(
                     name,
@@ -159,8 +173,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config)
-            .apply(config, new CompositeBucketStrategy(interval), name, script() != null, format(), missingBucket(), order());
+        return ((HistogramCompositeSupplier) queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config))
+            .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

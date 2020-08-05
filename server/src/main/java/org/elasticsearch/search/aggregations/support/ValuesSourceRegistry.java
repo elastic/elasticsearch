@@ -21,10 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeBucketStrategy;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
-import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -40,17 +37,8 @@ import java.util.Map;
  */
 public class ValuesSourceRegistry {
 
-    @FunctionalInterface
     public interface CompositeSupplier {
-        CompositeValuesSourceConfig apply(
-            ValuesSourceConfig config,
-            CompositeBucketStrategy compositeBucketStrategy,
-            String name,
-            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
-            String format,
-            boolean missingBucket,
-            SortOrder order
-        );
+        // this interface intentionally left blank
     }
 
     public static class Builder {

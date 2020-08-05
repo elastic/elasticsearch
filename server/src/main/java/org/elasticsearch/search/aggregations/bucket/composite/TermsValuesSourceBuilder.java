@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,6 +47,18 @@ import java.util.function.LongUnaryOperator;
  * a field name.
  */
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
+
+    @FunctionalInterface
+    public interface TermsCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+        CompositeValuesSourceConfig apply(
+            ValuesSourceConfig config,
+            String name,
+            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
+            String format,
+            boolean missingBucket,
+            SortOrder order
+        );
+    }
     static final String TYPE = "terms";
 
     private static final ObjectParser<TermsValuesSourceBuilder, Void> PARSER;
@@ -81,7 +94,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+            (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
                     // defaults to the raw format on date fields (preserve timestamp as longs).
@@ -139,7 +152,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+            (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 return new CompositeValuesSourceConfig(
                     name,
                     valuesSourceConfig.fieldType(),
@@ -194,8 +207,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config)
-            .apply(config, new CompositeBucketStrategy(), name, script() != null, format(), missingBucket(), order());
+        return ((TermsCompositeSupplier) queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config))
+            .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

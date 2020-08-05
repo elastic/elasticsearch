@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,6 +49,20 @@ import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
+    @FunctionalInterface
+    public interface GeoTileCompositeSuppier extends ValuesSourceRegistry.CompositeSupplier {
+        CompositeValuesSourceConfig apply(
+            ValuesSourceConfig config,
+            int precision,
+            GeoBoundingBox boundingBox,
+            String name,
+            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
+            String format,
+            boolean missingBucket,
+            SortOrder order
+        );
+    }
+
     static final String TYPE = "geotile_grid";
 
     private static final ObjectParser<GeoTileGridValuesSourceBuilder, Void> PARSER;
@@ -68,14 +83,14 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.registerComposite(
             TYPE,
             CoreValuesSourceType.GEOPOINT,
-            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+            (GeoTileCompositeSuppier) (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
                 CellIdSource cellIdSource = new CellIdSource(
                     geoPoint,
-                    compositeBucketStrategy.getPrecision(),
-                    compositeBucketStrategy.getBoundingBox(),
+                    precision,
+                    boundingBox,
                     GeoTileUtils::longEncode
                 );
                 return new CompositeValuesSourceConfig(
@@ -188,17 +203,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config)
-            .apply(
-                config,
-                new CompositeBucketStrategy(precision, geoBoundingBox()),
-                name,
-                script() != null,
-                format(),
-                missingBucket(),
-                order()
-            );
+        return ((GeoTileCompositeSuppier) queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config))
+            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 
 }

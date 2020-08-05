@@ -83,7 +83,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class, TrackingRepositoryPlugin.class);
+        return List.of(LocalStateSearchableSnapshots.class, TrackingRepositoryPlugin.class);
     }
 
     @Override

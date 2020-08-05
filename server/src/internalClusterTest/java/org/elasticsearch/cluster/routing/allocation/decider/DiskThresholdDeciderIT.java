@@ -23,6 +23,7 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -45,8 +46,9 @@ import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -78,19 +80,24 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskThresholdDeciderIT extends ESIntegTestCase {
 
-    private TestFileSystemProvider fileSystemProvider;
+    private static TestFileSystemProvider fileSystemProvider;
 
-    @Before
-    public void installFilesystemProvider() {
+    @BeforeClass
+    public static void installFilesystemProvider() {
         assertNull(fileSystemProvider);
         fileSystemProvider = new TestFileSystemProvider(PathUtils.getDefaultFileSystem(), createTempDir());
         PathUtilsForTesting.installMock(fileSystemProvider.getFileSystem(null));
     }
 
-    @After
-    public void removeFilesystemProvider() {
+    @AfterClass
+    public static void removeFilesystemProvider() {
         fileSystemProvider = null;
-        PathUtilsForTesting.teardown();
+        // ESIntegTestCase takes care of tearing down the mock file system
+    }
+
+    @Before
+    public void clearTrackedPaths() throws IOException {
+        fileSystemProvider.clearTrackedPaths();
     }
 
     private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
@@ -288,11 +295,12 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
             this.rootDir = new FilterPath(rootDir, fileSystem);
         }
 
-        public Path getRootDir() {
+        Path getRootDir() {
             return rootDir;
         }
 
-        public void addTrackedPath(Path path) {
+        void addTrackedPath(Path path) {
+            assertTrue(path + " starts with " + rootDir, path.startsWith(rootDir));
             final FileStore fileStore;
             try {
                 fileStore = super.getFileStore(path);
@@ -307,18 +315,25 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
             return getTestFileStore(path);
         }
 
-        public TestFileStore getTestFileStore(Path path) {
+        TestFileStore getTestFileStore(Path path) {
             final TestFileStore fileStore = trackedPaths.get(path);
-            if (fileStore == null && Constants.LINUX) {
-                // On Linux, Lucene obtains a filestore for the index in order to determine whether it's on a spinning disk or not
-                // so it can configure the merge scheduler accordingly
-                final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
-                assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
-                return trackedPaths.get(containingPaths.iterator().next());
+            if (fileStore != null) {
+                return fileStore;
             }
-            assertNotNull(path + " not tracked", fileStore);
-            return fileStore;
+
+            // On Linux, and only Linux, Lucene obtains a filestore for the index in order to determine whether it's on a spinning disk or
+            // not so it can configure the merge scheduler accordingly
+            assertTrue(path + " not tracked and not on Linux", Constants.LINUX);
+            final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
+            assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
+            return trackedPaths.get(containingPaths.iterator().next());
         }
 
+        void clearTrackedPaths() throws IOException {
+            for (Path path : trackedPaths.keySet()) {
+                IOUtils.rm(path);
+            }
+            trackedPaths.clear();
+        }
     }
 }

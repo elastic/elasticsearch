@@ -365,15 +365,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         }
 
                         currentDistros.add(
-                            createDistro(
-                                distributions,
-                                architecture,
-                                type,
-                                null,
-                                flavor,
-                                bundledJdk,
-                                VersionProperties.getElasticsearch()
-                            )
+                            createDistro(distributions, architecture, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch())
                         );
                     }
                 }

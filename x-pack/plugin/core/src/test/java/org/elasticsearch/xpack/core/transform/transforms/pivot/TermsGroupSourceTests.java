@@ -48,6 +48,7 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
         return TermsGroupSource::new;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60794")
     public void testSupportsIncrementalBucketUpdate() {
         TermsGroupSource terms = randomTermsGroupSource();
         assertEquals(terms.getScriptConfig() == null, terms.supportsIncrementalBucketUpdate());

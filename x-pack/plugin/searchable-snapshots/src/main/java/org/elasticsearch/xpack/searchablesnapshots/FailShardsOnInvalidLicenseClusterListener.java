@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,7 +86,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 } catch (AlreadyClosedException ignored) {
                     // ignore
                 } catch (Exception e) {
-                    logger.warn("Could not close index service due to invalid license", e);
+                    logger.warn(new ParameterizedMessage("Could not close shard {} due to invalid license", indexShard.shardId()), e);
                 }
             }
             shardsToFail.clear();

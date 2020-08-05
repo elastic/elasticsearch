@@ -72,7 +72,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public final class ShardGetService extends AbstractIndexShardComponent {
-    private static final double ALPHA = 0.1;
+    private static final double ALPHA = 0.05;
     private static final double INITIAL_VALUE = TimeUnit.MICROSECONDS.toNanos(100);
 
     private final MapperService mapperService;

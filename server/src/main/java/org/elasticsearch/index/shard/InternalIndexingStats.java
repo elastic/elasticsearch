@@ -127,7 +127,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     static class StatsHolder {
-        private static final double ALPHA = 0.1;
+        private static final double ALPHA = 0.05;
         private static final double INITIAL_VALUE = TimeUnit.MICROSECONDS.toNanos(100);
 
         private final ExponentiallyWeightedMovingAverage indexEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, INITIAL_VALUE);

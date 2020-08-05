@@ -32,11 +32,15 @@ import java.nio.file.Paths
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
+import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_ADOPTOPENJDK
+import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_OPENJDK
+
 class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
-    public static final String OPENJDK_VERSION_OLD = "1+99"
-    public static final String ADOPT_JDK_VERSION = "12.0.2+10"
-    public static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
+    private static final String OPENJDK_VERSION_OLD = "1+99"
+    private static final String ADOPT_JDK_VERSION = "12.0.2+10"
+    private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
+    private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
 
     @Unroll
     def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
@@ -75,16 +79,16 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertExtraction(result.output, expectedJavaBin);
 
         where:
-        platform  | jdkVendor      | jdkVersion          | expectedJavaBin          | suffix
-        "linux"   | "adoptopenjdk" | ADOPT_JDK_VERSION   | "bin/java"               | ""
-        "linux"   | "openjdk"      | OPEN_JDK_VERSION    | "bin/java"               | ""
-        "linux"   | "openjdk"      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
-        "windows" | "adoptopenjdk" | ADOPT_JDK_VERSION   | "bin/java"               | ""
-        "windows" | "openjdk"      | OPEN_JDK_VERSION    | "bin/java"               | ""
-        "windows" | "openjdk"      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
-        "darwin"  | "adoptopenjdk" | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
-        "darwin"  | "openjdk"      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
-        "darwin"  | "openjdk"      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+        platform  | jdkVendor           | jdkVersion          | expectedJavaBin          | suffix
+        "linux"   | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "linux"   | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "linux"   | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "windows" | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "windows" | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "windows" | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "darwin"  | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
+        "darwin"  | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "darwin"  | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
     }
 
     def "transforms are reused across projects"() {
@@ -115,7 +119,6 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 tasks.register("getJdk") {
                     dependsOn jdks.myJdk
                     doLast {
-                        println "\$path"
                         println "JDK HOME: " + jdks.myJdk
                     }
                 }
@@ -133,15 +136,15 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
 
         where:
-        platform | jdkVendor      | jdkVersion        | expectedJavaBin
-        "linux"  | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"
+        platform | jdkVendor           | jdkVersion        | expectedJavaBin
+        "linux"  | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION | "bin/java"
     }
 
     @Unroll
     def "transforms of type #transformType are cached across builds"() {
         given:
-        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
-        def mockedContent = filebytes(jdkVendor, platform)
+        def mockRepoUrl = urlPath(VENDOR_ADOPTOPENJDK, ADOPT_JDK_VERSION, platform)
+        def mockedContent = filebytes(VENDOR_ADOPTOPENJDK, platform)
         buildFile.text = """
             plugins {
              id 'elasticsearch.jdk-download'
@@ -151,8 +154,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             jdks {
               myJdk {
-                vendor = '$jdkVendor'
-                version = '$jdkVersion'
+                vendor = '$VENDOR_ADOPTOPENJDK'
+                version = '$ADOPT_JDK_VERSION'
                 platform = "$platform"
                 architecture = "x64"
               }
@@ -174,7 +177,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-            buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
+            buildFile << repositoryMockSetup(server, VENDOR_ADOPTOPENJDK, ADOPT_JDK_VERSION)
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
@@ -188,12 +191,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, "Loaded cache entry for $transformType")
 
         where:
-        platform  | jdkVendor      | jdkVersion        | expectedJavaBin | transformType
-        "linux"   | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"      | SymbolicLinkPreservingUntarTransform.class.simpleName
-        "windows" | "adoptopenjdk" | ADOPT_JDK_VERSION | "bin/java"      | UnzipTransform.class.simpleName
+        platform  | transformType
+        "linux"   | SymbolicLinkPreservingUntarTransform.class.simpleName
+        "windows" | UnzipTransform.class.simpleName
     }
-
-    private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
 
     static boolean assertExtraction(String output, String javaBin) {
         Matcher matcher = JDK_HOME_LOGLINE.matcher(output);
@@ -205,10 +206,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     private static String urlPath(final String vendor, final String version, final String platform) {
-        if (vendor.equals('adoptopenjdk')) {
+        if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
             final String module = platform.equals("darwin") ? "mac" : platform;
             return "/jdk-12.0.2+10/" + module + "/x64/jdk/hotspot/normal/adoptopenjdk";
-        } else if (vendor.equals('openjdk')) {
+        } else if (vendor.equals(VENDOR_OPENJDK)) {
             final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
             final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
@@ -219,9 +220,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
         final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
-        if (vendor.equals('adoptopenjdk')) {
+        if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
             return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptopenjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
-        } else if (vendor.equals('openjdk')) {
+        } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         }
     }
@@ -231,18 +232,13 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     private static String repositoryMockSetup(WireMockServer server, String jdkVendor, String jdkVersion) {
-        """
-                allprojects{ p ->
-                  p.afterEvaluate {
-                
-                  // wire the jdk repo to wiremock
-                  p.repositories.all { repo ->
+        """allprojects{ p ->
+                // wire the jdk repo to wiremock
+                p.repositories.all { repo ->
                     if(repo.name == "jdk_repo_${jdkVendor}_${jdkVersion}") {
                       repo.setUrl('${server.baseUrl()}')
                     }
-                  }
                 }
-            }
-            """
+           }"""
     }
 }

@@ -101,9 +101,19 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         @Override
         public void addFileDetails(String name, long length, boolean reused) {
             // We allow reporting the same file details multiple times as we populate the file
-            // details before the recovery is executed and therefore we ignore the rest
-            // of the calls for the same files.
-            fileDetails.computeIfAbsent(name, n -> new FileDetail(name, length, reused));
+            // details before the recovery is executed (see SearchableSnapshotDirectory#prewarmCache)
+            // and therefore we ignore the rest of the calls for the same files.
+            // Additionally, it's possible that a segments_n file that wasn't part of the snapshot is
+            // sent over during peer recoveries as after restore a new segments file is generated
+            // (see StoreRecovery#bootstrap).
+            FileDetail fileDetail = fileDetails.computeIfAbsent(name, n -> new FileDetail(name, length, reused));
+            assert fileDetail == null || fileDetail.name().equals(name) && fileDetail.length() == length : "The file "
+                + name
+                + " was reported multiple times with different lengths: ["
+                + fileDetail.length()
+                + "] and ["
+                + length
+                + "]";
         }
 
         @Override

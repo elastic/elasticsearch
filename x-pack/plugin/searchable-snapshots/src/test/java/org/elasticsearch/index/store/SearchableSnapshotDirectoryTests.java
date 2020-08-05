@@ -117,7 +117,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -134,6 +136,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -774,11 +777,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         try {
             SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
             testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-                ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.cacheFetchAsyncExecutor();
-                assertBusy(() -> {
-                    assertThat(executor.getActiveCount(), equalTo(0));
-                    assertThat(executor.getQueue().size(), equalTo(0));
-                });
+                assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
 
                 assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
                 // All pre-warm tasks failed
@@ -824,16 +823,33 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching)
             .build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.prewarmExecutor();
-            assertBusy(() -> {
-                assertThat(executor.getActiveCount(), equalTo(0));
-                assertThat(executor.getQueue().size(), equalTo(0));
-            });
+            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
                 boolean fileHasExcludedType = fileTypesExcludedFromCaching.stream().anyMatch(type -> fileDetail.name().endsWith(type));
                 assertFalse(fileHasExcludedType);
+            }
+        });
+    }
+
+    public void testFilesWithHashEqualsContentsAreMarkedAsReusedOnRecoveryState() throws Exception {
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+
+        testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
+            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
+            assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+
+            List<BlobStoreIndexShardSnapshot.FileInfo> filesWithEqualContent = snapshotDirectory.snapshot()
+                .indexFiles()
+                .stream()
+                .filter(f -> f.metadata().hashEqualsContents())
+                .collect(Collectors.toList());
+
+            for (BlobStoreIndexShardSnapshot.FileInfo fileWithEqualContent : filesWithEqualContent) {
+                RecoveryState.FileDetail fileDetail = recoveryState.getIndex().getFileDetails(fileWithEqualContent.physicalName());
+                assertThat(fileDetail, is(notNullValue()));
+                assertTrue(fileDetail.reused());
             }
         });
     }
@@ -871,6 +887,14 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         }
         assertThat("Number of files (" + files.size() + ") mismatch, got : " + files.keySet(), files.size(), matchNumberOfFiles);
         assertThat("Sum of file sizes mismatch, got: " + files, files.values().stream().mapToLong(Long::longValue).sum(), matchSizeOfFiles);
+    }
+
+    private void assertExecutorIsIdle(Executor executor) throws Exception {
+        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
+        assertBusy(() -> {
+            assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
+            assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
+        });
     }
 
     private static IndexSettings newIndexSettings() {

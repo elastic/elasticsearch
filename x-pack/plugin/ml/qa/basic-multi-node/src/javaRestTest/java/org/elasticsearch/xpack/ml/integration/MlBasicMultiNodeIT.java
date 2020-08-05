@@ -13,7 +13,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
@@ -28,6 +27,8 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class MlBasicMultiNodeIT extends ESRestTestCase {
+
+    private static final String BASE_PATH = "/_ml/";
 
     public void testMachineLearningInstalled() throws Exception {
         Response response = client().performRequest(new Request("GET", "/_xpack"));
@@ -55,10 +56,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         createFarequoteJob(jobId);
 
         Response openResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request addData = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        Request addData = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addData.setEntity(new NStringEntity(
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}",
@@ -78,16 +79,16 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481700000L, responseBody.get("latest_record_timestamp"));
 
         Response flushResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
-        Request closeRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
+        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
         closeRequest.addParameter("timeout", "20s");
         Response closeResponse = client().performRequest(closeRequest);
         assertEquals(Collections.singletonMap("closed", true), entityAsMap(closeResponse));
 
         Response statsResponse = client().performRequest(
-                new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
         Map<?, ?> dataCountsDoc = (Map<?, ?>)
                 ((Map<?, ?>)((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
         assertEquals(2, dataCountsDoc.get("processed_record_count"));
@@ -101,7 +102,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, dataCountsDoc.get("earliest_record_timestamp"));
         assertEquals(1403481700000L, dataCountsDoc.get("latest_record_timestamp"));
 
-        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
+        client().performRequest(new Request("DELETE", BASE_PATH + "anomaly_detectors/" + jobId));
     }
 
     public void testMiniFarequoteWithDatafeeder() throws Exception {
@@ -136,10 +137,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         createDatafeed(datafeedId, jobId);
 
         Response openResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
+        Request startRequest = new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "0");
         Response startResponse = client().performRequest(startRequest);
         assertThat(entityAsMap(startResponse), hasEntry("started", true));
@@ -147,7 +148,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(
-                        new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                        new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
                 Map<?, ?> dataCountsDoc = (Map<?, ?>)
                         ((Map<?, ?>)((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
                 assertEquals(2, dataCountsDoc.get("input_record_count"));
@@ -158,16 +159,16 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         });
 
         Response stopResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
+                new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertEquals(Collections.singletonMap("stopped", true), entityAsMap(stopResponse));
 
-        Request closeRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
+        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
         closeRequest.addParameter("timeout", "20s");
         assertEquals(Collections.singletonMap("closed", true),
                 entityAsMap(client().performRequest(closeRequest)));
 
-        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId));
-        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
+        client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
+        client().performRequest(new Request("DELETE", BASE_PATH + "anomaly_detectors/" + jobId));
     }
 
     public void testMiniFarequoteReopen() throws Exception {
@@ -175,10 +176,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         createFarequoteJob(jobId);
 
         Response openResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request addDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        Request addDataRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addDataRequest.setEntity(new NStringEntity(
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}\n" +
@@ -201,24 +202,24 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403482000000L, responseBody.get("latest_record_timestamp"));
 
         Response flushResponse = client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
-        Request closeRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
+        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
         closeRequest.addParameter("timeout", "20s");
         assertEquals(Collections.singletonMap("closed", true),
                 entityAsMap(client().performRequest(closeRequest)));
 
-        Request statsRequest = new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        Request statsRequest = new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         client().performRequest(statsRequest);
 
-        Request openRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+        Request openRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         openRequest.addParameter("timeout", "20s");
         Response openResponse2 = client().performRequest(openRequest);
         assertThat(entityAsMap(openResponse2), hasEntry("opened", true));
 
         // feed some more data points
-        Request addDataRequest2 = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        Request addDataRequest2 = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addDataRequest2.setEntity(new NStringEntity(
                 "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n" +
                 "{\"airline\":\"VRD\",\"responsetime\":\"282.9847\",\"sourcetype\":\"farequote\",\"time\":\"1407081700\"}\n" +
@@ -261,7 +262,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, dataCountsDoc.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, dataCountsDoc.get("latest_record_timestamp"));
 
-        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
+        client().performRequest(new Request("DELETE", BASE_PATH + "anomaly_detectors/" + jobId));
     }
 
     private Response createDatafeed(String datafeedId, String jobId) throws Exception {
@@ -270,7 +271,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.field("job_id", jobId);
         xContentBuilder.array("indexes", "airline-data");
         xContentBuilder.endObject();
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
+        Request request = new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId);
         request.setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }
@@ -309,7 +310,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + UriEncoder.encode(jobId));
+        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + UriEncoder.encode(jobId));
         request.setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }

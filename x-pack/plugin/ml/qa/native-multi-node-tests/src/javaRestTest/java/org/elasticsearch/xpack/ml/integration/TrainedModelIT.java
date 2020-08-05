@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.junit.After;
@@ -49,7 +50,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TrainedModelIT extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user",
+    private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user",
             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Override

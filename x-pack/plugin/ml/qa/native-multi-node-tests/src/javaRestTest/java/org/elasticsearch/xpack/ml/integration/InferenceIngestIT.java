@@ -25,7 +25,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,7 +48,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 public class InferenceIngestIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
-        basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Before
     public void setup() throws Exception {
@@ -534,7 +536,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"description\": \"test model for classification\",\n" +
         "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
         "  \"inference_config\": {\"classification\": {}},\n" +
-        "  \"definition\": " + getClassificationDefinition(false) +
+        "  \"definition\": " + InferenceDefinitionTests.getClassificationDefinition(false) +
         "}";
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {

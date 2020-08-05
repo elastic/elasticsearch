@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +25,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
-        basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected Settings restClientSettings() {
@@ -67,8 +68,8 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         setupDataAccessRole(index);
         setupUser("ml_admin", Collections.singletonList("machine_learning_admin"));
         setupUser("ml_admin_plus_data", Arrays.asList("machine_learning_admin", "test_data_access"));
-        String mlAdmin = basicAuthHeaderValue("ml_admin", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        String mlAdminPlusData = basicAuthHeaderValue("ml_admin_plus_data", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        String mlAdmin = UsernamePasswordToken.basicAuthHeaderValue("ml_admin", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        String mlAdminPlusData = UsernamePasswordToken.basicAuthHeaderValue("ml_admin_plus_data", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         Request evaluateRequest = buildRegressionEval(index, mlAdmin, mlAdminPlusData);
         client().performRequest(evaluateRequest);
 

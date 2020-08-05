@@ -10,12 +10,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class MlPluginDisabledIT extends ESRestTestCase {
+
+    private static final String BASE_PATH = "/_ml/";
 
     /**
      * Check that when the ml plugin is disabled, you cannot create a job as the
@@ -55,7 +56,7 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/foo");
+        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/foo");
         request.setJsonEntity(Strings.toString(xContentBuilder));
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(exception.getMessage(), containsString("method [PUT]"));

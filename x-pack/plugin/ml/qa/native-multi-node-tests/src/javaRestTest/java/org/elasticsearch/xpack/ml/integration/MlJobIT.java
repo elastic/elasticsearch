@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 
 public class MlJobIT extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user",
+    private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user",
             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Override

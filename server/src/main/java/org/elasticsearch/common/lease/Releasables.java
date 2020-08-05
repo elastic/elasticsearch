@@ -42,7 +42,7 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable}. */
+    /** Release the provided {@link Releasable}s. */
     public static void close(Iterable<? extends Releasable> releasables) {
         close(releasables, false);
     }

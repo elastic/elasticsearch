@@ -9,10 +9,10 @@ opens any closed backing indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/POST \/twitter\/_close\n/]
+// TEST[setup:my_index]
+// TEST[s/^/POST \/my-index-000001\/_close\n/]
 
 
 [[open-index-api-request]]

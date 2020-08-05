@@ -111,4 +111,8 @@ public enum FormatNames {
     public boolean matches(String format) {
         return format.equals(snakeCaseName);
     }
+
+    public String getSnakeCaseName() {
+        return snakeCaseName;
+    }
 }

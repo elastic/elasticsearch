@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
@@ -83,6 +86,46 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
 
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
         assertEquals("Failed to parse mapping: script must be specified for runtime_script field [my_field]", exception.getMessage());
+    }
+
+    public void testCopyToIsNotSupported() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "runtime_script")
+            .field("runtime_type", randomFrom(runtimeTypes))
+            .field("script", "keyword('test')")
+            .field("copy_to", "field")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_script field does not support [copy_to]", exception.getMessage());
+    }
+
+    public void testMultiFieldsIsNotSupported() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "runtime_script")
+            .field("runtime_type", randomFrom(runtimeTypes))
+            .field("script", "keyword('test')")
+            .startObject("fields")
+            .startObject("test")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_script field does not support [fields]", exception.getMessage());
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {
@@ -153,6 +196,51 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Strings.toString(mapping("date")), Strings.toString(mapperService.documentMapper()));
     }
 
+    public void testDateWithFormat() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("format", "yyyy-MM-dd"));
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testDateWithLocale() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("locale", "en_GB"));
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testDateWithLocaleAndFormat() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping(
+            "date",
+            b -> b.field("format", "yyyy-MM-dd").field("locale", "en_GB")
+        );
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testNonDateWithFormat() throws IOException {
+        String runtimeType = randomValueOtherThan("date", () -> randomFrom(runtimeTypes));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createIndex("test", Settings.EMPTY, mapping(runtimeType, b -> b.field("format", "yyyy-MM-dd")))
+        );
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: format can not be specified for runtime_type [" + runtimeType + "]"));
+    }
+
+    public void testNonDateWithLocale() throws IOException {
+        String runtimeType = randomValueOtherThan("date", () -> randomFrom(runtimeTypes));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createIndex("test", Settings.EMPTY, mapping(runtimeType, b -> b.field("locale", "en_GB")))
+        );
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: locale can not be specified for runtime_type [" + runtimeType + "]"));
+    }
+
     public void testFieldCaps() throws Exception {
         for (String runtimeType : runtimeTypes) {
             String scriptIndex = "test_" + runtimeType + "_script";
@@ -186,6 +274,10 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private XContentBuilder mapping(String type) throws IOException {
+        return mapping(type, builder -> {});
+    }
+
+    private XContentBuilder mapping(String type, CheckedConsumer<XContentBuilder, IOException> extra) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject();
         {
             mapping.startObject("_doc");
@@ -200,6 +292,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                             mapping.field("source", "dummy_source").field("lang", "test");
                         }
                         mapping.endObject();
+                        extra.accept(mapping);
                     }
                     mapping.endObject();
                 }

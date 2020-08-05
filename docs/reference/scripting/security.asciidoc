@@ -53,7 +53,7 @@ Bad:
 [[modules-scripting-other-layers]]
 === Other security layers
 In addition to user privileges and script sandboxing Elasticsearch uses the
-http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Java Security Manager]
+https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
 and native security tools as additional layers of security.
 
 As part of its startup sequence Elasticsearch enables the Java Security Manager

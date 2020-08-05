@@ -10,7 +10,6 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -68,7 +67,6 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
         QueryShardContext context

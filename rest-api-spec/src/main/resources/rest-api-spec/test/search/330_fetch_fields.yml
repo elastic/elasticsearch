@@ -21,7 +21,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "x", "y" ]
+          keyword: [ "a", "b" ]
           integer_range:
             gte: 0
             lte: 42
@@ -39,8 +39,8 @@ setup:
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
 
-  - match: { hits.hits.0.fields.keyword.0: x }
-  - match: { hits.hits.0.fields.keyword.1: y }
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
 
   - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
   - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
@@ -112,7 +112,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "x" ]
+          keyword: [ "a" ]
 
   - do:
       catch: bad_request
@@ -145,7 +145,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: "x"
+          keyword: "a"
           integer: 42
 
   - do:
@@ -153,7 +153,7 @@ setup:
         index:  test
         id:     2
         body:
-          keyword: "y"
+          keyword: "b"
           integer: "not an integer"
 
   - do:
@@ -192,7 +192,7 @@ setup:
         id:     1
         refresh: true
         body:
-          keyword: "x"
+          keyword: "a"
           integer: 42
 
   - do:
@@ -202,7 +202,7 @@ setup:
           fields: [ keyword ]
           _source: false
 
-  - match: { hits.hits.0.fields.keyword.0: "x" }
+  - match: { hits.hits.0.fields.keyword.0: "a" }
 
   - do:
       search:
@@ -212,5 +212,5 @@ setup:
           stored_fields: [ integer ]
           _source: false
 
-  - match: { hits.hits.0.fields.keyword.0: "x" }
+  - match: { hits.hits.0.fields.keyword.0: "a" }
   - match: { hits.hits.0.fields.integer.0: 42 }

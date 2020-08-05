@@ -290,10 +290,10 @@ GET /*/_search
 }
 ----
 
-include::request/from-size.asciidoc[]
 include::search-fields.asciidoc[]
 include::request/collapse.asciidoc[]
 include::request/highlighting.asciidoc[]
+include::paginate-search-results.asciidoc[]
 include::request/sort.asciidoc[]
 include::{es-repo-dir}/async-search.asciidoc[]
 include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]

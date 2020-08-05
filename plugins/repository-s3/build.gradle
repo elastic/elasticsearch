@@ -271,7 +271,7 @@ if (useFixture) {
 }
 
 // 3rd Party Tests
-task s3ThirdPartyTest(type: Test) {
+TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
@@ -285,7 +285,7 @@ task s3ThirdPartyTest(type: Test) {
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000') }"
   }
 }
-check.dependsOn(s3ThirdPartyTest)
+tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
 thirdPartyAudit.ignoreMissingClasses(
   // classes are missing

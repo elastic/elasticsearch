@@ -56,6 +56,15 @@ setup:
                         date(dt.plus(i, ChronoUnit.DAYS));
                       }
                     }
+              # Test format parameter
+              formatted_tomorrow:
+                type: runtime_script
+                runtime_type: date
+                format: yyyy-MM-dd
+                script: |
+                  for (def dt : doc['timestamp']) {
+                    date(dt.plus(1, ChronoUnit.DAYS));
+                  }
 
   - do:
       bulk:
@@ -90,6 +99,16 @@ setup:
   - match: {sensor.mappings.properties.tomorrow.script.params: {days: 1} }
   - match: {sensor.mappings.properties.tomorrow.script.lang: painless }
 
+  - match: {sensor.mappings.properties.formatted_tomorrow.type: runtime_script }
+  - match: {sensor.mappings.properties.formatted_tomorrow.runtime_type: date }
+  - match:
+      sensor.mappings.properties.formatted_tomorrow.script.source: |
+        for (def dt : doc['timestamp']) {
+          date(dt.plus(1, ChronoUnit.DAYS));
+        }
+  - match: {sensor.mappings.properties.formatted_tomorrow.script.lang: painless }
+  - match: {sensor.mappings.properties.formatted_tomorrow.format: yyyy-MM-dd }
+
 ---
 "docvalue_fields":
   - do:
@@ -97,7 +116,7 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields: [tomorrow, tomorrow_from_source, the_past, all_week]
+          docvalue_fields: [tomorrow, tomorrow_from_source, the_past, all_week, formatted_tomorrow]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.tomorrow: [2018-01-19T17:41:34.000Z] }
   - match: {hits.hits.0.fields.tomorrow_from_source: [2018-01-19T17:41:34.000Z] }
@@ -111,6 +130,7 @@ setup:
         - 2018-01-22T17:41:34.000Z
         - 2018-01-23T17:41:34.000Z
         - 2018-01-24T17:41:34.000Z
+  - match: {hits.hits.0.fields.formatted_tomorrow: [2018-01-19] }
 
 ---
 "terms agg":

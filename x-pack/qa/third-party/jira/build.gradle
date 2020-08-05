@@ -24,7 +24,7 @@ String jiraUser = System.getenv('jira_user')
 String jiraPassword = System.getenv('jira_password')
 String jiraProject = System.getenv('jira_project')
 
-task cleanJira(type: DefaultTask) {
+tasks.register("cleanJira", DefaultTask) {
   doLast {
     List<String> issues = jiraIssues(jiraProject)
     assert issues instanceof List
@@ -54,7 +54,7 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
     keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
   }
-  integTest.runner.finalizedBy cleanJira
+  integTest.runner.finalizedBy "cleanJira"
 }
 
 /** List all issues associated to a given Jira project **/

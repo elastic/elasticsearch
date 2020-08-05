@@ -11,7 +11,6 @@ import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -32,19 +31,24 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
     private final DateScriptFieldScript.Factory scriptFactory;
+    private final DateFormatter dateTimeFormatter;
 
-    ScriptDateMappedFieldType(String name, Script script, DateScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
+    ScriptDateMappedFieldType(
+        String name,
+        Script script,
+        DateScriptFieldScript.Factory scriptFactory,
+        DateFormatter dateTimeFormatter,
+        Map<String, String> meta
+    ) {
         super(name, script, meta);
         this.scriptFactory = scriptFactory;
-    }
-
-    private DateFormatter dateTimeFormatter() {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;  // TODO make configurable
+        this.dateTimeFormatter = dateTimeFormatter;
     }
 
     @Override
@@ -58,12 +62,12 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
         if (val == null) {
             return null;
         }
-        return dateTimeFormatter().format(Resolution.MILLISECONDS.toInstant(val).atZone(ZoneOffset.UTC));
+        return dateTimeFormatter.format(Resolution.MILLISECONDS.toInstant(val).atZone(ZoneOffset.UTC));
     }
 
     @Override
     public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-        DateFormatter dateTimeFormatter = dateTimeFormatter();
+        DateFormatter dateTimeFormatter = this.dateTimeFormatter;
         if (format != null) {
             dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
         }
@@ -94,12 +98,11 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        ShapeRelation relation,
         ZoneId timeZone,
         @Nullable DateMathParser parser,
         QueryShardContext context
     ) {
-        parser = parser == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
+        parser = parser == null ? dateTimeFormatter.toDateMathParser() : parser;
         checkAllowExpensiveQueries(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
@@ -121,7 +124,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                 value,
                 false,
                 null,
-                dateTimeFormatter().toDateMathParser(),
+                dateTimeFormatter.toDateMathParser(),
                 now,
                 DateFieldMapper.Resolution.MILLISECONDS
             );
@@ -143,7 +146,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                         value,
                         false,
                         null,
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(),
+                        dateTimeFormatter.toDateMathParser(),
                         now,
                         DateFieldMapper.Resolution.MILLISECONDS
                     )
@@ -152,5 +155,15 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context.lookup())::newInstance, name(), terms);
         });
+    }
+
+    @Override
+    protected String format() {
+        return dateTimeFormatter.pattern();
+    }
+
+    @Override
+    protected Locale formatLocale() {
+        return dateTimeFormatter.locale();
     }
 }

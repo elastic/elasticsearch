@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -111,7 +110,6 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
         Object upperTerm,
         boolean includeLower,
         boolean includeUpper,
-        ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
         QueryShardContext context

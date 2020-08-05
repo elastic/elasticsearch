@@ -8,13 +8,13 @@ Executes several searches with a single API request.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_msearch
+GET my-index-000001/_msearch
 { }
 {"query" : {"match" : { "message": "this is a test"}}}
-{"index": "twitter2"}
+{"index": "my-index-000002"}
 {"query" : {"match_all" : {}}}
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[search-multi-search-api-request]]
 ==== {api-request-title}
@@ -299,19 +299,19 @@ unless explicitly specified in the header's `index` parameter. For example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_msearch
+GET my-index-000001/_msearch
 {}
 {"query" : {"match_all" : {}}, "from" : 0, "size" : 10}
 {}
 {"query" : {"match_all" : {}}}
-{"index" : "twitter2"}
+{"index" : "my-index-000002"}
 {"query" : {"match_all" : {}}}
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-The above will execute the search against the `twitter` index for all the
+The above will execute the search against the `my-index-000001` index for all the
 requests that don't define an `index` target in the request body. The last
-search will be executed against the `twitter2` index.
+search will be executed against the `my-index-000002` index.
 
 The `search_type` can be set in a similar manner to globally apply to
 all search requests.
@@ -333,12 +333,12 @@ templates:
 [source,console]
 -----------------------------------------------
 GET _msearch/template
-{"index" : "twitter"}
+{"index" : "my-index-000001"}
 { "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
-{"index" : "twitter"}
+{"index" : "my-index-000001"}
 { "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
 -----------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 You can also create search templates:
@@ -359,7 +359,7 @@ POST /_scripts/my_template_1
   }
 }
 ------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [source,console]

@@ -130,8 +130,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
         } else {
             double minBound = in.readDouble();
             double maxBound = in.readDouble();
@@ -140,9 +141,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             } else {
                 extendedBounds = new DoubleBounds(minBound, maxBound);
             }
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
         }
     }
 
@@ -153,8 +151,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(extendedBounds);
+            out.writeOptionalWriteable(hardBounds);
         } else {
             if (extendedBounds != null) {
                 out.writeDouble(extendedBounds.getMin());
@@ -163,9 +162,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
                 out.writeDouble(Double.POSITIVE_INFINITY);
                 out.writeDouble(Double.NEGATIVE_INFINITY);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
         }
     }
 

@@ -5,64 +5,37 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.stack.StackPlugin;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
-import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender.DEPRECATION_MESSAGES_DATA_STREAM;
-import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -73,39 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
-public class DeprecationHttpIT extends ESSingleNodeTestCase {
-
-    private static RestClient restClient;
-
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(
-            ConstantKeywordMapperPlugin.class,
-            DataStreamsPlugin.class,
-            Deprecation.class,
-            IndexLifecycle.class,
-            Netty4Plugin.class,
-            StackPlugin.class,
-            TestDeprecationPlugin.class,
-            XPackPlugin.class
-        );
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder()
-            // change values of deprecated settings so that accessing them is logged
-            .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), !TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
-            .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), !TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
-            // non-deprecated setting to ensure not everything is logged
-            .put(TEST_NOT_DEPRECATED_SETTING.getKey(), !TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
-            .build();
-    }
+public class DeprecationHttpIT extends ESRestTestCase {
 
     /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.
@@ -119,38 +60,29 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             indices[i] = "test" + i;
 
             // create indices with a single shard to reduce noise; the query only deprecates uniquely by index anyway
-            assertTrue(
-                client().admin()
-                    .indices()
-                    .prepareCreate(indices[i])
-                    .setSettings(Settings.builder().put("number_of_shards", 1))
-                    .get()
-                    .isAcknowledged()
-            );
+            createIndex(indices[i], Settings.builder().put("number_of_shards", 1).build());
 
             int randomDocCount = randomIntBetween(1, 2);
 
-            for (int j = 0; j < randomDocCount; ++j) {
-                client().prepareIndex(indices[i])
-                    .setId(Integer.toString(j))
-                    .setSource("{\"field\":" + j + "}", XContentType.JSON)
-                    .execute()
-                    .actionGet();
+            for (int j = 0; j < randomDocCount; j++) {
+                final Request request = new Request("PUT", indices[i] + "/" + j);
+                request.setJsonEntity("{ \"field\": " + j + " }");
+                assertOK(client().performRequest(request));
             }
         }
 
-        client().admin().indices().refresh(new RefreshRequest(indices));
-
         final String commaSeparatedIndices = String.join(",", indices);
+
+        client().performRequest(new Request("POST", commaSeparatedIndices + "/_refresh"));
 
         // trigger all index deprecations
         Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
-        request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME + "\":{}}]}}}");
-        Response response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+        request.setJsonEntity("{ \"query\": { \"bool\": { \"filter\": [ { \"deprecated\": {} } ] } } }");
+        Response response = client().performRequest(request);
+        assertOK(response);
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-        final List<Matcher<String>> headerMatchers = new ArrayList<>(indices.length);
+        final List<Matcher<String>> headerMatchers = new ArrayList<>();
 
         for (String index : indices) {
             headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object) index)));
@@ -200,8 +132,8 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         // trigger all deprecations
         Request request = new Request("GET", "/_test_cluster/deprecated_settings");
         request.setEntity(buildSettingsRequest(settings, useDeprecatedField));
-        Response response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+        Response response = client().performRequest(request);
+        assertOK(response);
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
         final List<Matcher<String>> headerMatchers = new ArrayList<>(4);
@@ -245,33 +177,31 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             doTestDeprecationWarningsAppearInHeaders();
 
             assertBusy(() -> {
-                final SearchResponse searchResponse;
-                try {
-                    searchResponse = client().search(new SearchRequest(DEPRECATION_MESSAGES_DATA_STREAM)).actionGet();
-                } catch (IndexNotFoundException e) {
-                    throw new AssertionError("Index does not exist");
-                }
+                final Response response = client().performRequest(new Request("GET", "logs-deprecation-elasticsearch/_search"));
+                assertOK(response);
 
-                assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+                ObjectMapper mapper = new ObjectMapper();
+                final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
-                final SearchHit hit = searchResponse.getHits().getHits()[0];
-                final Map<String, Object> document = hit.getSourceAsMap();
+                assertThat(jsonNode.at("hits/total/value").intValue(), greaterThan(0));
+
+                final JsonNode firstHit = jsonNode.at("hits/hits/0");
+
+                final Map<String, Object> document = new HashMap<>();
+                firstHit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue()));
 
                 assertThat(document, hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"));
             }, 120, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
-            restClient.performRequest(new Request("DELETE", "_data_stream/" + DEPRECATION_MESSAGES_DATA_STREAM));
+            client().performRequest(new Request("DELETE", "_data_stream/logs-deprecation-elasticsearch"));
         }
     }
 
-    private void configureWriteDeprecationLogsToIndex(Boolean value) {
-        final ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        Settings settings = value == null
-            ? Settings.builder().putNull(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey()).build()
-            : Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), value).build();
-        request.transientSettings(settings);
-        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
+    private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
+        final Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
+        client().performRequest(request);
     }
 
     private List<String> getWarningHeaders(Header[] headers) {
@@ -298,40 +228,5 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
         builder.endArray().endObject();
 
         return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-    }
-
-    protected RestClient getRestClient() {
-        return getRestClient(client());
-    }
-
-    private static synchronized RestClient getRestClient(Client client) {
-        if (restClient == null) {
-            restClient = buildRestClient(client);
-        }
-        return restClient;
-    }
-
-    private static RestClient buildRestClient(Client client) {
-        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
-        assertFalse(nodesInfoResponse.hasFailures());
-        assertThat(nodesInfoResponse.getNodes(), hasSize(1));
-
-        NodeInfo node = nodesInfoResponse.getNodes().get(0);
-        assertNotNull(node.getInfo(HttpInfo.class));
-
-        TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
-        InetSocketAddress address = publishAddress.address();
-        final HttpHost host = new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http");
-        RestClientBuilder builder = RestClient.builder(host);
-        return builder.build();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        if (restClient != null) {
-            IOUtils.closeWhileHandlingException(restClient);
-            restClient = null;
-        }
     }
 }

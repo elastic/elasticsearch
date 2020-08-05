@@ -1,7 +1,7 @@
 [[mapper-size]]
 === Mapper Size Plugin
 
-The mapper-size plugin provides the `_size` meta field which, when enabled,
+The mapper-size plugin provides the `_size` metadata field which, when enabled,
 indexes the size in bytes of the original
 {ref}/mapping-source-field.html[`_source`] field.
 

@@ -60,7 +60,6 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    private final boolean forceExecution;
     private final IndexingPressure indexingPressure;
     private final String executor;
 
@@ -74,13 +73,12 @@ public abstract class TransportWriteAction<
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
-        this.forceExecution = forceExecutionOnPrimary;
         this.indexingPressure = indexingPressure;
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
     }
 
     @Override
@@ -97,7 +95,7 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
         }
     }
 
@@ -107,7 +105,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
+        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecutionOnPrimary);
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -163,7 +161,7 @@ public abstract class TransportWriteAction<
 
             @Override
             public boolean isForceExecution() {
-                return forceExecution;
+                return forceExecutionOnPrimary;
             }
         });
     }

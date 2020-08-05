@@ -48,6 +48,7 @@ else
 fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
+    Defaults   env_keep += "JAVA_HOME"
     Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars

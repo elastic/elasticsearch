@@ -242,7 +242,7 @@ You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
 constrain a sequence to a specified timespan.
 
 The following EQL search request adds `with maxspan=1h` to the previous query.
-This ensures all events in a matching sequence occur within one hour (`1h`) of
+This ensures all events in a matching sequence occur within `1h` (one hour) of
 the first event's timestamp.
 
 [source,console]
@@ -279,7 +279,7 @@ GET /my-index-000001/_eql/search
 
 Because the `process.pid` field is shared across all events in the sequence, it
 can be included using `sequence by`. The following query is equivalent to the
-prior one.
+previous one.
 
 [source,console]
 ----
@@ -377,9 +377,9 @@ contains the shared `process.pid` value for each matching event.
 You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
 
-The following request adds
-`until [ process where event.type == "termination" ]` to the previous EQL query.
-This ensures matching sequences end before a process termination event.
+The following request adds `until [ process where event.type == "termination" ]`
+to the previous query. This ensures matching sequences end before a `process`
+event with an `event.type` of `termination`.
 
 [source,console]
 ----
@@ -400,11 +400,11 @@ GET /my-index-000001/_eql/search
 === Specify a timestamp or event category field
 
 By default, the EQL search API uses `@timestamp` and `event.category` as the
-<<eql-required-fields,required timestamp and event category fields>>. If your data
-stream or index uses another timestamp or event category field, you must specify
-them using the `timestamp_field` and `event_category_field` parameters.
+required timestamp and event category fields. If your searched documents use
+another timestamp or event category field, you must specify them in the search
+request using the `timestamp_field` and `event_category_field` parameters.
 
-NOTE: You cannot use a <<nested,`nested`>> field  or the sub-fields of a `nested`
+NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
 field as the timestamp or event category field. See <<eql-nested-fields>>.
 
 The following request uses the `timestamp_field` parameter to specify

@@ -185,7 +185,7 @@ Machine Learning::
 * Delete auto-generated annotations when model snapshot is reverted {es-pull}58240[#58240] (issue: {es-issue}57982[#57982])
 * Delete expired data by job {es-pull}57337[#57337]
 * Introduce Annotation.event field {es-pull}57144[#57144] (issue: {es-issue}55781[#55781])
-* Add support for larger forecasts in memory via max_model_memory setting {ml-pull}1238[#1238],{pull}57254[#57254]
+* Add support for larger forecasts in memory via max_model_memory setting {ml-pull}1238[#1238],{ml-pull}57254[#57254]
 * Don't lose precision when saving model state {ml-pull}1274[#1274]
 * Parallelize the feature importance calculation for classification and regression over trees {ml-pull}1277[#1277]
 * Add an option to do categorization independently for each partition {ml-pull}1293[#1293], {ml-pull}1318[#1318], {ml-pull}1356[#1356], {pull}57683[#57683]
@@ -330,4 +330,3 @@ Snapshot/Restore::
 
 Search::
 * Update to lucene snapshot e7c625430ed {es-pull}57981[#57981]
-

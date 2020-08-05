@@ -36,7 +36,7 @@ When TLS is enabled, all requests must be authenticated using either basic authe
 // tag::auto-follow-pattern-def[]
 An <<glossary-index-pattern,index pattern>> that automatically configures new indices as
 <<glossary-follower-index,follower indices>> for <<glossary-ccr,{ccr}>>.
-For more information, see {ref}/ccr-auto-follow.html#_manage_auto_follow_patterns[Managing auto follow patterns].
+For more information, see {ref}/ccr-auto-follow.html[Managing auto follow patterns].
 // end::auto-follow-pattern-def[]
 
 [[glossary-cluster]] cluster ::

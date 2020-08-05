@@ -47,6 +47,15 @@ public enum Releasables {
     }
 
     /** Release the provided {@link Releasable}s. */
+    public static void close(Releasable releasable) {
+        try {
+            IOUtils.close(releasable);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Release the provided {@link Releasable}s. */
     public static void close(Releasable... releasables) {
         close(Arrays.asList(releasables));
     }

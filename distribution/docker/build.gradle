@@ -78,23 +78,22 @@ RUN curl --retry 8 -S -L \\
 }
 
 private static String buildPath(Architecture architecture, Variant variant) {
+  String archString = architecture == Architecture.AARCH64 ? 'aarch64-' : ''
   String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase()
-  return "build/${architecture == Architecture.AARCH64 ? 'aarch64-' : ''}${variantString}docker"
+  return 'build/' + archString + variantString + 'docker'
 }
 
 private static String taskName(String prefix, Architecture architecture, Variant variant, String suffix) {
+  String archString = architecture == Architecture.AARCH64 ? 'Aarch64' : ''
   String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().capitalize()
-  return "${prefix}${architecture == Architecture.AARCH64 ? 'Aarch64' : ''}${variantString}${suffix}"
+  return prefix + archString + variantString + suffix
 }
 
 project.ext {
   dockerBuildContext = { Architecture architecture, Variant variant, boolean local ->
     copySpec {
-      final Map<String,String> varExpansions = expansions(architecture, variant, local)
-      final Path projectDir = project.projectDir.toPath()
-
       into('bin') {
-        from projectDir.resolve("src/docker/bin")
+        from project.projectDir.toPath().resolve("src/docker/bin")
       }
 
       into('config') {
@@ -103,14 +102,14 @@ project.ext {
          * by creating config files in oss or default build-context sub-modules.
          */
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
-        from projectDir.resolve("src/docker/config")
+        from project.projectDir.toPath().resolve("src/docker/config")
         if (variant == Variant.OSS) {
-          from projectDir.resolve("src/docker/config/oss")
+          from project.projectDir.toPath().resolve("src/docker/config/oss")
         }
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(varExpansions)
+        expand(expansions(architecture, variant, local))
       }
     }
   }

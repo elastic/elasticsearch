@@ -225,7 +225,7 @@ void addBuildDockerImage(Architecture architecture, Variant variant) {
         "elasticsearch-oss:test"
       ]
     } else {
-      String suffix = variant == Variant.UBI ? '-ubi8' : ''
+      String suffix = variant == Variant.UBI ? '-ubi' : ''
       tags = [
         "elasticsearch:${version}${suffix}",
         "docker.elastic.co/elasticsearch/elasticsearch:${version}${suffix}",
@@ -270,20 +270,22 @@ subprojects { Project subProject ->
     // A suffix isn't added for UBI because in that case we're still distributing the Elasticsearch default
     // distribution, it just has a different base image.
     final String suffix = isOss ? '-oss' : ''
+    final String tag = 'test' + (isUbi ? '-ubi' : '')
     final String extension = isUbi ? 'ubi.tar' : 'docker.tar'
+    final String artifactName = "elasticsearch${arch}${suffix}_${tag}"
 
-    def exportTaskName = taskName("export", architecture, variant, "DockerImage")
-    def buildTaskName = taskName("build", architecture, variant, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${arch}${suffix}_test.${VersionProperties.elasticsearch}.${extension}"
+    final String exportTaskName = taskName("export", architecture, variant, "DockerImage")
+    final String buildTaskName = taskName("build", architecture, variant, "DockerImage")
+    final String tarFile = "${parent.projectDir}/build/${artifactName}.${VersionProperties.elasticsearch}.${extension}"
 
-    final TaskProvider<LoggedExec> exportDockerImageTask = tasks.register(exportTaskName, LoggedExec) {
+    tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${suffix}:test"
+        "elasticsearch${suffix}:${tag}"
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }
@@ -291,7 +293,7 @@ subprojects { Project subProject ->
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'
-      name "elasticsearch${arch}${suffix}"
+      name artifactName
       builtBy exportTaskName
     }
 

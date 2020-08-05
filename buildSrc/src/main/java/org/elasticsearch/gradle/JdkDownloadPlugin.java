@@ -28,6 +28,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
@@ -37,29 +38,23 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
         Attribute<String> artifactType = Attribute.of("artifactType", String.class);
-        Attribute<Boolean> unpacked = Attribute.of("unpacked", Boolean.class);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
 
-        project.getDependencies().getAttributesSchema().attribute(unpacked);
-        project.getDependencies()
-            .getArtifactTypes()
-            .create("zip", artifactTypeDefinition -> artifactTypeDefinition.getAttributes().attribute(unpacked, false));
-        project.getDependencies()
-            .getArtifactTypes()
-            .create("tar.gz", artifactTypeDefinition -> artifactTypeDefinition.getAttributes().attribute(unpacked, false));
         project.getDependencies().registerTransform(UnzipTransform.class, noneTransformSpec -> {
-            noneTransformSpec.getFrom().attribute(unpacked, false).attribute(artifactType, "zip");
-            noneTransformSpec.getTo().attribute(unpacked, true).attribute(artifactType, "zip");
+            noneTransformSpec.getFrom().attribute(artifactType, ArtifactTypeDefinition.ZIP_TYPE);
+            noneTransformSpec.getTo().attribute(artifactType, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
+
+        ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
         project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, noneTransformSpec -> {
-            noneTransformSpec.getFrom().attribute(unpacked, false).attribute(artifactType, "tar.gz");
-            noneTransformSpec.getTo().attribute(unpacked, true).attribute(artifactType, "tar.gz");
+            noneTransformSpec.getFrom().attribute(artifactType, tarArtifactTypeDefinition.getName());
+            noneTransformSpec.getTo().attribute(artifactType, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
 
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {
             Configuration configuration = project.getConfigurations().create("jdk_" + name);
-            configuration.getAttributes().attribute(unpacked, true);
+            configuration.getAttributes().attribute(artifactType, ArtifactTypeDefinition.DIRECTORY_TYPE);
             return new Jdk(name, configuration, project.getObjects());
         });
         project.getExtensions().add(EXTENSION_NAME, jdksContainer);

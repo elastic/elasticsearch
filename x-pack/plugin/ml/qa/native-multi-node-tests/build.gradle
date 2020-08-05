@@ -1,17 +1,12 @@
-apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  internalClusterTestImplementation project(path: xpackModule('ml'))
-  internalClusterTestImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')
-  internalClusterTestImplementation project(path: ':modules:ingest-common')
-  internalClusterTestImplementation project(path: xpackModule('data-streams'))
-
-  javaRestTestImplementation project(path: xpackModule('core'))
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   javaRestTestImplementation project(path: xpackModule('ml'))
   javaRestTestImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: ':modules:ingest-common')
+  javaRestTestImplementation project(path: xpackModule('data-streams'))
 }
 
 // location for keys and certificates
@@ -35,10 +30,6 @@ javaRestTest {
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-internalClusterTest {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 

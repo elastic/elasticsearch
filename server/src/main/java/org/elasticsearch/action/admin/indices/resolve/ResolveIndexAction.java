@@ -386,21 +386,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            this.indices = new ArrayList<>();
-            int count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                indices.add(new ResolvedIndex(in));
-            }
-            this.aliases = new ArrayList<>();
-            count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                aliases.add(new ResolvedAlias(in));
-            }
-            this.dataStreams = new ArrayList<>();
-            count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                dataStreams.add(new ResolvedDataStream(in));
-            }
+            this.indices = in.readList(ResolvedIndex::new);
+            this.aliases = in.readList(ResolvedAlias::new);
+            this.dataStreams = in.readList(ResolvedDataStream::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -417,18 +405,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indices.size());
-            for (ResolvedIndex index : indices) {
-                index.writeTo(out);
-            }
-            out.writeVInt(aliases.size());
-            for (ResolvedAlias alias : aliases) {
-                alias.writeTo(out);
-            }
-            out.writeVInt(dataStreams.size());
-            for (ResolvedDataStream dataStream : dataStreams) {
-                dataStream.writeTo(out);
-            }
+            out.writeList(indices);
+            out.writeList(aliases);
+            out.writeList(dataStreams);
         }
 
         @Override

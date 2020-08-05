@@ -14,9 +14,10 @@ The following settings *must* be considered before going to production:
 * <<max-number-of-threads,Ensure sufficient threads>>
 * <<networkaddress-cache-ttl,JVM DNS cache settings>>
 * <<executable-jna-tmpdir,Temporary directory not mounted with `noexec`>>
+* <<system-config-tcpretries,TCP retransmission timeout>>
 
 [[dev-vs-prod]]
-[float]
+[discrete]
 === Development mode vs production mode
 
 By default, Elasticsearch assumes that you are working in development mode.
@@ -43,3 +44,5 @@ include::sysconfig/threads.asciidoc[]
 include::sysconfig/dns-cache.asciidoc[]
 
 include::sysconfig/executable-jna-tmpdir.asciidoc[]
+
+include::sysconfig/tcpretries.asciidoc[]

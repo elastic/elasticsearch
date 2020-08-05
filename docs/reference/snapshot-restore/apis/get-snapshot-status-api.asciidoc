@@ -59,7 +59,7 @@ PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 
 PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
-  "indices": [],
+  "indices": ["index_1"],
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
@@ -88,9 +88,7 @@ Use the get snapshot status API to retrieve detailed information about snapshots
 
 If you specify both the repository name and snapshot, the request retrieves detailed status information for the given snapshot, even if not currently running.
 
-WARNING: Using this API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot.
-+
-For example, if you have 100 snapshots with 1,000 shards each, the API request will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on the latency of your file storage, the request can take extremely long to retrieve results.
+include::{es-ref-dir}/snapshot-restore/monitor-snapshot-restore.asciidoc[tag=get-snapshot-status-warning]
 
 [[get-snapshot-status-api-path-params]]
 ==== {api-path-parms-title}
@@ -391,6 +389,8 @@ GET /_snapshot/my_repository/snapshot_2/_status
 // TESTRESPONSE[s/"total" : 10/"total" : $body.snapshots.0.shards_stats.total/]
 // TESTRESPONSE[s/"start_time_in_millis" : 1594829326691/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
 // TESTRESPONSE[s/"time_in_millis" : 205/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 0/"time_in_millis" : $body.$_path/]
 // TESTRESPONSE[s/"file_count" : 3/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.stats.total.file_count/]
 // TESTRESPONSE[s/"size_in_bytes" : 5969/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
 // TESTRESPONSE[s/"start_time_in_millis" : 1594829326896/"start_time_in_millis" : $body.snapshots.0.indices.index_1.stats.start_time_in_millis/]

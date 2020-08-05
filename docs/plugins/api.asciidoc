@@ -3,13 +3,13 @@
 
 API extension plugins add new functionality to Elasticsearch by adding new APIs or features, usually to do with search or mapping.
 
-[float]
+[discrete]
 === Community contributed API extension plugins
 
 A number of plugins have been contributed by our community:
 
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]:
-  Results clustering with http://project.carrot2.org/[carrot2] (by Dawid Weiss)
+  Results clustering with https://github.com/carrot2/carrot2[carrot2] (by Dawid Weiss)
 
 * https://github.com/wikimedia/search-extra[Elasticsearch Trigram Accelerated Regular Expression Filter]:
   (by Wikimedia Foundation/Nik Everett)
@@ -18,7 +18,7 @@ A number of plugins have been contributed by our community:
   (by Wikimedia Foundation/Nik Everett)
 
 * https://github.com/YannBrrd/elasticsearch-entity-resolution[Entity Resolution Plugin]:
-  Uses http://github.com/larsga/Duke[Duke] for duplication detection (by Yann Barraud)
+  Uses https://github.com/larsga/Duke[Duke] for duplication detection (by Yann Barraud)
   
 * https://github.com/zentity-io/zentity[Entity Resolution Plugin] (https://zentity.io[zentity]):
   Real-time entity resolution with pure Elasticsearch (by Dave Moore)

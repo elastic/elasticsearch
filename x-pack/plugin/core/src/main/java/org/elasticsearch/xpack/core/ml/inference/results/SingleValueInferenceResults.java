@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,11 +32,7 @@ public abstract class SingleValueInferenceResults implements InferenceResults {
 
     SingleValueInferenceResults(StreamInput in) throws IOException {
         value = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.featureImportance = in.readList(FeatureImportance::new);
-        } else {
-            this.featureImportance = Collections.emptyList();
-        }
+        this.featureImportance = in.readList(FeatureImportance::new);
     }
 
     SingleValueInferenceResults(double value, List<FeatureImportance> featureImportance) {
@@ -60,9 +55,7 @@ public abstract class SingleValueInferenceResults implements InferenceResults {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(value);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeList(this.featureImportance);
-        }
+        out.writeList(this.featureImportance);
     }
 
 }

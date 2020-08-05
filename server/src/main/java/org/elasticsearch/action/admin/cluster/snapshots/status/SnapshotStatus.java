@@ -74,12 +74,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
-        int size = in.readVInt();
-        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotIndexShardStatus(in));
-        }
-        shards = Collections.unmodifiableList(builder);
+        shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
         final long time = in.readLong();
@@ -175,10 +170,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         snapshot.writeTo(out);
         out.writeByte(state.value());
-        out.writeVInt(shards.size());
-        for (SnapshotIndexShardStatus shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeList(shards);
         out.writeOptionalBoolean(includeGlobalState);
         out.writeLong(stats.getStartTime());
         out.writeLong(stats.getTime());

@@ -92,7 +92,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
-            TYPE,
+            TermsCompositeSupplier.class,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
@@ -150,7 +150,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         );
 
         builder.registerComposite(
-            TYPE,
+            TermsCompositeSupplier.class,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 return new CompositeValuesSourceConfig(
@@ -208,7 +208,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return ((TermsCompositeSupplier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config))
+            .getComposite(TermsCompositeSupplier.class, config))
             .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

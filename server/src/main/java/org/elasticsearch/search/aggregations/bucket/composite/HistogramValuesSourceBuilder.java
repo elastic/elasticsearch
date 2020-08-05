@@ -73,7 +73,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
-            TYPE,
+            HistogramCompositeSupplier.class,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (HistogramCompositeSupplier) (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
@@ -174,7 +174,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return ((HistogramCompositeSupplier) queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, config))
+            .getComposite(HistogramCompositeSupplier.class, config))
             .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

@@ -99,7 +99,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
             IndicesAccessControl scrollIndicesAccessControl =
                     searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl threadIndicesAccessControl =
-                    threadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             if (scrollIndicesAccessControl != threadIndicesAccessControl) {
                 throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected scroll indices access control [" +
                         scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +

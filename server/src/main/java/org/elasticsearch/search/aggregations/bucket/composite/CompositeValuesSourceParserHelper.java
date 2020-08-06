@@ -38,20 +38,13 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 public class CompositeValuesSourceParserHelper {
 
-    static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser,
-                                                                                           ValueType expectedValueType) {
+    static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
         objectParser.declareField(VB::field, XContentParser::text,
             new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
-        objectParser.declareField(VB::valueType, p -> {
+        objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());
-            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
-                throw new ParsingException(p.getTokenLocation(),
-                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "].  It can only work on value of type ["
-                        + expectedValueType + "]");
-            }
             return valueType;
         }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 

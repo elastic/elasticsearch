@@ -177,7 +177,8 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                     try {
                         assertThat(e, instanceOf(ElasticsearchException.class));
                         assertThat(e.getMessage(),
-                            containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
+                            containsString("Secure settings cannot be updated cluster wide when TLS for the " +
+                                           "transport layer is not enabled"));
                     } finally {
                         latch.countDown();
                     }

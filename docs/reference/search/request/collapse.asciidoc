@@ -72,7 +72,7 @@ GET /my-index-000001/_search
 <4> how to sort the document inside each group
 <5> the number of concurrent requests allowed to retrieve the `inner_hits` per group
 
-See <<request-body-search-inner-hits, inner hits>> for the complete list of supported options and the format of the response.
+See <<inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
 It is also possible to request multiple `inner_hits` for each collapsed hit.  This can be useful when you want to get
 multiple representations of the collapsed hits.

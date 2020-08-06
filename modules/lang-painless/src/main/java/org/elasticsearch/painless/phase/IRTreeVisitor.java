@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.ir.AccessNode;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
 import org.elasticsearch.painless.ir.BreakNode;
-import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
 import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.CastNode;
@@ -41,7 +40,6 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
@@ -124,7 +122,7 @@ public interface IRTreeVisitor<Input, Output> {
     Output visitStatic(StaticNode irStaticNode, Input input);
     Output visitVariable(VariableNode irVariableNode, Input input);
     Output visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Input input);
-    Output visitDot(DotNode irDotNode, Input input);
+    Output visitAccess(AccessNode irAccessNode, Input input);
     Output visitDotSubArrayLength(DotSubArrayLengthNode irDotSubArrayLengthNode, Input input);
     Output visitDotSubDef(DotSubDefNode irDotSubDefNode, Input input);
     Output visitDotSub(DotSubNode irDotSubNode, Input input);
@@ -133,10 +131,8 @@ public interface IRTreeVisitor<Input, Output> {
     Output visitMapSubShortcut(MapSubShortcutNode irMapSubShorcutNode, Input input);
     Output visitMemberFieldLoad(MemberFieldLoadNode irMemberFieldLoadNode, Input input);
     Output visitMemberFieldStore(MemberFieldStoreNode irMemberFieldStoreNode, Input input);
-    Output visitBrace(BraceNode irBraceNode, Input input);
     Output visitBraceSubDef(BraceSubDefNode irBraceSubDefNode, Input input);
     Output visitBraceSub(BraceSubNode irBraceSubNode, Input input);
-    Output visitCall(CallNode irCallNode, Input input);
     Output visitCallSubDef(CallSubDefNode irCallSubDefNode, Input input);
     Output visitCallSub(CallSubNode irCallSubNode, Input input);
     Output visitMemberCall(MemberCallNode irMemberCallNode, Input input);

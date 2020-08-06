@@ -94,10 +94,10 @@ public class ValuesSourceRegistry {
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
-        public void registerComposite(
-            Class<? extends CompositeSupplier> supplierClass,
+        public <T extends CompositeSupplier> void registerComposite(
+            Class<T> supplierClass,
             ValuesSourceType valuesSourceType,
-            CompositeSupplier compositeSupplier
+            T compositeSupplier
         ) {
             // TODO: Assert is almost definitely wrong here, but I don't know what the right thing to throw is.
             assert compositeSupplier.getClass() == supplierClass;
@@ -117,10 +117,10 @@ public class ValuesSourceRegistry {
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
-        public void registerComposite(
-            Class<? extends CompositeSupplier> supplierClass,
+        public <T extends CompositeSupplier> void registerComposite(
+            Class<T> supplierClass,
             List<ValuesSourceType> valuesSourceTypes,
-            CompositeSupplier compositeSupplier
+            T compositeSupplier
         ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 registerComposite(supplierClass, valuesSourceType, compositeSupplier);

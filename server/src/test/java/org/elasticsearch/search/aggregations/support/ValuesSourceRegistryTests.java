@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -69,24 +67,4 @@ public class ValuesSourceRegistryTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(fieldOnly, "bogus"));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(scriptOnly, "bogus"));
     }
-
-    public void testCompositeSupplierMissMatch() {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
-        expectThrows(
-            AssertionError.class,
-            () -> builder.registerComposite(
-                TermsValuesSourceBuilder.TermsCompositeSupplier.class,
-                CoreValuesSourceType.NUMERIC,
-                (HistogramValuesSourceBuilder.HistogramCompositeSupplier) (
-                    config,
-                    interval,
-                    name,
-                    hasScript,
-                    format,
-                    missingBucket,
-                    order) -> null
-            )
-        );
-    }
-
 }

@@ -99,6 +99,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60853")
     public void test010Install() {
         verifyContainerInstallation(installation, distribution());
     }

@@ -1,7 +1,7 @@
 [[search-fields]]
-== Retrieve selected fields
+== Retrieve selected fields from a search
 ++++
-<titleabbrev>Retrieve selected fields from a search</titleabbrev>
+<titleabbrev>Retrieve selected fields</titleabbrev>
 ++++
 
 By default, each hit in the search response includes the document

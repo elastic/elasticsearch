@@ -12,7 +12,11 @@
           "methods":[
             "POST",
             "GET"
-          ]
+          ],
+          "deprecated":{
+            "version":"7.6.0",
+            "description":"Synced flush is deprecated and will be removed in 8.0. Use flush instead."
+          }
         },
         {
           "path":"/{index}/_flush/synced",
@@ -25,6 +29,10 @@
               "type":"list",
               "description":"A comma-separated list of index names; use `_all` or empty string for all indices"
             }
+          },
+          "deprecated":{
+            "version":"7.6.0",
+            "description":"Synced flush is deprecated and will be removed in 8.0. Use flush instead."
           }
         }
       ]

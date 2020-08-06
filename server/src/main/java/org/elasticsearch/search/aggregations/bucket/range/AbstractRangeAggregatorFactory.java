@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -83,7 +82,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             aggregationTypeName);
         if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +

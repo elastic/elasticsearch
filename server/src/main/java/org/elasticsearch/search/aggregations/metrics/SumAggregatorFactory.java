@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -66,7 +65,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           CardinalityUpperBound bucketCardinality,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SumAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {

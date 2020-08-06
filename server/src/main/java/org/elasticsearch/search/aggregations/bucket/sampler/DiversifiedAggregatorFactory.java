@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -91,7 +90,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, DiversifiedAggregationBuilder.NAME);
+        ValuesSourceRegistry.ComponentSupplier supplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config, DiversifiedAggregationBuilder.NAME);
         if (supplier instanceof DiversifiedAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected " + DiversifiedAggregatorSupplier.class.toString() +
                 ", found [" + supplier.getClass().toString() + "]");

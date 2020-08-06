@@ -60,7 +60,7 @@ import java.util.function.LongConsumer;
 public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     @FunctionalInterface
-    public interface DateHistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface DateHistogramCompositeSupplier extends ValuesSourceRegistry.ComponentSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             Rounding rounding,

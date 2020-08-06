@@ -50,7 +50,7 @@ import java.util.function.LongUnaryOperator;
 
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
     @FunctionalInterface
-    public interface GeoTileCompositeSuppier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface GeoTileCompositeSuppier extends ValuesSourceRegistry.ComponentSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             int precision,

@@ -47,7 +47,7 @@ import java.util.function.LongConsumer;
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
     @FunctionalInterface
-    public interface HistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface HistogramCompositeSupplier extends ValuesSourceRegistry.ComponentSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             double interval,

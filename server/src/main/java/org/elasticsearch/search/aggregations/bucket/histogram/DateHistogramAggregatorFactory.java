@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -90,7 +89,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config, DateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
             throw new AggregationExecutionException(

@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -79,7 +78,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config, GeoHashGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "

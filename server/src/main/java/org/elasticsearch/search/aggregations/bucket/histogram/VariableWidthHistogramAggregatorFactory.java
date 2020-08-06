@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -73,7 +72,7 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                     + "] cannot be nested inside an aggregation that collects more than a single bucket."
             );
         }
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             VariableWidthHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +

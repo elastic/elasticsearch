@@ -31,18 +31,34 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
+ * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link ComponentSupplier}s.  DO NOT directly
  * instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in the case
  * of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
  */
 public class ValuesSourceRegistry {
 
-    public interface CompositeSupplier {
+    /**
+     * {@link ComponentSupplier} serves as a marker for what the {@link ValuesSourceRegistry} holds to construct aggregator instances.
+     * The aggregators for each aggregation should all share a signature, and that signature should be used to create an ComponentSupplier
+     * for that aggregation.  Alternatively, if an existing supplier has a matching signature, please re-use that.
+     *
+     * In many cases, this can be a simple wrapper over the aggregator constructor.  If that is sufficient, please just use a reference to
+     * the constructor.  Implementing a supplier (typically as a lambda) should only be necessary when factors besides the
+     * {@link ValuesSourceType} are necessary for selecting the correct aggregator implementation.  This happens in terms for example where
+     * we make decisions based on the availability of global ordinals.
+     *
+     * The suppliers are responsible for any casting of {@link ValuesSource} that needs to happen.  They must accept a base
+     * {@link ValuesSource} * instance.  The suppliers may perform additional logic to configure the aggregator as needed, such as in
+     * {@link org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory} deciding the execution mode.
+     *
+     * There is ongoing work to  normalize aggregator constructor signatures, and thus reduce the number of ComponentSupplier interfaces.
+     */
+    public interface ComponentSupplier {
         // this interface intentionally left blank
     }
 
-    public static final class RegistryKey<T extends CompositeSupplier> {
+    public static final class RegistryKey<T extends ComponentSupplier> {
         private final String name;
         private final Class<T> supplierType;
 
@@ -71,8 +87,8 @@ public class ValuesSourceRegistry {
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
-        private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
-        private Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry =
+        private Map<String, List<Map.Entry<ValuesSourceType, ComponentSupplier>>> aggregatorRegistry = new HashMap<>();
+        private Map<RegistryKey<? extends ComponentSupplier>, List<Map.Entry<ValuesSourceType, ComponentSupplier>>> compositeRegistry =
             new HashMap<>();
 
         public Builder() {
@@ -86,11 +102,12 @@ public class ValuesSourceRegistry {
          * @param aggregationName The name of the family of aggregations, typically found via
          *                        {@link ValuesSourceAggregationBuilder#getType()}
          * @param valuesSourceType The ValuesSourceType this mapping applies to.
-         * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
+         * @param aggregatorSupplier An Aggregation-specific specialization of ComponentSupplier which will construct the mapped aggregator
          *                           from the aggregation standard set of parameters
          */
         public void register(String aggregationName, ValuesSourceType valuesSourceType,
-                                          AggregatorSupplier aggregatorSupplier) {
+            ComponentSupplier aggregatorSupplier
+        ) {
             if (aggregatorRegistry.containsKey(aggregationName) == false) {
                 aggregatorRegistry.put(aggregationName, new ArrayList<>());
             }
@@ -104,10 +121,10 @@ public class ValuesSourceRegistry {
          *  @param aggregationName The name of the family of aggregations, typically found via
          *                         {@link ValuesSourceAggregationBuilder#getType()}
          * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
-         * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
+         * @param aggregatorSupplier An Aggregation-specific specialization of ComponentSupplier which will construct the mapped aggregator
          *                           from the aggregation standard set of parameters
          */
-        public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
+        public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, ComponentSupplier aggregatorSupplier) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 register(aggregationName, valuesSourceType, aggregatorSupplier);
             }
@@ -116,13 +133,13 @@ public class ValuesSourceRegistry {
         /**
          * Register a new key generation function for the
          * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.
-         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         * @param registryKey the subclass of {@link ComponentSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
          *                      mapping is being registered for, paired with the name of the key type.
          * @param valuesSourceType the {@link ValuesSourceType} this mapping applies to
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
-        public <T extends CompositeSupplier> void registerComposite(
+        public <T extends ComponentSupplier> void registerComposite(
             RegistryKey<T> registryKey,
             ValuesSourceType valuesSourceType,
             T compositeSupplier
@@ -137,13 +154,13 @@ public class ValuesSourceRegistry {
          * Register a new key generation function for the
          * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.  This is a convenience version to map
          * multiple types to the same supplier.
-         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         * @param registryKey the subclass of {@link ComponentSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
          *                      mapping is being registered for, paired with the name of the key type.
          * @param valuesSourceTypes the {@link ValuesSourceType}s this mapping applies to
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
-        public <T extends CompositeSupplier> void registerComposite(
+        public <T extends ComponentSupplier> void registerComposite(
             RegistryKey<T> registryKey,
             List<ValuesSourceType> valuesSourceTypes,
             T compositeSupplier
@@ -186,19 +203,22 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
-    private Map<RegistryKey<? extends CompositeSupplier>, Map<ValuesSourceType, CompositeSupplier>> compositeRegistry;
+    private Map<String, Map<ValuesSourceType, ComponentSupplier>> aggregatorRegistry;
+    private Map<RegistryKey<? extends ComponentSupplier>, Map<ValuesSourceType, ComponentSupplier>> compositeRegistry;
 
-    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
-        Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry,
+    public ValuesSourceRegistry(
+        Map<String, List<Map.Entry<ValuesSourceType, ComponentSupplier>>> aggregatorRegistry,
+        Map<RegistryKey<? extends ComponentSupplier>, List<Map.Entry<ValuesSourceType, ComponentSupplier>>> compositeRegistry,
                                 AggregationUsageService usageService) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.compositeRegistry = copyMap(compositeRegistry);
         this.usageService = usageService;
     }
 
-    private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   Map<ValuesSourceType, AggregatorSupplier> supportedTypes) {
+    private ComponentSupplier findMatchingSuppier(
+        ValuesSourceType valuesSourceType,
+        Map<ValuesSourceType, ComponentSupplier> supportedTypes
+    ) {
         return supportedTypes.get(valuesSourceType);
     }
 
@@ -206,9 +226,9 @@ public class ValuesSourceRegistry {
         return aggregatorRegistry.containsKey(aggregationName);
     }
 
-    public AggregatorSupplier getAggregator(ValuesSourceConfig valuesSourceConfig, String aggregationName) {
+    public ComponentSupplier getAggregator(ValuesSourceConfig valuesSourceConfig, String aggregationName) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
-            AggregatorSupplier supplier = findMatchingSuppier(
+            ComponentSupplier supplier = findMatchingSuppier(
                 valuesSourceConfig.valueSourceType(),
                 aggregatorRegistry.get(aggregationName)
             );
@@ -222,9 +242,9 @@ public class ValuesSourceRegistry {
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
     }
 
-    public <T extends CompositeSupplier> T getComposite(RegistryKey<T> registryKey, ValuesSourceConfig config) {
+    public <T extends ComponentSupplier> T getComposite(RegistryKey<T> registryKey, ValuesSourceConfig config) {
         if (registryKey != null && compositeRegistry.containsKey(registryKey)) {
-            CompositeSupplier supplier = compositeRegistry.get(registryKey).get(config.valueSourceType());
+            ComponentSupplier supplier = compositeRegistry.get(registryKey).get(config.valueSourceType());
             if (supplier == null) {
                 throw new IllegalArgumentException(config.getDescription() + " is not supported for composite source [" +
                     registryKey.getName() + "]");
@@ -237,4 +257,5 @@ public class ValuesSourceRegistry {
     public AggregationUsageService getUsageService() {
         return usageService;
     }
+
 }

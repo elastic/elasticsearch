@@ -188,8 +188,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
         assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
-        assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
-        assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields.length, equalTo(1));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields[0], equalTo(0));
     }

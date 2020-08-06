@@ -93,10 +93,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
         }
     }
 
-    public boolean isReady() {
-        return lifecycle.started() && ready.get();
-    }
-
     private void createIndexIfNecessary(ActionListener<String> listener) {
         if (clusterService.state().routingTable().hasIndex(index)) {
             listener.onResponse(index);
@@ -236,7 +232,9 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
     }
 
     protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
-        if (isReady() == false) {
+        if ((lifecycle.started() && ready.get()) == false) {
+            // TODO TBD can we just execute the GET request and let it fail if the index isn't ready yet?
+            // We might get lucky and hit a started shard anyway.
             logger.debug("not ready : [{}]", CachedBlob.generateId(repository, name, path, offset));
             listener.onResponse(null);
             return;

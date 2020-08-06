@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -227,4 +228,16 @@ public final class TimeSeriesRestDriver {
         ensureGreen(index);
     }
 
+    @SuppressWarnings("unchecked")
+    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("GET", index + "/_segments"));
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
+            response.getEntity().getContent(), false);
+        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        responseEntity = (Map<String, Object>) responseEntity.get(index);
+        responseEntity = (Map<String, Object>) responseEntity.get("shards");
+        List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
+        return (Integer) shards.get(0).get("num_search_segments");
+    }
 }

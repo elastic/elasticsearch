@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -71,6 +70,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -527,7 +527,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
     public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -538,26 +537,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client().performRequest(request);
         }
 
-        Supplier<Integer> numSegments = () -> {
-            try {
-                Map<String, Object> segmentResponse = getAsMap(index + "/_segments");
-                segmentResponse = (Map<String, Object>) segmentResponse.get("indices");
-                segmentResponse = (Map<String, Object>) segmentResponse.get(index);
-                segmentResponse = (Map<String, Object>) segmentResponse.get("shards");
-                List<Map<String, Object>> shards = (List<Map<String, Object>>) segmentResponse.get("0");
-                return (Integer) shards.get(0).get("num_search_segments");
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        };
-        assertThat(numSegments.get(), greaterThan(1));
+        assertThat(getNumberOfSegments(client(), index), greaterThan(1));
         createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(numSegments.get(), equalTo(1));
+            assertThat(getNumberOfSegments(client(), index), equalTo(1));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));

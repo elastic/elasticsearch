@@ -11,7 +11,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,10 +36,15 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class SearchableSnapshotActionIT extends ESRestTestCase {
@@ -66,6 +73,46 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             randomBoolean());
 
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
+    }
+
+    public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
+
+        createComposableTemplate(client(), "template-name", index, new Template(null, null, null));
+
+        String dataStreamName = index;
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            indexDocument(client(), dataStreamName, true);
+        }
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1L);
+        assertThat(getNumberOfSegments(client(), backingIndexName), greaterThan(1));
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStreamName);
+
+        updateIndexSettings(dataStreamName, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        assertTrue(waitUntil(() -> {
+            try {
+                return getNumberOfSegments(client(), backingIndexName) == 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 60, TimeUnit.SECONDS));
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);
@@ -134,6 +181,5 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
     }
-
 
 }

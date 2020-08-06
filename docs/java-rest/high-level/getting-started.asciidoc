@@ -46,7 +46,7 @@ Central]. The minimum Java version required is `1.8`.
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
-If you are looking for a SNAPSHOT version, you should add our snapshot repository to your maven config:
+If you are looking for a SNAPSHOT version, you should add our snapshot repository to your Maven config:
 
 ["source","xml",subs="attributes"]
 --------------------------------------------------
@@ -65,10 +65,8 @@ or in Gradle:
 --------------------------------------------------
 maven {
         url "https://snapshots.elastic.co/maven/"
-      }
+}
 --------------------------------------------------
-
-Please note that the snapshot repository isn't browsable, but it will work to resolve artifacts correctly.
 
 [[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration

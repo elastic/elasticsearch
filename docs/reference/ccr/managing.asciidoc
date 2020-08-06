@@ -47,7 +47,7 @@ To view more detailed statistics, click *View in Index Management*, and
 then select the name of the follower index on the *Index Management* page. Choose the *Stats* tab to view detailed statistics at the shard level.
 
 [%collapsible]
-.Use the API
+.API example
 ====
 Use the <<ccr-get-follow-stats,get follower stats API>> to inspect replication
 progress at the shard level. This API provides insight into the read and writes
@@ -73,7 +73,7 @@ To resume replication, select the follower index and choose
 *Resume replication*.
 
 [%collapsible]
-.Use the API
+.API example
 ====
 You can pause replication with the
 <<ccr-post-pause-follow,pause follower API>> and then later resume

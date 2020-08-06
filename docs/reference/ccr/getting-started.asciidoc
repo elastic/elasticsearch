@@ -7,13 +7,13 @@ After the follower index is created, the <<ccr-remote-recovery, remote recovery>
 process copies all of the Lucene segment files from the remote cluster to the
 local cluster.
 
-Complete the following tasks to configure {ccr}:
+To set up {ccr}:
 
 . <<ccr-getting-started-security,Configure security roles>>
 . <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
 . <<ccr-getting-started-leader-index,Create a leader index in a remote cluster>>
-. <<ccr-enable-soft-deletes,Enable soft deletes on leader indices>>
-. <<ccr-getting-started-follower-index,Create a follower index that replicates a leader index>>
+. <<ccr-enable-soft-deletes,Enable soft deletes on the leader index>>
+. <<ccr-getting-started-follower-index,Create a follower index to replicate the leader index>>
 . <<ccr-getting-started-auto-follow,Automatically create follower indices>>
 
 
@@ -106,7 +106,7 @@ remote cluster.
 image::images/remote-clusters.png["The Remote Clusters page in {kib}"]
 
 [%collapsible]
-.Use the API
+.API example
 ====
 Use the <<cluster-update-settings,cluster update settings API>> to add a remote cluster:
 
@@ -268,7 +268,7 @@ documents are replicated in the follower index.
 image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
 
 [%collapsible]
-.Use the API
+.API example
 ====
 Use the <<ccr-put-follow,create follower API>> to create follower indices.
 When you create a follower index, you must reference the
@@ -359,7 +359,7 @@ image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
 // end::ccr-create-auto-follow-pattern-tag[]
 
 [%collapsible]
-.Use the API
+.API example
 ====
 Use the <<ccr-put-auto-follow-pattern,create auto-follow pattern API>> to
 configure auto-follow patterns.

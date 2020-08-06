@@ -39,6 +39,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -94,6 +95,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             public long parsePointAsMillis(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
             }
+
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
+            }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
@@ -114,6 +120,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             public long parsePointAsMillis(byte[] value) {
                 return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
             }
         };
 
@@ -162,6 +173,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
         }
+
+        protected abstract Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot);
     }
 
     private static DateFieldMapper toType(FieldMapper in) {
@@ -383,6 +396,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             Resolution resolution
         ) {
             return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
+        }
+
+        @Override
+        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
+            TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
+            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
         }
 
         @Override

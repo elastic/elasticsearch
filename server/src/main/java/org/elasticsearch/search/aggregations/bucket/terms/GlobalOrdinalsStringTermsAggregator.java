@@ -561,7 +561,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
                 collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
                     TB spare = null;
-    
+
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
@@ -574,7 +574,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                     }
                 });
-    
+
                 // Get the top buckets
                 topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
                 for (int i = ordered.size() - 1; i >= 0; --i) {
@@ -799,7 +799,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) throws IOException {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
+            // the subset size is missing for empty buckets (doc count of 0)
+            long subsetSize = owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
                 oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
@@ -833,13 +834,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildResult(long owningBucketOrd, long otherDocCount, SignificantStringTerms.Bucket[] topBuckets) {
+            // the subset size is missing for empty buckets (doc count of 0)
+            long subsetSize = owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
             return new SignificantStringTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSizes.get(owningBucketOrd),
+                subsetSize,
                 supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)

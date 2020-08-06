@@ -13,14 +13,20 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
+import org.elasticsearch.blobstore.cache.CopyOnReadInputStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -30,14 +36,20 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
@@ -439,6 +451,98 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
+    }
+
+    private InputStream openInputStream(
+        final long position,
+        final long length,
+        final List<Tuple<Long, Integer>> regions,
+        final TriConsumer<String, Long, ReleasableBytesReference> blobStoreCacher,
+        final Logger logger
+    ) throws IOException {
+        final InputStream stream = openInputStream(position, length);
+        if (regions == null || regions.isEmpty()) {
+            logger.trace("returning bare stream for [{}]", fileInfo);
+            return stream;
+        }
+
+        //
+        // TODO I'm so sorry. This should be done differently, maybe using a smarter CopyOnReadInputStream
+        //
+        // The idea is to build a SequenceInputStream that wraps the stream from the blob store repository
+        // into multiple limited streams that copy over the bytes of the regions.
+        //
+        // If while reading the stream we saw interesting regions to cache, we index them. It means that
+        // we first have to sort the regions and exclude the ones that we're not going to see anyway.
+        //
+        // TODO we should check overlapping regions too
+
+        logger.trace("returning caching stream for [{}] with regions [{}]", this, regions);
+
+        final Iterator<Tuple<Long, Integer>> sortedRegions = regions.stream()
+            .filter(region -> position <= region.v1())
+            .filter(region -> region.v1() + region.v2() <= position + length)
+            .sorted(Comparator.comparing(Tuple::v1))
+            .collect(Collectors.toList())
+            .iterator();
+
+        final List<InputStream> streams = new ArrayList<>();
+        for (long p = position; p < position + length;) {
+            if (sortedRegions.hasNext()) {
+                final Tuple<Long, Integer> nextRegion = sortedRegions.next();
+                if (p < nextRegion.v1()) {
+                    long limit = nextRegion.v1() - p;
+                    streams.add(Streams.limitStream(Streams.noCloseStream(stream), limit));
+                    p += limit;
+                }
+                assert p == nextRegion.v1();
+
+                long limit = nextRegion.v2();
+                streams.add(
+                    new CopyOnReadInputStream(
+                        Streams.limitStream(p + limit < length ? Streams.noCloseStream(stream) : stream, limit),
+                        BigArrays.NON_RECYCLING_INSTANCE.newByteArray(limit),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(ReleasableBytesReference releasableBytesReference) {
+                                logger.trace(
+                                    () -> new ParameterizedMessage(
+                                        "indexing bytes of file [{}] for region [{}-{}] in blob cache index",
+                                        this,
+                                        nextRegion.v1(),
+                                        nextRegion.v1() + nextRegion.v2()
+                                    )
+                                );
+                                blobStoreCacher.apply(fileInfo.physicalName(), nextRegion.v1(), releasableBytesReference);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.trace(
+                                    () -> new ParameterizedMessage(
+                                        "fail to index bytes of file [{}] for region [{}-{}] in blob cache index",
+                                        this,
+                                        nextRegion.v1(),
+                                        nextRegion.v1() + nextRegion.v2()
+                                    ),
+                                    e
+                                );
+                            }
+                        }
+                    )
+                );
+                p += limit;
+                assert p == nextRegion.v1() + nextRegion.v2();
+            } else if (p < position + length) {
+                long limit = position + length - p;
+                streams.add(Streams.limitStream(stream, limit));
+                p += limit;
+            }
+        }
+        if (streams.size() == 1) {
+            return streams.get(0);
+        }
+        return new SequenceInputStream(Collections.enumeration(streams));
     }
 
     @Override

@@ -192,7 +192,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
                 .shardSize(shardSize)
                 .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = search(indexSearcher, query, builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
         verify.accept(result);
     }
 
@@ -211,7 +211,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
                 .field(genreFieldType.name())
                 .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = search(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
         Terms terms = result.getAggregations().get("terms");
         assertEquals(0, terms.getBuckets().size());
         indexReader.close();

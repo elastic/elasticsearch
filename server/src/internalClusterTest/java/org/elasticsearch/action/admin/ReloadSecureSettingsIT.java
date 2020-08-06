@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -47,11 +46,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {

@@ -129,7 +129,7 @@ query get skipped.
 * `ccs_minimize_roundtrips` defaults to `false`, which is also the only
 supported value
 
-WARNING: Async search does not support <<request-body-search-scroll,scroll>>
+WARNING: Async search does not support <<scroll-search-results,scroll>>
 nor search requests that only include the  <<search-suggesters,suggest section>>.
 {ccs} is supported only with <<ccs-min-roundtrips,`ccs_minimize_roundtrips`>>
 set to `false`.

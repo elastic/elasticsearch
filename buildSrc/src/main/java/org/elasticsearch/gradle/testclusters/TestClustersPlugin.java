@@ -96,12 +96,15 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
-        Task listTask = project.getTasks().create(LIST_TASK_NAME);
-        listTask.setGroup("ES cluster formation");
-        listTask.setDescription("Lists all ES clusters configured for this project");
-        listTask.doLast(
-            (Task task) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
-        );
+        // Task is never up to date so we can pass an lambda for the task action
+        project.getTasks().register(LIST_TASK_NAME, task -> {
+            task.setGroup("ES cluster formation");
+            task.setDescription("Lists all ES clusters configured for this project");
+            task.doLast(
+                (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
+            );
+        });
+
     }
 
     static class TestClustersHookPlugin implements Plugin<Project> {

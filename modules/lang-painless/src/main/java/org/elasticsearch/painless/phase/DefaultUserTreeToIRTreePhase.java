@@ -203,7 +203,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * This injects additional ir nodes required for resolving the def type at runtime.
      * This includes injection of ir nodes to add a function to call
      * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
-     * to do the runtime resolution.
+     * to do the runtime resolution, and several supporting static fields.
      */
     protected void injectBootstrapMethod(ScriptScope scriptScope) {
         // adds static fields required for def bootstrapping

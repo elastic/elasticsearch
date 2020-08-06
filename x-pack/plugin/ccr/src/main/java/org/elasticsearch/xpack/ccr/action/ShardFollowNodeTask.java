@@ -151,33 +151,31 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
         updateMapping(0L, leaderMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentMappingVersion = leaderMappingVersion;
+                currentMappingVersion = Math.max(currentMappingVersion, leaderMappingVersion);
             }
             updateSettings(leaderSettingsVersion -> {
                 synchronized (ShardFollowNodeTask.this) {
-                    currentSettingsVersion = leaderSettingsVersion;
+                    currentSettingsVersion = Math.max(currentSettingsVersion, leaderSettingsVersion);
                 }
-            });
-            updateAliases(leaderAliasesVersion -> {
-                synchronized (ShardFollowNodeTask.this) {
-                    currentAliasesVersion = leaderAliasesVersion;
-                }
-            });
-            synchronized (ShardFollowNodeTask.this) {
-                LOGGER.info(
-                        "{} following leader shard {}, " +
+                updateAliases(leaderAliasesVersion -> {
+                    synchronized (ShardFollowNodeTask.this) {
+                        currentAliasesVersion = Math.max(currentAliasesVersion, leaderAliasesVersion);
+                        LOGGER.info(
+                            "{} following leader shard {}, " +
                                 "follower global checkpoint=[{}], " +
                                 "mapping version=[{}], " +
                                 "settings version=[{}], " +
                                 "aliases version=[{}]",
-                        params.getFollowShardId(),
-                        params.getLeaderShardId(),
-                        followerGlobalCheckpoint,
-                        currentMappingVersion,
-                        currentSettingsVersion,
-                        currentAliasesVersion);
-            }
-            coordinateReads();
+                            params.getFollowShardId(),
+                            params.getLeaderShardId(),
+                            followerGlobalCheckpoint,
+                            currentMappingVersion,
+                            currentSettingsVersion,
+                            currentAliasesVersion);
+                    }
+                    coordinateReads();
+                });
+            });
         });
     }
 
@@ -446,7 +444,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} updating mapping, mapping version [{}] is lower than minimum required mapping version [{}]",
                 params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
             updateMapping(minimumRequiredMappingVersion, mappingVersion -> {
-                currentMappingVersion = mappingVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentMappingVersion = Math.max(currentMappingVersion, mappingVersion);
+                }
                 task.run();
             });
         }
@@ -461,7 +461,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} updating settings, settings version [{}] is lower than minimum required settings version [{}]",
                     params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
             updateSettings(settingsVersion -> {
-                currentSettingsVersion = settingsVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentSettingsVersion = Math.max(currentSettingsVersion, settingsVersion);
+                }
                 task.run();
             });
         }
@@ -482,7 +484,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     currentAliasesVersion,
                     minimumRequiredAliasesVersion);
             updateAliases(aliasesVersion -> {
-                currentAliasesVersion = aliasesVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentAliasesVersion = Math.max(currentAliasesVersion, aliasesVersion);
+                }
                 task.run();
             });
         }

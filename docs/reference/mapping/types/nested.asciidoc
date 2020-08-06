@@ -181,7 +181,7 @@ during the highlighting, these offsets will not be available during the main hig
 phase.  Instead, highlighting needs to be performed via
 <<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
 fields during a search through <<docvalue-fields,
-`docvalue_fields`>> or <<request-body-search-stored-fields, `stored_fields`>>.
+`docvalue_fields`>> or <<stored-fields, `stored_fields`>>.
 
 =============================================
 

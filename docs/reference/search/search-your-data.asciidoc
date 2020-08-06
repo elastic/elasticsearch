@@ -10,7 +10,6 @@ Depending on your data, you can use a query to get answers to questions like:
 
 * What processes on my server take longer than 500 milliseconds to respond?
 * What users on my network ran `regsvr32.exe` within the last week?
-* How many of my products have a price greater than $20?
 * What pages on my website contain a specific word or phrase?
 
 A _search_ consists of one or more queries that are combined and sent to {es}.
@@ -54,35 +53,22 @@ You can use the search API's <<search-api-query-params-q,`q` query string
 parameter>> to run a search in the request's URI. The `q` parameter only accepts
 queries written in Lucene's <<query-string-syntax,query string syntax>>.
 
-To get started, ingest or add some data to an {es} data stream or index.
-
-The following <<docs-bulk,bulk API>> request adds some example server access log
-data to the `my-index-000001` index.
-
-[source,console]
-----
-PUT /my-index-000001/_bulk?refresh
-{ "index":{ } }
-{ "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
-{ "index":{ } }
-{ "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
-{ "index":{ } }
-{ "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
-----
-// TESTSETUP
-
-You can now use the search API to run a URI search on this index.
-
 The following URI search matches documents with a `user.id` value of `kimchy`.
-Note the query is specified using the `q` query string parameter.
 
 [source,console]
 ----
 GET /my-index-000001/_search?q=user.id:kimchy
 ----
+// TEST[setup:my_index]
 
-The API returns the following response. Note the `hits.hits` property contains
-the document that matched the query.
+The API returns the following response.
+
+By default, the `hits.hits` property returns the top 10 documents matching the
+query. To retrieve more documents, see <<paginate-search-results>>.
+
+The response sorts documents in `hits.hits` by `_score`, a
+<<relevance-scores,relevance score>> that measures how well each document
+matches the query.
 
 [source,console-result]
 ----
@@ -100,12 +86,12 @@ the document that matched the query.
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 0.9808291,
+    "max_score": 1.3862942,
     "hits": [
       {
         "_index": "my-index-000001",
         "_id": "kxWFcnMByiguvud1Z8vC",
-        "_score": 0.9808291,
+        "_score": 1.3862942,
         "_source": {
           "@timestamp": "2099-11-15T14:12:12",
           "http": {
@@ -143,8 +129,7 @@ body parameter>> to provide a query as a JSON object, written in
 <<query-dsl,Query DSL>>.
 
 The following request body search uses the <<query-dsl-match-query,`match`>>
-query to match documents with a `user.id` value of `kimchy`. Note the
-`match` query is specified as a JSON object in the `query` parameter.
+query to match documents with a `user.id` value of `kimchy`.
 
 [source,console]
 ----
@@ -157,62 +142,7 @@ GET /my-index-000001/_search
   }
 }
 ----
-
-The API returns the following response.
-
-The `hits.hits` property contains matching documents. By default, the response
-sorts these matching documents by `_score`, a <<relevance-scores,relevance
-score>> that measures how well each document matches the query.
-
-[source,console-result]
-----
-{
-  "took": 5,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 0.9808291,
-    "hits": [
-      {
-        "_index": "my-index-000001",
-        "_id": "kxWFcnMByiguvud1Z8vC",
-        "_score": 0.9808291,
-        "_source": {
-          "@timestamp": "2099-11-15T14:12:12",
-          "http": {
-            "request": {
-              "method": "get"
-            },
-            "response": {
-              "bytes": 1070000,
-              "status_code": 200
-            },
-            "version": "1.1"
-          },
-          "message": "GET /search HTTP/1.1 200 1070000",
-          "source": {
-            "ip": "127.0.0.1"
-          },
-          "user": {
-            "id": "kimchy"
-          }
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 5/"took": "$body.took"/]
-// TESTRESPONSE[s/"_id": "kxWFcnMByiguvud1Z8vC"/"_id": "$body.hits.hits.0._id"/]
+// TEST[setup:my_index]
 
 [discrete]
 [[search-multiple-indices]]
@@ -235,17 +165,18 @@ GET /my-index-000001,my-index-000002/_search
   }
 }
 ----
+// TEST[setup:my_index]
 // TEST[s/^/PUT my-index-000002\n/]
 
 You can also search multiple data streams and indices using a wildcard (`*`)
 pattern.
 
-The following request targets the wildcard pattern `user_logs*`. The request
-searches any data streams or indices in the cluster that start with `user_logs`.
+The following request targets the wildcard pattern `my-index-*`. The request
+searches any data streams or indices in the cluster that start with `my-index-`.
 
 [source,console]
 ----
-GET /user_logs*/_search
+GET /my-index-*/_search
 {
   "query": {
     "match": {
@@ -254,6 +185,7 @@ GET /user_logs*/_search
   }
 }
 ----
+// TEST[setup:my_index]
 
 To search all data streams and indices in a cluster, omit the target from the
 request path. Alternatively, you can use `_all` or `*`.
@@ -289,6 +221,7 @@ GET /*/_search
   }
 }
 ----
+// TEST[setup:my_index]
 
 include::search-fields.asciidoc[]
 include::request/collapse.asciidoc[]

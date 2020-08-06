@@ -17,20 +17,6 @@
         "@timestamp": {
           "type": "date"
         },
-        "dataset": {
-          "properties": {
-            "type": {
-              "type": "constant_keyword",
-              "value": "logs"
-            },
-            "name": {
-              "type": "constant_keyword"
-            },
-            "namespace": {
-              "type": "constant_keyword"
-            }
-          }
-        },
         "data_stream": {
           "properties": {
             "type": {

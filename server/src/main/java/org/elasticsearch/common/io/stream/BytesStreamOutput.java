@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,6 +39,7 @@ public class BytesStreamOutput extends BytesStream {
 
     protected final BigArrays bigArrays;
 
+    @Nullable
     protected ByteArray bytes;
     protected int count;
 
@@ -59,16 +64,18 @@ public class BytesStreamOutput extends BytesStream {
 
     protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bytes = bigArrays.newByteArray(expectedSize, false);
+        if (expectedSize != 0) {
+            this.bytes = bigArrays.newByteArray(expectedSize, false);
+        }
     }
 
     @Override
-    public long position() throws IOException {
+    public long position() {
         return count;
     }
 
     @Override
-    public void writeByte(byte b) throws IOException {
+    public void writeByte(byte b) {
         ensureCapacity(count + 1L);
         bytes.set(count, b);
         count++;
@@ -99,7 +106,7 @@ public class BytesStreamOutput extends BytesStream {
     @Override
     public void reset() {
         // shrink list of pages
-        if (bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+        if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
             bytes = bigArrays.resize(bytes, PageCacheRecycler.PAGE_SIZE_IN_BYTES);
         }
 
@@ -108,7 +115,7 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         // nothing to do
     }
 
@@ -144,6 +151,27 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     /**
+     * Like {@link #bytes()} but copies the bytes to a freshly allocated buffer.
+     *
+     * @return copy of the bytes in this instances
+     */
+    public BytesReference copyBytes() {
+        final byte[] keyBytes = new byte[count];
+        int offset = 0;
+        final BytesRefIterator iterator = bytes().iterator();
+        try {
+            BytesRef slice;
+            while ((slice = iterator.next()) != null) {
+                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
+                offset += slice.length;
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        return new BytesArray(keyBytes);
+    }
+
+    /**
      * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
      * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
      */
@@ -155,7 +183,11 @@ public class BytesStreamOutput extends BytesStream {
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        bytes = bigArrays.grow(bytes, offset);
+        if (bytes == null) {
+            this.bytes = bigArrays.newByteArray(BigArrays.overSize(offset, PageCacheRecycler.PAGE_SIZE_IN_BYTES, 1), false);
+        } else {
+            bytes = bigArrays.grow(bytes, offset);
+        }
     }
 
 }

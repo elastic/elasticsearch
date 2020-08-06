@@ -28,6 +28,11 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
         return new TermsGroupSource(field, scriptConfig, missingBucket);
     }
 
+    public static TermsGroupSource randomTermsGroupSourceNoScript() {
+        String field = randomAlphaOfLengthBetween(1, 20);
+        return new TermsGroupSource(field, null, randomBoolean());
+    }
+
     @Override
     protected TermsGroupSource doParseInstance(XContentParser parser) throws IOException {
         return TermsGroupSource.fromXContent(parser, false);
@@ -41,6 +46,12 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
     @Override
     protected Reader<TermsGroupSource> instanceReader() {
         return TermsGroupSource::new;
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60794")
+    public void testSupportsIncrementalBucketUpdate() {
+        TermsGroupSource terms = randomTermsGroupSource();
+        assertEquals(terms.getScriptConfig() == null, terms.supportsIncrementalBucketUpdate());
     }
 
 }

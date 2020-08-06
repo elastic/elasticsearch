@@ -1,3 +1,17 @@
+[[release-notes-6.8.12]]
+== {es} version 6.8.12
+
+coming::[6.8.12]
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[float]
+[[bug-6.8.12]]
+=== Bug fixes
+
+Machine Learning::
+* Fix restoration of change detectors after seasonality change {ml-pull}1391[#1391]
+
 [[release-notes-6.8.11]]
 == {es} version 6.8.11
 

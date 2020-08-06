@@ -125,7 +125,10 @@ See <<highlighting>>.
 
 include::request/index-boost.asciidoc[]
 
-include::request/inner-hits.asciidoc[]
+[[request-body-search-inner-hits]]
+==== Inner hits
+
+See <<inner-hits>>.
 
 include::request/min-score.asciidoc[]
 

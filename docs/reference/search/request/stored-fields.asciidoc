@@ -42,7 +42,7 @@ Also only leaf fields can be returned via the `stored_fields` option. If an obje
 NOTE: On its own, `stored_fields` cannot be used to load fields in nested
 objects -- if a field contains a nested object in its path, then no data will
 be returned for that stored field. To access nested fields, `stored_fields`
-must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.
+must be used within an <<inner-hits, `inner_hits`>> block.
 
 [discrete]
 [[disable-stored-fields]]

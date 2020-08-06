@@ -119,7 +119,8 @@ public class DeflateCompressor implements Compressor {
 
             public void close() throws IOException {
                 try {
-                    super.close();
+                    compressedOut.flush();
+                    deflaterOutputStream.finish();
                 } finally {
                     if (closed.compareAndSet(false, true)) {
                         // important to release native memory

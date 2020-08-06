@@ -1,8 +1,9 @@
-[[request-body-search-script-fields]]
-==== Script Fields
+[discrete]
+[[script-fields]]
+=== Script fields
 
-Allows to return a <<modules-scripting,script
-evaluation>> (based on different fields) for each hit, for example:
+You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
+evaluation>> (based on different fields) for each hit. For example:
 
 [source,console]
 --------------------------------------------------

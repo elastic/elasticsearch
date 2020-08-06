@@ -797,10 +797,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
         }
 
+        private long subsetSize(long owningBucketOrd) {
+            // if the owningBucketOrd is not in the array that means the bucket is empty so the size has to be 0
+            return owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
+        }
+
         @Override
         BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) throws IOException {
-            // the subset size is missing for empty buckets (doc count of 0)
-            long subsetSize = owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
+            long subsetSize = subsetSize(owningBucketOrd);
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
                 oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
@@ -834,15 +838,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildResult(long owningBucketOrd, long otherDocCount, SignificantStringTerms.Bucket[] topBuckets) {
-            // the subset size is missing for empty buckets (doc count of 0)
-            long subsetSize = owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
             return new SignificantStringTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSize,
+                subsetSize(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)

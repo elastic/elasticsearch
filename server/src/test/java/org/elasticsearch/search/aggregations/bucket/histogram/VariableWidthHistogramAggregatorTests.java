@@ -511,9 +511,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.field(NUMERIC_FIELD).setShardSize(1000000000),
             histogram -> assertThat(
                 histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0))
-            );
-        });
+                equalTo(org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0)))
+        );
     }
 
     public void testSmallInitialBuffer() throws Exception {

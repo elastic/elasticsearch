@@ -581,6 +581,6 @@ public class Docker {
     }
 
     private static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + ":test" + (distribution.packaging == Distribution.Packaging.UBI ? "-ubi" : "");
+        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
     }
 }

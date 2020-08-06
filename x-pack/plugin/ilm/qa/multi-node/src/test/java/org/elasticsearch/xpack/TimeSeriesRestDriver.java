@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +43,8 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -202,6 +205,26 @@ public final class TimeSeriesRestDriver {
             }
             return (Map<String, Object>) indexSettings.get("settings");
         }
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
+        throws IOException {
+        createIndexWithSettings(client, index, alias, settings, randomBoolean());
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings,
+                                               boolean useWriteIndex) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+
+        String writeIndexSnippet = "";
+        if (useWriteIndex) {
+            writeIndexSnippet = "\"is_write_index\": true";
+        }
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
+        client.performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
     }
 
 }

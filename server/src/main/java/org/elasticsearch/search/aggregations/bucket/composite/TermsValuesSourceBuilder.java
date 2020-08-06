@@ -154,51 +154,48 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             TYPE,
             TermsCompositeSupplier.class,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
-                return new CompositeValuesSourceConfig(
-                    name,
-                    valuesSourceConfig.fieldType(),
-                    valuesSourceConfig.getValuesSource(),
-                    valuesSourceConfig.format(),
-                    order,
-                    missingBucket,
-                    hasScript,
-                    (
-                        BigArrays bigArrays,
-                        IndexReader reader,
-                        int size,
-                        LongConsumer addRequestCircuitBreakerBytes,
-                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
+                name,
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.getValuesSource(),
+                valuesSourceConfig.format(),
+                order,
+                missingBucket,
+                hasScript,
+                (
+                    BigArrays bigArrays,
+                    IndexReader reader,
+                    int size,
+                    LongConsumer addRequestCircuitBreakerBytes,
+                    CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
-                        if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
-                            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
-                                .valuesSource();
-                            return new GlobalOrdinalValuesSource(
-                                bigArrays,
-                                compositeValuesSourceConfig.fieldType(),
-                                vs::globalOrdinalsValues,
-                                compositeValuesSourceConfig.format(),
-                                compositeValuesSourceConfig.missingBucket(),
-                                size,
-                                compositeValuesSourceConfig.reverseMul()
-                            );
-                        } else {
-                            ValuesSource.Bytes vs = (ValuesSource.Bytes) compositeValuesSourceConfig.valuesSource();
-                            return new BinaryValuesSource(
-                                bigArrays,
-                                addRequestCircuitBreakerBytes,
-                                compositeValuesSourceConfig.fieldType(),
-                                vs::bytesValues,
-                                compositeValuesSourceConfig.format(),
-                                compositeValuesSourceConfig.missingBucket(),
-                                size,
-                                compositeValuesSourceConfig.reverseMul()
-                            );
-                        }
+                    if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
+                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
+                            .valuesSource();
+                        return new GlobalOrdinalValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            vs::globalOrdinalsValues,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            compositeValuesSourceConfig.reverseMul()
+                        );
+                    } else {
+                        ValuesSource.Bytes vs = (ValuesSource.Bytes) compositeValuesSourceConfig.valuesSource();
+                        return new BinaryValuesSource(
+                            bigArrays,
+                            addRequestCircuitBreakerBytes,
+                            compositeValuesSourceConfig.fieldType(),
+                            vs::bytesValues,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            compositeValuesSourceConfig.reverseMul()
+                        );
                     }
-                );
-
-            }
+                }
+            )
         );
     }
 

@@ -116,6 +116,6 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

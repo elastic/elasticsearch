@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -53,7 +55,7 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.IND
 public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
-    public static final String ILM_HISTORY_ALIAS = "ilm-history-" + INDEX_TEMPLATE_VERSION;
+    public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     private final boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
@@ -68,17 +70,19 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    // Prior to actually performing the bulk, we should ensure the index exists, and
-                    // if we were unable to create it or it was in a bad state, we should not
-                    // attempt to index documents.
+                    if (ilmHistoryEnabled == false) {
+                        throw new ElasticsearchException("can not index ILM history items when ILM history is disabled");
+                    }
+                    // Prior to actually performing the bulk, we should ensure the data stream exists, and
+                    // if we were unable to create it we should not attempt to index documents.
                     try {
-                        final CompletableFuture<Boolean> indexCreated = new CompletableFuture<>();
-                        ensureHistoryDataStream(client, clusterService.state(), ActionListener.wrap(indexCreated::complete,
+                        final CompletableFuture<Boolean> dsCreated = new CompletableFuture<>();
+                        ensureHistoryDataStream(client, clusterService.state(), ActionListener.wrap(dsCreated::complete,
                             ex -> {
-                                logger.warn("failed to create ILM history store index prior to issuing bulk request", ex);
-                                indexCreated.completeExceptionally(ex);
+                                logger.warn("failed to create ILM history store data stream prior to issuing bulk request", ex);
+                                dsCreated.completeExceptionally(ex);
                             }));
-                        indexCreated.get(2, TimeUnit.MINUTES);
+                        dsCreated.get(2, TimeUnit.MINUTES);
                     } catch (Exception e) {
                         logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
                             request.requests().stream()
@@ -113,13 +117,10 @@ public class ILMHistoryStore implements Closeable {
                                 .collect(Collectors.joining(",")));
                     }
                     if (response.hasFailures()) {
-                        IllegalStateException e = new IllegalStateException("failures during bulk request");
-                        Arrays.stream(response.getItems())
+                        Map<String, String> failures = Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
-                            .map(r->r.getFailure().getCause())
-                            .forEach(e::addSuppressed);
-
-                        logger.error("failures:", e);
+                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                        logger.error("failures: [{}]", failures);
                     }
                 }
 
@@ -146,10 +147,10 @@ public class ILMHistoryStore implements Closeable {
                 LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;
         }
-        logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_ALIAS, item);
+        logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder).opType(OpType.CREATE);
+            IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(OpType.CREATE);
             // TODO: remove the threadpool wrapping when the .add call is non-blocking
             //  (it can currently execute the bulk request occasionally)
             //  see: https://github.com/elastic/elasticsearch/issues/50440
@@ -158,12 +159,12 @@ public class ILMHistoryStore implements Closeable {
                     processor.add(request);
                 } catch (Exception e) {
                     logger.error(new ParameterizedMessage("failed add ILM history item to queue for index [{}]: [{}]",
-                        ILM_HISTORY_ALIAS, item), e);
+                        ILM_HISTORY_DATA_STREAM, item), e);
                 }
             });
         } catch (IOException exception) {
             logger.error(new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]",
-                ILM_HISTORY_ALIAS, item), exception);
+                ILM_HISTORY_DATA_STREAM, item), exception);
         }
     }
 
@@ -176,12 +177,12 @@ public class ILMHistoryStore implements Closeable {
      *                `false` if it already existed.
      */
     static void ensureHistoryDataStream(Client client, ClusterState state, ActionListener<Boolean> listener) {
-        if (state.getMetadata().dataStreams().containsKey(ILM_HISTORY_ALIAS)) {
+        if (state.getMetadata().dataStreams().containsKey(ILM_HISTORY_DATA_STREAM)) {
             listener.onResponse(false);
         } else {
-            logger.debug("creating ILM history data stream [{}]", ILM_HISTORY_ALIAS);
-            client.execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(ILM_HISTORY_ALIAS),
-                new ActionListener<AcknowledgedResponse>() {
+            logger.debug("creating ILM history data stream [{}]", ILM_HISTORY_DATA_STREAM);
+            client.execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(ILM_HISTORY_DATA_STREAM),
+                new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         listener.onResponse(true);
@@ -190,11 +191,11 @@ public class ILMHistoryStore implements Closeable {
 
                     @Override
                     public void onFailure(Exception e) {
-                        if(e instanceof IllegalArgumentException && e.getMessage().contains("exists")){
+                        if (e instanceof ResourceAlreadyExistsException) {
                             listener.onResponse(false);
                             logger.debug(
                                 "data stream [{}] was created after checking for its existence, likely due to a concurrent call",
-                                ILM_HISTORY_ALIAS);
+                                ILM_HISTORY_DATA_STREAM);
                         } else {
                             listener.onFailure(e);
                         }

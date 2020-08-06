@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -49,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_ALIAS;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -113,7 +114,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 assertThat(action, instanceOf(BulkAction.class));
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
-                bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_ALIAS, dwr.index()));
+                bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
                 assertNotNull(listener);
 
                 // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
@@ -147,7 +148,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> {
-                    assertEquals(ILM_HISTORY_ALIAS, dwr.index());
+                    assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index());
                     assertThat(dwr, instanceOf(IndexRequest.class));
                     IndexRequest ir = (IndexRequest) dwr;
                     String indexedDocument = ir.source().utf8ToString();
@@ -179,7 +180,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             assertThat(a, instanceOf(CreateDataStreamAction.class));
             assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
             CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
-            assertThat(request.getName(), equalTo(ILM_HISTORY_ALIAS));
+            assertThat(request.getName(), equalTo(ILM_HISTORY_DATA_STREAM));
             return new AcknowledgedResponse(true);
         });
 
@@ -197,9 +198,9 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void testHistoryIndexProperlyExistsAlready() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
             .metadata(Metadata.builder()
-                .dataStreams(Collections.singletonMap(ILM_HISTORY_ALIAS,
-                    new DataStream(ILM_HISTORY_ALIAS, new TimestampField("@timestamp"),
-                        Collections.singletonList(new Index(DataStream.getDefaultBackingIndexName(ILM_HISTORY_ALIAS, 1), ""))))))
+                .dataStreams(Collections.singletonMap(ILM_HISTORY_DATA_STREAM,
+                    new DataStream(ILM_HISTORY_DATA_STREAM, new TimestampField("@timestamp"),
+                        Collections.singletonList(new Index(DataStream.getDefaultBackingIndexName(ILM_HISTORY_DATA_STREAM, 1), ""))))))
             .build();
 
         client.setVerifier((a, r, l) -> {
@@ -227,8 +228,8 @@ public class ILMHistoryStoreTests extends ESTestCase {
             assertThat(a, instanceOf(CreateDataStreamAction.class));
             assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
             CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
-            assertThat(request.getName(), equalTo(ILM_HISTORY_ALIAS));
-            throw new IllegalArgumentException("that data stream already exists");
+            assertThat(request.getName(), equalTo(ILM_HISTORY_DATA_STREAM));
+            throw new ResourceAlreadyExistsException("that data stream already exists");
         });
 
         CountDownLatch latch = new CountDownLatch(1);

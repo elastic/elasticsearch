@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.datastreams.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -72,11 +73,13 @@ public class CreateDataStreamTransportAction extends TransportMasterNodeAction<C
                 request.masterNodeTimeout(),
                 request.timeout()
             );
+        LogManager.getLogger(getClass()).info("qqqqqq" + state.blocks());
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateDataStreamAction.Request request, ClusterState state) {
+        LogManager.getLogger( getClass()).info("ttttttt" +state.blocks());
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

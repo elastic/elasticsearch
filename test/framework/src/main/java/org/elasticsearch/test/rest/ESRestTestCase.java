@@ -551,6 +551,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
             wipeDataStreams();
+        } else {
+            //even if we want to preserve test data streams we need to clean up ILM history
+            assertOK(client().performRequest(new Request("DELETE", "_data_stream/ilm-history-*")));
         }
 
         if (preserveIndicesUponCompletion() == false) {
@@ -660,7 +663,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeDataStreams() throws IOException {
         try {
             if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                assertOK(adminClient().performRequest(new Request("DELETE", "_data_stream/*")));
             }
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore

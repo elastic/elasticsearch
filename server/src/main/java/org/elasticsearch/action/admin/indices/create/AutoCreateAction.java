@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,9 +30,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
@@ -127,6 +128,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     if (dataStreamTemplate != null) {
                         CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                             request.index(), request.masterNodeTimeout(), request.timeout());
+                        LogManager.getLogger(getClass()).info("xxxxxx" + state.blocks());
                         ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
                         return clusterState;
@@ -144,6 +146,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
         @Override
         protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
+            LogManager.getLogger(getClass()).info("yyyyy" +state.blocks());
             return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
         }
     }

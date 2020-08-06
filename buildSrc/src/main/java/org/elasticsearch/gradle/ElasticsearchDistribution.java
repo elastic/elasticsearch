@@ -52,7 +52,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         DEB,
         DOCKER,
         // This is a different flavour of Docker image
-        UBI;
+        DOCKER_UBI;
 
         @Override
         public String toString() {
@@ -61,9 +61,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
         public boolean shouldExtract() {
             switch (this) {
-                case UBI:
                 case DEB:
                 case DOCKER:
+                case DOCKER_UBI:
                 case RPM:
                     return false;
 
@@ -193,7 +193,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     public boolean isDocker() {
         final Type type = this.type.get();
-        return type == Type.DOCKER || type == Type.UBI;
+        return type == Type.DOCKER || type == Type.DOCKER_UBI;
     }
 
     public void setBundledJdk(Boolean bundledJdk) {

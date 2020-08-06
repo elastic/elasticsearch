@@ -102,7 +102,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
 
             case DOCKER:
-            case UBI:
+            case DOCKER_UBI:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
                 break;
@@ -145,12 +145,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                     : "-tar");
                 break;
 
-            case UBI:
-                projectName += "ubi-docker" + archString + "-export";
-                break;
-
             case DOCKER:
                 projectName += "docker" + archString + "-export";
+                break;
+
+            case DOCKER_UBI:
+                projectName += "ubi-docker" + archString + "-export";
                 break;
 
             default:

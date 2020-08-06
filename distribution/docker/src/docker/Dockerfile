@@ -16,7 +16,7 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
+FROM centos:8 AS builder
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -61,7 +61,7 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM centos:8
 
 ENV ELASTIC_CONTAINER true
 

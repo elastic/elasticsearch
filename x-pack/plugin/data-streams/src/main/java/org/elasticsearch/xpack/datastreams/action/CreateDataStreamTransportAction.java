@@ -73,13 +73,11 @@ public class CreateDataStreamTransportAction extends TransportMasterNodeAction<C
                 request.masterNodeTimeout(),
                 request.timeout()
             );
-        LogManager.getLogger(getClass()).info("qqqqqq" + state.blocks());
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateDataStreamAction.Request request, ClusterState state) {
-        LogManager.getLogger( getClass()).info("ttttttt" +state.blocks());
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

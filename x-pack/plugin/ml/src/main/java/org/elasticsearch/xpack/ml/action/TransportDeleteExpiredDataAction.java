@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
+import org.elasticsearch.xpack.ml.job.retention.UnusedStatsRemover;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.WrappedBatchedJobsIterator;
@@ -169,7 +170,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             new ExpiredForecastsRemover(client, threadPool),
             new ExpiredModelSnapshotsRemover(client, new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool),
             new UnusedStateRemover(client, clusterService),
-            new EmptyStateIndexRemover(client));
+            new EmptyStateIndexRemover(client),
+            new UnusedStatsRemover(client));
     }
 
     private List<MlDataRemover> createDataRemovers(List<Job> jobs, AnomalyDetectionAuditor auditor) {
@@ -178,7 +180,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             new ExpiredForecastsRemover(client, threadPool),
             new ExpiredModelSnapshotsRemover(client, new VolatileCursorIterator<>(jobs), threadPool),
             new UnusedStateRemover(client, clusterService),
-            new EmptyStateIndexRemover(client));
+            new EmptyStateIndexRemover(client),
+            new UnusedStatsRemover(client));
     }
 
 }

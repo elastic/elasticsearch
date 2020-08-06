@@ -2,7 +2,7 @@
 === Install {es} with Docker
 
 {es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
+The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
 
 A list of all published Docker images and tags is available at
 https://www.docker.elastic.co[www.docker.elastic.co]. The source files
@@ -250,7 +250,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.

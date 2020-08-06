@@ -90,9 +90,9 @@ convention:
 .ds-<data-stream>-<generation>
 ----
 
-For example, the `web_server_logs` data stream has a generation of `34`. The
+For example, the `web-server-logs` data stream has a generation of `34`. The
 most recently created backing index for this data stream is named
-`.ds-web_server_logs-000034`.
+`.ds-web-server-logs-000034`.
 
 Because the generation increments with each new backing index, backing indices
 with a higher generation contain more recent data. Backing indices with a lower

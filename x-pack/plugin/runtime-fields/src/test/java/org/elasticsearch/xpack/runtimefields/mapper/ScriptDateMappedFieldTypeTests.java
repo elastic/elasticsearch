@@ -209,8 +209,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
                 assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
                 assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
-                Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 0)
-                    .explain(reader.le, docs.scoreDocs[0].doc);
+                Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
+                    .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
+                assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
+                assertThat(explanation.toString(), containsString("1.0 = weight"));
+                assertThat(explanation.toString(), containsString("1 = pivot"));
+                assertThat(explanation.toString(), containsString("1595432181354 = origin"));
+                assertThat(explanation.toString(), containsString("1595432181354 = current value"));
             }
         }
     }

@@ -58,7 +58,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                return new DistanceScorer(this, leafFactory.apply(context), context.reader().maxDoc());
+                return new DistanceScorer(this, leafFactory.apply(context), context.reader().maxDoc(), boost);
             }
 
             @Override
@@ -66,11 +66,12 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
                 AbstractLongScriptFieldScript script = leafFactory.apply(context);
                 script.runForDoc(doc);
                 long value = valueWithMinAbsoluteDistance(script);
-                float score = score(distanceFor(value));
+                float weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
+                float score = score(weight, distanceFor(value));
                 return Explanation.match(
                     score,
                     "Distance score, computed as weight * pivot / (pivot + abs(value - origin)) from:",
-                    Explanation.match(boost, "weight"),
+                    Explanation.match(weight, "weight"),
                     Explanation.match(pivot, "pivot"),
                     Explanation.match(origin, "origin"),
                     Explanation.match(value, "current value")
@@ -83,8 +84,9 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         private final AbstractLongScriptFieldScript script;
         private final TwoPhaseIterator twoPhase;
         private final DocIdSetIterator disi;
+        private final float weight;
 
-        protected DistanceScorer(Weight weight, AbstractLongScriptFieldScript script, int maxDoc) {
+        protected DistanceScorer(Weight weight, AbstractLongScriptFieldScript script, int maxDoc, float boost) {
             super(weight);
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
@@ -100,6 +102,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
                 }
             };
             disi = TwoPhaseIterator.asDocIdSetIterator(twoPhase);
+            this.weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
         }
 
         @Override
@@ -127,7 +130,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             if (script.count() == 0) {
                 return 0;
             }
-            return LongScriptFieldDistanceFeatureQuery.this.score((double) minAbsoluteDistance(script));
+            return LongScriptFieldDistanceFeatureQuery.this.score(weight, (double) minAbsoluteDistance(script));
         }
     }
 
@@ -161,8 +164,8 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         return distance;
     }
 
-    float score(double distance) {
-        return (float) (boost * (pivot / (pivot + distance)));
+    float score(float weight, double distance) {
+        return (float) (weight * (pivot / (pivot + distance)));
     }
 
     @Override

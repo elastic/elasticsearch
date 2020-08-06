@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60781")
 public class DataHistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-date-histogram-pivot-test";
     private static final String MISSING_BUCKET_KEY = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))

@@ -31,6 +31,7 @@ import java.io.IOException;
 
 public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60814")
     public void testStreamWithoutCompression() throws IOException {
         BytesStream bStream = new ZeroOutOnCloseStream();
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, false);

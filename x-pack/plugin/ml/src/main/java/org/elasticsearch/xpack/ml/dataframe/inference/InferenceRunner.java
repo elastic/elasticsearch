@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -87,7 +88,9 @@ public class InferenceRunner {
                 inferTestDocs(localModel, testDocsIterator);
             }
         } catch (Exception e) {
-            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
+            LOGGER.error(new ParameterizedMessage("[{}] Error during inference against model [{}]", config.getId(), modelId), e);
+            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]; cause was [{}]", e, config.getId(), modelId,
+                e.getMessage());
         }
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -78,6 +79,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return new FsInfo.Path(original.getPath(), original.getMount(), totalBytes, freeBytes, freeBytes);
     }
 
+    @TestLogging(reason="https://github.com/elastic/elasticsearch/issues/60587",
+        value="org.elasticsearch.cluster.InternalClusterInfoService:TRACE," +
+              "org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         for (int i = 0; i < 3; i++) {
             // ensure that each node has a single data path

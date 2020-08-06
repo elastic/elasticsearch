@@ -14,7 +14,9 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -101,19 +103,23 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             return;
         }
         try {
-            client.admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(settings())
-                .setMapping(mappings())
-                .execute(ActionListener.wrap(success -> listener.onResponse(index), e -> {
+            client.admin().indices().prepareCreate(index).setSettings(settings()).setMapping(mappings()).execute(new ActionListener<>() {
+                @Override
+                public void onResponse(CreateIndexResponse createIndexResponse) {
+                    assert createIndexResponse.index().equals(index);
+                    listener.onResponse(createIndexResponse.index());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException
                         || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         listener.onResponse(index);
                     } else {
                         listener.onFailure(e);
                     }
-                }));
+                }
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -237,28 +243,36 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
         }
         try {
             final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
-            client.get(request, ActionListener.wrap(response -> {
-                if (response.isExists()) {
-                    logger.debug("cache hit : [{}]", request.id());
-                    assert response.isSourceEmpty() == false;
+            client.get(request, new ActionListener<>() {
+                @Override
+                public void onResponse(GetResponse response) {
+                    if (response.isExists()) {
+                        logger.debug("cache hit : [{}]", request.id());
+                        assert response.isSourceEmpty() == false;
 
-                    final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
-                    assert response.getId().equals(cachedBlob.generatedId());
-                    listener.onResponse(cachedBlob);
-                } else {
-                    logger.debug("cache miss: [{}]", request.id());
-                    listener.onResponse(null);
+                        final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
+                        assert response.getId().equals(cachedBlob.generatedId());
+                        listener.onResponse(cachedBlob);
+                    } else {
+                        logger.debug("cache miss: [{}]", request.id());
+                        listener.onResponse(null);
+                    }
                 }
-            }, e -> {
-                logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                if (e instanceof IndexNotFoundException || e instanceof NoShardAvailableActionException) {
-                    // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
-                    // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially recovering.
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(e);
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException || e instanceof NoShardAvailableActionException) {
+                        // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
+                        // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
+                        // recovering.
+                        logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                        listener.onResponse(null);
+                    } else {
+                        logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                        listener.onFailure(e);
+                    }
                 }
-            }));
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -272,34 +286,43 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
         ReleasableBytesReference content,
         ActionListener<Void> listener
     ) {
-        createIndexIfNecessary(ActionListener.wrap(index -> {
-            try {
-                final CachedBlob cachedBlob = new CachedBlob(
-                    Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
-                    Version.CURRENT,
-                    repository,
-                    name,
-                    path,
-                    content,
-                    offset
-                );
-                final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
-                try (XContentBuilder builder = jsonBuilder()) {
-                    request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
-                }
-                client.index(request, ActionListener.wrap(response -> {
-                    if (response.status() == RestStatus.CREATED) {
-                        logger.trace("cache fill: [{}]", request.id());
+        createIndexIfNecessary(new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                try {
+                    final CachedBlob cachedBlob = new CachedBlob(
+                        Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
+                        Version.CURRENT,
+                        repository,
+                        name,
+                        path,
+                        content,
+                        offset
+                    );
+                    final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
+                    try (XContentBuilder builder = jsonBuilder()) {
+                        request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
-                }, listener::onFailure));
-            } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
-            } finally {
+                    client.index(request, ActionListener.wrap(response -> {
+                        if (response.status() == RestStatus.CREATED) {
+                            logger.trace("cache fill: [{}]", request.id());
+                        }
+                    }, listener::onFailure));
+                } catch (IOException e) {
+                    logger.warn(
+                        new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
+                        e
+                    );
+                } finally {
+                    IOUtils.closeWhileHandlingException(content);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> new ParameterizedMessage("failed to create blob cache system index [{}]", index), e);
                 IOUtils.closeWhileHandlingException(content);
             }
-        }, e -> {
-            logger.error(() -> new ParameterizedMessage("failed to create blob cache system index [{}]", index), e);
-            IOUtils.closeWhileHandlingException(content);
-        }));
+        });
     }
 }

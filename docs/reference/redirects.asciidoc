@@ -79,7 +79,7 @@ See <<request-body-search-index-boost>>.
 
 [role="exclude",id="search-request-inner-hits"]
 === Inner hits parameter for request body search API
-See <<request-body-search-inner-hits>>.
+See <<inner-hits>>.
 
 [role="exclude",id="search-request-min-score"]
 === Minimum score parameter for request body search API
@@ -1008,6 +1008,10 @@ See <<highlighting>>.
 ==== How highlighters work internally
 
 See <<how-es-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-inner-hits"]
+=== Inner hits
+See <<inner-hits>>.
 
 [role="exclude",id="request-body-search-queries-and-filters"]
 === Named queries

@@ -220,7 +220,7 @@ GET my-index-000001/_search
 TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty
 array (`[ ]`) for the field. To access nested fields, use the
-<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+<<inner-hits, `inner_hits`>> parameter's `docvalue_fields`
 property.
 
 [discrete]

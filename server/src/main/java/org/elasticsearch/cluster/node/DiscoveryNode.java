@@ -24,6 +24,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -72,8 +73,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
     }
 
+    /**
+     * Note, due to the way that plugins may not be available when settings are being initialized,
+     * do not use this from a static {@link Setting} default value function, as it may not contain
+     * all roles at that point.
+     */
     public static boolean isDataNode(final Settings settings) {
-        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     public static boolean isIngestNode(final Settings settings) {
@@ -328,7 +334,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * Should this node hold data (shards) or not.
      */
     public boolean isDataNode() {
-        return roles.contains(DiscoveryNodeRole.DATA_ROLE);
+        return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     /**

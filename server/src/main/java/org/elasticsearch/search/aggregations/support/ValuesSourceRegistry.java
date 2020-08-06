@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -41,10 +42,33 @@ public class ValuesSourceRegistry {
         // this interface intentionally left blank
     }
 
+    public static final class RegistryKey<T extends CompositeSupplier> {
+        private final String name;
+        private final Class<T> supplierType;
+
+        public RegistryKey(String name, Class<T> supplierType) {
+            this.name = Objects.requireNonNull(name);
+            this.supplierType = Objects.requireNonNull(supplierType);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RegistryKey that = (RegistryKey) o;
+            return name.equals(that.name) && supplierType.equals(that.supplierType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, supplierType);
+        }
+    }
+
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
-        private Map<Class<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry =
+        private Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry =
             new HashMap<>();
 
         public Builder() {
@@ -95,14 +119,13 @@ public class ValuesSourceRegistry {
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
         public <T extends CompositeSupplier> void registerComposite(
+            String name,
             Class<T> supplierClass,
             ValuesSourceType valuesSourceType,
             T compositeSupplier
         ) {
-            // TODO: Assert is almost definitely wrong here, but I don't know what the right thing to throw is.
-            assert compositeSupplier.getClass() == supplierClass;
             if (compositeRegistry.containsKey(supplierClass) == false) {
-                compositeRegistry.put(supplierClass, new ArrayList<>());
+                compositeRegistry.put(new RegistryKey<>(name, supplierClass), new ArrayList<>());
             }
             compositeRegistry.get(supplierClass).add(new AbstractMap.SimpleEntry<>(valuesSourceType, compositeSupplier));
         }
@@ -118,12 +141,13 @@ public class ValuesSourceRegistry {
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
         public <T extends CompositeSupplier> void registerComposite(
+            String name,
             Class<T> supplierClass,
             List<ValuesSourceType> valuesSourceTypes,
             T compositeSupplier
         ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
-                registerComposite(supplierClass, valuesSourceType, compositeSupplier);
+                registerComposite(name, supplierClass, valuesSourceType, compositeSupplier);
             }
         }
 
@@ -161,9 +185,10 @@ public class ValuesSourceRegistry {
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
     private Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
-    private Map<Class<? extends CompositeSupplier>, Map<ValuesSourceType, CompositeSupplier>> compositeRegistry;
+    private Map<RegistryKey<? extends CompositeSupplier>, Map<ValuesSourceType, CompositeSupplier>> compositeRegistry;
+
     public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
-        Map<Class<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry,
+        Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry,
                                 AggregationUsageService usageService) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.compositeRegistry = copyMap(compositeRegistry);
@@ -195,19 +220,15 @@ public class ValuesSourceRegistry {
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
     }
 
-    public <T extends CompositeSupplier> T getComposite(Class<T> supplierClass, ValuesSourceConfig config) {
-        if (supplierClass != null && compositeRegistry.containsKey(supplierClass)) {
+    public <T extends CompositeSupplier> T getComposite(String name, Class<T> supplierClass, ValuesSourceConfig config) {
+        if (supplierClass != null && compositeRegistry.containsKey(new RegistryKey<>(name, supplierClass))) {
             CompositeSupplier supplier = compositeRegistry.get(supplierClass).get(config.valueSourceType());
             if (supplier == null) {
-                // TODO: Fix this error message! The class name of the supplier isn't going to mean anything to a user
-                throw new IllegalArgumentException(
-                    config.getDescription() + " is not supported for composite source [" + supplierClass.getCanonicalName() + "]"
-                );
+                throw new IllegalArgumentException(config.getDescription() + " is not supported for composite source [" + name + "]");
             }
             return (T) supplier; // Safe because we checked the type matched the key at load time
         }
-        // TODO: Fix this error message! The class name of the supplier isn't going to mean anything to a user
-        throw new AggregationExecutionException("Unregistered composite source [" + supplierClass.getCanonicalName() + "]");
+        throw new AggregationExecutionException("Unregistered composite source [" + name + "]");
     }
 
     public AggregationUsageService getUsageService() {

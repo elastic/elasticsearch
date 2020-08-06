@@ -268,9 +268,10 @@ public class DateHistogramValuesSourceBuilder
 
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
+            TYPE,
             DateHistogramCompositeSupplier.class,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (DateHistogramCompositeSupplier) (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
@@ -319,7 +320,7 @@ public class DateHistogramValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(DateHistogramCompositeSupplier.class, config)
+            .getComposite(TYPE, DateHistogramCompositeSupplier.class, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

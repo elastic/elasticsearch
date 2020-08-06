@@ -92,9 +92,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
+            TYPE,
             TermsCompositeSupplier.class,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
                     // defaults to the raw format on date fields (preserve timestamp as longs).
@@ -150,9 +151,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         );
 
         builder.registerComposite(
+            TYPE,
             TermsCompositeSupplier.class,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            (TermsCompositeSupplier) (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 return new CompositeValuesSourceConfig(
                     name,
                     valuesSourceConfig.fieldType(),
@@ -208,7 +210,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TermsCompositeSupplier.class, config)
+            .getComposite(TYPE, TermsCompositeSupplier.class, config)
             .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

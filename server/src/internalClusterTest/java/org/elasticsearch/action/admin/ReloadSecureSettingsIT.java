@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -149,7 +151,6 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51546")
     public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
@@ -175,10 +176,18 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(ElasticsearchException.class));
-                    assertThat(e.getMessage(),
-                        containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
-                    latch.countDown();
+                    try {
+                        if (e instanceof RemoteTransportException) {
+                            // transport client was used, so need to unwrap the returned exception
+                            assertThat(e.getCause(), instanceOf(Exception.class));
+                            e = (Exception) e.getCause();
+                        }
+                        assertThat(e, instanceOf(ElasticsearchException.class));
+                        assertThat(e.getMessage(),
+                            containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
         latch.await();

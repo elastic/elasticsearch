@@ -36,7 +36,7 @@ Force merges the managed index to one segment.
 Defaults to `true`.
 If the managed index was already force merged using the
 <<ilm-forcemerge, force merge action>> in the `cold` or `warm` phase
-the `searchable snapshot` action force merge will be a no-op.
+the `searchable snapshot` action force merge step will be a no-op.
 
 [[ilm-searchable-snapshot-ex]]
 ==== Examples

@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -382,13 +381,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(
-                    IndexSettings indexSettings,
-                    MappedFieldType fieldType,
                     IndexFieldDataCache cache,
                     CircuitBreakerService breakerService,
                     MapperService mapperService
                 ) {
-                    return new IndexAggregateDoubleMetricFieldData(indexSettings.getIndex(), fieldType.name()) {
+                    return new IndexAggregateDoubleMetricFieldData(mapperService.getIndexSettings().getIndex(), name()) {
 
                         @Override
                         public ValuesSourceType getValuesSourceType() {
@@ -645,6 +642,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }
         context.path().remove();
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
     }
 
     @Override

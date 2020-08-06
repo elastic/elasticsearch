@@ -60,6 +60,10 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     static final String TYPE = "histogram";
+    static final ValuesSourceRegistry.RegistryKey<HistogramCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        TYPE,
+        HistogramCompositeSupplier.class
+    );
 
     private static final ObjectParser<HistogramValuesSourceBuilder, Void> PARSER;
     static {
@@ -73,8 +77,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
-            TYPE,
-            HistogramCompositeSupplier.class,
+            REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
@@ -175,7 +178,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, HistogramCompositeSupplier.class, config)
+            .getComposite(REGISTRY_KEY, config)
             .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

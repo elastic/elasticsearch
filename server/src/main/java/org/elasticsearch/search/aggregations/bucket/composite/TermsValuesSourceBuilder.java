@@ -60,6 +60,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         );
     }
     static final String TYPE = "terms";
+    static final ValuesSourceRegistry.RegistryKey<TermsCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        TYPE,
+        TermsCompositeSupplier.class
+    );
 
     private static final ObjectParser<TermsValuesSourceBuilder, Void> PARSER;
     static {
@@ -92,8 +96,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
-            TYPE,
-            TermsCompositeSupplier.class,
+            REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
@@ -151,8 +154,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         );
 
         builder.registerComposite(
-            TYPE,
-            TermsCompositeSupplier.class,
+            REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
                 name,
@@ -207,7 +209,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, TermsCompositeSupplier.class, config)
+            .getComposite(REGISTRY_KEY, config)
             .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

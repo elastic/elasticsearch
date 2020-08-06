@@ -73,6 +73,10 @@ public class DateHistogramValuesSourceBuilder
     }
 
     static final String TYPE = "date_histogram";
+    static final ValuesSourceRegistry.RegistryKey<DateHistogramCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        TYPE,
+        DateHistogramCompositeSupplier.class
+    );
 
     static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
             ObjectParser.fromBuilder(TYPE, DateHistogramValuesSourceBuilder::new);
@@ -268,8 +272,7 @@ public class DateHistogramValuesSourceBuilder
 
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.registerComposite(
-            TYPE,
-            DateHistogramCompositeSupplier.class,
+            REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
@@ -320,7 +323,7 @@ public class DateHistogramValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, DateHistogramCompositeSupplier.class, config)
+            .getComposite(REGISTRY_KEY, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

@@ -51,6 +51,10 @@ public class ValuesSourceRegistry {
             this.supplierType = Objects.requireNonNull(supplierType);
         }
 
+        public String getName() {
+            return name;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -112,42 +116,40 @@ public class ValuesSourceRegistry {
         /**
          * Register a new key generation function for the
          * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.
-         * @param supplierClass the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
-         *                      mapping is being registered for
+         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         *                      mapping is being registered for, paired with the name of the key type.
          * @param valuesSourceType the {@link ValuesSourceType} this mapping applies to
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
         public <T extends CompositeSupplier> void registerComposite(
-            String name,
-            Class<T> supplierClass,
+            RegistryKey<T> registryKey,
             ValuesSourceType valuesSourceType,
             T compositeSupplier
         ) {
-            if (compositeRegistry.containsKey(supplierClass) == false) {
-                compositeRegistry.put(new RegistryKey<>(name, supplierClass), new ArrayList<>());
+            if (compositeRegistry.containsKey(registryKey) == false) {
+                compositeRegistry.put(registryKey, new ArrayList<>());
             }
-            compositeRegistry.get(supplierClass).add(new AbstractMap.SimpleEntry<>(valuesSourceType, compositeSupplier));
+            compositeRegistry.get(registryKey).add(new AbstractMap.SimpleEntry<>(valuesSourceType, compositeSupplier));
         }
 
         /**
          * Register a new key generation function for the
          * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.  This is a convenience version to map
          * multiple types to the same supplier.
-         * @param supplierClass the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
-         *                      mapping is being registered for
+         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         *                      mapping is being registered for, paired with the name of the key type.
          * @param valuesSourceTypes the {@link ValuesSourceType}s this mapping applies to
          * @param compositeSupplier A function returning an appropriate
          *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
          */
         public <T extends CompositeSupplier> void registerComposite(
-            String name,
-            Class<T> supplierClass,
+            RegistryKey<T> registryKey,
             List<ValuesSourceType> valuesSourceTypes,
             T compositeSupplier
         ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
-                registerComposite(name, supplierClass, valuesSourceType, compositeSupplier);
+                registerComposite(registryKey, valuesSourceType, compositeSupplier);
             }
         }
 
@@ -220,15 +222,16 @@ public class ValuesSourceRegistry {
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
     }
 
-    public <T extends CompositeSupplier> T getComposite(String name, Class<T> supplierClass, ValuesSourceConfig config) {
-        if (supplierClass != null && compositeRegistry.containsKey(new RegistryKey<>(name, supplierClass))) {
-            CompositeSupplier supplier = compositeRegistry.get(supplierClass).get(config.valueSourceType());
+    public <T extends CompositeSupplier> T getComposite(RegistryKey<T> registryKey, ValuesSourceConfig config) {
+        if (registryKey != null && compositeRegistry.containsKey(registryKey)) {
+            CompositeSupplier supplier = compositeRegistry.get(registryKey).get(config.valueSourceType());
             if (supplier == null) {
-                throw new IllegalArgumentException(config.getDescription() + " is not supported for composite source [" + name + "]");
+                throw new IllegalArgumentException(config.getDescription() + " is not supported for composite source [" +
+                    registryKey.getName() + "]");
             }
             return (T) supplier; // Safe because we checked the type matched the key at load time
         }
-        throw new AggregationExecutionException("Unregistered composite source [" + name + "]");
+        throw new AggregationExecutionException("Unregistered composite source [" + registryKey.getName() + "]");
     }
 
     public AggregationUsageService getUsageService() {

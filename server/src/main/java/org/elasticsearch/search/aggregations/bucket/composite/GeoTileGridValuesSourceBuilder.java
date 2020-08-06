@@ -64,6 +64,10 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     static final String TYPE = "geotile_grid";
+    static final ValuesSourceRegistry.RegistryKey<GeoTileCompositeSuppier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey(
+        TYPE,
+        GeoTileCompositeSuppier.class
+    );
 
     private static final ObjectParser<GeoTileGridValuesSourceBuilder, Void> PARSER;
     static {
@@ -81,8 +85,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     static void register(ValuesSourceRegistry.Builder builder) {
 
         builder.registerComposite(
-            TYPE,
-            GeoTileCompositeSuppier.class,
+            REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
             (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
@@ -205,7 +208,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(TYPE, GeoTileCompositeSuppier.class, config)
+            .getComposite(REGISTRY_KEY, config)
             .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 

@@ -2,26 +2,31 @@
 [testenv="platinum"]
 [[xpack-ccr]]
 == {ccr-cap}
+You can replicate indices across clusters to:
 
-Use {ccr} (CCR) to enable replication of indices in remote clusters to a
-local cluster.
+* Continue handling search requests in the event of a data center outage
+* Prevent search volume from impacting indexing throughput
+* Reduce search latency by processing search requests in geo-proximity to the
+user
 
-{ccr-cap} is done on an index-by-index basis, so replication is
-configured at the index level. For each configured replica, there is a
-replication source index called the _leader index_ and a replication target
-index called the _follower index_.
+{ccr-cap} uses an active-passive model. You index to a _leader_ index, and the
+data is replicated to one or more read-only _follower_ indices. Before you can add a follower index to a cluster, you must configure the _remote cluster_ that contains the leader index.
 
-{ccr-cap} is designed around an active-passive index model. While the leader
-index can be directly written into, the follower index cannot directly receive
-writes. The follower index drives replication, which simplifies state
-management on the leader index and ensures that {ccr} does not interfere with
-indexing on the leader index.
+When the leader index receives writes, the follower indices pull changes from
+the remote cluster containing the leader index. You can manually create follower
+indices, or configure auto-follow patterns to automatically create follower
+indices for new time series.
 
-Replication is pull-based, where the cluster that is pulling data is called
-the _local cluster_, and the cluster being replicated is the _remote cluster_.
-The {es} version of the local cluster must be **the same as or newer** than
-the remote cluster. If newer, the versions must also be compatible as outlined
-in the following matrix.
+You can configure {ccr} clusters in a uni-directional or bi-directional setup:
+
+* In a uni-directional configuration, one cluster contains only
+leader indices, and the other cluster contains only follower indices.
+* In a bi-directional configuration, each cluster contains both leader and
+follower indices.
+
+In a uni-directional configuration, the cluster containing follower indices
+must be running **the same or newer** version of {es} as the remote cluster.
+If newer, the versions must also be compatible as outlined in the following matrix.
 
 [%collapsible]
 [[ccr-version-compatibility]]
@@ -30,7 +35,7 @@ in the following matrix.
 include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
-{ccr-cap} enables several use cases within the Elastic Stack:
+Use {ccr} to enable several use cases within the Elastic Stack:
 
 * *Disaster recovery* in case a primary cluster fails, with a secondary
 cluster serving as a hot backup
@@ -146,8 +151,8 @@ indices. Soft deletes are enabled by default on new indices created on
 or after {es} 7.0.0.
 
 // tag::ccr-existing-indices-tag[]
-IMPORTANT: {ccr-cap} cannot be used on existing indices. If you have
-existing data that you want to replicate from another cluster, you must
+IMPORTANT: {ccr-cap} cannot be used on existing indices created using {es}
+7.0.0 or earlier, where soft deletes are disabled. You must
 <<docs-reindex,reindex>> your data into a new index with soft deletes
 enabled.
 

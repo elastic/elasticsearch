@@ -22,7 +22,6 @@ enabled differs based on uni-directional and bi-directional index following.
 
 [[ccr-uni-directional-upgrade]]
 ==== Uni-directional index following
-
 In a uni-directional configuration, one cluster contains only
 leader indices, and the other cluster contains only follower indices that
 replicate the leader indices.

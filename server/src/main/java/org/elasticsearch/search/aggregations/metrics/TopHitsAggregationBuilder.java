@@ -148,10 +148,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeVInt(docValueFields.size());
-            for (FieldAndFormat ff : docValueFields) {
-                ff.writeTo(out);
-            }
+            out.writeList(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -159,19 +156,13 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
-            }
+            out.writeCollection(scriptFields);
         }
         out.writeVInt(size);
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
+            out.writeNamedWriteableList(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);

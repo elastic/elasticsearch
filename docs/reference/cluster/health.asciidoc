@@ -184,6 +184,6 @@ The following is an example of getting the cluster health at the
 
 [source,console]
 --------------------------------------------------
-GET /_cluster/health/twitter?level=shards
+GET /_cluster/health/my-index-000001?level=shards
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

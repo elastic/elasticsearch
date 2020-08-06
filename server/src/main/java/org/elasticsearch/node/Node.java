@@ -473,6 +473,10 @@ public class Node implements Closeable {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+            final RerouteService rerouteService
+                = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
+            clusterService.setRerouteService(rerouteService);
+
             final IndicesService indicesService =
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
@@ -511,7 +515,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -553,8 +557,6 @@ public class Node implements Closeable {
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                 metadataCreateIndexService, metadataIndexUpgradeService, clusterService.getClusterSettings(), shardLimitValidator);
 
-            final RerouteService rerouteService
-                = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);

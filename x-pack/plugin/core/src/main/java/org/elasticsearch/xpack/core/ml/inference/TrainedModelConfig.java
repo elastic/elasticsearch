@@ -177,18 +177,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         estimatedHeapMemory = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.defaultFieldMap = in.readBoolean() ?
-                Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString)) :
-                null;
-        } else {
-            this.defaultFieldMap = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        } else {
-            this.inferenceConfig = null;
-        }
+        this.defaultFieldMap = in.readBoolean() ?
+            Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString)) :
+            null;
+
+        this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
     }
 
     public String getModelId() {
@@ -290,17 +283,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeVLong(estimatedHeapMemory);
         out.writeVLong(estimatedOperations);
         out.writeString(licenseLevel.description());
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            if (defaultFieldMap != null) {
-                out.writeBoolean(true);
-                out.writeMap(defaultFieldMap, StreamOutput::writeString, StreamOutput::writeString);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (defaultFieldMap != null) {
+            out.writeBoolean(true);
+            out.writeMap(defaultFieldMap, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalNamedWriteable(inferenceConfig);
-        }
+        out.writeOptionalNamedWriteable(inferenceConfig);
     }
 
     @Override

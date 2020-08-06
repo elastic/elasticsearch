@@ -263,10 +263,15 @@ public class RBACEngine implements AuthorizationEngine {
                 if (SearchScrollAction.NAME.equals(action)) {
                     authorizeIndexActionName(action, authorizationInfo, null, listener);
                 } else {
-                    // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
-                    // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
-                    // information such as the index and the incoming address of the request
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                    // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
+                    // Scroll related actions have special security logic, where the security context of the initial search
+                    // request is attached to the scroll context upon creation in {@code SecuritySearchOperationListener#onNewScrollContext}
+                    // and it is then verified, before every use of the scroll, in
+                    // {@code SecuritySearchOperationListener#validateSearchContext}.
+                    // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
+                    // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
+                    // the originating search request are attached to the thread context upon validating the scroll.
+                    listener.onResponse(new IndexAuthorizationResult(true, null));
                 }
             } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {

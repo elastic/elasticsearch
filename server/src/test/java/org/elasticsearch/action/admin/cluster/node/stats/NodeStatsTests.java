@@ -440,7 +440,7 @@ public class NodeStatsTests extends ESTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

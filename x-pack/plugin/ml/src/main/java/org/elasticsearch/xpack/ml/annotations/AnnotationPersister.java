@@ -74,7 +74,7 @@ public class AnnotationPersister {
     public class Builder {
 
         private final String jobId;
-        private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME).requireAlias(true);
         private Supplier<Boolean> shouldRetry = () -> true;
 
         private Builder(String jobId) {
@@ -115,7 +115,7 @@ public class AnnotationPersister {
             BulkResponse bulkResponse =
                 resultsPersisterService.bulkIndexWithRetry(
                     bulkRequest, jobId, shouldRetry, msg -> auditor.warning(jobId, "Bulk indexing of annotations failed " + msg));
-            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME).requireAlias(true);
             return bulkResponse;
         }
     }

@@ -1100,7 +1100,7 @@ Number of selected nodes using the distribution flavor and file type.
 --------------------------------------------------
 GET /_cluster/stats?human&pretty
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 

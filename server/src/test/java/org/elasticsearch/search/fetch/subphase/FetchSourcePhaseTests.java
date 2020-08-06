@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -134,7 +135,6 @@ public class FetchSourcePhaseTests extends ESTestCase {
         return hitExecute(source, fetchSource, include, exclude, null);
     }
 
-
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude,
                                                     SearchHit.NestedIdentity nestedIdentity) {
         return hitExecuteMultiple(source, fetchSource,
@@ -149,11 +149,17 @@ public class FetchSourcePhaseTests extends ESTestCase {
     private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
                                                             SearchHit.NestedIdentity nestedIdentity) {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
-        SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext,
-                source == null ? null : BytesReference.bytes(source));
+        SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext);
+
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
-        hitContext.reset(searchHit, null, 1, null);
+
+        // We don't need a real index, just a LeafReaderContext which cannot be mocked.
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+        hitContext.reset(searchHit, leafReaderContext, 1, null);
+        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
+
         FetchSourcePhase phase = new FetchSourcePhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;
@@ -161,13 +167,11 @@ public class FetchSourcePhaseTests extends ESTestCase {
 
     private static class FetchSourcePhaseTestSearchContext extends TestSearchContext {
         final FetchSourceContext context;
-        final BytesReference source;
         final IndexShard indexShard;
 
-        FetchSourcePhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
+        FetchSourcePhaseTestSearchContext(FetchSourceContext context) {
             super(null);
             this.context = context;
-            this.source = source;
             this.indexShard = mock(IndexShard.class);
             when(indexShard.shardId()).thenReturn(new ShardId("index", "index", 1));
         }
@@ -180,13 +184,6 @@ public class FetchSourcePhaseTests extends ESTestCase {
         @Override
         public FetchSourceContext fetchSourceContext() {
             return context;
-        }
-
-        @Override
-        public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
-            lookup.source().setSource(source);
-            return lookup;
         }
 
         @Override

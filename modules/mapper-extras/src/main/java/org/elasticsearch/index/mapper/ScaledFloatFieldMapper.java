@@ -542,11 +542,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void clear() {
-            scaledFieldData.clear();
-        }
-
-        @Override
         public NumericType getNumericType() {
             /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.

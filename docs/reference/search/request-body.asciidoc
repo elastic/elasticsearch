@@ -126,7 +126,7 @@ See <<highlighting>>.
 include::request/index-boost.asciidoc[]
 
 [[request-body-search-inner-hits]]
-=== Inner hits
+==== Inner hits
 
 See <<inner-hits>>.
 

@@ -107,7 +107,7 @@ See <<request-body-search-rescore>>.
 
 [role="exclude",id="search-request-script-fields"]
 === Script fields parameter for request body search API
-See <<request-body-search-script-fields>>.
+See <<script-fields>>.
 
 [role="exclude",id="search-request-scroll"]
 === Scroll parameter for request body search API
@@ -136,7 +136,7 @@ See <<source-filtering>>.
 
 [role="exclude",id="search-request-stored-fields"]
 === Stored fields parameter for request body search API
-See <<request-body-search-stored-fields>>.
+See <<stored-fields>>.
 
 [role="exclude",id="search-request-track-total-hits"]
 === Track total hits parameter for request body search API
@@ -1007,12 +1007,17 @@ See <<highlighting>>.
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
 
+See <<how-es-highlighters-work-internally>>.
+
 [role="exclude",id="request-body-search-queries-and-filters"]
 === Named queries
 
 See <<named-queries>.
 
-See <<how-es-highlighters-work-internally>>.
+[role="exclude",id="request-body-search-script-fields"]
+==== Script fields
+
+See <<script-fields>>.
 
 [role="exclude",id="request-body-search-scroll"]
 ==== Scroll
@@ -1030,7 +1035,7 @@ See <<clear-scroll-api>>.
 See <<slice-scroll>>.
 
 [role="exclude",id="request-body-search-search-after"]
-==== Search After
+==== Search after
 
 See <<search-after>>.
 
@@ -1043,4 +1048,9 @@ See <<sort-search-results>>.
 ==== Source filtering
 
 See <<source-filtering>>.
+
+[role="exclude",id="request-body-search-stored-fields"]
+==== Stored fields
+
+See <<stored-fields>>.
 ////

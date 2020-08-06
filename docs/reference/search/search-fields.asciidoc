@@ -1,6 +1,8 @@
-[discrete]
 [[search-fields]]
-=== Retrieve selected fields
+== Retrieve selected fields from a search
+++++
+<titleabbrev>Retrieve selected fields</titleabbrev>
+++++
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
@@ -23,7 +25,14 @@ To avoid these limitations, you can:
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to get the values for specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping option.)
+* Use the <<stored-fields, `stored_fields`>> parameter to get the values for
+specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping
+option.)
+
+If needed, you can use the <<script-fields,`script_field`>> parameter to
+transform field values in the response using a script. However, scripts can’t
+make use of {es}'s index structures or related optimizations. This can sometimes
+result in slower search speeds.
 
 You can find more detailed information on each of these methods in the 
 following sections:
@@ -31,6 +40,7 @@ following sections:
 * <<source-filtering>>
 * <<docvalue-fields>>
 * <<stored-fields>>
+* <<script-fields>>
 
 [discrete]
 [[source-filtering]]
@@ -183,5 +193,8 @@ property.
 
 It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to include
-these stored values in the search response.
+`stored_fields` parameter to include these stored values in the search response.
+
+include::request/stored-fields.asciidoc[]
+
+include::request/script-fields.asciidoc[]

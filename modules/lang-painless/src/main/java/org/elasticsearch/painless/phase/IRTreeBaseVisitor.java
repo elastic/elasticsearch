@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.ir.AccessNode;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
 import org.elasticsearch.painless.ir.BreakNode;
-import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
 import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.CastNode;
@@ -41,7 +40,6 @@ import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
-import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.DotSubNode;
@@ -291,7 +289,7 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitDot(DotNode irDotNode, Input input) {
+    public Output visitAccess(AccessNode irAccessNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -336,22 +334,12 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitBrace(BraceNode irBraceNode, Input input) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Output visitBraceSubDef(BraceSubDefNode irBraceSubDefNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public Output visitBraceSub(BraceSubNode irBraceSubNode, Input input) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Output visitCall(CallNode irCallNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

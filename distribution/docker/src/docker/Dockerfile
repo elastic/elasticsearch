@@ -62,6 +62,7 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
+
 FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true

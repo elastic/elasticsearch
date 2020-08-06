@@ -1,6 +1,6 @@
 [discrete]
 [[script-fields]]
-=== Script Fields
+=== Script fields
 
 You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
 evaluation>> (based on different fields) for each hit. For example:

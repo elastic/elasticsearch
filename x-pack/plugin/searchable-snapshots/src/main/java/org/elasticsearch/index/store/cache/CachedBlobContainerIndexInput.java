@@ -502,6 +502,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     new CopyOnReadInputStream(
                         Streams.limitStream(p + limit < length ? Streams.noCloseStream(stream) : stream, limit),
                         BigArrays.NON_RECYCLING_INSTANCE.newByteArray(limit),
+                            // TODO use proper BigArrays, also let the CopyOnReadInputStream allocate this
                         new ActionListener<>() {
                             @Override
                             public void onResponse(ReleasableBytesReference releasableBytesReference) {

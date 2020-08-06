@@ -43,6 +43,8 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+
 public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private OriginSettingClient client;
@@ -57,7 +59,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     public void testRemoveUnusedStats() throws Exception {
 
-        client().prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("foo", SINGLE_MAPPING_NAME).setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
 
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(new DataFrameAnalyticsConfig.Builder()
             .setId("analytics-with-stats")
@@ -124,14 +126,21 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
         // Make sure that stats that should exist still exist
         assertTrue(client().prepareGet(initialStateIndex,
+            SINGLE_MAPPING_NAME,
             InferenceStats.docId("model-with-stats", "test")).get().isExists());
         assertTrue(client().prepareGet(initialStateIndex,
+            SINGLE_MAPPING_NAME,
             InferenceStats.docId(TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test")).get().isExists());
-        assertTrue(client().prepareGet(initialStateIndex, DataCounts.documentId("analytics-with-stats")).get().isExists());
+        assertTrue(client().prepareGet(initialStateIndex,
+            SINGLE_MAPPING_NAME,
+            DataCounts.documentId("analytics-with-stats")).get().isExists());
 
         // make sure that unused stats were deleted
-        assertFalse(client().prepareGet(initialStateIndex, DataCounts.documentId("missing-analytics-with-stats")).get().isExists());
         assertFalse(client().prepareGet(initialStateIndex,
+            SINGLE_MAPPING_NAME,
+            DataCounts.documentId("missing-analytics-with-stats")).get().isExists());
+        assertFalse(client().prepareGet(initialStateIndex,
+            SINGLE_MAPPING_NAME,
             InferenceStats.docId("missing-model", "test")).get().isExists());
     }
 

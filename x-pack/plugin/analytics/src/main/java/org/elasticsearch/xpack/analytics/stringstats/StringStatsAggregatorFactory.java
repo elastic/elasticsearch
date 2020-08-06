@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -35,8 +34,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(StringStatsAggregationBuilder.NAME,
-            CoreValuesSourceType.BYTES, (StringStatsAggregatorSupplier) StringStatsAggregator::new);
+        builder.register(
+            StringStatsAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.BYTES, StringStatsAggregator::new);
     }
 
     @Override
@@ -51,15 +51,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            StringStatsAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof StringStatsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected StringStatsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((StringStatsAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), showDistribution, config.format(),
-            searchContext, parent, metadata);
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(StringStatsAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config.getValuesSource(), showDistribution, config.format(), searchContext, parent, metadata);
     }
 
 }

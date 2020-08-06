@@ -40,6 +40,10 @@ import java.util.Map;
 public class GeoCentroidAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
+    public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        MetricAggregatorSupplier.class
+    );
 
     public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);

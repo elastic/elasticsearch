@@ -40,6 +40,10 @@ import java.util.Map;
 
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<MissingAggregationBuilder> {
     public static final String NAME = "missing";
+    public static final ValuesSourceRegistry.RegistryKey<MissingAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        MissingAggregatorSupplier.class
+    );
 
     public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);

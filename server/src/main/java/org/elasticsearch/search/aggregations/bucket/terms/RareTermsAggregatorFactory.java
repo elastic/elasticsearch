@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -47,11 +46,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final double precision;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(RareTermsAggregationBuilder.NAME,
+        builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             RareTermsAggregatorFactory.bytesSupplier());
 
-        builder.register(RareTermsAggregationBuilder.NAME,
+        builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             RareTermsAggregatorFactory.numericSupplier());
     }
@@ -175,19 +174,27 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        ValuesSourceRegistry.ComponentSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            RareTermsAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof RareTermsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected RareTermsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-
-        return ((RareTermsAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
-            maxDocCount, precision, includeExclude, searchContext, parent, cardinality, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(RareTermsAggregationBuilder.REGISTRY_KEY, config)
+            .build(
+                name,
+                factories,
+                config.getValuesSource(),
+                config.format(),
+                maxDocCount,
+                precision,
+                includeExclude,
+                searchContext,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     public enum ExecutionMode {

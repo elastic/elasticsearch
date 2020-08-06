@@ -12,7 +12,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
@@ -49,30 +47,30 @@ import static org.hamcrest.Matchers.is;
 
 public class SearchableSnapshotActionIT extends ESRestTestCase {
 
-    private String index;
     private String policy;
-    private String alias;
+    private String dataStream;
 
     @Before
     public void refreshIndex() {
-        index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
-        alias = "alias-" + randomAlphaOfLength(5);
     }
 
     public void testSearchableSnapshotAction() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo));
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createIndexWithSettings(client(), index, alias,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            randomBoolean());
+        createComposableTemplate(client(), "template-name", dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);
@@ -90,20 +88,19 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", index, new Template(null, null, null));
+        createComposableTemplate(client(), "template-name", dataStream, new Template(null, null, null));
 
-        String dataStreamName = index;
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            indexDocument(client(), dataStreamName, true);
+            indexDocument(client(), dataStream, true);
         }
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1L);
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
         assertThat(getNumberOfSegments(client(), backingIndexName), greaterThan(1));
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
-        rolloverMaxOneDocCondition(client(), dataStreamName);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
-        updateIndexSettings(dataStreamName, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
         assertTrue(waitUntil(() -> {
             try {
                 return getNumberOfSegments(client(), backingIndexName) == 1;
@@ -147,19 +144,21 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicyRequest.setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
-        createIndexWithSettings(client(), index, alias,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            randomBoolean());
+        createComposableTemplate(client(), "template-name", dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
+
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
 
         String[] snapshotName = new String[1];
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
-                Map<String, Object> explainIndex = explainIndex(client(), index);
-                if(explainIndex == null) {
+                Map<String, Object> explainIndex = explainIndex(client(), backingIndexName);
+                if (explainIndex == null) {
                     // in case we missed the original index and it was deleted
                     explainIndex = explainIndex(client(), restoredIndexName);
                 }

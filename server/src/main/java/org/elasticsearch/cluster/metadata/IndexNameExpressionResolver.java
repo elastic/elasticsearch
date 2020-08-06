@@ -207,6 +207,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
@@ -231,6 +232,7 @@ public class IndexNameExpressionResolver {
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                         context.includeDataStreams() == false) {
+                excludedDataStreams = true;
                 continue;
             }
 
@@ -272,6 +274,10 @@ public class IndexNameExpressionResolver {
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
             IndexNotFoundException infe = new IndexNotFoundException((String)null);
             infe.setResources("index_expression", indexExpressions);
+            if (excludedDataStreams) {
+                // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                infe.addMetadata("es.excluded_ds", "true");
+            }
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);

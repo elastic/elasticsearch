@@ -590,7 +590,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (concreteIndex == null) {
                 try {
                     concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException ex) {
+                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                     addFailure(request, idx, ex);
                     return true;
                 }
@@ -636,8 +636,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
-                    false, includeDataStreams);
+                try {
+                    concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(),
+                        request.indices()[0], false, includeDataStreams);
+                } catch (IndexNotFoundException e) {
+                    if (includeDataStreams == false && e.getMetadataKeys().contains("es.excluded_ds")) {
+                        throw new IllegalArgumentException("only write ops with op_type=create are allowed in data streams");
+                    } else {
+                        throw e;
+                    }
+                }
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

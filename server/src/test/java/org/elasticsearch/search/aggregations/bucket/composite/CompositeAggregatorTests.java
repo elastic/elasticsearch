@@ -1894,7 +1894,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             )
         );
 
-        executeTestCase(true, false, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -1914,7 +1914,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         // source field and index sorting config have different order
-        executeTestCase(true, false, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -1951,7 +1951,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         for (SortOrder order : SortOrder.values()) {
-            executeTestCase(true, false, new MatchAllDocsQuery(),
+            executeTestCase(true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -1974,7 +1974,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             );
 
-            executeTestCase(true, false, new MatchAllDocsQuery(),
+            executeTestCase(true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2004,14 +2004,12 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                                 Supplier<CompositeAggregationBuilder> create,
                                 Consumer<InternalComposite> verify) throws IOException {
         for (Query query : queries) {
-            executeTestCase(false, false, query, dataset, create, verify);
-            executeTestCase(false, true, query, dataset, create, verify);
-            executeTestCase(true, true, query, dataset, create, verify);
+            executeTestCase(false, query, dataset, create, verify);
+            executeTestCase(true, query, dataset, create, verify);
         }
     }
 
     private void executeTestCase(boolean useIndexSort,
-                                 boolean reduced,
                                  Query query,
                                  List<Map<String, List<Object>>> dataset,
                                  Supplier<CompositeAggregationBuilder> create,
@@ -2034,18 +2032,13 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     document.clear();
                 }
-                if (reduced == false && randomBoolean()) {
+                if (rarely()) {
                     indexWriter.forceMerge(1);
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                final InternalComposite composite;
-                if (reduced) {
-                    composite = searchAndReduce(indexSettings, indexSearcher, query, aggregationBuilder, FIELD_TYPES);
-                } else {
-                    composite = search(indexSettings, indexSearcher, query, aggregationBuilder, FIELD_TYPES);
-                }
+                InternalComposite composite = searchAndReduce(indexSettings, indexSearcher, query, aggregationBuilder, FIELD_TYPES);
                 verify.accept(composite);
             }
         }

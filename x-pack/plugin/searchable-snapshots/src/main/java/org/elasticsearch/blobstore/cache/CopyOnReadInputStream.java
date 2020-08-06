@@ -74,6 +74,7 @@ public class CopyOnReadInputStream extends FilterInputStream {
     @Override
     public long skip(long n) throws IOException {
         final long skip = handleFailure(() -> super.skip(n));
+        // TODO BUG read the skipped bytes if they should go in the byte array
         if (skip > 0L) {
             count += skip;
         }
@@ -102,6 +103,8 @@ public class CopyOnReadInputStream extends FilterInputStream {
             try {
                 if (failure == null) {
                     PagedBytesReference reference = new PagedBytesReference(bytes, Math.toIntExact(Math.min(count, bytes.size())));
+                    // TODO notify listener as soon as bytes are available; likewise notify on failure if not; no need to fail if we
+                    // got the bytes we wanted
                     listener.onResponse(new ReleasableBytesReference(reference, bytes));
                     success = true;
                 } else {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lease;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -44,6 +45,15 @@ public enum Releasables {
     /** Release the provided {@link Releasable}s. */
     public static void close(Iterable<? extends Releasable> releasables) {
         close(releasables, false);
+    }
+
+    /** Release the provided {@link Releasable}. */
+    public static void close(@Nullable Releasable releasable) {
+        try {
+            IOUtils.close(releasable);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** Release the provided {@link Releasable}s. */

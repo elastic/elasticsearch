@@ -68,7 +68,7 @@ POST /_search
    }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The way the scores are combined can be controlled with the `score_mode`:
 [cols="<,<",options="header",]
@@ -120,7 +120,7 @@ POST /_search
             "function_score" : {
                "script_score": {
                   "script": {
-                    "source": "Math.log10(doc.likes.value + 2)"
+                    "source": "Math.log10(doc.count.value + 2)"
                   }
                }
             }
@@ -129,7 +129,7 @@ POST /_search
    } ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The first one gets the results of the query then the second one gets the
 results of the first, etc.  The second rescore will "see" the sorting done

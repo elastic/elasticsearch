@@ -24,13 +24,13 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class CallNode extends BinaryNode {
+public class AccessNode extends BinaryNode {
 
     /* ---- begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitCall(this, input);
+        return irTreeVisitor.visitAccess(this, input);
     }
 
     /* ---- end visitor ---- */
@@ -39,5 +39,26 @@ public class CallNode extends BinaryNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getLeftNode().write(classWriter, methodWriter, writeScope);
         getRightNode().write(classWriter, methodWriter, writeScope);
+    }
+
+    @Override
+    protected int accessElementCount() {
+        return getRightNode().accessElementCount();
+    }
+
+    @Override
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getLeftNode().write(classWriter, methodWriter, writeScope);
+        getRightNode().setup(classWriter, methodWriter, writeScope);
+    }
+
+    @Override
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getRightNode().load(classWriter, methodWriter, writeScope);
+    }
+
+    @Override
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getRightNode().store(classWriter, methodWriter, writeScope);
     }
 }

@@ -185,7 +185,10 @@ public class TransportDeleteDataFrameAnalyticsAction
                 }
                 deleteConfig(parentTaskClient, id, listener);
             },
-            listener::onFailure
+            failure -> {
+                logger.warn(new ParameterizedMessage("[{}] failed to remove stats", id), ExceptionsHelper.unwrapCause(failure));
+                deleteConfig(parentTaskClient, id, listener);
+            }
         );
 
         // Step 3. Delete job docs from stats index

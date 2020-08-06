@@ -83,10 +83,10 @@ GET my-index-000001/_search
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
 <4> Uses a
-{ref}/search-request-body.html#request-body-search-script-fields[script field]
+{ref}/search-fields.html#script-fields[script field]
 to return the `_size` field in the search response.
 <5> Uses a
-{ref}/search-your-data.html#docvalue-fields[doc value
+{ref}/search-fields.html#docvalue-fields[doc value
 field] to return the `_size` field in the search response. Doc value fields are
 useful if
 {ref}/modules-scripting-security.html#allowed-script-types-setting[inline

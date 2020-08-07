@@ -66,19 +66,11 @@ To run a three-node {es} cluster locally:
 
 . Download the {es} archive for your OS:
 +
-Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
+Linux and macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz[elasticsearch-{version}.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
---------------------------------------------------
-// NOTCONSOLE
-+
-macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 +
@@ -87,18 +79,11 @@ https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-win
 
 . Extract the archive:
 +
-Linux:
+Linux and macOS:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
---------------------------------------------------
-+
-macOS:
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
+tar -xvf elasticsearch-{version}.tar.gz
 --------------------------------------------------
 +
 Windows PowerShell:

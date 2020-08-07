@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -52,12 +51,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -66,7 +63,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -114,10 +110,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private volatile DocumentMapper mapper;
 
-    private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
-    private boolean hasNested = false; // updated dynamically to true when a nested object is added
-
     private final DocumentMapperParser documentParser;
     private final Version indexVersionCreated;
 
@@ -137,7 +129,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
@@ -150,7 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return this.hasNested;
+        return this.mapper != null && this.mapper.hasNestedObjects();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -307,8 +298,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
-        boolean hasNested = this.hasNested;
-        Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
 
         assert mapper != null;
 
@@ -321,68 +310,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             newMapper = mapper;
         }
         newMapper.root().fixRedundantIncludes();
-
-        // check basic sanity of the new mapping
-        List<ObjectMapper> objectMappers = new ArrayList<>();
-        List<FieldMapper> fieldMappers = new ArrayList<>();
-        List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
-        MetadataFieldMapper[] metadataMappers = newMapper.mapping().metadataMappers;
-        Collections.addAll(fieldMappers, metadataMappers);
-        MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
-
-        MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers);
-        checkPartitionedIndexConstraints(newMapper);
-
-        // update lookup data-structures
-        FieldTypeLookup newFieldTypes = new FieldTypeLookup(fieldMappers, fieldAliasMappers);
-
-        for (ObjectMapper objectMapper : objectMappers) {
-            if (fullPathObjectMappers == this.fullPathObjectMappers) {
-                // first time through the loops
-                fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
-            }
-            fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
-
-            if (objectMapper.nested().isNested()) {
-                hasNested = true;
-            }
-        }
-
-        MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-            fullPathObjectMappers, newFieldTypes, metadataMappers, newMapper);
-
-        ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
-
-        if (reason != MergeReason.MAPPING_RECOVERY) {
-            // These checks will only be performed on the master node when an index is created, or
-            // there is a call to the update mapping API. For all other cases like the master node
-            // restoring mappings from disk or data nodes deserializing cluster state that was sent
-            // by the master node, these checks will be skipped.
-            // Also, don't take metadata mappers into account for the field limit check
-            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
-                + fieldAliasMappers.size() );
-            checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
-            checkNestedFieldsLimit(fullPathObjectMappers);
-            checkDepthLimit(fullPathObjectMappers.keySet());
-        }
-        checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
+        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
 
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;
         }
 
-        // only need to immutably rewrap these if the previous reference was changed.
-        // if not then they are already implicitly immutable.
-        if (fullPathObjectMappers != this.fullPathObjectMappers) {
-            fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
-        }
-
         // commit the change
         this.mapper = newMapper;
-        this.fieldTypes = newFieldTypes;
-        this.hasNested = hasNested;
-        this.fullPathObjectMappers = fullPathObjectMappers;
-
         assert assertSerialization(newMapper);
 
         return newMapper;
@@ -399,82 +334,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 + newMapper.mappingSource() + "]");
         }
         return true;
-    }
-
-    private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
-        long allowedNestedFields = indexSettings.getMappingNestedFieldsLimit();
-        long actualNestedFields = 0;
-        for (ObjectMapper objectMapper : fullPathObjectMappers.values()) {
-            if (objectMapper.nested().isNested()) {
-                actualNestedFields++;
-            }
-        }
-        if (actualNestedFields > allowedNestedFields) {
-            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName()
-                + "] has been exceeded");
-        }
-    }
-
-    private void checkTotalFieldsLimit(long totalMappers) {
-        long allowedTotalFields = indexSettings.getMappingTotalFieldsLimit();
-        if (allowedTotalFields < totalMappers) {
-            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName()
-                + "] has been exceeded");
-        }
-    }
-
-    private void checkDepthLimit(Collection<String> objectPaths) {
-        final long maxDepth = indexSettings.getMappingDepthLimit();
-        for (String objectPath : objectPaths) {
-            checkDepthLimit(objectPath, maxDepth);
-        }
-    }
-
-    private void checkDepthLimit(String objectPath, long maxDepth) {
-        int numDots = 0;
-        for (int i = 0; i < objectPath.length(); ++i) {
-            if (objectPath.charAt(i) == '.') {
-                numDots += 1;
-            }
-        }
-        final int depth = numDots + 2;
-        if (depth > maxDepth) {
-            throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
-                    + "] has been exceeded due to object field [" + objectPath + "]");
-        }
-    }
-
-    private void checkFieldNameSoftLimit(Collection<ObjectMapper> objectMappers,
-                                         Collection<FieldMapper> fieldMappers,
-                                         Collection<FieldAliasMapper> fieldAliasMappers) {
-        final long maxFieldNameLength = indexSettings.getMappingFieldNameLengthLimit();
-
-        Stream.of(objectMappers.stream(), fieldMappers.stream(), fieldAliasMappers.stream())
-            .reduce(Stream::concat)
-            .orElseGet(Stream::empty)
-            .forEach(mapper -> {
-                String name = mapper.simpleName();
-                if (name.length() > maxFieldNameLength) {
-                    throw new IllegalArgumentException("Field name [" + name + "] in index [" + index().getName() +
-                        "] is too long. The limit is set to [" + maxFieldNameLength + "] characters but was ["
-                        + name.length() + "] characters");
-                }
-            });
-    }
-
-    private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
-        if (indexSettings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            if (!newMapper.routingFieldMapper().required()) {
-                throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
-                        + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
-            }
-        }
-    }
-
-    private static void checkIndexSortCompatibility(IndexSortConfig sortConfig, boolean hasNested) {
-        if (sortConfig.hasIndexSort() && hasNested) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
-        }
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
@@ -530,7 +389,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return fieldTypes.get(fullName);
+        return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 
     /**
@@ -542,7 +401,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        return fieldTypes.simpleMatchToFullName(pattern);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().simpleMatchToFullName(pattern);
     }
 
     /**
@@ -550,18 +409,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * the 'source path' for a multi-field is the path to its parent field.
      */
     public Set<String> sourcePath(String fullName) {
-        return fieldTypes.sourcePaths(fullName);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().sourcePaths(fullName);
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {
-        return fieldTypes;
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return fullPathObjectMappers.get(name);
+        return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
 
     /**

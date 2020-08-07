@@ -10,11 +10,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -29,8 +28,9 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -612,22 +612,6 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         }
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
         final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
-        final RecoveryState recoveryState = new RecoveryState(
-            TestShardRouting.newShardRouting(
-                shardId,
-                discoveryNode.getId(),
-                true,
-                ShardRoutingState.INITIALIZING,
-                new RecoverySource.SnapshotRecoverySource(
-                    UUIDs.randomBase64UUID(),
-                    new Snapshot("_repo", snapshotId),
-                    Version.CURRENT,
-                    indexId
-                )
-            ),
-            discoveryNode,
-            null
-        );
         final Path cacheDir = createTempDir();
 
         try (
@@ -659,6 +643,15 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                randomAlphaOfLength(10),
+                0,
+                randomAlphaOfLength(10),
+                true,
+                ShardRoutingState.INITIALIZING
+            );
+            DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
             final boolean loaded = directory.loadSnapshot(recoveryState);
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());

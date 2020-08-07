@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -39,6 +41,8 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.AUTHOR
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -77,6 +81,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
         authentication.writeToContext(threadContext);
+        IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
+        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
 
         SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         listener.onNewScrollContext(testSearchContext);
@@ -84,6 +90,9 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         Authentication contextAuth = testSearchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
         assertEquals(authentication, contextAuth);
         assertEquals(scroll, testSearchContext.scrollContext().scroll);
+
+        assertThat(testSearchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY),
+                is(indicesAccessControl));
 
         verify(licenseState).isSecurityEnabled();
         verifyZeroInteractions(auditTrailService);
@@ -94,6 +103,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         testSearchContext.scrollContext(new ScrollContext());
         testSearchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
+        final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
+        testSearchContext.scrollContext().putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
@@ -108,6 +119,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
+            assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
             verify(licenseState).isSecurityEnabled();
             verifyZeroInteractions(auditTrail);
         }
@@ -118,6 +130,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
+            assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
             verify(licenseState, times(2)).isSecurityEnabled();
             verifyZeroInteractions(auditTrail);
         }
@@ -134,6 +147,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
+            assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
             assertEquals(testSearchContext.id(), expected.contextId());
             verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
@@ -152,6 +166,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             listener.validateSearchContext(testSearchContext, request);
+            assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
             verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
             verifyNoMoreInteractions(auditTrail);
         }
@@ -170,6 +185,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
+            assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
             assertEquals(testSearchContext.id(), expected.contextId());
             verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),

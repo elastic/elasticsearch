@@ -30,6 +30,8 @@ public class SearchableSnapshotsConstants {
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
+    public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "snapshot_prewarm";
+
     public static boolean isSearchableSnapshotStore(Settings indexSettings) {
         return SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED
             && SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));

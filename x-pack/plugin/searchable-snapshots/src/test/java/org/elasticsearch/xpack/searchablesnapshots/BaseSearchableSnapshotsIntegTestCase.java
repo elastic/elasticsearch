@@ -38,7 +38,6 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -61,7 +60,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class);
+        return List.of(LocalStateSearchableSnapshots.class);
     }
 
     @Override

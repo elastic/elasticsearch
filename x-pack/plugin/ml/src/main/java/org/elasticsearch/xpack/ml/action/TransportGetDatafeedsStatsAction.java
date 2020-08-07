@@ -121,7 +121,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
 
         // This might also include datafeed tasks that exist but no longer have a config
         datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
-            request.allowNoDatafeeds(),
+            request.allowNoMatch(),
             tasksInProgress,
             true,
             expandIdsListener);

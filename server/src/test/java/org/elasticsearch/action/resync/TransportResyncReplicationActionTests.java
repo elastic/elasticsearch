@@ -131,7 +131,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),

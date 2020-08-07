@@ -19,9 +19,7 @@ tasks.register("resolve") {
 }
 task 'leader-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.target_cluster', 'leader'
-  }
+  systemProperty 'tests.target_cluster', 'leader'
 }
 
 testClusters.'leader-cluster' {
@@ -35,11 +33,9 @@ testClusters.'leader-cluster' {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  runner {
-    useCluster testClusters.'leader-cluster'
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
-  }
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
 }
 
 testClusters.'follow-cluster' {

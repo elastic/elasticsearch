@@ -8,10 +8,9 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -25,8 +24,8 @@ import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,23 +102,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     throw new UncheckedIOException(e);
                 }
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-                final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
-                final RecoveryState recoveryState = new RecoveryState(
-                    TestShardRouting.newShardRouting(
-                        shardId,
-                        discoveryNode.getId(),
-                        true,
-                        ShardRoutingState.INITIALIZING,
-                        new RecoverySource.SnapshotRecoverySource(
-                            UUIDs.randomBase64UUID(),
-                            new Snapshot("_repo", snapshotId),
-                            Version.CURRENT,
-                            indexId
-                        )
-                    ),
-                    discoveryNode,
-                    null
-                );
                 final Path cacheDir = createTempDir();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
@@ -141,6 +123,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         threadPool
                     )
                 ) {
+                    RecoveryState recoveryState = createRecoveryState();
                     final boolean loaded = directory.loadSnapshot(recoveryState);
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
@@ -205,23 +188,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 throw new UncheckedIOException(e);
             }
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-            final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
-            final RecoveryState recoveryState = new RecoveryState(
-                TestShardRouting.newShardRouting(
-                    shardId,
-                    discoveryNode.getId(),
-                    true,
-                    ShardRoutingState.INITIALIZING,
-                    new RecoverySource.SnapshotRecoverySource(
-                        UUIDs.randomBase64UUID(),
-                        new Snapshot("_repo", snapshotId),
-                        Version.CURRENT,
-                        indexId
-                    )
-                ),
-                discoveryNode,
-                null
-            );
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -240,6 +206,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     threadPool
                 )
             ) {
+                RecoveryState recoveryState = createRecoveryState();
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState);
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
@@ -273,6 +240,18 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         return containsEOFException(throwable.getCause(), seenThrowables);
     }
 
+    private SearchableSnapshotRecoveryState createRecoveryState() {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            randomAlphaOfLength(10),
+            0,
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+    }
+
     /**
      * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the
      * total number of bytes read from them.
@@ -291,7 +270,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
+            return new CountingInputStream(this, super.readBlob(blobName, position, length));
         }
 
         @Override
@@ -313,19 +292,15 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
     private static class CountingInputStream extends FilterInputStream {
 
         private final CountingBlobContainer container;
-        private final int rangeSize;
-        private final long length;
 
         private long bytesRead = 0L;
         private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
 
-        CountingInputStream(CountingBlobContainer container, InputStream input, long length, int rangeSize) {
+        CountingInputStream(CountingBlobContainer container, InputStream input) {
             super(input);
             this.container = Objects.requireNonNull(container);
-            this.rangeSize = rangeSize;
-            this.length = length;
             this.container.totalOpens.increment();
         }
 

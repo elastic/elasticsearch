@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.Util;
@@ -57,7 +56,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
 
             // Tell the tests we're running with ssl enabled
             project.getTasks()
-                .withType(RestTestRunnerTask.class)
+                .withType(RestIntegTestTask.class)
                 .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });
 

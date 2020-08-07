@@ -19,18 +19,18 @@ The string stats aggregation returns the following results:
 the aggregation. Shannon entropy quantifies the amount of information contained in the field. It is a very useful metric for
 measuring a wide range of properties of a data set, such as diversity, similarity, randomness etc.
 
-Assuming the data consists of a twitter messages:
+For example:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": { "string_stats": { "field": "message.keyword" } }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 The above aggregation computes the string statistics for the `message` field in all documents. The aggregation type
 is `string_stats` and the `field` parameter defines the field of the documents the stats will be computed on.
@@ -64,7 +64,7 @@ by the aggregation. To view the probability distribution for all characters, we 
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": {
@@ -76,7 +76,7 @@ POST /twitter/_search?size=0
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 <1> Set the `show_distribution` parameter to `true`, so that probability distribution for all characters is returned in the results.
 
@@ -131,7 +131,7 @@ Computing the message string stats based on a script:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": {
@@ -145,14 +145,14 @@ POST /twitter/_search?size=0
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters.
 To use a stored script use the following syntax:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": {
@@ -168,7 +168,7 @@ POST /twitter/_search?size=0
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter,stored_example_script]
+// TEST[setup:messages,stored_example_script]
 
 ===== Value Script
 
@@ -176,7 +176,7 @@ We can use a value script to modify the message (eg we can add a prefix) and com
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": {
@@ -194,7 +194,7 @@ POST /twitter/_search?size=0
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 ==== Missing value
 
@@ -203,7 +203,7 @@ By default they will be ignored but it is also possible to treat them as if they
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?size=0
+POST /my-index-000001/_search?size=0
 {
   "aggs": {
     "message_stats": {
@@ -215,6 +215,6 @@ POST /twitter/_search?size=0
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 <1> Documents without a value in the `message` field will be treated as documents that have the value `[empty message]`.

@@ -9,10 +9,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -47,6 +50,14 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
 public class DeprecationHttpIT extends ESRestTestCase {
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
 
     /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.

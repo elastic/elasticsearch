@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Deprecated query plugin'
-  classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
+  classname 'org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
 }
 
 dependencies {

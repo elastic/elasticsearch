@@ -1172,7 +1172,7 @@ public class DateFormatters {
     /*
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
-    private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
+    private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("weekyear",
         new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS_ROOT.weekBasedYear()).toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT));
 

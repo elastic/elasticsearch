@@ -89,6 +89,11 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
     hosts: ["http://localhost:9200"]
     #username: "user"
     #password: "secret"
+    #ssl.enabled: true
+    #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
+    #ssl.certificate: "/etc/pki/client/cert.pem". 
+    #ssl.key: "/etc/pki/client/cert.key".         
+    #ssl.verification_mode: "full"            
     xpack.enabled: true
 ----------------------------------
 
@@ -110,6 +115,8 @@ Alternatively, use the
 
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
+
+.. Add `ssl` related setting. By default ssl is disabled when the ssl section is missing. If Elastic security features are enabled, you must explicitly add {metricbeat-ref}/configuration-ssl.html[ssl section] to allow metricbeat to communicate to the host. 
 // end::remote-monitoring-user[]
 --
 

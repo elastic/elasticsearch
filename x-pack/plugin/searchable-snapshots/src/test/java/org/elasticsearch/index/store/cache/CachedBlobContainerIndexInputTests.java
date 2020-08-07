@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
@@ -68,6 +69,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
             for (int i = 0; i < 5; i++) {
                 final String fileName = randomAlphaOfLength(10);
+
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 final String blobName = randomUnicodeOfLength(10);
@@ -155,9 +157,9 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 if (blobContainer instanceof CountingBlobContainer) {
                     long numberOfRanges = TestUtils.numberOfRanges(input.length, cacheService.getRangeSize());
                     assertThat(
-                        "Expected " + numberOfRanges + " ranges fetched from the source",
+                        "Expected at most " + numberOfRanges + " ranges fetched from the source",
                         ((CountingBlobContainer) blobContainer).totalOpens.sum(),
-                        equalTo(numberOfRanges)
+                        lessThanOrEqualTo(numberOfRanges)
                     );
                     assertThat(
                         "All bytes should have been read from source",
@@ -365,30 +367,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         @Override
         public void close() throws IOException {
             in.close();
-            if (start % rangeSize != 0) {
-                throw new AssertionError("Read operation should start at the beginning of a range");
-            }
-            if (end % rangeSize != 0) {
-                if (end != length) {
-                    throw new AssertionError("Read operation should finish at the end of a range or the end of the file");
-                }
-            }
-            if (length <= rangeSize) {
-                if (bytesRead != length) {
-                    throw new AssertionError("All [" + length + "] bytes should have been read, no more no less but got:" + bytesRead);
-                }
-            } else {
-                if (bytesRead != rangeSize) {
-                    if (end != length) {
-                        throw new AssertionError("Expecting [" + rangeSize + "] bytes to be read but got:" + bytesRead);
-
-                    }
-                    final long remaining = length % rangeSize;
-                    if (bytesRead != remaining) {
-                        throw new AssertionError("Expecting [" + remaining + "] bytes to be read but got:" + bytesRead);
-                    }
-                }
-            }
             this.container.totalBytes.add(bytesRead);
         }
     }

@@ -270,7 +270,15 @@ public class CacheFile {
         void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
     }
 
-    CompletableFuture<Integer> fetchAsync(
+    /**
+     * Populates any missing ranges within {@code rangeToWrite} using the {@link RangeMissingHandler}, and notifies the
+     * {@link RangeAvailableHandler} when {@code rangeToRead} is available to read from the file. If {@code rangeToRead} is already
+     * available then the {@link RangeAvailableHandler} is called synchronously by this method; if not then the given {@link Executor}
+     * processes the missing ranges and notifies the {@link RangeAvailableHandler}.
+     *
+     * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
+     */
+    CompletableFuture<Integer> populateAndRead(
         final Tuple<Long, Long> rangeToWrite,
         final Tuple<Long, Long> rangeToRead,
         final RangeAvailableHandler reader,

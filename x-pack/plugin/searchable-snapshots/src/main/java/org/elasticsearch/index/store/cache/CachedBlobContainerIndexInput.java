@@ -13,21 +13,17 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
-import org.elasticsearch.blobstore.cache.CopyOnReadInputStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -36,20 +32,15 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
@@ -159,20 +150,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
-        if (length == CodecUtil.footerLength()) {
-            // we're comparing the global position (file pointer + offset) with the total file length (not the length of the index input
-            // which can be a slice) so the following code only applies when reading the footer of non-sliced index inputs (we're asserting
-            // that we are not reading from a clone as it would be surprising that Lucene uses a slice to verify the footer of a .cfs file)
-            if (position == fileInfo.length() - length) {
-                logger.trace("reading footer of file [{}] at position [{}], bypassing all caches", fileInfo.physicalName(), position);
-                b.put(checksumToBytesArray(fileInfo.checksum()));
-                assert b.remaining() == 0L;
-                assert isClone == false;
-                return; // TODO we should add this to DirectBlobContainerIndexInput too.
+        if (length == CodecUtil.footerLength() && isClone == false && position == fileInfo.length() - length) {
+            if (readChecksumFromFileInfo(b)) {
+                logger.trace("read footer of file [{}] at position [{}], bypassing all caches", fileInfo.physicalName(), position);
+                return;
             }
+            assert b.remaining() == length;
         }
 
-        final List<Tuple<Long, Integer>> regions;
+        final List<Tuple<Long, Long>> indexCacheMisses;
 
         // We prefer to use the index cache if the recovery is not done yet
         if (directory.isRecoveryDone() == false) {
@@ -180,7 +166,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // - we're reading the first N bytes of the file
             final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
             // - the file is small enough to be fully cached in the blob cache
-            final boolean canBeFullyCached = (fileInfo.length() <= (BlobStoreCacheService.DEFAULT_SIZE));
+            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE * 2;
 
             if (canBeFullyCached || isStartOfFile) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
@@ -194,6 +180,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
                     return;
                 }
+
+                // Cache miss may be that the cache is completely unavailable (no point in populating it) or that the blob is
+                // definitely absent. TODO only bother populating the cache in the latter case.
+
             }
 
             // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested so
@@ -201,27 +191,38 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // {position, length} where position is relative to the file.
             if (canBeFullyCached) {
                 // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                regions = List.of(Tuple.tuple(0L, Math.toIntExact(fileInfo.length())));
+                indexCacheMisses = List.of(Tuple.tuple(0L, fileInfo.length()));
             } else {
-                regions = List.of(Tuple.tuple(0L, BlobStoreCacheService.DEFAULT_SIZE));
+                indexCacheMisses = List.of(Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_SIZE));
             }
-            logger.trace("recovery cache miss for [{}], falling through with regions [{}]", this, regions);
+            logger.trace("recovery cache miss for [{}], falling through with regions [{}]", this, indexCacheMisses);
         } else {
-            regions = List.of();
+            indexCacheMisses = List.of();
         }
 
         int totalBytesRead = 0;
         while (totalBytesRead < length) {
+            // TODO lose this loop once confirmed that it really isn't necessary
+            assert totalBytesRead == 0 : "readInternal read only [" + totalBytesRead + "] of [" + length + "] bytes for " + this;
             final long pos = position + totalBytesRead;
             final int len = length - totalBytesRead;
             int bytesRead = 0;
             try {
                 final CacheFile cacheFile = getCacheFileSafe();
                 try (Releasable ignored = cacheFile.fileLock()) {
-                    final Tuple<Long, Long> rangeToWrite = computeRange(pos);
+
+                    // Read all target ranges in one go, including any cache misses identified above.
+                    final Tuple<Long, Long> startRangeToWrite = computeRange(pos);
+                    final Tuple<Long, Long> endRangeToWrite = computeRange(pos + len - 1);
+                    assert startRangeToWrite.v2() <= endRangeToWrite.v2() : startRangeToWrite + " vs " + endRangeToWrite;
+                    final Tuple<Long, Long> rangeToWrite = Tuple.tuple(
+                        Math.min(startRangeToWrite.v1(), indexCacheMisses.stream().mapToLong(Tuple::v1).max().orElse(Long.MAX_VALUE)),
+                        Math.max(endRangeToWrite.v2(), indexCacheMisses.stream().mapToLong(Tuple::v2).max().orElse(Long.MIN_VALUE))
+                    );
+
                     final Tuple<Long, Long> rangeToRead = Tuple.tuple(pos, Math.min(pos + len, rangeToWrite.v2()));
 
-                    bytesRead = cacheFile.fetchAsync(rangeToWrite, rangeToRead, (channel) -> {
+                    final CompletableFuture<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
                         final int read;
                         if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
                             final ByteBuffer duplicate = b.duplicate();
@@ -233,10 +234,52 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             read = readCacheFile(channel, pos, b);
                         }
                         return read;
-                    },
-                        (channel, from, to, progressUpdater) -> writeCacheFile(channel, from, to, progressUpdater, regions, logger),
-                        directory.cacheFetchAsyncExecutor()
-                    ).get();
+                    }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+
+                    for (Tuple<Long, Long> indexCacheMiss : indexCacheMisses) {
+                        cacheFile.populateAndRead(indexCacheMiss, indexCacheMiss, channel -> {
+                            final int indexCacheMissLength = Math.toIntExact(indexCacheMiss.v2() - indexCacheMiss.v1());
+
+                            // We assume that we only cache small portions of blobs so that we do not need to:
+                            // - use a BigArrays for allocation
+                            // - use an intermediate copy buffer to read the file in sensibly-sized chunks
+                            // - release the buffer once the indexing operation is complete
+                            assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
+
+                            final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
+                            Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.v1(), byteBuffer);
+                            // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
+                            byteBuffer.flip();
+                            final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
+                            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content);
+                            return indexCacheMissLength;
+                        }, (channel, from, to, progressUpdater) -> {
+                            // normally doesn't happen, we're already obtaining a range covering all cache misses above, but this
+                            // can happen if the real populateAndRead call already failed to obtain this range of the file. In that
+                            // case, we don't retry, we simply fail to populate the index cache.
+                            logger.debug(
+                                "failed to fill index cache miss [{}-{}] of {} due to earlier failure",
+                                from,
+                                to,
+                                CachedBlobContainerIndexInput.this
+                            );
+                            throw new IOException(
+                                "failed to fill index cache miss ["
+                                    + from
+                                    + "-"
+                                    + to
+                                    + "] of ["
+                                    + CachedBlobContainerIndexInput.this
+                                    + "] due to earlier failure"
+                            );
+                        },
+                            EsExecutors.newDirectExecutorService() // if ranges are still missing, fail immediately, so no need to fork
+                        );
+
+                    }
+
+                    bytesRead = populateCacheFuture.get();
+
                 }
             } catch (final Exception e) {
                 if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
@@ -258,6 +301,26 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         stats.incrementBytesRead(lastReadPosition, position, totalBytesRead);
         lastReadPosition = position + totalBytesRead;
         lastSeekPosition = lastReadPosition;
+    }
+
+    private boolean readChecksumFromFileInfo(ByteBuffer b) throws IOException {
+        assert isClone == false;
+        byte[] footer;
+        try {
+            footer = checksumToBytesArray(fileInfo.checksum());
+        } catch (NumberFormatException e) {
+            // tests disable this optimisation by passing an invalid checksum
+            footer = null;
+        }
+        if (footer == null) {
+            return false;
+        }
+
+        b.put(footer);
+        assert b.remaining() == 0L;
+        return true;
+
+        // TODO we should add this to DirectBlobContainerIndexInput too.
     }
 
     /**
@@ -309,7 +372,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final AtomicLong totalBytesWritten = new AtomicLong();
                 long remainingBytes = rangeEnd - rangeStart;
                 final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStream(rangeStart, rangeLength)) {
+                try (InputStream input = openInputStreamFromBlobStore(rangeStart, rangeLength)) {
                     while (remainingBytes > 0L) {
                         assert totalBytesRead + remainingBytes == rangeLength;
                         final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
@@ -318,23 +381,33 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         final long readStart = rangeStart + totalBytesRead;
                         final Tuple<Long, Long> rangeToWrite = Tuple.tuple(readStart, readStart + bytesRead);
 
-                        cacheFile.fetchAsync(rangeToWrite, rangeToWrite, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
-                            final ByteBuffer byteBuffer = ByteBuffer.wrap(
-                                copyBuffer,
-                                Math.toIntExact(start - readStart),
-                                Math.toIntExact(end - start)
-                            );
-                            final int writtenBytes = positionalWrite(channel, start, byteBuffer);
-                            logger.trace(
-                                "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
-                                start,
-                                end,
-                                fileInfo.physicalName(),
-                                writtenBytes
-                            );
-                            totalBytesWritten.addAndGet(writtenBytes);
-                            progressUpdater.accept(start + writtenBytes);
-                        }, directory.cacheFetchAsyncExecutor()).get();
+                        // We do not actually read anything, but we want to wait for the write to complete before proceeding.
+                        // noinspection UnnecessaryLocalVariable
+                        final Tuple<Long, Long> rangeToRead = rangeToWrite;
+
+                        cacheFile.populateAndRead(
+                            rangeToWrite,
+                            rangeToRead,
+                            (channel) -> bytesRead,
+                            (channel, start, end, progressUpdater) -> {
+                                final ByteBuffer byteBuffer = ByteBuffer.wrap(
+                                    copyBuffer,
+                                    Math.toIntExact(start - readStart),
+                                    Math.toIntExact(end - start)
+                                );
+                                final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                                logger.trace(
+                                    "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
+                                    start,
+                                    end,
+                                    fileInfo.physicalName(),
+                                    writtenBytes
+                                );
+                                totalBytesWritten.addAndGet(writtenBytes);
+                                progressUpdater.accept(start + writtenBytes);
+                            },
+                            directory.cacheFetchAsyncExecutor()
+                        ).get();
                         totalBytesRead += bytesRead;
                         remainingBytes -= bytesRead;
                     }
@@ -423,14 +496,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return bytesRead;
     }
 
-    private void writeCacheFile(
-        final FileChannel fc,
-        final long start,
-        final long end,
-        final Consumer<Long> progressUpdater,
-        final List<Tuple<Long, Integer>> cacheableRegions,
-        final Logger logger
-    ) throws IOException {
+    private void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
+        throws IOException {
         assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
@@ -440,7 +507,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long bytesCopied = 0L;
         long remaining = end - start;
         final long startTimeNanos = stats.currentTimeNanos();
-        try (InputStream input = openInputStream(start, length, cacheableRegions, directory::putCachedBlob, logger)) {
+        try (InputStream input = openInputStreamFromBlobStore(start, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, start, end, remaining, cacheFileReference);
                 positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
@@ -453,97 +520,74 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         }
     }
 
-    private InputStream openInputStream(
-        final long position,
-        final long length,
-        final List<Tuple<Long, Integer>> regions,
-        final TriConsumer<String, Long, ReleasableBytesReference> blobStoreCacher,
-        final Logger logger
-    ) throws IOException {
-        final InputStream stream = openInputStream(position, length);
-        if (regions == null || regions.isEmpty()) {
-            logger.trace("returning bare stream for [{}]", fileInfo);
-            return stream;
-        }
-
-        //
-        // TODO I'm so sorry. This should be done differently, maybe using a smarter CopyOnReadInputStream
-        //
-        // The idea is to build a SequenceInputStream that wraps the stream from the blob store repository
-        // into multiple limited streams that copy over the bytes of the regions.
-        //
-        // If while reading the stream we saw interesting regions to cache, we index them. It means that
-        // we first have to sort the regions and exclude the ones that we're not going to see anyway.
-        //
-        // TODO we should check overlapping regions too
-
-        logger.trace("returning caching stream for [{}] with regions [{}]", this, regions);
-
-        final Iterator<Tuple<Long, Integer>> sortedRegions = regions.stream()
-            .filter(region -> position <= region.v1())
-            .filter(region -> region.v1() + region.v2() <= position + length)
-            .sorted(Comparator.comparing(Tuple::v1))
-            .collect(Collectors.toList())
-            .iterator();
-
-        final List<InputStream> streams = new ArrayList<>();
-        for (long p = position; p < position + length;) {
-            if (sortedRegions.hasNext()) {
-                final Tuple<Long, Integer> nextRegion = sortedRegions.next();
-                if (p < nextRegion.v1()) {
-                    long limit = nextRegion.v1() - p;
-                    streams.add(Streams.limitStream(Streams.noCloseStream(stream), limit));
-                    p += limit;
+    /**
+     * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
+     * spans multiple blobs then this stream will request them in turn.
+     *
+     * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
+     * @param length The number of bytes to read
+     */
+    private InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
+        assert assertCurrentThreadMayAccessBlobStore();
+        if (fileInfo.numberOfParts() == 1L) {
+            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
+                + position
+                + "-"
+                + (position + length)
+                + "] from ["
+                + fileInfo
+                + "]";
+            return blobContainer.readBlob(fileInfo.partName(0L), position, length);
+        } else {
+            final long startPart = getPartNumberForPosition(position);
+            final long endPart = getPartNumberForPosition(position + length - 1);
+            return new SlicedInputStream(endPart - startPart + 1L) {
+                @Override
+                protected InputStream openSlice(long slice) throws IOException {
+                    final long currentPart = startPart + slice;
+                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                    final long endInPart = (currentPart == endPart)
+                        ? getRelativePositionInPart(position + length - 1) + 1
+                        : getLengthOfPart(currentPart);
+                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
-                assert p == nextRegion.v1();
-
-                long limit = nextRegion.v2();
-                streams.add(
-                    new CopyOnReadInputStream(
-                        Streams.limitStream(p + limit < length ? Streams.noCloseStream(stream) : stream, limit),
-                        BigArrays.NON_RECYCLING_INSTANCE.newByteArray(limit),
-                            // TODO use proper BigArrays, also let the CopyOnReadInputStream allocate this
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(ReleasableBytesReference releasableBytesReference) {
-                                logger.trace(
-                                    () -> new ParameterizedMessage(
-                                        "indexing bytes of file [{}] for region [{}-{}] in blob cache index",
-                                        this,
-                                        nextRegion.v1(),
-                                        nextRegion.v1() + nextRegion.v2()
-                                    )
-                                );
-                                blobStoreCacher.apply(fileInfo.physicalName(), nextRegion.v1(), releasableBytesReference);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.trace(
-                                    () -> new ParameterizedMessage(
-                                        "fail to index bytes of file [{}] for region [{}-{}] in blob cache index",
-                                        this,
-                                        nextRegion.v1(),
-                                        nextRegion.v1() + nextRegion.v2()
-                                    ),
-                                    e
-                                );
-                            }
-                        }
-                    )
-                );
-                p += limit;
-                assert p == nextRegion.v1() + nextRegion.v2();
-            } else if (p < position + length) {
-                long limit = position + length - p;
-                streams.add(Streams.limitStream(stream, limit));
-                p += limit;
-            }
+            };
         }
-        if (streams.size() == 1) {
-            return streams.get(0);
+    }
+
+    /**
+     * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
+     */
+    private long getPartNumberForPosition(long position) {
+        ensureValidPosition(position);
+        final long part = position / fileInfo.partSize().getBytes();
+        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
+        assert part >= 0L : "part number [" + part + "] is negative";
+        return part;
+    }
+
+    /**
+     * Compute the position of the given byte relative to the start of its part.
+     * @param position the position of the required byte (within the corresponding Lucene file)
+     */
+    private long getRelativePositionInPart(long position) {
+        ensureValidPosition(position);
+        final long pos = position % fileInfo.partSize().getBytes();
+        assert pos < fileInfo.partBytes((int) getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
+        assert pos >= 0L : "position in part [" + pos + "] is negative";
+        return pos;
+    }
+
+    private long getLengthOfPart(long part) {
+        return fileInfo.partBytes(Math.toIntExact(part));
+    }
+
+    private void ensureValidPosition(long position) {
+        assert position >= 0L && position < fileInfo.length() : position + " vs " + fileInfo.length();
+        // noinspection ConstantConditions in case assertions are disabled
+        if (position < 0L || position >= fileInfo.length()) {
+            throw new IllegalArgumentException("Position [" + position + "] is invalid for a file of length [" + fileInfo.length() + "]");
         }
-        return new SequenceInputStream(Collections.enumeration(streams));
     }
 
     @Override
@@ -619,7 +663,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         int bytesCopied = 0;
         final long startTimeNanos = stats.currentTimeNanos();
-        try (InputStream input = openInputStream(start, length)) {
+        try (InputStream input = openInputStreamFromBlobStore(start, length)) {
             long remaining = end - start;
             while (remaining > 0) {
                 final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;

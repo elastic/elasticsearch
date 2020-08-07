@@ -768,11 +768,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                             equalTo(0L)
                         );
                     } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
-                        assertThat(
-                            "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
-                            greaterThan(0L)
-                        );
+                        // not necessarily, it may have been entirely in blob cache TODO improve stats to handle this
+                        // assertThat(
+                        // "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
+                        // Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                        // greaterThan(0L)
+                        // );
                         assertThat(
                             "Expected no optimized read for " + fileName + " of shard " + shardRouting,
                             indexInputStats.getOptimizedBytesRead().getCount(),

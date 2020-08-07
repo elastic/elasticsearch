@@ -27,7 +27,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -203,6 +203,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.recoveryState = recoveryState;
                     this.loaded = true;
+                    cleanExistingRegularShardFiles();
                     prewarmCache();
                 }
             }
@@ -596,15 +597,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return cachedBlob;
     }
 
-    public void putCachedBlob(String name, long offset, ReleasableBytesReference content) {
-        blobStoreCacheService.putAsync(
-            repository,
-            name,
-            blobStoreCachePath,
-            offset,
-            content,
-            ActionListener.wrap(success -> {}, failure -> {})
-        );
+    public void putCachedBlob(String name, long offset, BytesReference content) {
+        blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, ActionListener.wrap(() -> {}));
     }
 
     /**

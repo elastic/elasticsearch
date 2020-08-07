@@ -366,7 +366,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                     }
 
                     final String path = String.join("/", repositoryName, blob.getKey(), fileInfo.physicalName());
-                    if (fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE) {
+                    if (fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE * 2) {
                         // file has been fully cached
                         final GetResponse getResponse = systemClient().prepareGet(SNAPSHOT_BLOB_CACHE_INDEX, path + "/@0").get();
                         assertThat("not cached: [" + path + "/@0] for blob [" + fileInfo + "]", getResponse.isExists(), is(true));

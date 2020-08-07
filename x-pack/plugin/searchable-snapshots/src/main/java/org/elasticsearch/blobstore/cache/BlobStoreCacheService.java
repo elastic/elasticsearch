@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -26,13 +27,12 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -276,14 +276,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
         }
     }
 
-    public void putAsync(
-        String repository,
-        String name,
-        String path,
-        long offset,
-        ReleasableBytesReference content,
-        ActionListener<Void> listener
-    ) {
+    public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
         createIndexIfNecessary(new ActionListener<>() {
             @Override
             public void onResponse(String s) {
@@ -301,25 +294,31 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                     try (XContentBuilder builder = jsonBuilder()) {
                         request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
-                    client.index(request, ActionListener.wrap(response -> {
-                        if (response.status() == RestStatus.CREATED) {
-                            logger.trace("cache fill: [{}]", request.id());
+                    client.index(request, new ActionListener<>() {
+                        @Override
+                        public void onResponse(IndexResponse indexResponse) {
+                            if (indexResponse.status() == RestStatus.CREATED) {
+                                logger.trace("cache fill: [{}]", request.id());
+                            }
+                            listener.onResponse(null);
                         }
-                    }, listener::onFailure));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
                 } catch (IOException e) {
                     logger.warn(
                         new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
                         e
                     );
-                } finally {
-                    IOUtils.closeWhileHandlingException(content);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error(() -> new ParameterizedMessage("failed to create blob cache system index [{}]", index), e);
-                IOUtils.closeWhileHandlingException(content);
             }
         });
     }

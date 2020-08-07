@@ -13,7 +13,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -233,7 +233,7 @@ public final class TestUtils {
             String name,
             String path,
             long offset,
-            ReleasableBytesReference content,
+            BytesReference content,
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);

@@ -99,6 +99,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60853")
     public void test010Install() {
         verifyContainerInstallation(installation, distribution());
     }
@@ -475,7 +476,11 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that there are no files with a GID other than 0.
      */
-    public void test101AllFilesAreGroupZero() {
+    public void test101AllFilesAreGroupZero() throws Exception {
+        // We wait for Elasticsearch to finish starting up in order to avoid the situation where `find` traverses the filesystem
+        // and sees files in a directory listing, which have disappeared by the time `find` tries to examine them. This periodically
+        // happened with the keystore, for example.
+        waitForElasticsearch(installation);
         final String findResults = sh.run("find . -not -gid 0").stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));

@@ -49,6 +49,7 @@ public class CustomHighlighter implements Highlighter {
                 cacheEntry.position = 1;
             }
         }
+        // asd
 
         List<Text> responses = new ArrayList<>();
         responses.add(new Text(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),

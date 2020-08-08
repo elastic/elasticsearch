@@ -33,7 +33,12 @@ public class CustomHighlighter implements Highlighter {
 
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) {
-        SearchHighlightContext.Field field = fieldContext.field;
+        CacheEntry cacheEntry = setCacheEntry(fieldContext);
+        List<Text> responses = generateResponses(fieldContext, cacheEntry);
+        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[]{}));
+    }
+
+    private CacheEntry setCacheEntry(FieldHighlightContext fieldContext) {
         CacheEntry cacheEntry = (CacheEntry) fieldContext.hitContext.cache().get("test-custom");
         final int docId = fieldContext.hitContext.readerContext().docBase + fieldContext.hitContext.docId();
         if (cacheEntry == null) {
@@ -49,19 +54,18 @@ public class CustomHighlighter implements Highlighter {
                 cacheEntry.position = 1;
             }
         }
-        // asd
+        return cacheEntry;
+    }
 
+    private List<Text> generateResponses(FieldHighlightContext fieldContext, CacheEntry cacheEntry) {
+        SearchHighlightContext.Field field = fieldContext.field;
         List<Text> responses = new ArrayList<>();
         responses.add(new Text(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
                 cacheEntry.position)));
-
-        if (field.fieldOptions().options() != null) {
-            for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet()) {
+        if (field.fieldOptions().options() != null)
+            for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet())
                 responses.add(new Text("field:" + entry.getKey() + ":" + entry.getValue()));
-            }
-        }
-
-        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[]{}));
+        return responses;
     }
 
     @Override

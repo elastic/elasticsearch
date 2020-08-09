@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -66,8 +67,8 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         when(licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         Client client = mockClient();
-        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, licenseState, client);
+        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService,
+            mock(ThreadPool.class), mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -92,7 +93,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         when(licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class),
-            clusterService, null, mock(ActionFilters.class), null, licenseState, client);
+            clusterService, mock(ThreadPool.class), mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

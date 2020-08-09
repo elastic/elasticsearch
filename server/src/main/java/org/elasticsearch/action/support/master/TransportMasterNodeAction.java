@@ -84,7 +84,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         final String exec = executor();
-        this.executor = exec.equals(ThreadPool.Names.SAME) ? null : threadPool.executor(exec);
+        this.executor = ThreadPool.Names.SAME.equals(exec) ? null : threadPool.executor(exec);
     }
 
     protected abstract String executor();

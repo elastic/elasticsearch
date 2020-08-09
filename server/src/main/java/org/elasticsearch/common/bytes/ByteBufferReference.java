@@ -47,6 +47,20 @@ public class ByteBufferReference extends AbstractBytesReference {
     }
 
     @Override
+    public int get(byte[] buf, int index, int offset, int length) {
+        if (length == 0) {
+            return 0;
+        }
+        buffer.position(index);
+        try {
+            buffer.get(buf, offset, length);
+            return buffer.position() - index;
+        } finally {
+            buffer.position(0);
+        }
+    }
+
+    @Override
     public int getInt(int index) {
         return buffer.getInt(index);
     }

@@ -44,6 +44,18 @@ public interface ByteArray extends BigArray {
     boolean get(long index, int len, BytesRef ref);
 
     /**
+     * Bulk get operation that allows reading a specified number of bytes from a specified index in this instance to
+     * a specified index in the given byte array.
+     *
+     * @param buf    array to read bytes into
+     * @param index  index in this instance to read from
+     * @param offset offset in the array to read first byte into
+     * @param len    number of bytes to read
+     * @return number of bytes that were actually copied to the buffer
+     */
+    int get(byte[] buf, int index, int offset, int len);
+
+    /**
      * Bulk set.
      */
     void set(long index, byte[] buf, int offset, int len);

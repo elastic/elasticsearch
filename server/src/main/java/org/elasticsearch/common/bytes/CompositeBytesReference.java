@@ -84,6 +84,22 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     @Override
+    public int get(byte[] buf, int index, int offset, int length) {
+        int read = 0;
+        while (length > 0 && index < this.length) {
+            int i = getOffsetIndex(index);
+            BytesReference current = references[i];
+            int start = index - offsets[i];
+            final int found = current.get(buf, start, offset + read, length);
+            length -= found;
+            read += found;
+            index += found;
+            ++i;
+        }
+        return read;
+    }
+
+    @Override
     public int indexOf(byte marker, int from) {
         final int remainingBytes = Math.max(length - from, 0);
         Objects.checkFromIndexSize(from, remainingBytes, length);

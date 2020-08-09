@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
@@ -50,7 +49,7 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
-    public StreamInput streamInput() throws IOException {
+    public StreamInput streamInput() {
         return new MarkSupportingStreamInputWrapper(this);
     }
 
@@ -182,60 +181,85 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     /**
-     * Instead of adding the complexity of {@link InputStream#reset()} etc to the actual impl
-     * this wrapper builds it on top of the BytesReferenceStreamInput which is much simpler
-     * that way.
+     * Mark-supporting {@link StreamInput} over all the bytes in a {@link BytesReference}.
      */
     private static final class MarkSupportingStreamInputWrapper extends StreamInput {
-        // can't use FilterStreamInput it needs to reset the delegate
         private final BytesReference reference;
-        private BytesReferenceStreamInput input;
+        private int offset = 0;
         private int mark = 0;
 
-        private MarkSupportingStreamInputWrapper(BytesReference reference) throws IOException {
+        private MarkSupportingStreamInputWrapper(BytesReference reference) {
             this.reference = reference;
-            this.input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
         }
 
         @Override
         public byte readByte() throws IOException {
-            return input.readByte();
+            if (offset >= reference.length()) {
+                throw new EOFException();
+            }
+            return reference.get(offset++);
         }
 
         @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            input.readBytes(b, offset, len);
+        public int readInt() {
+            final int res = reference.getInt(offset);
+            offset += Integer.BYTES;
+            return res;
         }
 
         @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return input.read(b, off, len);
+        public void readBytes(byte[] b, int offset, int len) {
+            final int read = read(b, offset, len);
+            if (read != len) {
+                throw new IndexOutOfBoundsException();
+            }
         }
 
         @Override
-        public void close() throws IOException {
-            input.close();
+        public int read(byte[] b, int off, int len) {
+            if (len == 0) {
+                return 0;
+            }
+            final int refLen = reference.length();
+            if (offset >= refLen) {
+                return -1;
+            }
+            final int read = reference.get(b, offset, off, Math.min(len, refLen - offset));
+            assert read <= len;
+            if (read > 0) {
+                offset += read;
+            }
+            return read;
+        }
+
+        @Override
+        public void close() {
         }
 
         @Override
         public int read() throws IOException {
-            return input.read();
+            if (offset >= reference.length()) {
+                return -1;
+            }
+            return Byte.toUnsignedInt(readByte());
         }
 
         @Override
-        public int available() throws IOException {
-            return input.available();
+        public int available() {
+            return reference.length() - offset;
         }
 
         @Override
         protected void ensureCanReadBytes(int length) throws EOFException {
-            input.ensureCanReadBytes(length);
+            int bytesAvailable = reference.length() - offset;
+            if (bytesAvailable < length) {
+                throw new EOFException("tried to read: " + length + " bytes but only " + bytesAvailable + " remaining");
+            }
         }
 
         @Override
-        public void reset() throws IOException {
-            input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
-            input.skip(mark);
+        public void reset() {
+            offset = mark;
         }
 
         @Override
@@ -245,14 +269,16 @@ public abstract class AbstractBytesReference implements BytesReference {
 
         @Override
         public void mark(int readLimit) {
-            // readLimit is optional it only guarantees that the stream remembers data upto this limit but it can remember more
-            // which we do in our case
-            this.mark = input.getOffset();
+            // readLimit is irrelevant since we always have random access to all the bytes in the reference
+            this.mark = offset;
         }
 
         @Override
-        public long skip(long n) throws IOException {
-            return input.skip(n);
+        public long skip(long n) {
+            final int skip = (int) Math.min(Integer.MAX_VALUE, n);
+            final int numBytesSkipped = Math.min(skip, reference.length() - offset);
+            offset += numBytesSkipped;
+            return numBytesSkipped;
         }
     }
 

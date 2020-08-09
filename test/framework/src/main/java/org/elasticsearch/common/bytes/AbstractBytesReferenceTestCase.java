@@ -193,7 +193,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     public void testRandomReads() throws IOException {
-        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        int length = randomIntBetween(2, scaledRandomIntBetween(4, 8));
         BytesReference pbr = newBytesReference(length);
         StreamInput streamInput = pbr.streamInput();
         BytesRefBuilder target = new BytesRefBuilder();

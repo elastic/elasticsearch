@@ -326,6 +326,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public int get(byte[] buf, int index, int offset, int len) {
+            return in.get(buf, index, offset, len);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
         }

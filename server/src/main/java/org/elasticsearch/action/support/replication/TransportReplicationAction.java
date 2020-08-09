@@ -556,7 +556,7 @@ public abstract class TransportReplicationAction<
         private final ReplicationTask task;
         // important: we pass null as a timeout as failing a replica is
         // something we want to avoid at all costs
-        private ClusterStateObserver observer;
+        private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
 
         AsyncReplicaAction(ConcreteReplicaRequest<ReplicaRequest> replicaRequest, ActionListener<ReplicaResponse> onCompletionListener,
@@ -611,9 +611,6 @@ public abstract class TransportReplicationAction<
                             replicaRequest.getRequest()),
                     e);
                 replicaRequest.getRequest().onRetry();
-                if (observer == null) {
-                    observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-                }
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {

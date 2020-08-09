@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -37,7 +38,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         when(licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
-        var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, mock(ThreadPool.class),
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
@@ -65,7 +66,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(enabled));
 
         GraphUsageTransportAction usageAction = new GraphUsageTransportAction(mock(TransportService.class),
-            null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
+            null, mock(ThreadPool.class), mock(ActionFilters.class), null, settings.build(), licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

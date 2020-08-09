@@ -94,15 +94,13 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
         int res = 0;
         len = Math.min(len, Math.toIntExact(size() - index));
         while (len > 0) {
-            int i = pageIndex(index);
             final int indexInPage = indexInPage(index);
             final int found = Math.min(pageSize() - indexInPage, len);
-            System.arraycopy(pages[i], indexInPage, buf, offset, found);
+            System.arraycopy(pages[pageIndex(index)], indexInPage, buf, offset, found);
             len -= found;
             offset += found;
             res += found;
             index += found;
-            ++i;
             if (index >= size) {
                 break;
             }

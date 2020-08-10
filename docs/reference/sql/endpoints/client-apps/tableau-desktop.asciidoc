@@ -28,8 +28,8 @@ Move the {es} Connector for Tableau to the Tableau Desktop connectors directory:
 * Windows: `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`
 * Mac: `/Users/[user]/Documents/My Tableau Repository/Connectors`
 
-Then (re)launch Tableau Desktop, click on the _More..._ menu item and in the expanded list of connectors, choose the _Elasticsearch JDBC by
-Elastic_ entry:
+Launch Tableau Desktop. In the menu, click **More...** and select **Elasticsearch JDBC by
+Elastic** as the data source.
 
 [[apps_tableau_desktop_from_connector]]
 [role="screenshot"]

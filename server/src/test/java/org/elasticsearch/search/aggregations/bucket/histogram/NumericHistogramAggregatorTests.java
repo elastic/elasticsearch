@@ -55,7 +55,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
     public void testLongs() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (long value : new long[] {7, 3, -10, -6, 5, 50}) {
+            for (long value : new long[] {7, 3, -10, -6, 5, 15}) {
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("field", value));
                 w.addDocument(doc);
@@ -66,16 +66,20 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .interval(5);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
-                assertEquals(4, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(0d, histogram.getBuckets().get(1).getKey());
-                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5d, histogram.getBuckets().get(2).getKey());
-                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(50d, histogram.getBuckets().get(3).getKey());
-                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(-5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(5d, histogram.getBuckets().get(3).getKey());
+                assertEquals(2, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(4).getKey());
+                assertEquals(0, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(15d, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -84,7 +88,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
     public void testDoubles() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (double value : new double[] {9.3, 3.2, -10, -6.5, 5.3, 50.1}) {
+            for (double value : new double[] {9.3, 3.2, -10, -6.5, 5.3, 15.1}) {
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
@@ -95,16 +99,21 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .interval(5);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
-                assertEquals(4, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                assertEquals(6, histogram.getBuckets().size());
+                assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(0d, histogram.getBuckets().get(1).getKey());
-                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5d, histogram.getBuckets().get(2).getKey());
-                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(50d, histogram.getBuckets().get(3).getKey());
-                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(-5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(5d, histogram.getBuckets().get(3).getKey());
+                assertEquals(2, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(4).getKey());
+                assertEquals(0, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(15d, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -130,10 +139,6 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
              RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir)) {
             Document document = new Document();
             for (String date : dataset) {
-                if (frequently()) {
-                    indexWriter.commit();
-                }
-
                 long instant = fieldType.parse(date);
                 document.add(new SortedNumericDocValuesField(fieldName, instant));
                 indexWriter.addDocument(document);
@@ -145,7 +150,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .interval(1000 * 60 * 60 * 24);
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -165,16 +170,20 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .interval(Math.PI);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
-                assertEquals(4, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-4 * Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
                 assertEquals(-3 * Math.PI, histogram.getBuckets().get(1).getKey());
                 assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(0d, histogram.getBuckets().get(2).getKey());
-                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(Math.PI, histogram.getBuckets().get(3).getKey());
-                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(-2 * Math.PI, histogram.getBuckets().get(2).getKey());
+                assertEquals(0, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(-Math.PI, histogram.getBuckets().get(3).getKey());
+                assertEquals(0, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(4).getKey());
+                assertEquals(2, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(Math.PI, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -209,7 +218,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
     public void testMissing() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (long value : new long[] {7, 3, -10, -6, 5, 50}) {
+            for (long value : new long[] {7, 3, -10, -6, 5, 15}) {
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("field", value));
                 w.addDocument(doc);
@@ -222,16 +231,20 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .missing(2d);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
-                assertEquals(4, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(0d, histogram.getBuckets().get(1).getKey());
-                assertEquals(7, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5d, histogram.getBuckets().get(2).getKey());
-                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(50d, histogram.getBuckets().get(3).getKey());
-                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(-5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(2).getKey());
+                assertEquals(7, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(5d, histogram.getBuckets().get(3).getKey());
+                assertEquals(2, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(4).getKey());
+                assertEquals(0, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(15d, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -252,7 +265,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             MappedFieldType type = null;
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, type);
 
                 assertEquals(1, histogram.getBuckets().size());
 
@@ -280,7 +293,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Throwable t = expectThrows(IllegalArgumentException.class, () -> {
-                    search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, type);
                 });
                 // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
                 assertThat(t.getMessage(), containsString(missingValue));
@@ -304,7 +317,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 expectThrows(IllegalArgumentException.class, () -> {
-                    search(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
                 });
             }
         }
@@ -326,14 +339,16 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .offset(Math.PI);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
-                assertEquals(3, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-10 + Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(Math.PI, histogram.getBuckets().get(1).getKey());
-                assertEquals(2, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5 + Math.PI, histogram.getBuckets().get(2).getKey());
-                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(-5 + Math.PI, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(Math.PI, histogram.getBuckets().get(2).getKey());
+                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(5 + Math.PI, histogram.getBuckets().get(3).getKey());
+                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -358,17 +373,20 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .offset(offset);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
-                assertEquals(3, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                assertEquals(4, histogram.getBuckets().size());
 
                 assertEquals(-10 + expectedOffset, histogram.getBuckets().get(0).getKey());
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
 
-                assertEquals(expectedOffset, histogram.getBuckets().get(1).getKey());
-                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(-5 + expectedOffset, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
 
-                assertEquals(5 + expectedOffset, histogram.getBuckets().get(2).getKey());
+                assertEquals(expectedOffset, histogram.getBuckets().get(2).getKey());
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+
+                assertEquals(5 + expectedOffset, histogram.getBuckets().get(3).getKey());
+                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
 
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }

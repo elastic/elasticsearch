@@ -16,7 +16,7 @@ product, please reach out to its vendor.
 
 ==== Data loading
 
-First place the downloaded JDBC driver in Tableau Desktop drivers directory:
+First, move or download the JDBC driver to the Tableau Desktop drivers directory:
 
 * Windows: `C:\Program Files\Tableau\Drivers`
 * Mac: `/Users/[user]/Library/Tableau/Drivers`

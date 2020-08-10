@@ -153,7 +153,7 @@ error count.
 
 The syntax for the `script_fields` property is identical to that used by {es}.
 For more information, see
-{ref}/search-request-body.html#request-body-search-script-fields[Script fields].
+{ref}/search-fields.html#script-fields[Script fields].
 
 You can preview the contents of the {dfeed} by using the following API:
 

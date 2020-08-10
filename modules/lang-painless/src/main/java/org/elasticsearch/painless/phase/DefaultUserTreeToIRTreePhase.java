@@ -1383,7 +1383,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBraceSubNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
             irExpressionNode = irBraceSubNode;
         } else if (prefixValueType == def.class) {
-            ;
             FlipDefIndex irFlipDefIndex = new FlipDefIndex();
             irFlipDefIndex.setLocation(userBraceNode.getIndexNode().getLocation());
             irFlipDefIndex.setExpressionType(scriptScope.getDecoration(userBraceNode.getIndexNode(), ValueType.class).getValueType());

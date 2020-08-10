@@ -41,7 +41,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
     public void testStageTransitionsToDoneOncePreWarmingHasFinished() {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.INIT));
-        recoveryState.preWarmFinished();
+        recoveryState.setPreWarmComplete();
 
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.INIT));
 
@@ -59,7 +59,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         recoveryState.getIndex().setFileDetailsComplete();
         recoveryState.setStage(RecoveryState.Stage.FINALIZE);
 
-        recoveryState.preWarmFinished();
+        recoveryState.setPreWarmComplete();
 
         recoveryState.setStage(RecoveryState.Stage.DONE);
 
@@ -75,7 +75,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         recoveryState.getIndex().setFileDetailsComplete();
         recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
 
-        recoveryState.preWarmFinished();
+        recoveryState.setPreWarmComplete();
 
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
 
@@ -114,7 +114,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
         assertThat(recoveryState.getIndex().stopTime(), equalTo(0L));
 
-        recoveryState.preWarmFinished();
+        recoveryState.setPreWarmComplete();
 
         assertThat(recoveryState.getIndex().stopTime(), greaterThan(0L));
     }

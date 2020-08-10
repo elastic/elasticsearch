@@ -1,7 +1,4 @@
-[[request-body-search-stored-fields]]
-==== Stored Fields
-
-WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
+WARNING: The `stored_fields` parameter is for fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
 Use <<source-filtering,source filtering>> instead to select
 subsets of the original source document to be returned.
@@ -45,9 +42,11 @@ Also only leaf fields can be returned via the `stored_fields` option. If an obje
 NOTE: On its own, `stored_fields` cannot be used to load fields in nested
 objects -- if a field contains a nested object in its path, then no data will
 be returned for that stored field. To access nested fields, `stored_fields`
-must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.
+must be used within an <<inner-hits, `inner_hits`>> block.
 
-===== Disable stored fields entirely
+[discrete]
+[[disable-stored-fields]]
+==== Disable stored fields
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:
 

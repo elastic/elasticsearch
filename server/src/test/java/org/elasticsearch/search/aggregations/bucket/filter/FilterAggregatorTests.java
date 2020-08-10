@@ -62,7 +62,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
+        InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
@@ -80,7 +80,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (frequently()) {
                 // make sure we have more than one segment to test the merge
-                indexWriter.getReader().close();
+                indexWriter.commit();
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;
@@ -98,20 +98,12 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            for (boolean doReduce : new boolean[]{true, false}) {
-                final InternalFilter response;
-                if (doReduce) {
-                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
-                        fieldType);
-                } else {
-                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-                }
-                assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
-                if (expectedBucketCount[value] > 0) {
-                    assertTrue(AggregationInspectionHelper.hasValue(response));
-                } else {
-                    assertFalse(AggregationInspectionHelper.hasValue(response));
-                }
+            final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+            if (expectedBucketCount[value] > 0) {
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            } else {
+                assertFalse(AggregationInspectionHelper.hasValue(response));
             }
         } finally {
             indexReader.close();

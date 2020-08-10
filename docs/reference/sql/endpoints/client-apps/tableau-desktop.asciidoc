@@ -30,8 +30,8 @@ Then (re)launch Tableau Desktop, click on the _More..._ menu item and in the exp
 Elastic_ entry:
 
 [[apps_tableau_desktop_from_connector]]
-.Elasticsearch JDBC as data source
-image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[Select Elasticsearch JDBC by Elastic as the data source]
 
 In the _New connection_ window that appears, provide the details required to connect to your {es} instance and _Sign In_.
 

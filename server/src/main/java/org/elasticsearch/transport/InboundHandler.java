@@ -82,13 +82,8 @@ public class InboundHandler {
         }
     }
 
-    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(BytesRef.EMPTY_BYTES);
-
     // Empty stream constant to avoid instantiating a new stream for empty messages.
-    // Use thread-local to get one instance per thread so that we can safely set the version on the empty stream while deserializing
-    // just in case a transport message is empty in one version but not in another one
-    private static final ThreadLocal<StreamInput> EMPTY_STREAM_INPUT =
-            ThreadLocal.withInitial(() -> new ByteBufferStreamInput(EMPTY_BYTE_BUFFER));
+    private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
     private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
@@ -121,7 +116,7 @@ public class InboundHandler {
                 // ignore if its null, the service logs it
                 if (handler != null) {
                     final StreamInput streamInput;
-                    if (message.getContentLength() > 0) {
+                    if (message.getContentLength() > 0 && header.getVersion().equals(Version.CURRENT)) {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
@@ -139,9 +134,7 @@ public class InboundHandler {
                         }
                     } else {
                         assert header.isError() == false;
-                        streamInput = EMPTY_STREAM_INPUT.get();
-                        streamInput.setVersion(header.getVersion());
-                        handleResponse(remoteAddress, streamInput, handler);
+                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
             }

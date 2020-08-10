@@ -21,7 +21,7 @@ First, move or download the JDBC driver to the Tableau Desktop drivers directory
 * Windows: `C:\Program Files\Tableau\Drivers`
 * Mac: `/Users/[user]/Library/Tableau/Drivers`
 
-and the {es} Connector for Tableau in Tableau Desktop connectors directory:
+Move the {es} Connector for Tableau to the Tableau Desktop connectors directory:
 
 * Windows: `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`
 * Mac: `/Users/[user]/Documents/My Tableau Repository/Connectors`

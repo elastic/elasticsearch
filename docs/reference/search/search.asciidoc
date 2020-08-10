@@ -570,8 +570,8 @@ Contains field values for the documents. These fields must be specified in the
 request using one or more of the following request parameters:
 
 * <<search-docvalue-fields-param,`docvalue_fields`>>
-* <<request-body-search-script-fields,`script_fields`>>
-* <<request-body-search-stored-fields,`stored_fields`>>
+* <<script-fields,`script_fields`>>
+* <<stored-fields,`stored_fields`>>
 
 This property is returned only if one or more of these parameters are set.
 --

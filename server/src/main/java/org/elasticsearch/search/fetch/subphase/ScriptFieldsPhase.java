@@ -24,7 +24,6 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -37,7 +36,7 @@ import java.util.List;
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
         if (context.hasScriptFields() == false) {
             return;
         }
@@ -46,7 +45,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
         FieldScript[] leafScripts = null;
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
         final IndexReader reader = context.searcher().getIndexReader();
-        for (SearchHit hit : hits) {
+        for (HitContext hit : hits) {
             int readerId = ReaderUtil.subIndex(hit.docId(), reader.leaves());
             LeafReaderContext leafReaderContext = reader.leaves().get(readerId);
             if (readerId != lastReaderId) {
@@ -67,7 +66,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                     throw e;
                 }
                 String scriptFieldName = scriptFields.get(i).name();
-                DocumentField hitField = hit.field(scriptFieldName);
+                DocumentField hitField = hit.hit().field(scriptFieldName);
                 if (hitField == null) {
                     final List<Object> values;
                     if (value instanceof Collection) {
@@ -77,7 +76,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                     }
                     hitField = new DocumentField(scriptFieldName, values);
                     // script fields are never meta-fields
-                    hit.setDocumentField(scriptFieldName, hitField);
+                    hit.hit().setDocumentField(scriptFieldName, hitField);
 
                 }
             }

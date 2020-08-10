@@ -34,7 +34,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -56,13 +55,13 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     static final String FIELD_NAME_PREFIX = "_percolator_document_slot";
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
         innerHitsExecute(context.query(), context.searcher(), hits);
     }
 
     static void innerHitsExecute(Query mainQuery,
                                  IndexSearcher indexSearcher,
-                                 SearchHit[] hits) throws IOException {
+                                 HitContext[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
             return;
@@ -85,9 +84,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
             PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
             List<LeafReaderContext> ctxs = indexSearcher.getIndexReader().leaves();
-            for (SearchHit hit : hits) {
-                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
-                int segmentDocId = hit.docId() - ctx.docBase;
+            for (HitContext hit : hits) {
+                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.hit().docId(), ctxs));
+                int segmentDocId = hit.hit().docId() - ctx.docBase;
                 Query query = queryStore.getQueries(ctx).apply(segmentDocId);
                 if (query == null) {
                     // This is not a document with a percolator field.
@@ -110,7 +109,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
                 // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
-                hit.setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                hit.hit().setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
             }
         }
     }

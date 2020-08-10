@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -36,9 +37,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.stream.IntStream;
 
 public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
@@ -53,10 +56,10 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
-
+                LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    HitContext[] hits = new HitContext[]{new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>())};
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -65,13 +68,13 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
                     PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
-                    assertNotNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
-                    assertEquals(0, (int) hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
+                    assertNotNull(hits[0].hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    assertEquals(0, (int) hits[0].hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
                 }
 
                 // No match:
                 {
-                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    HitContext[] hits = new HitContext[]{new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>())};
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -80,12 +83,12 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
                     PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
-                    assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    assertNull(hits[0].hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
 
                 // No query:
                 {
-                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    HitContext[] hits = new HitContext[]{new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>())};
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -94,7 +97,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
                     PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
-                    assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    assertNull(hits[0].hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
             }
         }

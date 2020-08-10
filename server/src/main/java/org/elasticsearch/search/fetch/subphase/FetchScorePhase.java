@@ -25,7 +25,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -35,7 +34,7 @@ import java.util.Iterator;
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
         if (context.trackScores() == false || hits.length == 0 ||
                 // scores were already computed since they are needed on the coordinated node to merge top hits
                 context.sort() == null) {
@@ -47,7 +46,7 @@ public class FetchScorePhase implements FetchSubPhase {
         Iterator<LeafReaderContext> leafContextIterator = searcher.getIndexReader().leaves().iterator();
         LeafReaderContext leafContext = null;
         Scorer scorer = null;
-        for (SearchHit hit : hits) {
+        for (HitContext hit : hits) {
             if (leafContext == null || leafContext.docBase + leafContext.reader().maxDoc() <= hit.docId()) {
                 do {
                     leafContext = leafContextIterator.next();
@@ -65,7 +64,7 @@ public class FetchScorePhase implements FetchSubPhase {
             if (advanced != leafDocID) {
                 throw new IllegalStateException("Can't compute score on document " + hit + " as it doesn't match the query");
             }
-            hit.score(scorer.score());
+            hit.hit().score(scorer.score());
         }
     }
 

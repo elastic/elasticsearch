@@ -113,6 +113,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
+        public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+            FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+        }
+
         public void hitExecute(SearchContext context, HitContext hitContext) {
             TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {

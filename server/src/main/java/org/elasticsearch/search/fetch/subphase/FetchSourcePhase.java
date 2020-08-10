@@ -34,6 +34,10 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+    }
+
     public void hitExecute(SearchContext context, HitContext hitContext) {
         if (context.sourceRequested() == false) {
             return;

@@ -23,7 +23,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -31,7 +30,7 @@ import java.io.IOException;
 
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
         if (context.seqNoAndPrimaryTerm() == false) {
             return;
         }
@@ -39,7 +38,7 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
         int lastReaderId = -1;
         NumericDocValues seqNoField = null;
         NumericDocValues primaryTermField = null;
-        for (SearchHit hit : hits) {
+        for (HitContext hit : hits) {
             int readerId = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
             LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerId);
             if (lastReaderId != readerId) {
@@ -57,8 +56,8 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
                 seqNo = seqNoField.longValue();
                 primaryTerm = primaryTermField.longValue();
             }
-            hit.setSeqNo(seqNo);
-            hit.setPrimaryTerm(primaryTerm);
+            hit.hit().setSeqNo(seqNo);
+            hit.hit().setPrimaryTerm(primaryTerm);
         }
     }
 }

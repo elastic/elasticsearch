@@ -43,6 +43,10 @@ public final class InnerHitsPhase implements FetchSubPhase {
     }
 
     @Override
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+    }
+
     public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
         if (context.innerHits() == null) {
             return;

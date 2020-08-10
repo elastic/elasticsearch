@@ -38,6 +38,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +58,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
         if (hitsExecutionNeeded(context) == false) {
             return;
         }
@@ -76,14 +77,13 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
             LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
 
-            for (SearchHit hit : hits) {
+            for (HitContext hit : hits) {
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
                 int segmentDocId = hit.docId() - ctx.docBase;
                 final Query query = queryStore.getQueries(ctx).apply(segmentDocId);
                 if (query != null) {
-                    DocumentField field = hit.field(fieldName);
+                    DocumentField field = hit.hit().field(fieldName);
                     if (field == null) {
                         // It possible that a hit did not match with a particular percolate query,
                         // so then continue highlighting with the next hit.
@@ -97,14 +97,13 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                         SearchHighlightContext highlight = new SearchHighlightContext(context.highlight().fields(), true);
                         QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
                         shardContext.freezeContext();
-                        hitContext.reset(
+                        HitContext subContext = new HitContext(
                             new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
-                            percolatorLeafReaderContext, slot, percolatorIndexSearcher
+                            percolatorLeafReaderContext, slot, percolatorIndexSearcher, new HashMap<>()
                         );
-                        hitContext.sourceLookup().setSource(document);
-                        hitContext.cache().clear();
-                        highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, hitContext);
-                        for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {
+                        subContext.sourceLookup().setSource(document);
+                        highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, subContext);
+                        for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
                             if (percolateQuery.getDocuments().size() == 1) {
                                 String hlFieldName;
                                 if (singlePercolateQuery) {
@@ -112,7 +111,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 } else {
                                     hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
                                 }
-                                hit.getHighlightFields().put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
+                                hit.hit().getHighlightFields().put(hlFieldName,
+                                    new HighlightField(hlFieldName, entry.getValue().fragments()));
                             } else {
                                 // In case multiple documents are being percolated we need to identify to which document
                                 // a highlight belongs to.
@@ -122,7 +122,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 } else {
                                     hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
                                 }
-                                hit.getHighlightFields().put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
+                                hit.hit().getHighlightFields().put(hlFieldName,
+                                    new HighlightField(hlFieldName, entry.getValue().fragments()));
                             }
                         }
                     }

@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,6 +44,10 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+    }
+
     public void hitExecute(SearchContext context, HitContext hitContext) {
         if (context.highlight() == null) {
             return;

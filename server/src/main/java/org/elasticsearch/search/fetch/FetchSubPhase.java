@@ -22,12 +22,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,19 +36,21 @@ import java.util.Map;
 public interface FetchSubPhase {
 
     class HitContext {
-        private SearchHit hit;
-        private IndexSearcher searcher;
-        private LeafReaderContext readerContext;
-        private int docId;
+        private final SearchHit hit;
+        private final IndexSearcher searcher;
+        private final LeafReaderContext readerContext;
+        private final int docId;
         private final SourceLookup sourceLookup = new SourceLookup();
-        private Map<String, Object> cache;
+        private final Map<String, Object> cache;
 
-        public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher,
+                          Map<String, Object> cache) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.searcher = searcher;
             this.sourceLookup.setSegmentAndDocument(context, docId);
+            this.cache = cache;
         }
 
         public SearchHit hit() {
@@ -83,20 +85,19 @@ public interface FetchSubPhase {
         }
 
         public Map<String, Object> cache() {
-            if (cache == null) {
-                cache = new HashMap<>();
-            }
             return cache;
         }
     }
 
     /**
-     * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
-     */
-    default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
-
-    /**
      * Executes the hits level phase (note, hits are sorted by doc ids).
      */
-    default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
+    void hitsExecute(SearchContext context, HitContext[] hits) throws IOException;
+
+    static void executePerHit(SearchContext context, HitContext[] hits,
+                              CheckedBiConsumer<SearchContext, HitContext, IOException> perHit) throws IOException {
+        for (HitContext hitContext: hits) {
+            perHit.accept(context, hitContext);
+        }
+    }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,10 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+    }
+
     public void hitExecute(SearchContext context, HitContext hitContext) {
         FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
         if (fetchFieldsContext == null) {

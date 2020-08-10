@@ -32,6 +32,10 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
+    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
+        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
+    }
+
     public void hitExecute(SearchContext context, HitContext hitContext) {
         if (context.explain() == false || context.hasOnlySuggest()) {
             return;

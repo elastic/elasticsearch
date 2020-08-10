@@ -65,7 +65,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
-        this(in.readString(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : true);
+        this(in.readString(), in.getVersion().onOrAfter(Version.V_7_10_0) ? in.readBoolean() : true);
     }
 
     boolean isForceMergeIndex() {
@@ -163,7 +163,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(forceMergeIndex);
         }
     }

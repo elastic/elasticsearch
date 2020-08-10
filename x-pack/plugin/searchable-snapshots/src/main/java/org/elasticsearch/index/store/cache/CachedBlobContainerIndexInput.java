@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
@@ -252,28 +251,18 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content);
                         return indexCacheMissLength;
                     }, (channel, from, to, progressUpdater) -> {
-                        // normally doesn't happen, we're already obtaining a range covering all cache misses above, but this
-                        // can happen if the real populateAndRead call already failed to obtain this range of the file. In that
-                        // case, we don't retry, we simply fail to populate the index cache.
+                        // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
+                        // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
+                        // case, try and fill just the cache miss from the blob store because there may be other reads waiting on this
+                        // range.
                         logger.debug(
-                            "failed to fill index cache miss [{}-{}] of {} due to earlier failure",
+                            "directly filling index cache miss [{}-{}] of {} due to earlier failure",
                             from,
                             to,
                             CachedBlobContainerIndexInput.this
                         );
-                        throw new IOException(
-                            "failed to fill index cache miss ["
-                                + from
-                                + "-"
-                                + to
-                                + "] of ["
-                                + CachedBlobContainerIndexInput.this
-                                + "] due to earlier failure"
-                        );
-                    },
-                        EsExecutors.newDirectExecutorService() // if ranges are still missing, fail immediately, so no need to fork
-                    );
-
+                        writeCacheFile(channel, from, to, progressUpdater);
+                    }, directory.cacheFetchAsyncExecutor());
                 }
 
                 final int bytesRead = populateCacheFuture.get();

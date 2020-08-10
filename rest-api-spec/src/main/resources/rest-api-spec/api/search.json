@@ -225,6 +225,10 @@
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

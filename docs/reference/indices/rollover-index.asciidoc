@@ -255,7 +255,7 @@ POST /my-data-stream/_rollover <2>
 <1> Creates a data stream called `my-data-stream` with one initial backing index
 named `my-data-stream-000001`.
 <2> This request creates a new backing index, `my-data-stream-000002`, and adds
-it as the write index for the `my-data-stream` data stream if the current
+it as the write index for `my-data-stream` if the current
 write index meets at least one of the following conditions:
 +
 --

@@ -234,7 +234,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                  MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)) {
 
                 final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = search(searcher, new MatchAllDocsQuery(), builder, ft);
+                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, ft);
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);
@@ -433,7 +433,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalStats stats = search(searcher, new MatchAllDocsQuery(), builder, fieldTypesArray);
+                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldTypesArray);
                 verify.accept(stats);
             }
         }

@@ -151,7 +151,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
             /**
-             * The {@linkplain ScriptService} to compile scripts needs by the {@linkplain Mapper}.
+             * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
              */
             public ScriptService scriptService() {
                 return scriptService;

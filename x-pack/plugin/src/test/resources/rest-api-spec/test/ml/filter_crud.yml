@@ -12,6 +12,7 @@ setup:
         - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
       index:
         index: .ml-meta
+        allow_system_index_access: true
         id: filter_imposter-filter
         body: >
           {
@@ -322,6 +323,7 @@ setup:
 
   - do:
       indices.delete:
+        allow_system_index_access: true
         index: ".ml-meta"
   - do:
       allowed_warnings:

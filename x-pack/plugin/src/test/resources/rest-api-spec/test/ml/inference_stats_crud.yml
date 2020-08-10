@@ -9,6 +9,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
+        allow_system_index_access: true
         id: trained_model_config-a-unused-regression-model1-0
         index: .ml-inference-000002
         body: >
@@ -26,6 +27,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
+        allow_system_index_access: true
         id: trained_model_config-a-unused-regression-model-0
         index: .ml-inference-000002
         body: >
@@ -42,6 +44,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
+        allow_system_index_access: true
         id: trained_model_config-a-used-regression-model-0
         index: .ml-inference-000002
         body: >

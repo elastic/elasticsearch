@@ -422,6 +422,7 @@
 # Check the event from calendar 1 is deleted
   - do:
       count:
+        allow_system_index_access: true
         index: .ml-meta
         body:
           query:
@@ -433,6 +434,7 @@
 
   - do:
       count:
+        allow_system_index_access: true
         index: .ml-meta
         body:
           query:

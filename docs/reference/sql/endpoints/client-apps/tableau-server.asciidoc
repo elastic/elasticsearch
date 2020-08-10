@@ -35,7 +35,7 @@ image:images/sql/client-apps/apps_tableau_server_from_connector.png[]
 
 Provide the details required to connect to your {es} instance and _Sign In_.
 
-[[apps_tableau_connect]]
+[[apps_tableau_server_connect]]
 .Sign in
 image:images/sql/client-apps/apps_tableau_server_connect.png[]
 
@@ -43,12 +43,12 @@ In Tableau Server's main window then choose the name of {es} instance as the _Da
 the list (click on the magnifying glass icon to have them all listed) and drag the table over the work area to have the table columns
 listed:
 
-[[apps_tableau_prepare]]
+[[apps_tableau_server_prepare]]
 .Choose table to load
 image:images/sql/client-apps/apps_tableau_server_prepare.png[]
 
 Finally, generate a report:
 
-[[apps_tableau_report]]
+[[apps_tableau_server_report]]
 .Generate a report
 image:images/sql/client-apps/apps_tableau_server_report.png[]

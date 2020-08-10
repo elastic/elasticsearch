@@ -82,7 +82,13 @@ public class InboundHandler {
         }
     }
 
-    final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
+    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(BytesRef.EMPTY_BYTES);
+
+    // Empty stream constant to avoid instantiating a new stream for empty messages.
+    // Use thread-local to get one instance per thread so that we can safely set the version on the empty stream while deserializing
+    // just in case a transport message is empty in one version but not in another one
+    private static final ThreadLocal<StreamInput> EMPTY_STREAM_INPUT =
+            ThreadLocal.withInitial(() -> new ByteBufferStreamInput(EMPTY_BYTE_BUFFER));
 
     private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
@@ -133,7 +139,9 @@ public class InboundHandler {
                         }
                     } else {
                         assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        streamInput = EMPTY_STREAM_INPUT.get();
+                        streamInput.setVersion(header.getVersion());
+                        handleResponse(remoteAddress, streamInput, handler);
                     }
                 }
             }

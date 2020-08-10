@@ -275,4 +275,39 @@ public class FactoryTests extends ScriptTestCase {
                 scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
     }
+
+    public abstract static class FactoryTestConverterScript {
+        private final Map<String, Object> params;
+
+        public FactoryTestConverterScript(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public static final String[] PARAMETERS = new String[] {"test"};
+        public abstract long[] execute(int test);
+
+        public interface Factory {
+            FactoryTestConverterScript newInstance(Map<String, Object> params);
+        }
+
+        public static final ScriptContext<FactoryTestConverterScript.Factory> CONTEXT =
+            new ScriptContext<>("test", FactoryTestScript.Factory.class);
+    }
+
+
+    public void testConverterFactory() {
+        FactoryTestConverterScript.Factory factory =
+            scriptEngine.compile("factory_test", "return test;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        FactoryTestConverterScript script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertEquals(new long[]{2}, script.execute(2));
+        script = factory.newInstance(Collections.singletonMap("test", 3));
+        assertEquals(new long[]{3}, script.execute(2));
+
+        factory = scriptEngine.compile("factory_test", "return test + 1;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        assertEquals(new long[]{1001}, script.execute(1000));
+    }
 }

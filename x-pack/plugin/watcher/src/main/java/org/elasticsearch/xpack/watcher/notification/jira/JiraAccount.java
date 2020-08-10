@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.notification.jira;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -18,21 +26,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.Map;
 
 public class JiraAccount {
 

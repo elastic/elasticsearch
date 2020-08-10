@@ -90,6 +90,8 @@ import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingActionFactory;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyActionFactory;
+import org.elasticsearch.xpack.watcher.actions.rabbitmq.RabbitMQAction;
+import org.elasticsearch.xpack.watcher.actions.rabbitmq.RabbitMQActionFactory;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
@@ -135,6 +137,7 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAt
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.notification.rabbitmq.RabbitMQService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
@@ -174,6 +177,8 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
+
+import com.rabbitmq.client.ConnectionFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -276,9 +281,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         // http client
         httpClient = new HttpClient(settings, sslService, cryptoService, clusterService);
 
+        // RabbitMQ connection factory
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, sslService, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
+        RabbitMQService rabbitMQService = new RabbitMQService(settings, connectionFactory, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
 
@@ -316,6 +325,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
+        actionFactoryMap.put(RabbitMQAction.TYPE, new RabbitMQActionFactory(templateEngine, rabbitMQService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(templateEngine, slackService));
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(templateEngine, pagerDutyService));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, getClock(),
@@ -478,6 +488,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.addAll(EmailService.getSettings());
         settings.addAll(HtmlSanitizer.getSettings());
         settings.addAll(JiraService.getSettings());
+        settings.addAll(RabbitMQService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.addAll(ReportingAttachmentParser.getSettings());
 

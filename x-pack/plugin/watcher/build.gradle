@@ -38,7 +38,8 @@ dependencies {
   api 'com.sun.activation:jakarta.activation:1.2.1'
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-
+  compileOnly "com.rabbitmq:amqp-client:${versions.rabbitmq}"
+  
   testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation
   testImplementation 'com.google.code.findbugs:jsr305:3.0.2'

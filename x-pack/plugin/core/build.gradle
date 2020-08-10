@@ -31,7 +31,8 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-
+  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
+  
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -46,8 +47,9 @@ dependencies {
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')

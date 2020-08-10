@@ -53,6 +53,7 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
+  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
   runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc

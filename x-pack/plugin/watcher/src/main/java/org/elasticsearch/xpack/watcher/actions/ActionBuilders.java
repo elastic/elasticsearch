@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.xpack.watcher.actions.rabbitmq.RabbitMQAction;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
@@ -41,6 +42,11 @@ public final class ActionBuilders {
         return JiraAction.builder(account, Map.copyOf(fields));
     }
 
+    public static RabbitMQAction.Builder rabbitmqAction(String account, String exchange, 
+            String routingKey, Map<String, String> headers, String message) {
+        return RabbitMQAction.builder(account, exchange, routingKey, headers, message);
+    }
+    
     public static WebhookAction.Builder webhookAction(HttpRequestTemplate.Builder httpRequest) {
         return webhookAction(httpRequest.build());
     }

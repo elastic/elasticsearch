@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -37,9 +38,15 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
     public void testWriteResults() {
         RegressionInferenceResults result = new RegressionInferenceResults(0.3, RegressionConfig.EMPTY_PARAMS);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
+
+        result = new RegressionInferenceResults(0.5, RegressionConfig.EMPTY_PARAMS);
+        writeResult(result, document, "result_field", "test");
+
+        assertThat(document.getFieldValue("result_field.0.predicted_value", Double.class), equalTo(0.3));
+        assertThat(document.getFieldValue("result_field.1.predicted_value", Double.class), equalTo(0.5));
     }
 
     public void testWriteResultsWithImportance() {
@@ -50,7 +57,7 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
             new RegressionConfig("predicted_value", 3),
             importanceList);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
         @SuppressWarnings("unchecked")

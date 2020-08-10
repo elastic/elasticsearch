@@ -10,8 +10,8 @@ You can use two methods to filter search results:
 * Use the search API's `post_filter` parameter. Search requests apply post
 filters only to search hits, not aggregations. See <<post-filter>>.
 +
-If wanted, you can also <<rescore,rescore>> hits after the post filter to
-improve relevance and reorder results. See <<rescore>>.
+You can also <<rescore,rescore>> hits after the post filter to
+improve relevance and reorder results.
 
 include::request/post-filter.asciidoc[]
 

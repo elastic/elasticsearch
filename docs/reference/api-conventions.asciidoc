@@ -85,19 +85,10 @@ You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
 [source,console]
-----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
-{
-  "query" : {
-    "match": {
-      "test": "data"
-    }
-  }
-}
-----------------------------------------------------------------------
-// TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20%7C%7C/]
+----
+# PUT /<my-index-{now/d}>
+PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
+----
 
 [NOTE]
 .Percent encoding of date math characters

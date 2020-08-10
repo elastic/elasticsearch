@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 import java.util.Objects;
@@ -91,16 +92,19 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final DateFormatter dateFormatter;
 
+            private final ScriptService scriptService;
+
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
-                                 DateFormatter dateFormatter) {
+                                 DateFormatter dateFormatter, ScriptService scriptService) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
+                this.scriptService = scriptService;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -146,6 +150,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
+            public ScriptService getScriptService() {
+                return scriptService;
+            }
+
             public ParserContext createMultiFieldContext(ParserContext in) {
                 return new MultiFieldParserContext(in);
             }
@@ -153,7 +161,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter());
+                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter(), in.getScriptService());
                 }
 
                 @Override

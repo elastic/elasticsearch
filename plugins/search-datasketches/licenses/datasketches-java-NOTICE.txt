@@ -1,0 +1,11 @@
+Apache DataSketches Java (incubating)
+Copyright 2020 The Apache Software Foundation
+
+Copyright 2015-2018 Yahoo
+Copyright 2019 Verizon Media
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+Prior to moving to ASF, the software for this project was developed at
+Yahoo (now Verizon Media) (https://developer.yahoo.com).

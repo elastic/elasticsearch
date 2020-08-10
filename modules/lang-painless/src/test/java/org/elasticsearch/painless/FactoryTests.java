@@ -301,22 +301,72 @@ public class FactoryTests extends ScriptTestCase {
         public static long[] convertFromInt(int i) {
             return new long[]{i};
         }
+
+        public static long[] convertFromString(String s) {
+            return new long[]{Long.parseLong(s)};
+        }
+
+        public static long[] convertFromList(List<?> l) {
+            long[] converted = new long[l.size()];
+            for (int i=0; i < l.size(); i++) {
+                Object o = l.get(i);
+                if (o instanceof Long) {
+                    converted[i] = (Long) o;
+                } else if (o instanceof Integer) {
+                    converted[i] = (Integer) o;
+                } else if (o instanceof String) {
+                    converted[i] = Long.parseLong((String) o);
+                }
+            }
+            return converted;
+        }
     }
 
 
     public void testConverterFactory() {
         FactoryTestConverterScript.Factory factory =
-            scriptEngine.compile("factory_test", "return test;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            scriptEngine.compile("converter_test",
+                "return test;",
+                FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         FactoryTestConverterScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertArrayEquals(new long[]{2}, script.execute(2));
         script = factory.newInstance(Collections.singletonMap("test", 3));
         assertArrayEquals(new long[]{3}, script.execute(3));
 
-        factory = scriptEngine.compile("factory_test", "return test + 1;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = scriptEngine.compile("converter_test",
+            "return test + 1;",
+            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
         assertArrayEquals(new long[]{1001}, script.execute(1000));
 
-        // TODO(stu): different conversion
-        // TODO(stu): return long array
+        factory = scriptEngine.compile("converter_test",
+            "return '100';",
+            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertArrayEquals(new long[]{100}, script.execute(1000));
+
+        factory = scriptEngine.compile("converter_test",
+            "long[] a = new long[]{test, 123}; return a;",
+            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+
+        factory = scriptEngine.compile("converter_test",
+            "return [test, 123];",
+            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+
+        factory = scriptEngine.compile("converter_test",
+            "ArrayList a = new ArrayList(); a.add(test); a.add(456); a.add('789'); return a;",
+            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertArrayEquals(new long[]{123, 456, 789}, script.execute(123));
+
+        ClassCastException cce = expectScriptThrows(ClassCastException.class, () ->
+            scriptEngine.compile("converter_test",
+                "return true;",
+                FactoryTestConverterScript.CONTEXT, Collections.emptyMap()));
+        assertEquals(cce.getMessage(), "Cannot cast from [boolean] to [long[]].");
     }
 }

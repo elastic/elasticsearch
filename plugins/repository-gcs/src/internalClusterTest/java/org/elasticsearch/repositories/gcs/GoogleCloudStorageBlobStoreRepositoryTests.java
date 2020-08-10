@@ -37,7 +37,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -51,7 +50,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.threeten.bp.Duration;
@@ -71,8 +69,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -198,16 +194,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             }
             container.delete();
         }
-    }
-
-    public void testBucketDoesNotExist() {
-        RepositoryException ex = expectThrows(RepositoryException.class, () ->
-                client().admin().cluster().preparePutRepository("invalid")
-                        .setType(repositoryType())
-                        .setVerify(true)
-                        .setSettings(Settings.builder().put(repositorySettings()).put("bucket", "missing")).get());
-        assertThat(ex.getCause(), instanceOf(BlobStoreException.class));
-        assertThat(ex.getCause().getMessage(), is("Bucket [missing] does not exist"));
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {

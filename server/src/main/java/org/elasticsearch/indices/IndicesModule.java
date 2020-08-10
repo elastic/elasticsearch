@@ -125,7 +125,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(milliseconds.type(), DateFieldMapper.MILLIS_PARSER);
         DateFieldMapper.Resolution nanoseconds = DateFieldMapper.Resolution.NANOSECONDS;
         mappers.put(nanoseconds.type(), DateFieldMapper.NANOS_PARSER);
-        mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
+        mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());

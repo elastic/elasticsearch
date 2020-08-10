@@ -92,7 +92,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNoWriteIndex,
             waitForNoFollowerStepKey);
-        WaitForNoFollowersStep waitForNoFollowersStep;
+        final WaitForNoFollowersStep waitForNoFollowersStep;
         if (forceMergeIndex) {
             waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, forceMergeStepKey, client);
         } else {

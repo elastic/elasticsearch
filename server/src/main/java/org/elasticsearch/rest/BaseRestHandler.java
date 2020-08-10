@@ -77,13 +77,15 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        final String allow_system_index_access = request.param("allow_system_index_access");
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        if (threadContext.getHeader("_from_rest") == null
-            && (allow_system_index_access == null
+        if (allowSystemIndexAccessByDefault() == false) {
+            final String allow_system_index_access = request.param("allow_system_index_access");
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            if (threadContext.getHeader("_from_rest") == null
+                && (allow_system_index_access == null
                 || allow_system_index_access.isEmpty()
                 || Boolean.parseBoolean(allow_system_index_access) == false)) {
-            threadContext.putHeader("_from_rest", "true");
+                threadContext.putHeader("_from_rest", "true");
+            }
         }
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
@@ -190,6 +192,14 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     protected Set<String> responseParams() {
         return Collections.emptySet();
+    }
+
+    /**
+     * Controls whether requests handled by this class are allowed to to access system indices by default.
+     * @return {@code true} if requests handled by this class should be allowed to access system indices.
+     */
+    protected boolean allowSystemIndexAccessByDefault() {
+        return false;
     }
 
     public static class Wrapper extends BaseRestHandler {

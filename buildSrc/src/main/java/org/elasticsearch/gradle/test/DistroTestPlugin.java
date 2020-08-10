@@ -265,6 +265,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
+        vagrant.vmEnv("JAVA_HOME", ""); // make sure any default java on the system is ignored
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
         // pass these along to get correct build scans
         if (System.getenv("JENKINS_URL") != null) {

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,22 +81,21 @@ public class JoinHelper {
     public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
-    // the timeout for each join attempt
+    // the timeout for Zen1 join attempts
     public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.join.timeout",
-            TimeValue.timeValueMillis(60000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(60000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
 
-    @Nullable // if using single-node discovery
-    private final TimeValue joinTimeout;
+    private final TimeValue joinTimeout; // only used for Zen1 joining
     private final NodeHealthService nodeHealthService;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
-    private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+    private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -108,7 +105,7 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
-        this.joinTimeout = DiscoveryModule.isSingleNodeDiscovery(settings) ? null : JOIN_TIMEOUT_SETTING.get(settings);
+        this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
 
             @Override
@@ -286,15 +283,17 @@ public class JoinHelper {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
             final String actionName;
             final TransportRequest transportRequest;
+            final TransportRequestOptions transportRequestOptions;
             if (Coordinator.isZen1Node(destination)) {
                 actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
                 transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
+                transportRequestOptions = TransportRequestOptions.builder().withTimeout(joinTimeout).build();
             } else {
                 actionName = JOIN_ACTION_NAME;
                 transportRequest = joinRequest;
+                transportRequestOptions = TransportRequestOptions.EMPTY;
             }
-            transportService.sendRequest(destination, actionName, transportRequest,
-                TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
+            transportService.sendRequest(destination, actionName, transportRequest, transportRequestOptions,
                 new TransportResponseHandler<Empty>() {
                     @Override
                     public Empty read(StreamInput in) {
@@ -363,9 +362,7 @@ public class JoinHelper {
         } else {
             actionName = VALIDATE_JOIN_ACTION_NAME;
         }
-        transportService.sendRequest(node, actionName,
-            new ValidateJoinRequest(state),
-            TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
+        transportService.sendRequest(node, actionName, new ValidateJoinRequest(state),
             new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 

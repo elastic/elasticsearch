@@ -1468,6 +1468,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
             "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+        if (isRunningAgainstAncientCluster() == false) {
+            bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        }
         client().performRequest(bulk);
 
         // start a async reindex job

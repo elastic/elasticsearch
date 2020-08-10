@@ -1,0 +1,54 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-tableau-desktop]]
+=== Tableau Desktop
+
+Use the {es} JDBC driver and dedicated {es} Tableau Connector to access {es} data from Tableau Desktop.
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this
+product, please reach out to its vendor.
+
+==== Prerequisites
+
+* https://www.tableau.com/products/desktop[Tableau Desktop] 2019.4 or later
+* {es-sql} <<sql-jdbc, JDBC driver>>
+* https://www.elastic.co/downloads/tableau-connector[{es} Connector for Tableau]
+
+==== Data loading
+
+First place the downloaded JDBC driver in Tableau Desktop drivers directory:
+
+* Windows: `C:\Program Files\Tableau\Drivers`
+* Mac: `/Users/[user]/Library/Tableau/Drivers`
+
+and the {es} Connector for Tableau in Tableau Desktop connectors directory:
+
+* Windows: `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`
+* Mac: `/Users/[user]/Documents/My Tableau Repository/Connectors`
+
+Then (re)launch Tableau Desktop, click on the _More..._ menu item and in the expanded list of connectors, choose the _Elasticsearch JDBC by
+Elastic_ entry:
+
+[[apps_tableau_desktop_from_connector]]
+.Elasticsearch JDBC as data source
+image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[]
+
+In the _New connection_ window that appears, provide the details required to connect to your {es} instance and _Sign In_.
+
+[[apps_tableau_connect]]
+.Sign in
+image:images/sql/client-apps/apps_tableau_desktop_connect.png[]
+
+In Tableau Desktop's main window then choose the name of {es} instance as the _Database_, select one table that you'd like to load from
+the list (click on the magnifying glass icon to have them all listed) and drag the table over the work area to have the table columns
+listed:
+
+[[apps_tableau_prepare]]
+.Choose table to load
+image:images/sql/client-apps/apps_tableau_desktop_prepare.png[]
+
+Finally, generate a report:
+
+[[apps_tableau_report]]
+.Generate a report
+image:images/sql/client-apps/apps_tableau_desktop_report.png[]

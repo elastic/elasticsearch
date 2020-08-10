@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -346,7 +345,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
         return new SecurityUsageTransportAction(mock(TransportService.class),null,
-            mock(ThreadPool.class), mock(ActionFilters.class),null,
+            null, mock(ActionFilters.class),null,
             settings, licenseState, securityServices);
     }
 }

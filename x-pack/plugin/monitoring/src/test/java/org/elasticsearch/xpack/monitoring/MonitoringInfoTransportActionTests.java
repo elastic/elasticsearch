@@ -17,7 +17,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -93,7 +92,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, mock(ThreadPool.class),
+        var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, licenseState,
             new MonitoringUsageServices(monitoring, exporters));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

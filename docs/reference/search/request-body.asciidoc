@@ -125,11 +125,17 @@ See <<highlighting>>.
 
 include::request/index-boost.asciidoc[]
 
-include::request/inner-hits.asciidoc[]
+[[request-body-search-inner-hits]]
+==== Inner hits
+
+See <<inner-hits>>.
 
 include::request/min-score.asciidoc[]
 
-include::request/named-queries-and-filters.asciidoc[]
+[[request-body-search-queries-and-filters]]
+==== Named queries
+
+See <<named-queries>>.
 
 include::request/post-filter.asciidoc[]
 
@@ -137,7 +143,10 @@ include::request/preference.asciidoc[]
 
 include::request/rescore.asciidoc[]
 
-include::request/script-fields.asciidoc[]
+[[request-body-search-script-fields]]
+==== Script Fields
+
+See <<script-fields>>.
 
 [[request-body-search-scroll]]
 ==== Scroll
@@ -148,6 +157,11 @@ See <<scroll-search-results>>.
 ===== Clear scroll API
 
 See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
 
 [[request-body-search-search-after]]
 ==== Search After
@@ -166,6 +180,9 @@ See <<sort-search-results>>.
 
 See <<source-filtering>>.
 
-include::request/stored-fields.asciidoc[]
+[[request-body-search-stored-fields]]
+==== Stored fields
+
+See <<stored-fields>>.
 
 include::request/track-total-hits.asciidoc[]

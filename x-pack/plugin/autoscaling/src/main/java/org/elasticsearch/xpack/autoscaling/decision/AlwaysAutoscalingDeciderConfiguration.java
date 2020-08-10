@@ -14,31 +14,29 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class AlwaysAutoscalingDecider implements AutoscalingDecider {
+public class AlwaysAutoscalingDeciderConfiguration implements AutoscalingDeciderConfiguration {
 
     public static final String NAME = "always";
 
-    private static final ObjectParser<AlwaysAutoscalingDecider, Void> PARSER = new ObjectParser<>(NAME, AlwaysAutoscalingDecider::new);
+    private static final ObjectParser<AlwaysAutoscalingDeciderConfiguration, Void> PARSER = new ObjectParser<>(
+        NAME,
+        AlwaysAutoscalingDeciderConfiguration::new
+    );
 
-    public static AlwaysAutoscalingDecider parse(final XContentParser parser) {
+    public static AlwaysAutoscalingDeciderConfiguration parse(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public AlwaysAutoscalingDecider() {}
+    public AlwaysAutoscalingDeciderConfiguration() {}
 
     @SuppressWarnings("unused")
-    public AlwaysAutoscalingDecider(final StreamInput in) {
+    public AlwaysAutoscalingDeciderConfiguration(final StreamInput in) {
 
     }
 
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public AutoscalingDecision scale() {
-        return new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
     }
 
     @Override

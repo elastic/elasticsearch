@@ -23,8 +23,9 @@ First, move or download the JDBC driver to the Tableau Server drivers directory:
 * Windows: `C:\Program Files\Tableau\Drivers`
 * Mac: `/Users/[user]/Library/Tableau/Drivers`
 
-and the {es} Connector for Tableau in Tableau Server connectors directory. Refer to Tableau Server documentation or make use of the TSM
-command line interface to find out the location of this directory for your installation.
+Move the {es} Connector for Tableau to the Tableau Server connectors
+directory. To find the location of this directory, refer to Tableau Server
+documentation or use the TSM command line interface.
 
 Then (re)start Tableau Server.
 

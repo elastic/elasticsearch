@@ -116,7 +116,7 @@ public class InboundHandler {
                 // ignore if its null, the service logs it
                 if (handler != null) {
                     final StreamInput streamInput;
-                    if (message.getContentLength() > 0 && header.getVersion().equals(Version.CURRENT)) {
+                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {

@@ -13,11 +13,11 @@ user
 data is replicated to one or more read-only _follower_ indices. Before you can add a follower index to a cluster, you must configure the _remote cluster_ that contains the leader index.
 
 When the leader index receives writes, the follower indices pull changes from
-the remote cluster containing the leader index. You can manually create follower
+the leader index on the remote cluster. You can manually create follower
 indices, or configure auto-follow patterns to automatically create follower
 indices for new time series.
 
-You can configure {ccr} clusters in a uni-directional or bi-directional setup:
+You configure {ccr} clusters in a uni-directional or bi-directional setup:
 
 * In a uni-directional configuration, one cluster contains only
 leader indices, and the other cluster contains only follower indices.
@@ -45,7 +45,7 @@ cluster serving as a hot backup
 [discrete]
 [[ccr-replication-mechanics]]
 === Replication mechanics
-Although you <<ccr-getting-started,configure {ccr}>> at the index level, {es}
+Although you <<ccr-getting-started,set up {ccr}>> at the index level, {es}
 achieves replication at the shard level. When a follower index is created,
 each shard in that index pulls changes form its corresponding shard in the
 leader index, which means that a follower index has the same number of
@@ -79,7 +79,7 @@ to resume sending read requests when the write buffer is no longer full.
 
 To manage how operations are replicated from the leader index, you can
 configure settings when
-<<ccr-getting-started-follower-index,creating the follower index in {kib}>>.
+<<ccr-getting-started-follower-index,creating the follower index>>.
 
 The follower index automatically retrieves some updates applied to the leader
 index, while other updates are retrieved as needed:
@@ -126,11 +126,11 @@ TIP: You can modify dynamic <<ccr-recovery-settings,remote recovery settings>>
 to rate-limit the transmitted data and manage the resources consumed by remote
 recoveries.
 
-Use the <<cat-recovery,recovery API>> on the follower cluster to obtain
-information about an in-progress remote recovery. Because {es} implements
-remote recoveries using the <<snapshot-restore,snapshot and restore>>
-infrastructure, running remote recoveries are labelled as type
-`snapshot` in the recovery API.
+Use the <<cat-recovery,recovery API>> on the cluster containing the follower
+index to obtain information about an in-progress remote recovery. Because {es}
+implements remote recoveries using the
+<<snapshot-restore,snapshot and restore>> infrastructure, running remote
+recoveries are labelled as type `snapshot` in the recovery API.
 
 [discrete]
 [[ccr-leader-requirements]]

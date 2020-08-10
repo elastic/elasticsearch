@@ -32,12 +32,13 @@ index, and terminating replication.
 ==== Inspect replication statistics
 To inspect the progress of replication for a follower index and view
 detailed shard statistics, access {kib} and go to
-*Management -> Stack Management*. In the left navigation,
+*Management > Stack Management*. In the left navigation,
 select *Cross Cluster Replication* and choose the *Follower indices* tab.
 
 Select the name of the follower index you want to view replication details
 for. The slide-out panel shows settings and replication statistics for the
-follower index, including read and write that are managed by the follower shard.
+follower index, including read and write operations that are managed by the
+follower shard.
 
 To view more detailed statistics, click *View in Index Management*, and
 then select the name of the follower index on the Index Management page.
@@ -55,12 +56,10 @@ retried and fatal exceptions that require user intervention.
 [[ccr-pause-replication]]
 ==== Pause and resume replication
 To pause and resume replication of the leader index, access {kib} and choose
-*Management -> Stack Management*. In the left naviagation, select
+*Management > Stack Management*. In the left navigation, select
 *Cross Cluster Replication* and choose the *Follower indices* tab.
 
-Select the follower index you want to pause and choose *Manage -> Pause Replication*.
-
-The follower index status changes to *Paused*.
+Select the follower index you want to pause and choose *Manage > Pause Replication*. The follower index status changes to Paused.
 
 To resume replication, select the follower index and choose
 *Resume replication*.
@@ -98,13 +97,15 @@ IMPORTANT: Recreating the follower index is a destructive action. All existing
 Lucene segment files are deleted on the cluster containing the follower index.
 
 To recreate a follower index, access {kib} and choose
-*Management -> Stack Management*. In the left navigation, select
+*Management > Stack Management*. In the left navigation, select
 *Cross Cluster Replication* and choose the *Follower indices* tab.
 
 [role="screenshot"]
 image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
 
-Select the follower index and pause replication. When the follower index status changes to Paused, reselect the follower index and unfollow the leader index.
+Select the follower index and pause replication. When the follower index status
+changes to Paused, reselect the follower index and choose to unfollow the
+leader index.
 
 The follower index will be converted to a standard index and will no longer
 display on the Cross-Cluster Replication page.
@@ -140,11 +141,13 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 You can unfollow a leader index to terminate replication and convert the
 follower index to a standard index.
 
-Access {kib} and choose *Management -> Stack Management*. In the left
+Access {kib} and choose *Management > Stack Management*. In the left
 navigation, select *Cross Cluster Replication* and choose the
 *Follower indices* tab.
 
-Select the follower index and pause replication. When the follower index status changes to Paused, reselect the follower index and unfollow the leader index.
+Select the follower index and pause replication. When the follower index status
+changes to Paused, reselect the follower index and choose to unfollow the
+leader index.
 
 The follower index will be converted to a standard index and will no longer
 display on the Cross-Cluster Replication page.

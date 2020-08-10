@@ -27,7 +27,7 @@ new auto-follow pattern configuration.
 [[ccr-auto-follow-retrieve]]
 ==== Retrieve auto-follow patterns
 To view existing auto-follow patterns and make changes to the backing
-patterns, access {kib} on your _remote_ cluster and go to *Management -> Stack Management*. In the left navigation, select *Cross Cluster Replication* and
+patterns, access {kib} on your _remote_ cluster and go to *Management > Stack Management*. In the left navigation, select *Cross Cluster Replication* and
 choose the *Auto-follow patterns* tab.
 
 Select the auto-follow pattern that you want to view details about. From there,
@@ -43,14 +43,14 @@ all configured auto-follow pattern collections.
 
 [[ccr-auto-follow-pause]]
 ==== Pause and resume auto-follow patterns
-To pause and resume replication of auto-follow pattern collections, access {kib} on your _local_ cluster and go to *Management -> Stack Management*. In
+To pause and resume replication of auto-follow pattern collections, access {kib} and go to *Management > Stack Management*. In
 the left navigation, select *Cross Cluster Replication* and choose the
 *Auto-follow patterns* tab.
 
 Select the auto-follow pattern and pause replication.
 
 To resume replication, select the pattern and choose
-*Manage pattern -> Resume replication*.
+*Manage pattern > Resume replication*.
 
 [%collapsible]
 .Use the API
@@ -63,14 +63,14 @@ resume auto-follow patterns.
 
 [[ccr-auto-follow-delete]]
 ==== Delete auto-follow patterns
-To delete an auto-follow pattern collection, access {kib} on your _local_
-cluster and go to *Management -> Stack Management*. In the left navigation,
+To delete an auto-follow pattern collection, access {kib} and go to
+*Management > Stack Management*. In the left navigation,
 select *Cross Cluster Replication* and choose the *Auto-follow patterns* tab.
 
 Select the auto-follow pattern and pause replication.
 
-When the pattern status changes to *Paused*, choose
-*Manage pattern -> Delete pattern*.
+When the pattern status changes to Paused, choose
+*Manage pattern > Delete pattern*.
 
 [%collapsible]
 .Use the API

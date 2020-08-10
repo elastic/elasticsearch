@@ -313,7 +313,7 @@ local cluster. You must also specify a collection of patterns that match the
 indices you want to automatically follow.
 
 // tag::ccr-create-auto-follow-pattern-tag[]
-To create follower indices from an {kibana-ref}/managing-cross-cluster-replication.html#\_create_follower_indices_from_an_auto_follow_pattern[auto-follow pattern],
+To create follower indices from an {kibana-ref}/managing-cross-cluster-replication.html#_create_follower_indices_from_an_auto_follow_pattern[auto-follow pattern],
 access {kib} on your remote cluster and go to
 *Management > Stack Management*. In the left navigation, select
 *Cross Cluster Replication* and choose the *Auto-follow patterns* tab.

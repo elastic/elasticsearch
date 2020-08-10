@@ -104,8 +104,10 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
     /**
      * Visits an expression that is also considered a statement.
-     * Checks: control flow, type validation
      *
+     * If the statement is a return from the execute method, performs return value conversion.
+     *
+     * Checks: control flow, type validation
      */
     @Override
     public void visitExpression(SExpression userExpressionNode, SemanticScope semanticScope) {
@@ -139,9 +141,10 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
     /**
      * Visits a return statement and casts the value to the return type if possible.
-     * TODO(stu): rewrite
+     *
+     * If the statement is a return from the execute method, performs return value conversion.
+     *
      * Checks: type validation
-
      */
     @Override
     public void visitReturn(SReturn userReturnNode, SemanticScope semanticScope) {

@@ -104,18 +104,15 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 public final class MethodWriter extends GeneratorAdapter {
     private final BitSet statements;
     private final CompilerSettings settings;
-    private final ScriptClassInfo scriptClassInfo;
 
     private final Deque<List<Type>> stringConcatArgs =
         (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, ScriptClassInfo scriptClassInfo,
-                        CompilerSettings settings) {
+    public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, CompilerSettings settings) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 
         this.statements = statements;
-        this.scriptClassInfo = scriptClassInfo;
         this.settings = settings;
     }
 

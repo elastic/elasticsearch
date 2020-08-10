@@ -41,9 +41,7 @@ Enter the information for your {es} instance, and click **Sign In**.
 [role="screenshot"]
 image:images/sql/client-apps/apps_tableau_server_connect.png[Sign in]
 
-In Tableau Server's main window then choose the name of {es} instance as the _Database_, select one table that you'd like to load from
-the list (click on the magnifying glass icon to have them all listed) and drag the table over the work area to have the table columns
-listed:
+In the main window, select your {es} instance as the **Database**. Then select a table to load.
 
 [[apps_tableau_server_prepare]]
 .Choose table to load

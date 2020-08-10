@@ -42,8 +42,8 @@ image:images/sql/client-apps/apps_tableau_desktop_connect.png[Sign in]
 In the main window, select your {es} instance as the **Database**. Then select a table to load.
 
 [[apps_tableau_prepare]]
-.Choose table to load
-image:images/sql/client-apps/apps_tableau_desktop_prepare.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_prepare.png[Select a table to load]
 
 Finally, generate a report:
 

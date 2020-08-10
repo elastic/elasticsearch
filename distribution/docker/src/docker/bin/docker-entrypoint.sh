@@ -7,7 +7,7 @@ umask 0002
 run_as_other_user_if_needed() {
   if [[ "$(id -u)" == "0" ]]; then
     # If running as root, drop to specified UID and run command
-    exec chroot --userspec=1000 / "${@}"
+    exec chroot --userspec=1000:0 / "${@}"
   else
     # Either we are running in Openshift with random uid and are a member of the root group
     # or with a custom --user
@@ -30,8 +30,8 @@ if [[ "$1" != "eswrapper" ]]; then
     # Without this, user could specify `elasticsearch -E x.y=z` but
     # `bin/elasticsearch -E x.y=z` would not work.
     set -- "elasticsearch" "${@:2}"
-    # Use chroot to switch to UID 1000
-    exec chroot --userspec=1000 / "$@"
+    # Use chroot to switch to UID 1000 / GID 0
+    exec chroot --userspec=1000:0 / "$@"
   else
     # User probably wants to run something else, like /bin/bash, with another uid forced (Openshift?)
     exec "$@"

@@ -409,7 +409,8 @@ public class RootObjectMapper extends ObjectMapper {
 
         final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
         if (dynamicTemplateInvalid) {
-            String format = "dynamic template [%s] has invalid content [%s], attempted to validate it with the following [match_mapping_type]: [%s]";
+            String format = "dynamic template [%s] has invalid content [%s], " +
+                "attempted to validate it with the following [match_mapping_type]: [%s]";
             String message = String.format(Locale.ROOT, format, dynamicTemplate.getName(), Strings.toString(dynamicTemplate),
                 Arrays.toString(types));
             if (failInvalidDynamicTemplates) {

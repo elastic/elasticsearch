@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.painless.ScriptClassInfo;
+
 import java.util.Objects;
 
 public class PainlessCast {
@@ -91,9 +93,26 @@ public class PainlessCast {
     public final Class<?> unboxTargetType;
     public final Class<?> boxOriginalType;
     public final Class<?> boxTargetType;
+    public final ScriptClassInfo scriptClassInfo; // access
 
-    private PainlessCast(Class<?> originalType, Class<?> targetType, boolean explicitCast,
-            Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
+    private PainlessCast(Class<?> originalType,
+                         Class<?> targetType,
+                         boolean explicitCast,
+                         Class<?> unboxOriginalType,
+                         Class<?> unboxTargetType,
+                         Class<?> boxOriginalType,
+                         Class<?> boxTargetType) {
+        this(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType, null);
+    }
+
+    private PainlessCast(Class<?> originalType,
+                         Class<?> targetType,
+                         boolean explicitCast,
+                         Class<?> unboxOriginalType,
+                         Class<?> unboxTargetType,
+                         Class<?> boxOriginalType,
+                         Class<?> boxTargetType,
+                         ScriptClassInfo scriptClassInfo) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -102,6 +121,7 @@ public class PainlessCast {
         this.unboxTargetType = unboxTargetType;
         this.boxOriginalType = boxOriginalType;
         this.boxTargetType = boxTargetType;
+        this.scriptClassInfo = scriptClassInfo;
     }
 
     @Override

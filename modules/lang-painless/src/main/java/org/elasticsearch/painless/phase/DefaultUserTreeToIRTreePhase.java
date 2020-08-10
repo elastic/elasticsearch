@@ -376,7 +376,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             return irExpressionNode;
         }
 
-        CastNode irCastNode = new CastNode();
+        CastNode irCastNode = new CastNode(); // TODO(stu): plumb through "isReturn"
         irCastNode.setLocation(irExpressionNode.getLocation());
         irCastNode.setExpressionType(expressionPainlessCast.getExpressionPainlessCast().targetType);
         irCastNode.setCast(expressionPainlessCast.getExpressionPainlessCast());

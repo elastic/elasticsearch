@@ -54,6 +54,8 @@ public class ScriptClassInfo {
         List<org.objectweb.asm.commons.Method> needsMethods = new ArrayList<>();
         List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
         List<Class<?>> getReturns = new ArrayList<>();
+
+        Class<?> returnType = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.isDefault()) {
                 continue;
@@ -61,16 +63,19 @@ public class ScriptClassInfo {
             if (m.getName().equals("execute")) {
                 if (executeMethod == null) {
                     executeMethod = m;
+                    returnType = m.getReturnType();
                 } else {
                     throw new IllegalArgumentException(
                             "Painless can only implement interfaces that have a single method named [execute] but [" + baseClass.getName()
                                     + "] has more than one.");
                 }
-            }
-            if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
+            } else if (m.getName().startsWith("needs") &&
+                       m.getReturnType() == boolean.class &&
+                       m.getParameterTypes().length == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
-            }
-            if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
+            } else if (m.getName().startsWith("get") &&
+                       m.getName().equals("getClass") == false &&
+                       Modifier.isStatic(m.getModifiers()) == false) {
                 getReturns.add(
                     definitionTypeForClass(painlessLookup, m.getReturnType(), componentType -> "[" + m.getName() + "] has unknown return " +
                         "type [" + componentType.getName() + "]. Painless can only support getters with return types that are " +
@@ -78,6 +83,14 @@ public class ScriptClassInfo {
 
                 getMethods.add(new org.objectweb.asm.commons.Method(m.getName(),
                     MethodType.methodType(m.getReturnType()).toMethodDescriptorString()));
+
+            }
+        }
+
+        for (java.lang.reflect.Method m : baseClass.getMethods()) {
+            if (m.getName().startsWith("convertFrom") &&
+                m.getParameterTypes().length == 1 &&
+                m.getReturnType() == returnType) {
 
             }
         }

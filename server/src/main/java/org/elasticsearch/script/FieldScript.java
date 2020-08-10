@@ -76,6 +76,10 @@ public abstract class FieldScript {
 
     public abstract Object execute();
 
+    public Object convertFromXXX(Object obj) {
+        return obj;
+    }
+
     /** The leaf lookup for the Lucene segment this script was created for. */
     protected final LeafSearchLookup getLeafLookup() {
         return leafLookup;

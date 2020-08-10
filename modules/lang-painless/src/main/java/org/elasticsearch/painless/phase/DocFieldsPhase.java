@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * Find all document field accesses.
  */
-public class DocFieldsPhase extends UserTreeBaseVisitor<ScriptScope> {
+public class docFieldsPhase extends UserTreeBaseVisitor<ScriptScope> {
     @Override
     public void visitSymbol(ESymbol userSymbolNode, ScriptScope scriptScope) {
         // variables are a leaf node

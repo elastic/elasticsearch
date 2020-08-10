@@ -50,5 +50,5 @@ image:images/sql/client-apps/apps_tableau_server_prepare.png[]
 Finally, generate a report:
 
 [[apps_tableau_server_report]]
-.Generate a report
-image:images/sql/client-apps/apps_tableau_server_report.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_server_report.png[Generate a report]

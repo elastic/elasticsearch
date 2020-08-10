@@ -20,6 +20,7 @@
 package templates
 
 import DefaultRoot
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildStep
 import jetbrains.buildServer.configs.kotlin.v2019_2.Template
 import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.placeholder
 import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.script
@@ -97,6 +98,7 @@ object DefaultTemplate : Template({
 
         script {
             name = "Notify H.O.M.E.R. Webhook"
+            executionMode = BuildStep.ExecutionMode.RUN_ON_FAILURE
 
             conditions {
                 doesNotContain("teamcity.agent.jvm.os.name", "Windows")

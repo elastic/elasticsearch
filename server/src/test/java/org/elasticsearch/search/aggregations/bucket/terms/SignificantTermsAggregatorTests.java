@@ -115,7 +115,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text");
             sigAgg.executionHint(randomExecutionHint());
@@ -259,7 +259,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             // Attempt aggregation on unmapped field
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("unmapped_field");
@@ -328,7 +328,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
             SignificantTermsAggregationBuilder aliasAgg = significantTerms("sig_text").field("text-alias");
@@ -389,7 +389,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -409,7 +409,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, longField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -441,7 +441,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -463,7 +463,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, longField("f"));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -495,14 +495,17 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder kRequest = new SignificantTermsAggregationBuilder("k").field("k")
+                        .minDocCount(0)
                         .executionHint(executionHint);
                     SignificantTermsAggregationBuilder jRequest = new SignificantTermsAggregationBuilder("j").field("j")
+                        .minDocCount(0)
                         .executionHint(executionHint)
                         .subAggregation(kRequest);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i")
+                        .minDocCount(0)
                         .executionHint(executionHint)
                         .subAggregation(jRequest);
-                    SignificantStringTerms result = search(
+                    SignificantStringTerms result = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
                         request,
@@ -549,10 +552,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 }
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
-                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i")
-                        .subAggregation(new SignificantTermsAggregationBuilder("j").field("j")
-                            .subAggregation(new SignificantTermsAggregationBuilder("k").field("k")));
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i").minDocCount(0)
+                        .subAggregation(new SignificantTermsAggregationBuilder("j").field("j").minDocCount(0)
+                            .subAggregation(new SignificantTermsAggregationBuilder("k").field("k").minDocCount(0)));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request,
                         longField("i"), longField("j"), longField("k"));
                     assertThat(result.getSubsetSize(), equalTo(1000L));
                     for (int i = 0; i < 10; i++) {
@@ -576,7 +579,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {
+    private void addMixedTextDocs(IndexWriter w) throws IOException {
         for (int i = 0; i < 10; i++) {
             Document doc = new Document();
             StringBuilder text = new StringBuilder("common ");

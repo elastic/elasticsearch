@@ -1229,7 +1229,7 @@ Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
 {ml-docs}/ml-configuring-transform.html[Transforming data with script fields]
-and <<request-body-search-script-fields,Script fields>>.
+and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]

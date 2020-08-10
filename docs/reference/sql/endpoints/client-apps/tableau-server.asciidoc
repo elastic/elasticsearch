@@ -29,8 +29,7 @@ documentation or use the TSM command line interface.
 
 Then (re)start Tableau Server.
 
-To load data into a workbook, access the _New Data Source_ functionality (from under _Data_ menu or the dedicated icon). In the _Connect
-to Data_ window, click on the _Connectors_ tab and choose the _Elasticsearch JDBC by Elastic_ entry:
+To load data into a workbook, add a **New Data Source** from the **Data** menu or using the icon. In the **Connectors** tab of the **Connect to Data_** modal, select **Elasticsearch JDBC by Elastic**.
 
 [[apps_tableau_server_from_connector]]
 .Elasticsearch JDBC as data source

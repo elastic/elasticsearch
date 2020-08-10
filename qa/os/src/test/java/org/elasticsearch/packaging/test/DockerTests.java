@@ -645,10 +645,10 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
-        staticLabels.put("name", "Elasticsearch" );
-        staticLabels.put("maintainer", "infra@elastic.co" );
-        staticLabels.put("vendor", "Elastic" );
-        staticLabels.put("summary", "Elasticsearch" );
+        staticLabels.put("name", "Elasticsearch");
+        staticLabels.put("maintainer", "infra@elastic.co");
+        staticLabels.put("vendor", "Elastic");
+        staticLabels.put("summary", "Elasticsearch");
         staticLabels.put("description", "You know, for search.");
 
         final Set<String> dynamicLabels = Set.of("release", "version");

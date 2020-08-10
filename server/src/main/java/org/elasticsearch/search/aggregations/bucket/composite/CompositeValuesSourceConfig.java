@@ -19,13 +19,29 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
-class CompositeValuesSourceConfig {
+import java.util.function.LongConsumer;
+
+public class CompositeValuesSourceConfig {
+
+    @FunctionalInterface
+    public interface SingleDimensionValuesSourceProvider {
+        SingleDimensionValuesSource<?> createValuesSource(
+            BigArrays bigArrays,
+            IndexReader reader,
+            int size,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CompositeValuesSourceConfig config
+        );
+    }
+
     private final String name;
     @Nullable
     private final MappedFieldType fieldType;
@@ -34,6 +50,7 @@ class CompositeValuesSourceConfig {
     private final int reverseMul;
     private final boolean missingBucket;
     private final boolean hasScript;
+    private final SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider;
 
     /**
      * Creates a new {@link CompositeValuesSourceConfig}.
@@ -46,8 +63,16 @@ class CompositeValuesSourceConfig {
      * @param missingBucket If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
      * @param hasScript <code>true</code> if the source contains a script that can change the value.
      */
-    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
-                                SortOrder order, boolean missingBucket, boolean hasScript) {
+    CompositeValuesSourceConfig(
+        String name,
+        @Nullable MappedFieldType fieldType,
+        ValuesSource vs,
+        DocValueFormat format,
+        SortOrder order,
+        boolean missingBucket,
+        boolean hasScript,
+        SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider
+    ) {
         this.name = name;
         this.fieldType = fieldType;
         this.vs = vs;
@@ -55,6 +80,7 @@ class CompositeValuesSourceConfig {
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
         this.missingBucket = missingBucket;
         this.hasScript = hasScript;
+        this.singleDimensionValuesSourceProvider = singleDimensionValuesSourceProvider;
     }
 
     /**
@@ -106,5 +132,14 @@ class CompositeValuesSourceConfig {
     int reverseMul() {
         assert reverseMul == -1 || reverseMul == 1;
         return reverseMul;
+    }
+
+    SingleDimensionValuesSource<?> createValuesSource(
+        BigArrays bigArrays,
+        IndexReader reader,
+        int size,
+        LongConsumer addRequestCircuitBreakerBytes
+    ) {
+        return this.singleDimensionValuesSourceProvider.createValuesSource(bigArrays, reader, size, addRequestCircuitBreakerBytes, this);
     }
 }

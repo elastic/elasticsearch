@@ -163,18 +163,19 @@ The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 [discrete]
-=== HTTP and transport network layers
+=== HTTP and transport network communication
 
-An {es} node has two network layers which inherit the above settings:
+Each {es} node uses the network for two different kinds of communication:
 
-HTTP network layer::
+* it exposes an <<modules-http,HTTP interface>> for use by clients.
 
-The <<modules-http,HTTP network layer>> exposes the JSON-over-HTTP interface
-used by clients.
+* it exposes a <<modules-transport,transport interface>> for communication
+between nodes within a cluster, for communication with a
+<<modules-remote-clusters,remote cluster>>, and for the
+{javaclient}/transport-client.html[Java Transport client] to communicate with a
+cluster.
 
-Transport network layer::
-
-The <<modules-transport,Transport network layer>> exposes a specially-designed
-protocol used for communication between nodes within a cluster, for
-communication with a <<modules-remote-clusters,remote cluster>>, and by the
-{javaclient}/transport-client.html[Java Transport client].
+The network settings described above apply to both kinds of communication, and
+you can also configure each interface separately if needed. See the
+<<modules-http,HTTP>> and <<modules-transport,transport>> pages for more
+details on their respective configurations.

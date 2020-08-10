@@ -819,7 +819,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching)
             .build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
-            assertBusy(() -> assertTrue(recoveryState.isPreWarmFinished()));
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
@@ -833,7 +833,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
 
         testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-            assertBusy(() -> assertTrue(recoveryState.isPreWarmFinished()));
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
 
             List<BlobStoreIndexShardSnapshot.FileInfo> filesWithEqualContent = snapshotDirectory.snapshot()

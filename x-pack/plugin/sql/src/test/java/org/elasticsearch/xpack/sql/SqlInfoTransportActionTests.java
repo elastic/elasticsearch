@@ -94,7 +94,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new SqlUsageTransportAction(mock(TransportService.class), clusterService, null,
+        var usageAction = new SqlUsageTransportAction(mock(TransportService.class), clusterService, mock(ThreadPool.class),
             mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);

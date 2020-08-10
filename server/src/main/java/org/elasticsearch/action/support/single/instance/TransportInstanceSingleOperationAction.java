@@ -51,6 +51,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
+
 public abstract class TransportInstanceSingleOperationAction<
             Request extends InstanceShardOperationRequest<Request>,
             Response extends ActionResponse
@@ -147,8 +149,8 @@ public abstract class TransportInstanceSingleOperationAction<
                 try {
                     request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
                 } catch (IndexNotFoundException e) {
-                    if (request.includeDataStreams() == false && e.getMetadataKeys().contains("es.excluded_ds")) {
-                        throw new IllegalArgumentException("only write ops with op_type=create are allowed in data streams");
+                    if (request.includeDataStreams() == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     } else {
                         throw e;
                     }

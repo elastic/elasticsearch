@@ -60,6 +60,8 @@ import java.util.stream.StreamSupport;
 
 public class IndexNameExpressionResolver {
 
+    public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
+
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
@@ -276,7 +278,7 @@ public class IndexNameExpressionResolver {
             infe.setResources("index_expression", indexExpressions);
             if (excludedDataStreams) {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-                infe.addMetadata("es.excluded_ds", "true");
+                infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
             }
             throw infe;
         }

@@ -235,7 +235,7 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
-  - match: { items.0.index.error.reason: "only write ops with op_type=create are allowed in data streams" }
+  - match: { items.0.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }
   - match: { items.1.create.result: created }
   - match: { items.1.create._index: .ds-logs-foobar-000001 }
 

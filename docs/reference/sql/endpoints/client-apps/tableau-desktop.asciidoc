@@ -50,5 +50,5 @@ image:images/sql/client-apps/apps_tableau_desktop_prepare.png[Select a table to 
 Finally, generate a report.
 
 [[apps_tableau_report]]
-.Generate a report
-image:images/sql/client-apps/apps_tableau_desktop_report.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_report.png[Generate a report]

@@ -211,7 +211,7 @@ class IndexLifecycleRunner {
 
         if (lifecycleState.isAutoRetryableError() != null && lifecycleState.isAutoRetryableError()) {
             int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
-            logger.info("policy [{}] for index [{}] on an error step due to a transitive error, moving back to the failed " +
+            logger.info("policy [{}] for index [{}] on an error step due to a transient error, moving back to the failed " +
                 "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), currentRetryAttempt);
             clusterService.submitStateUpdateTask(
                 String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,

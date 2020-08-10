@@ -1466,7 +1466,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
+        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
             "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
         client().performRequest(bulk);
 

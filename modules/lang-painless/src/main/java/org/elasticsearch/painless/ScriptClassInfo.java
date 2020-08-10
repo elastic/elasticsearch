@@ -25,6 +25,7 @@ import org.elasticsearch.painless.lookup.def;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
+    private final List<ConverterSignature> converterSignatures;
 
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
@@ -87,13 +89,21 @@ public class ScriptClassInfo {
             }
         }
 
+        if (executeMethod == null) {
+            throw new IllegalStateException("no execute method found");
+        }
+        ArrayList<ConverterSignature> converterSignatures = new ArrayList<>();
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.getName().startsWith("convertFrom") &&
                 m.getParameterTypes().length == 1 &&
-                m.getReturnType() == returnType) {
+                m.getReturnType() == returnType &&
+                Modifier.isStatic(m.getModifiers())) {
 
+                converterSignatures.add(new ConverterSignature(m));
             }
         }
+        this.converterSignatures = unmodifiableList(converterSignatures);
+
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
         executeMethodReturnType = definitionTypeForClass(painlessLookup, executeMethod.getReturnType(),
@@ -228,5 +238,24 @@ public class ScriptClassInfo {
         } catch (IllegalArgumentException | IllegalAccessException e) {
             throw new IllegalArgumentException("Error trying to read [" + iface.getName() + "#ARGUMENTS]", e);
         }
+    }
+
+    private static class ConverterSignature {
+        final Class<?> parameter;
+        final Method method;
+
+        ConverterSignature(Method method) {
+            this.method = method;
+            this.parameter = method.getParameterTypes()[0];
+        }
+    }
+
+    public Method getConverter(Class<?> original) {
+        for (ConverterSignature converterSignature: converterSignatures) {
+            if (converterSignature.parameter.isAssignableFrom(original)) {
+                return converterSignature.method;
+            }
+        }
+        return null;
     }
 }

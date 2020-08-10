@@ -170,7 +170,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         boolean isExplicitCast = semanticScope.getCondition(userExpressionNode, Explicit.class);
         boolean isInternalCast = semanticScope.getCondition(userExpressionNode, Internal.class);
 
-        // TODO(stu): we should know if it's a return here
         PainlessCast painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
 
         if (painlessCast != null) {

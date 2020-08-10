@@ -43,6 +43,7 @@ import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
@@ -127,8 +128,7 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
             semanticScope.setCondition(userStatementNode, Internal.class);
             if ("execute".equals(functionName)) {
-                // TODO(stu): do scriptScope conversion methods.  If no conversion methods, then fallback to `decorateWithCast`
-                decorateWithCast(userStatementNode, semanticScope, semanticScope.getScriptScope());
+                decorateWithCast(userStatementNode, semanticScope, semanticScope.getScriptScope().getScriptClassInfo());
             } else {
                 decorateWithCast(userStatementNode, semanticScope);
             }
@@ -163,7 +163,6 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.setCondition(userValueNode, Internal.class);
             checkedVisit(userValueNode, semanticScope);
             if ("execute".equals(functionName)) {
-                // TODO(stu): do scriptScope conversion methods.  If no conversion methods, then fallback to `decorateWithCast`
                 decorateWithCast(userValueNode, semanticScope, semanticScope.getScriptScope().getScriptClassInfo());
             } else {
                 decorateWithCast(userValueNode, semanticScope);
@@ -185,10 +184,13 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         boolean isExplicitCast = semanticScope.getCondition(userExpressionNode, Decorations.Explicit.class);
         boolean isInternalCast = semanticScope.getCondition(userExpressionNode, Internal.class);
 
-        // TODO(stu): handle conversions, loop through scriptClassInfo convert methods, match target type to value type
-        // match valueType as param and targetType as return value
-        // if not primitive type, do isAssignableFrom
-        PainlessCast painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
+        PainlessCast painlessCast;
+        Method converter = scriptClassInfo.getConverter(valueType);
+        if (converter != null) {
+            painlessCast = PainlessCast.convertedReturn(valueType, targetType, converter);
+        } else {
+            painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
+        }
 
         if (painlessCast != null) {
             semanticScope.putDecoration(userExpressionNode, new ExpressionPainlessCast(painlessCast));

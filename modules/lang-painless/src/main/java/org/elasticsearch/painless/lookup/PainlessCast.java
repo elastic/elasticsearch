@@ -19,8 +19,7 @@
 
 package org.elasticsearch.painless.lookup;
 
-import org.elasticsearch.painless.ScriptClassInfo;
-
+import java.lang.reflect.Method;
 import java.util.Objects;
 
 public class PainlessCast {
@@ -86,6 +85,14 @@ public class PainlessCast {
         return new PainlessCast(null, null, explicitCast, unboxOriginalType, null, null, boxTargetType);
     }
 
+    public static PainlessCast convertedReturn(Class<?> originalType, Class<?> targetType, Method converter) {
+        Objects.requireNonNull(originalType);
+        Objects.requireNonNull(targetType);
+        Objects.requireNonNull(converter);
+
+        return new PainlessCast(originalType, targetType, false, null, null, null, null, converter);
+    }
+
     public final Class<?> originalType;
     public final Class<?> targetType;
     public final boolean explicitCast;
@@ -93,7 +100,7 @@ public class PainlessCast {
     public final Class<?> unboxTargetType;
     public final Class<?> boxOriginalType;
     public final Class<?> boxTargetType;
-    public final ScriptClassInfo scriptClassInfo; // access
+    public final Method converter; // access
 
     private PainlessCast(Class<?> originalType,
                          Class<?> targetType,
@@ -112,7 +119,7 @@ public class PainlessCast {
                          Class<?> unboxTargetType,
                          Class<?> boxOriginalType,
                          Class<?> boxTargetType,
-                         ScriptClassInfo scriptClassInfo) {
+                         Method converter) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -121,7 +128,7 @@ public class PainlessCast {
         this.unboxTargetType = unboxTargetType;
         this.boxOriginalType = boxOriginalType;
         this.boxTargetType = boxTargetType;
-        this.scriptClassInfo = scriptClassInfo;
+        this.converter = converter;
     }
 
     @Override
@@ -142,11 +149,13 @@ public class PainlessCast {
                 Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
                 Objects.equals(unboxTargetType, that.unboxTargetType) &&
                 Objects.equals(boxOriginalType, that.boxOriginalType) &&
-                Objects.equals(boxTargetType, that.boxTargetType);
+                Objects.equals(boxTargetType, that.boxTargetType) &&
+                Objects.equals(converter, that.converter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType);
+        return Objects.hash(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType,
+                            converter);
     }
 }

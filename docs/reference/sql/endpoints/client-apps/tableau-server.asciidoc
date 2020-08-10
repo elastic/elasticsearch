@@ -15,7 +15,8 @@ product, please reach out to its vendor.
 * {es-sql} <<sql-jdbc, JDBC driver>>
 * https://www.elastic.co/downloads/tableau-connector[{es} Connector for Tableau]
 
-==== Data loading
+[[sql-client-apps-tableau-server-load-data]]
+==== Load data
 
 First place the downloaded JDBC driver in Tableau Server drivers directory:
 

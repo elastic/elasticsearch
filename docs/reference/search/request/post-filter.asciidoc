@@ -1,8 +1,9 @@
-[[request-body-search-post-filter]]
-==== Post filter
+[discrete]
+[[post-filter]]
+=== Post filter
 
-The `post_filter` is applied to the search `hits` at the very end of a search
-request,  after aggregations have already been calculated. Its purpose is
+The `post_filter` parameter is applied to the search `hits` at the very end of a search
+request, after aggregations have already been calculated. Its purpose is
 best explained by example:
 
 Imagine that you are selling shirts that have the following properties:

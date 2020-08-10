@@ -1,0 +1,18 @@
+[[filter-search-results]]
+== Filter search results
+
+You can use two methods to filter search results:
+
+* Use a boolean query with a `filter` query clause. Search requests apply
+boolean filters to both search hits and <<search-aggregations,aggregations>>.
+See <<query-dsl-bool-query,boolean query>>.
+
+* Use the search API's `post_filter` parameter. Search requests apply post
+filters only to search hits, not aggregations. See <<post-filter>>.
++
+If wanted, you can also <<rescore,rescore>> hits after the post filter to
+improve relevance and reorder results. See <<rescore>>.
+
+include::request/post-filter.asciidoc[]
+
+include::request/rescore.asciidoc[]

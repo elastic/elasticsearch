@@ -161,10 +161,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         // We prefer to use the index cache if the recovery is not done yet
         if (directory.isRecoveryDone() == false) {
             // We try to use the snapshot blob cache if:
-            // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
             // - the file is small enough to be fully cached in the blob cache
             final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE * 2;
+            // - we're reading the first N bytes of the file
+            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
 
             if (canBeFullyCached || isStartOfFile) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);

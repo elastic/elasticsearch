@@ -640,6 +640,8 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI image has the expected labels
      */
     public void test210UbiLabels() throws Exception {
+        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();

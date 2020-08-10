@@ -92,58 +92,12 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
-
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
 
-        final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
-
-        if (storedFieldsContext == null) {
-            // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
-                context.fetchSourceContext(new FetchSourceContext(true));
-            }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
-            fieldsVisitor = new FieldsVisitor(loadSource);
-        } else if (storedFieldsContext.fetchFields() == false) {
-            // disable stored fields entirely
-            fieldsVisitor = null;
-        } else {
-            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
-                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
-                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
-                        : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
-                    continue;
-                }
-
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
-                for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = context.fieldType(fieldName);
-                    if (fieldType == null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        if (context.getObjectMapper(fieldName) != null) {
-                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
-                        }
-                    } else {
-                        String storedField = fieldType.name();
-                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
-                            storedField, key -> new HashSet<>());
-                        requestedFields.add(fieldName);
-                    }
-                }
-            }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
-            if (storedToRequestedFields.isEmpty()) {
-                // empty list specified, default to disable _source if no explicit indication
-                fieldsVisitor = new FieldsVisitor(loadSource);
-            } else {
-                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
-            }
-        }
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
 
         try {
             DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
@@ -165,11 +119,11 @@ public class FetchPhase implements SearchPhase {
                 int subDocId = docId - subReaderContext.docBase;
 
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
-                if (rootDocId != -1) {
-                    prepareNestedHitContext(hitContext, context, docId, subDocId, rootDocId,
+                if (rootDocId == -1) {
+                    prepareHitContext(hitContext, context, fieldsVisitor, docId, subDocId,
                         storedToRequestedFields, subReaderContext);
                 } else {
-                    prepareHitContext(hitContext, context, fieldsVisitor, docId, subDocId,
+                    prepareNestedHitContext(hitContext, context, docId, subDocId, rootDocId,
                         storedToRequestedFields, subReaderContext);
                 }
 
@@ -213,6 +167,54 @@ public class FetchPhase implements SearchPhase {
         }
     }
 
+    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+        StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
+
+        if (storedFieldsContext == null) {
+            // no fields specified, default to return source if no explicit indication
+            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+                context.fetchSourceContext(new FetchSourceContext(true));
+            }
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            return new FieldsVisitor(loadSource);
+        } else if (storedFieldsContext.fetchFields() == false) {
+            // disable stored fields entirely
+            return null;
+        } else {
+            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
+                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
+                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
+                        : FetchSourceContext.FETCH_SOURCE;
+                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+                    continue;
+                }
+
+                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
+                for (String fieldName : fieldNames) {
+                    MappedFieldType fieldType = context.fieldType(fieldName);
+                    if (fieldType == null) {
+                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        if (context.getObjectMapper(fieldName) != null) {
+                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                        }
+                    } else {
+                        String storedField = fieldType.name();
+                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
+                            storedField, key -> new HashSet<>());
+                        requestedFields.add(fieldName);
+                    }
+                }
+            }
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            if (storedToRequestedFields.isEmpty()) {
+                // empty list specified, default to disable _source if no explicit indication
+                return new FieldsVisitor(loadSource);
+            } else {
+                return new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+            }
+        }
+    }
+
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
             BitSet bits = context.bitsetFilterCache()
@@ -247,8 +249,7 @@ public class FetchPhase implements SearchPhase {
             hitContext.reset(hit, subReaderContext, subDocId, context.searcher());
         } else {
             SearchHit hit;
-            loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
-            fieldsVisitor.postProcess(context.mapperService());
+            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
             Uid uid = fieldsVisitor.uid();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
@@ -303,7 +304,7 @@ public class FetchPhase implements SearchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
+            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
             rootId = rootFieldsVisitor.uid();
 
@@ -319,8 +320,7 @@ public class FetchPhase implements SearchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.shardTarget(), subReaderContext, nestedFieldsVisitor, nestedSubDocId);
-            nestedFieldsVisitor.postProcess(context.mapperService());
+            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, nestedFieldsVisitor, nestedSubDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -463,13 +463,17 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchShardTarget shardTarget, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private void loadStoredFields(SearchShardTarget shardTarget,
+                                  MapperService mapperService,
+                                  LeafReaderContext readerContext,
+                                  FieldsVisitor fieldVisitor, int docId) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(shardTarget, "Failed to fetch doc id [" + docId + "]", e);
         }
+        fieldVisitor.postProcess(mapperService);
     }
 
     private static void fillDocAndMetaFields(SearchContext context, FieldsVisitor fieldsVisitor,

@@ -1590,6 +1590,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesClient indices = highLevelClient().indices();
         response = execute(createDataStreamRequest, indices::createDataStream, indices::createDataStreamAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
+        ensureHealth(dataStreamName, (request -> {
+            request.addParameter("wait_for_status", "yellow");
+        }));
 
         GetDataStreamRequest getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
         GetDataStreamResponse getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);

@@ -5,14 +5,14 @@ Specifies search criteria as request body parameters.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "query" : {
-    "term" : { "user" : "kimchy" }
+    "term" : { "user.id" : "kimchy" }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[search-request-body-api-request]]
@@ -63,9 +63,9 @@ matching document was found (per shard).
 
 [source,console]
 --------------------------------------------------
-GET /_search?q=message:number&size=0&terminate_after=1
+GET /_search?q=user.id:elkbee&size=0&terminate_after=1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 The response will not contain any hits as the `size` was set to `0`. The
@@ -108,9 +108,15 @@ executing a distributed search across the whole cluster and gathering all the
 results.
 
 
-include::request/docvalue-fields.asciidoc[]
+[[request-body-search-docvalue-fields]]
+==== Doc value fields
 
-include::request/collapse.asciidoc[]
+See <<docvalue-fields>>.
+
+[[request-body-search-collapse]]
+==== Field collapsing
+
+See <<collapse-search-results>>.
 
 [[request-body-search-highlighting]]
 ==== Highlighting
@@ -119,11 +125,20 @@ See <<highlighting>>.
 
 include::request/index-boost.asciidoc[]
 
-include::request/inner-hits.asciidoc[]
+[[request-body-search-inner-hits]]
+==== Inner hits
 
-include::request/min-score.asciidoc[]
+See <<inner-hits>>.
 
-include::request/named-queries-and-filters.asciidoc[]
+[[request-body-search-min-score]]
+==== `min_score`
+
+See <<search-api-min-score>>.
+
+[[request-body-search-queries-and-filters]]
+==== Named queries
+
+See <<named-queries>>.
 
 include::request/post-filter.asciidoc[]
 
@@ -131,11 +146,30 @@ include::request/preference.asciidoc[]
 
 include::request/rescore.asciidoc[]
 
-include::request/script-fields.asciidoc[]
+[[request-body-search-script-fields]]
+==== Script Fields
 
-include::request/scroll.asciidoc[]
+See <<script-fields>>.
 
-include::request/search-after.asciidoc[]
+[[request-body-search-scroll]]
+==== Scroll
+
+See <<scroll-search-results>>.
+
+[[_clear_scroll_api]]
+===== Clear scroll API
+
+See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
+
+[[request-body-search-search-after]]
+==== Search After
+
+See <<search-after>>.
 
 include::request/search-type.asciidoc[]
 
@@ -144,8 +178,14 @@ include::request/search-type.asciidoc[]
 
 See <<sort-search-results>>.
 
-include::request/source-filtering.asciidoc[]
+[[request-body-search-source-filtering]]
+==== Source filtering
 
-include::request/stored-fields.asciidoc[]
+See <<source-filtering>>.
+
+[[request-body-search-stored-fields]]
+==== Stored fields
+
+See <<stored-fields>>.
 
 include::request/track-total-hits.asciidoc[]

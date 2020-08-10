@@ -12,9 +12,9 @@ stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[indices-reload-analyzers-api-request]]

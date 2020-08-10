@@ -22,10 +22,16 @@
       ]
     },
     "params":{
-      "allow_no_datafeeds":{
+      "allow_no_match":{
         "type":"boolean",
         "required":false,
         "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
+      },
+      "allow_no_datafeeds":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)",
+        "deprecated":true
       },
       "force":{
         "type":"boolean",
@@ -37,6 +43,10 @@
         "required":false,
         "description":"Controls the time to wait until a datafeed has stopped. Default to 20 seconds"
       }
+    },
+    "body":{
+      "description":"The URL params optionally sent in the body",
+      "required":false
     }
   }
 }

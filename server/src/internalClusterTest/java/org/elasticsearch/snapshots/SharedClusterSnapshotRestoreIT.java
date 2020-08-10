@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -3553,6 +3555,34 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(false));
             assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(true));
         }
+    }
+
+    public void testIndexLatestFailuresIgnored() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        final MockRepository repository =
+                (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        repository.setFailOnIndexLatest(true);
+        createFullSnapshot(repoName, "snapshot-1");
+        repository.setFailOnIndexLatest(false);
+        createFullSnapshot(repoName, "snapshot-2");
+        final long repoGenInIndexLatest =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest);
+
+        createRepository(repoName, "fs", Settings.builder()
+                .put("location", repoPath).put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false));
+        createFullSnapshot(repoName, "snapshot-3");
+        final long repoGenInIndexLatest2 =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals("index.latest should not have been written to", repoGenInIndexLatest, repoGenInIndexLatest2);
+
+        createRepository(repoName, "fs", repoPath);
+        createFullSnapshot(repoName, "snapshot-4");
+        final long repoGenInIndexLatest3 =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest3);
     }
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {

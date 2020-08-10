@@ -37,7 +37,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         return super.setStage(stage);
     }
 
-    public synchronized void preWarmFinished() {
+    public synchronized void setPreWarmFinished() {
         // For small shards it's possible that the
         // cache is pre-warmed before the stage has transitioned
         // to FINALIZE, so the transition to the final state is delayed until
@@ -49,6 +49,10 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         SearchableSnapshotRecoveryState.Index index = (Index) getIndex();
         index.stopTimer();
         preWarmFinished = true;
+    }
+
+    public synchronized boolean isPreWarmFinished() {
+        return preWarmFinished;
     }
 
     public synchronized void ignoreFile(String name) {

@@ -96,6 +96,10 @@
       "require_alias": {
         "type": "boolean",
         "description": "When true, requires destination to be an alias. Default is false"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

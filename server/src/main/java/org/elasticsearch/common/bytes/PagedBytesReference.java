@@ -55,8 +55,8 @@ public class PagedBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public int get(byte[] buf, int index, int offset, int length) {
-        return byteArray.get(buf, this.offset + index, offset, length);
+    public int get(int index, byte[] buf, int offset, int length) {
+        return byteArray.get(this.offset + index, buf, offset, length);
     }
 
     @Override

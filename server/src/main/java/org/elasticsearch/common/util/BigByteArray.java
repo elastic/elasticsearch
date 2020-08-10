@@ -90,7 +90,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     }
 
     @Override
-    public int get(byte[] buf, int index, int offset, int len) {
+    public int get(int index, byte[] buf, int offset, int len) {
         int read = 0;
         len = Math.min(len, Math.toIntExact(size() - index));
         while (len > 0) {

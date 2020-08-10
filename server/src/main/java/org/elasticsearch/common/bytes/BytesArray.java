@@ -63,7 +63,7 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
-    public int get(byte[] buf, int index, int offset, int length) {
+    public int get(int index, byte[] buf, int offset, int length) {
         final int toGet = Math.min(length, this.length - index);
         System.arraycopy(bytes, this.offset + index, buf, offset, toGet);
         return toGet;

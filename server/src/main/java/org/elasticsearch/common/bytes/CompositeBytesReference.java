@@ -84,12 +84,12 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public int get(byte[] buf, int index, int offset, int length) {
+    public int get(int index, byte[] buf, int offset, int length) {
         int read = 0;
         length = Math.min(length, length() - index);
         while (length > 0) {
             final int i = getOffsetIndex(index);
-            final int found = references[i].get(buf, index - offsets[i], offset + read, length);
+            final int found = references[i].get(index - offsets[i], buf, offset + read, length);
             length -= found;
             read += found;
             index += found;

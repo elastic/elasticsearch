@@ -134,7 +134,7 @@ public class BigArrays {
         }
 
         @Override
-        public int get(byte[] buf, int index, int offset, int len) {
+        public int get(int index, byte[] buf, int offset, int len) {
             final int toGet = Math.min(len, Math.toIntExact(size() - index));
             System.arraycopy(array, index, buf, offset, toGet);
             return toGet;

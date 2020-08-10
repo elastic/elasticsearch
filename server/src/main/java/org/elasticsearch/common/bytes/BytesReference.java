@@ -122,13 +122,13 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * Bulk get operation that allows reading a specified number of bytes from a specified index in this instance to
      * a specified index in the given byte array.
      *
-     * @param buf    array to read bytes into
      * @param index  index in this instance to read from
+     * @param buf    array to read bytes into
      * @param offset offset in the array to read first byte into
      * @param length number of bytes to read
      * @return number of bytes that were actually copied to the buffer
      */
-    int get(byte[] buf, int index, int offset, int length);
+    int get(int index, byte[] buf, int offset, int length);
 
     /**
      * Returns the integer read from the 4 bytes (BE) starting at the given index.

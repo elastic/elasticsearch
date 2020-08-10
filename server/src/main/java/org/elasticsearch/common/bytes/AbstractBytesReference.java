@@ -224,7 +224,7 @@ public abstract class AbstractBytesReference implements BytesReference {
             if (offset >= refLen) {
                 return -1;
             }
-            final int read = reference.get(b, offset, off, Math.min(len, refLen - offset));
+            final int read = reference.get(offset, b, off, Math.min(len, refLen - offset));
             assert read <= len;
             if (read > 0) {
                 offset += read;

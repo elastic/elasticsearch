@@ -78,8 +78,8 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     }
 
     @Override
-    public int get(byte[] buf, int index, int offset, int length) {
-        return delegate.get(buf, index, offset, length);
+    public int get(int index, byte[] buf, int offset, int length) {
+        return delegate.get(index, buf, offset, length);
     }
 
     @Override

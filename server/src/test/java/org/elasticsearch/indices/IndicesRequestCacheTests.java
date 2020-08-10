@@ -481,7 +481,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         }
 
         @Override
-        public int get(byte[] buf, int index, int offset, int length) {
+        public int get(int index, byte[] buf, int offset, int length) {
             for (int i = 0; i < length; i++) {
                 buf[i] = 0;
             }

@@ -3,43 +3,53 @@
 [[sql-client-apps-tableau]]
 === Tableau Desktop
 
-You can use the {es} ODBC driver to access {es} data from Tableau Desktop.
+Use the {es} JDBC driver and dedicated {es} Tableau Connector to access {es} data from Tableau Desktop or Tableau Server.
 
-IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+IMPORTANT: Elastic does not endorse, promote or provide support for these applications; for native Elasticsearch integration in this
+product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* https://www.tableau.com/products/desktop[Tableau Desktop] 2018 or higher
-* {es-sql} <<sql-odbc, ODBC driver>>
+* https://www.tableau.com/products/desktop[Tableau Desktop] 2019
+* {es-sql} <<sql-jdbc, JDBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
+* https://www.elastic.co/downloads/tableau-connector[{es} Connector for Tableau]
 
 ==== Data loading
 
-First, you'll need to choose ODBC as the source to load data from. Once launched, click on the _More..._ menu item and in the expanded
-list of connectors, choose _Other Databases (ODBC)_:
+First place the downloaded JDBC driver in Tableau Desktop drivers directory:
 
-[[apps_tableau_fromodbc]]
-.ODBC as data source
-image:images/sql/odbc/apps_tableau_fromodbc.png[]
+* Windows: `C:\Program Files\Tableau\Drivers`
+* Mac: `/Users/[user name]/Library/Tableau/Drivers`
 
-In the new connection window that appears, select the previously configured DSN that will connect to the desired {es} instance. Press the
-_Connect_ button. In case credentials are needed, a new windows - driver's DSN editor - will be launched and you'll need to provide the
-_Username_ and _Password_ in the respective fields. (Note that these will not be stored as part of the DSN, but only remembered for the
-duration of the session).
-If the connection is successful, the _Connection Attributes_ section of the connection window is populated with the respective details;
-press the _Sign In_ button next:
+and the {es} Connector for Tableau in Tableau Desktop connectors directory:
 
-[[apps_tableau_connd]]
-.Authenticate and sign in
-image:images/sql/odbc/apps_tableau_connd.png[]
+* Windows: `C:\Users\[user name]\Documents\My Tableau Repository\Connectors`
+* Mac: `/Users/[user name]/Documents/My Tableau Repository/Connectors`
+
+Then launch Tableau Desktop, click on the _More..._ menu item and in the expanded list of connectors, choose the _Elasticsearch JDBC by
+Elastic_ entry:
+
+[[apps_tableau_from_connector]]
+.Elasticsearch JDBC as data source
+image:images/sql/client-apps/apps_tableau_from_connector.png[]
+
+In the _New connection_ window that appears, provide the details required to connect to your {es} instance and _Sign In_.
+
+[[apps_tableau_connect]]
+.Sign in
+image:images/sql/client-apps/apps_tableau_connect.png[]
 
 In Tableau Desktop's main window then choose the name of {es} instance as the _Database_, select one table that you'd like to load from
-the list (click on the magnifying glass icon to have them all shown), drag the table over the work area, then click the _Update Now_
-button to load a preview of the table:
+the list (click on the magnifying glass icon to have them all listed) and drag the table over the work area to have the table columns
+listed:
 
-[[apps_tableau_loaded]]
-.Data loaded
-image:images/sql/odbc/apps_tableau_loaded.png[]
+[[apps_tableau_prepare]]
+.Choose table to load
+image:images/sql/client-apps/apps_tableau_prepare.png[]
 
+Finally, generate a report:
 
-// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140
+[[apps_tableau_report]]
+.Choose table to load
+image:images/sql/client-apps/apps_tableau_report.png[]

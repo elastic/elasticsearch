@@ -135,7 +135,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             builder.startObject();
             {
                 builder.startObject(SINGLE_MAPPING_NAME);
-                builder.field("dynamic", "false");
+                builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT);
@@ -150,12 +150,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                     }
                     {
                         builder.startObject("creation_time");
-                        builder.field("type", "date");
-                        builder.field("format", "epoch_millis");
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("accessed_time");
                         builder.field("type", "date");
                         builder.field("format", "epoch_millis");
                         builder.endObject();

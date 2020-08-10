@@ -36,8 +36,8 @@ image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[Select Elas
 In the **New connection** modal, enter the information for your {es} instance, and click **Sign In**.
 
 [[apps_tableau_connect]]
-.Sign in
-image:images/sql/client-apps/apps_tableau_desktop_connect.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_connect.png[Sign in]
 
 In Tableau Desktop's main window then choose the name of {es} instance as the _Database_, select one table that you'd like to load from
 the list (click on the magnifying glass icon to have them all listed) and drag the table over the work area to have the table columns

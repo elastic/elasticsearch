@@ -8,6 +8,7 @@ Use the {es} JDBC driver and dedicated {es} Tableau Connector to access {es} dat
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this
 product, please reach out to its vendor.
 
+[[sql-client-apps-tableau-server-prereqs]]
 ==== Prerequisites
 
 * https://www.tableau.com/products/server[Tableau Server] 2019.4 or later

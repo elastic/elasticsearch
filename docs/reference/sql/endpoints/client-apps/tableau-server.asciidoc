@@ -35,7 +35,7 @@ To load data into a workbook, add a **New Data Source** from the **Data** menu o
 [role="screenshot"]
 image:images/sql/client-apps/apps_tableau_server_from_connector.png[Select Elasticsearch JDBC as the data source]
 
-Provide the details required to connect to your {es} instance and _Sign In_.
+Enter the information for your {es} instance, and click **Sign In**.
 
 [[apps_tableau_server_connect]]
 .Sign in

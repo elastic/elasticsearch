@@ -7,8 +7,8 @@ You can use two methods to filter search results:
 <<query-dsl-bool-query,boolean filters>> to both search hits and <<search-aggregations,aggregations>>.
 
 
-* Use the search API's `post_filter` parameter. Search requests apply post
-filters only to search hits, not aggregations. See <<post-filter>>.
+* Use the search API's `post_filter` parameter. Search requests apply 
+<<post-filter,post filters>> only to search hits, not aggregations.
 +
 You can also <<rescore,rescore>> hits after the post filter to
 improve relevance and reorder results.

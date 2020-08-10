@@ -116,9 +116,9 @@ The request can be restricted to specific data streams and indices:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_field_caps?fields=rating
+GET my-index-000001/_field_caps?fields=rating
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 The next example API call requests information about the `rating` and the
@@ -228,7 +228,7 @@ It is also possible to filter indices with a query:
 
 [source,console]
 --------------------------------------------------
-POST twitter*/_field_caps?fields=rating
+POST my-index-*/_field_caps?fields=rating
 {
   "index_filter": {
     "range": {
@@ -239,7 +239,7 @@ POST twitter*/_field_caps?fields=rating
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 In which case indices that rewrite the provided filter to `match_none` on every shard

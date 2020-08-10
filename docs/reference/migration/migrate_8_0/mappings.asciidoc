@@ -51,7 +51,7 @@ blocks into a single level, or by switching to `copy_to` if appropriate.
 ====
 
 [[fieldnames-enabling]]
-.The `_field_names` meta-field's `enabled` parameter has been removed.
+.The `_field_names` metadata field's `enabled` parameter has been removed.
 [%collapsible]
 ====
 *Details* +

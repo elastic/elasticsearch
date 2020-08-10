@@ -41,7 +41,7 @@ def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
-integTest.runner.dependsOn(copyKeyCerts)
+integTest.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
 testClusters.integTest {

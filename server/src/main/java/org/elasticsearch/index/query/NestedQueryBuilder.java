@@ -388,61 +388,57 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
-        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
-            Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
-                Query rawParentFilter;
-                if (parentObjectMapper == null) {
-                    rawParentFilter = Queries.newNonNestedFilter();
-                } else {
-                    rawParentFilter = parentObjectMapper.nestedTypeFilter();
-                }
+        public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
+            Weight innerHitQueryWeight = getInnerHitQueryWeight();
 
-                int parentDocId = hit.docId();
-                final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
-                // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
-                LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+            Query rawParentFilter;
+            if (parentObjectMapper == null) {
+                rawParentFilter = Queries.newNonNestedFilter();
+            } else {
+                rawParentFilter = parentObjectMapper.nestedTypeFilter();
+            }
 
-                Query childFilter = childObjectMapper.nestedTypeFilter();
-                BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
-                Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
-                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
-                if (size() == 0) {
-                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
-                    result[i] = new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
-                        TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
-                } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topDocsCollector;
-                    MaxScoreCollector maxScoreCollector = null;
-                    if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
-                        if (trackScores()) {
-                            maxScoreCollector = new MaxScoreCollector();
-                        }
-                    } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+            int parentDocId = hit.docId();
+            final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
+            // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
+            LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+
+            Query childFilter = childObjectMapper.nestedTypeFilter();
+            BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
+            Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
+            Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
+                    org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (size() == 0) {
+                TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
+                return new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
+                    TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
+            } else {
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                TopDocsCollector<?> topDocsCollector;
+                MaxScoreCollector maxScoreCollector = null;
+                if (sort() != null) {
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
-                    try {
-                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                    } finally {
-                        clearReleasables(Lifetime.COLLECTION);
-                    }
-
-                    TopDocs td = topDocsCollector.topDocs(from(), size());
-                    float maxScore = Float.NaN;
-                    if (maxScoreCollector != null) {
-                        maxScore = maxScoreCollector.getMaxScore();
-                    }
-                    result[i] = new TopDocsAndMaxScore(td, maxScore);
+                } else {
+                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    maxScoreCollector = new MaxScoreCollector();
                 }
+                try {
+                    intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
+                } finally {
+                    clearReleasables(Lifetime.COLLECTION);
+                }
+
+                TopDocs td = topDocsCollector.topDocs(from(), size());
+                float maxScore = Float.NaN;
+                if (maxScoreCollector != null) {
+                    maxScore = maxScoreCollector.getMaxScore();
+                }
+                return new TopDocsAndMaxScore(td, maxScore);
             }
-            return result;
         }
     }
 }

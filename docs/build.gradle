@@ -126,52 +126,6 @@ listSnippets.docs = buildRestTests.docs
 
 listConsoleCandidates.docs = buildRestTests.docs
 
-Closure setupTwitter = { String name, int count ->
-  buildRestTests.setups[name] = '''
-  - do:
-        indices.create:
-          index: twitter
-          body:
-            settings:
-              number_of_shards: 1
-              number_of_replicas: 1
-            mappings:
-              properties:
-                user:
-                  type: keyword
-                  doc_values: true
-                date:
-                  type: date
-                likes:
-                  type: long
-                location:
-                  properties:
-                    city:
-                      type: keyword
-                    country:
-                      type: keyword
-  - do:
-        bulk:
-          index: twitter
-          refresh: true
-          body: |'''
-  for (int i = 0; i < count; i++) {
-    String body
-    if (i == 0) {
-      body = """{"user": "kimchy", "message": "trying out Elasticsearch", "date": "2009-11-15T14:12:12", "likes": 0,
-              "location": { "city": "Amsterdam", "country": "Netherlands" }}"""
-    } else {
-      body = """{"user": "test", "message": "some message with the number $i", "date": "2009-11-15T14:12:12", "likes": $i}"""
-    }
-    buildRestTests.setups[name] += """
-            {"index":{"_id": "$i"}}
-            $body"""
-  }
-}
-setupTwitter('twitter', 5)
-setupTwitter('big_twitter', 120)
-setupTwitter('huge_twitter', 1200)
-
 Closure setupMyIndex = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
@@ -185,6 +139,12 @@ Closure setupMyIndex = { String name, int count ->
               properties:
                 "@timestamp":
                   type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
                 message:
                   type: text
                 user:
@@ -214,6 +174,58 @@ Closure setupMyIndex = { String name, int count ->
 setupMyIndex('my_index', 5)
 setupMyIndex('my_index_big', 120)
 setupMyIndex('my_index_huge', 1200)
+
+// Used for several full-text search and agg examples
+buildRestTests.setups['messages'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4"}'''
+
+// Used for EQL
+buildRestTests.setups['sec_logs'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{}}
+            {"@timestamp": "2020-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2020-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2020-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"index":{}}
+            {"@timestamp": "2020-12-07T11:07:08.000Z", "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"index":{}}
+            {"@timestamp": "2020-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"index":{}}
+            {"@timestamp": "2020-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.

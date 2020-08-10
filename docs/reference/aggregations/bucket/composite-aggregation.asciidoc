@@ -32,6 +32,9 @@ PUT /sales
       "shop": {
           "type": "keyword"
       },
+      "location": {
+          "type": "geo_point"
+      },
       "nested": {
           "type": "nested",
           "properties": {
@@ -642,7 +645,7 @@ For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
   "settings": {
     "index": {

@@ -39,6 +39,7 @@ public class FactoryTests extends ScriptTestCase {
         contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
         return contexts;
     }
@@ -297,7 +298,7 @@ public class FactoryTests extends ScriptTestCase {
         public static final ScriptContext<FactoryTestConverterScript.Factory> CONTEXT =
             new ScriptContext<>("test", FactoryTestConverterScript.Factory.class);
 
-        public long[] convertFromInt(int i) {
+        public static long[] convertFromInt(int i) {
             return new long[]{i};
         }
     }
@@ -307,12 +308,13 @@ public class FactoryTests extends ScriptTestCase {
         FactoryTestConverterScript.Factory factory =
             scriptEngine.compile("factory_test", "return test;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         FactoryTestConverterScript script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertEquals(new long[]{2}, script.execute(2));
+        assertArrayEquals(new long[]{2}, script.execute(2));
         script = factory.newInstance(Collections.singletonMap("test", 3));
-        assertEquals(new long[]{3}, script.execute(3));
+        assertArrayEquals(new long[]{3}, script.execute(3));
 
         factory = scriptEngine.compile("factory_test", "return test + 1;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
-        assertEquals(new long[]{1001}, script.execute(1000));
+        script = factory.newInstance(Collections.singletonMap("test", 2));
+        assertArrayEquals(new long[]{1001}, script.execute(1000));
 
         // TODO(stu): different conversion
         // TODO(stu): return long array

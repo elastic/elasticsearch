@@ -47,7 +47,7 @@ In the main window, select your {es} instance as the **Database**. Then select a
 [role="screenshot"]
 image:images/sql/client-apps/apps_tableau_server_prepare.png[Select a table to load]
 
-Finally, generate a report:
+Finally, generate a report.
 
 [[apps_tableau_server_report]]
 [role="screenshot"]

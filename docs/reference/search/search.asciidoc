@@ -326,6 +326,12 @@ As an alternative to deep paging, we recommend using
 <<search-after,`search_after`>> parameter.
 --
 
+[[search-api-min-score]]
+`min_score`::
+(Optional, float)
+Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
+lower `_score` are not included in the search results.
+
 [[request-body-search-query]]
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the

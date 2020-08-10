@@ -48,9 +48,4 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
         return TermsGroupSource::new;
     }
 
-    public void testSupportsIncrementalBucketUpdate() {
-        TermsGroupSource terms = randomTermsGroupSource();
-        assertEquals(terms.getScriptConfig() == null, terms.supportsIncrementalBucketUpdate());
-    }
-
 }

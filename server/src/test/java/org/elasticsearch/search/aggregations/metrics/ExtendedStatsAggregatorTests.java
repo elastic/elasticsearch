@@ -266,7 +266,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg")
                     .field("field")
                     .sigma(randomDoubleBetween(0, 10, true));
-                InternalExtendedStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
+                InternalExtendedStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 verify.accept(stats);
             }
         }

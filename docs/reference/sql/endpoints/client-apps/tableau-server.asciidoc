@@ -32,8 +32,8 @@ Restart Tableau Server.
 To load data into a workbook, add a **New Data Source** from the **Data** menu or using the icon. In the **Connectors** tab of the **Connect to Data_** modal, select **Elasticsearch JDBC by Elastic**.
 
 [[apps_tableau_server_from_connector]]
-.Elasticsearch JDBC as data source
-image:images/sql/client-apps/apps_tableau_server_from_connector.png[]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_server_from_connector.png[Select Elasticsearch JDBC as the data source]
 
 Provide the details required to connect to your {es} instance and _Sign In_.
 

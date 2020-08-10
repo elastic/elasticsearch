@@ -33,7 +33,7 @@ Elastic_ entry:
 [role="screenshot"]
 image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[Select Elasticsearch JDBC by Elastic as the data source]
 
-In the _New connection_ window that appears, provide the details required to connect to your {es} instance and _Sign In_.
+In the **New connection** modal, enter the information for your {es} instance, and click **Sign In**.
 
 [[apps_tableau_connect]]
 .Sign in

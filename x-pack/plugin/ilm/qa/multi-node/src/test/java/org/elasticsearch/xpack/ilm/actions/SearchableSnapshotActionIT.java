@@ -129,7 +129,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // create policy with cold and delete phases
         Map<String, LifecycleAction> coldActions =
-            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
+            org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,

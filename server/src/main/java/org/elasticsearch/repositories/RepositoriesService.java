@@ -88,6 +88,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
+    private volatile long lastKnownClusterVersion;
+
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry, Map<String, Repository.Factory> internalTypesRegistry,
                                ThreadPool threadPool) {
@@ -103,8 +105,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
         this.repositoriesStatsArchive = new RepositoriesStatsArchive(REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
-            threadPool::relativeTimeInMillis,
-            threadPool::absoluteTimeInMillis);
+            threadPool::relativeTimeInMillis);
     }
 
     /**
@@ -139,7 +140,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry), false);
+            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
         } catch (Exception e) {
             registrationListener.onFailure(e);
             return;
@@ -306,6 +307,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
+            this.lastKnownClusterVersion = state.version();
             RepositoriesMetadata oldMetadata = event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE);
             RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE);
 
@@ -324,7 +326,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             for (Map.Entry<String, Repository> entry : repositories.entrySet()) {
                 if (newMetadata == null || newMetadata.repository(entry.getKey()) == null) {
                     logger.debug("unregistering repository [{}]", entry.getKey());
-                    closeRepository(entry.getValue());
+                    Repository repository = entry.getValue();
+                    closeRepository(repository);
+                    archiveRepositoryStats(repository, state.version());
                 } else {
                     survivors.put(entry.getKey(), entry.getValue());
                 }
@@ -343,6 +347,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetadata.name());
                             closeRepository(repository);
+                            archiveRepositoryStats(repository, state.version());
                             repository = null;
                             try {
                                 repository = createRepository(repositoryMetadata, typesRegistry);
@@ -426,12 +431,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
             .filter(r -> r instanceof MeteredBlobStoreRepository)
             .map(r -> (MeteredBlobStoreRepository) r)
-            .map(MeteredBlobStoreRepository::statsSnapshot)
+            .map(r -> r.statsSnapshot(lastKnownClusterVersion))
             .collect(Collectors.toList());
     }
 
-    public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive() {
-        return repositoriesStatsArchive.clear();
+    public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive(long maxVersionToClear) {
+        return repositoriesStatsArchive.clear(maxVersionToClear);
     }
 
     public void registerInternalRepository(String name, String type) {
@@ -460,14 +465,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /** Closes the given repository. */
     private void closeRepository(Repository repository) {
-        closeRepository(repository, true);
-    }
-
-    private void closeRepository(Repository repository, boolean archiveStats) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
-        if (archiveStats && repository instanceof MeteredBlobStoreRepository) {
-            RepositoryStatsSnapshot stats = ((MeteredBlobStoreRepository) repository).statsSnapshot();
+    }
+
+    private void archiveRepositoryStats(Repository repository, long clusterStateVersion) {
+        if (repository instanceof MeteredBlobStoreRepository) {
+            RepositoryStatsSnapshot stats = ((MeteredBlobStoreRepository) repository).statsSnapshotForArchival(clusterStateVersion);
             if (repositoriesStatsArchive.archive(stats) == false) {
                 logger.warn("Unable to archive the repository stats [{}] as the archive is full.", stats);
             }

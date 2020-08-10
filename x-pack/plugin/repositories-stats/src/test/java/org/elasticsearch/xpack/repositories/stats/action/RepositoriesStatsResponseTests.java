@@ -69,13 +69,14 @@ public class RepositoriesStatsResponseTests extends ESTestCase {
                 String repoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoType = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoLocation = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                Long startedAt = System.currentTimeMillis() - 1;
+                long startedAt = System.currentTimeMillis() - 1;
                 Long stoppedAt = randomBoolean() ? System.currentTimeMillis() : null;
                 RepositoryInfo repositoryInfo = new RepositoryInfo(repoId, repoName, repoType, repoLocation, startedAt, stoppedAt);
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
                     repositoryInfo,
                     new RepositoryStats(Map.of("GET", randomLongBetween(0, 2000))),
-                    null
+                    j,
+                    randomBoolean()
                 );
                 nodeRepoStats.add(statsSnapshot);
             }

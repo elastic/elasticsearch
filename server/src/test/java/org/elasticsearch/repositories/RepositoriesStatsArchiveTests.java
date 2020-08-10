@@ -37,8 +37,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         RepositoriesStatsArchive repositoriesStatsArchive =
             new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
                 100,
-                fakeRelativeClock::get,
-                System::currentTimeMillis);
+                fakeRelativeClock::get);
 
         for (int i = 0; i < randomInt(10); i++) {
             RepositoryStatsSnapshot repoStats = createRepositoryStats(RepositoryStats.EMPTY_STATS);
@@ -66,8 +65,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         RepositoriesStatsArchive repositoriesStatsArchive =
             new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
                 1,
-                fakeRelativeClock::get,
-                System::currentTimeMillis);
+                fakeRelativeClock::get);
 
         assertTrue(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
 
@@ -84,27 +82,36 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         RepositoriesStatsArchive repositoriesStatsArchive =
             new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
                 100,
-                fakeRelativeClock::get,
-                System::currentTimeMillis);
+                fakeRelativeClock::get);
 
-        int archivedStats = randomInt(20);
-        for (int i = 0; i < archivedStats; i++) {
-            repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS));
+        int archivedStatsWithVersionZero = randomIntBetween(1, 20);
+        for (int i = 0; i < archivedStatsWithVersionZero; i++) {
+            repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS, 0));
         }
 
-        List<RepositoryStatsSnapshot> removedStats = repositoriesStatsArchive.clear();
-        assertThat(removedStats.size(), equalTo(archivedStats));
+        int archivedStatsWithNewerVersion = randomIntBetween(1, 20);
+        for (int i = 0; i < archivedStatsWithNewerVersion; i++) {
+            repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS, 1));
+        }
 
-        assertThat(repositoriesStatsArchive.getArchivedStats().size(), equalTo(0));
+        List<RepositoryStatsSnapshot> removedStats = repositoriesStatsArchive.clear(0L);
+        assertThat(removedStats.size(), equalTo(archivedStatsWithVersionZero));
+
+        assertThat(repositoriesStatsArchive.getArchivedStats().size(), equalTo(archivedStatsWithNewerVersion));
     }
 
     private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats) {
+        return createRepositoryStats(repositoryStats, 0);
+    }
+
+    private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats, long clusterVersion) {
         RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             System.currentTimeMillis(),
             null);
-        return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, null);
+        return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);
     }
+
 }

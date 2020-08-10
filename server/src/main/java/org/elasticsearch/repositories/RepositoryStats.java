@@ -62,7 +62,7 @@ public class RepositoryStats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStats that = (RepositoryStats) o;
-        return Objects.equals(requestCounts, that.requestCounts);
+        return requestCounts.equals(that.requestCounts);
     }
 
     @Override

@@ -55,7 +55,7 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
 
     @Before
     public void clearArchive() throws Exception {
-        clearRepositoriesStats();
+        clearRepositoriesStats(Long.MAX_VALUE);
     }
 
     public void testStatsAreTracked() throws Exception {
@@ -106,8 +106,11 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
 
             List<RepositoryStatsSnapshot> repositoriesStatsBeforeClearing = getRepositoriesStats();
             assertThat(repositoriesStatsBeforeClearing.size(), equalTo(1));
+            RepositoryStatsSnapshot repositoryStatsSnapshot = repositoriesStatsBeforeClearing.get(0);
 
-            List<RepositoryStatsSnapshot> removedRepositoriesStats = clearRepositoriesStats();
+            assertThat(clearRepositoriesStats(-1).size(), equalTo(0));
+
+            List<RepositoryStatsSnapshot> removedRepositoriesStats = clearRepositoriesStats(repositoryStatsSnapshot.getClusterVersion());
 
             assertThat(repositoriesStatsBeforeClearing, equalTo(removedRepositoriesStats));
 
@@ -311,11 +314,14 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
             for (Map<String, Object> nodeStatSnapshot : nodeStats) {
                 RepositoryInfo repositoryInfo = parseRepositoryInfo(nodeStatSnapshot);
                 Map<String, Integer> intRequestCounters = extractValue(nodeStatSnapshot, "request_counts");
+                int clusterVersion = extractValue(nodeStatSnapshot, "cluster_version");
+                boolean archived = extractValue(nodeStatSnapshot, "archived");
                 Map<String, Long> requestCounters = intRequestCounters.entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().longValue()));
                 RepositoryStats repositoryStats = new RepositoryStats(requestCounters);
-                RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, null);
+                RepositoryStatsSnapshot statsSnapshot =
+                    new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, archived);
                 repositoriesStats.add(statsSnapshot);
             }
         }
@@ -337,8 +343,8 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
         return nodes.keySet();
     }
 
-    private List<RepositoryStatsSnapshot> clearRepositoriesStats() throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "/_nodes/_all/_repositories_stats");
+    private List<RepositoryStatsSnapshot> clearRepositoriesStats(long maxVersionToClear) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_nodes/_all/_repositories_stats/" + maxVersionToClear);
         final Response response = client().performRequest(request);
         assertThat(
             "Failed to clear repositories stats: " + response,

@@ -24,13 +24,14 @@ public class RestClearRepositoriesStatsArchiveAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_stats"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_stats/{maxVersionToClear}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        ClearRepositoriesStatsArchiveRequest clearArchivesRequest = new ClearRepositoriesStatsArchiveRequest(nodesIds);
+        long maxVersionToClear = request.paramAsLong("maxVersionToClear", -1);
+        ClearRepositoriesStatsArchiveRequest clearArchivesRequest = new ClearRepositoriesStatsArchiveRequest(maxVersionToClear, nodesIds);
         return channel -> client.execute(
             ClearRepositoriesStatsArchiveAction.INSTANCE,
             clearArchivesRequest,

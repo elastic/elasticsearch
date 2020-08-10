@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,26 +28,28 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
     private final RepositoryInfo repositoryInfo;
     private final RepositoryStats repositoryStats;
-    @Nullable
-    private final Long createdAtMillis;
+    private final long clusterVersion;
+    private final boolean archived;
 
     public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo,
                                    RepositoryStats repositoryStats,
-                                   @Nullable Long createdAtMillis) {
+                                   long clusterVersion,
+                                   boolean archived) {
         this.repositoryInfo = repositoryInfo;
         this.repositoryStats = repositoryStats;
-        this.createdAtMillis = createdAtMillis;
+        this.clusterVersion = clusterVersion;
+        this.archived = archived;
     }
 
     public RepositoryStatsSnapshot(StreamInput in) throws IOException {
         this.repositoryInfo = new RepositoryInfo(in);
         this.repositoryStats = new RepositoryStats(in);
-        this.createdAtMillis = null;
+        this.clusterVersion = in.readLong();
+        this.archived = in.readBoolean();
     }
 
     public RepositoryInfo getRepositoryInfo() {
@@ -58,21 +60,29 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
         return repositoryStats;
     }
 
-    public long ageInMillis(LongSupplier relativeTimeInMillis) {
-        return createdAtMillis == null ? 0 : relativeTimeInMillis.getAsLong() - createdAtMillis;
+    public boolean isArchived() {
+        return archived;
+    }
+
+    public long getClusterVersion() {
+        return clusterVersion;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         repositoryInfo.writeTo(out);
         repositoryStats.writeTo(out);
+        out.writeLong(clusterVersion);
+        out.writeBoolean(archived);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         repositoryInfo.toXContent(builder, params);
+        builder.field("cluster_version", clusterVersion);
         builder.field("request_counts", repositoryStats.requestCounts);
+        builder.field("archived", archived);
         builder.endObject();
         return builder;
     }
@@ -82,22 +92,19 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStatsSnapshot that = (RepositoryStatsSnapshot) o;
-        return Objects.equals(repositoryInfo, that.repositoryInfo) &&
-            Objects.equals(repositoryStats, that.repositoryStats) &&
-            Objects.equals(createdAtMillis, that.createdAtMillis);
+        return repositoryInfo.equals(that.repositoryInfo) &&
+            repositoryStats.equals(that.repositoryStats) &&
+            clusterVersion == that.clusterVersion &&
+            archived == that.archived;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(repositoryInfo, repositoryStats, createdAtMillis);
+        return Objects.hash(repositoryInfo, repositoryStats, clusterVersion, archived);
     }
 
     @Override
     public String toString() {
-        return "RepositoryStatsSnapshot{" +
-            "repositoryInfo=" + repositoryInfo +
-            ", repositoryStats=" + repositoryStats +
-            ", createdAtMillis=" + createdAtMillis +
-            '}';
+        return Strings.toString(this);
     }
 }

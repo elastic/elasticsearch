@@ -47,8 +47,13 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
             threadPool.absoluteTimeInMillis());
     }
 
-    public RepositoryStatsSnapshot statsSnapshot() {
-        return new RepositoryStatsSnapshot(repositoryInfo, stats(), threadPool.relativeTimeInMillis());
+    public RepositoryStatsSnapshot statsSnapshot(long clusterVersion) {
+        return new RepositoryStatsSnapshot(repositoryInfo, stats(), clusterVersion, false);
+    }
+
+    public RepositoryStatsSnapshot statsSnapshotForArchival(long clusterVersion) {
+        RepositoryInfo stoppedRepoInfo = repositoryInfo.stopped(threadPool.absoluteTimeInMillis());
+        return new RepositoryStatsSnapshot(stoppedRepoInfo, stats(), clusterVersion, true);
     }
 
     private static String getLocation(BlobPath basePath, String bucket) {

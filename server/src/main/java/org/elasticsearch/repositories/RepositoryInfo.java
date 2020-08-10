@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +43,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
                           String name,
                           String type,
                           String location,
-                          Long startedAt) {
+                          long startedAt) {
         this(ephemeralId, name, type, location, startedAt, null);
     }
 
@@ -50,7 +51,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
                           String name,
                           String type,
                           String location,
-                          Long startedAt,
+                          long startedAt,
                           @Nullable Long stoppedAt) {
         this.ephemeralId = ephemeralId;
         this.name = name;
@@ -110,11 +111,11 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryInfo that = (RepositoryInfo) o;
-        return Objects.equals(ephemeralId, that.ephemeralId) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(location, that.location) &&
-            Objects.equals(startedAt, that.startedAt) &&
+        return ephemeralId.equals(that.ephemeralId) &&
+            name.equals(that.name) &&
+            type.equals(that.type) &&
+            location.equals(that.location) &&
+            startedAt == that.startedAt &&
             Objects.equals(stoppedAt, that.stoppedAt);
     }
 
@@ -125,13 +126,6 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return "RepositoryInfo{" +
-            "ephemeralId='" + ephemeralId + '\'' +
-            ", name='" + name + '\'' +
-            ", type='" + type + '\'' +
-            ", location='" + location + '\'' +
-            ", startedAt=" + startedAt +
-            ", stoppedAt=" + stoppedAt +
-            '}';
+        return Strings.toString(this);
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
@@ -63,7 +64,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
 
     @Override
     protected ClearRepositoriesStatsArchiveNodeRequest newNodeRequest(ClearRepositoriesStatsArchiveRequest request) {
-        return new ClearRepositoriesStatsArchiveNodeRequest();
+        return new ClearRepositoriesStatsArchiveNodeRequest(request.getMaxVersionToClear());
     }
 
     @Override
@@ -73,15 +74,26 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
 
     @Override
     protected RepositoriesNodeStatsResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
-        List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive();
+        List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive(request.maxVersionToClear);
         return new RepositoriesNodeStatsResponse(clusterService.localNode(), clearedStats);
     }
 
     static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {
-        ClearRepositoriesStatsArchiveNodeRequest() {}
+        private final long maxVersionToClear;
+
+        public ClearRepositoriesStatsArchiveNodeRequest(long maxVersionToClear) {
+            this.maxVersionToClear = maxVersionToClear;
+        }
 
         ClearRepositoriesStatsArchiveNodeRequest(StreamInput in) throws IOException {
             super(in);
+            this.maxVersionToClear = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeLong(maxVersionToClear);
         }
     }
 }

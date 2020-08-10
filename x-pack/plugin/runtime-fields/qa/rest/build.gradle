@@ -1,7 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restTests {
@@ -9,11 +6,11 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.yamlRestTest {
   testDistribution = 'DEFAULT'
 }
 
-integTest {
+yamlRestTest {
   systemProperty 'tests.rest.blacklist',
     [
       'search/330_fetch_fields/*', // The whole API is not yet supported

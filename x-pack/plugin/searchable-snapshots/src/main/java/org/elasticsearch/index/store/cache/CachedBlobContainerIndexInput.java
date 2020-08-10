@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -157,7 +156,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             assert b.remaining() == length;
         }
 
-        final List<Tuple<Long, Long>> indexCacheMisses;
+        final Tuple<Long, Long> indexCacheMiss; // null if not a miss
 
         // We prefer to use the index cache if the recovery is not done yet
         if (directory.isRecoveryDone() == false) {
@@ -189,13 +188,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // {start, end} ranges where positions are relative to the whole file.
             if (canBeFullyCached) {
                 // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                indexCacheMisses = List.of(Tuple.tuple(0L, fileInfo.length()));
+                indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
             } else {
-                indexCacheMisses = List.of(Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_SIZE));
+                indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_SIZE);
             }
-            logger.trace("recovery cache miss for [{}], falling through with regions [{}]", this, indexCacheMisses);
+            logger.trace("recovery cache miss for [{}], falling through with cache miss [{}]", this, indexCacheMiss);
         } else {
-            indexCacheMisses = List.of();
+            indexCacheMiss = null;
         }
 
         try {
@@ -207,8 +206,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final Tuple<Long, Long> endRangeToWrite = computeRange(position + length - 1);
                 assert startRangeToWrite.v2() <= endRangeToWrite.v2() : startRangeToWrite + " vs " + endRangeToWrite;
                 final Tuple<Long, Long> rangeToWrite = Tuple.tuple(
-                    Math.min(startRangeToWrite.v1(), indexCacheMisses.stream().mapToLong(Tuple::v1).max().orElse(Long.MAX_VALUE)),
-                    Math.max(endRangeToWrite.v2(), indexCacheMisses.stream().mapToLong(Tuple::v2).max().orElse(Long.MIN_VALUE))
+                    Math.min(startRangeToWrite.v1(), indexCacheMiss == null ? Long.MAX_VALUE : indexCacheMiss.v1()),
+                    Math.max(endRangeToWrite.v2(), indexCacheMiss == null ? Long.MIN_VALUE : indexCacheMiss.v2())
                 );
 
                 assert rangeToWrite.v1() <= position && position + length <= rangeToWrite.v2() : "["
@@ -233,7 +232,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     return read;
                 }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
 
-                for (Tuple<Long, Long> indexCacheMiss : indexCacheMisses) {
+                if (indexCacheMiss != null) {
                     cacheFile.populateAndRead(indexCacheMiss, indexCacheMiss, channel -> {
                         final int indexCacheMissLength = Math.toIntExact(indexCacheMiss.v2() - indexCacheMiss.v1());
 

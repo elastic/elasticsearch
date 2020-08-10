@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,7 +51,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
@@ -66,7 +66,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final Executor executor;
+    private final String executor;
 
     protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
@@ -83,8 +83,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        final String exec = executor();
-        this.executor = ThreadPool.Names.SAME.equals(exec) ? null : threadPool.executor(exec);
+        this.executor = executor();
     }
 
     protected abstract String executor();
@@ -157,11 +156,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        if (executor == null) {
-                            doMasterOperation(clusterState, delegate);
-                        } else {
-                            executor.execute(() -> doMasterOperation(clusterState, delegate));
-                        }
+                        threadPool.executor(executor)
+                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -194,14 +190,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             } catch (Exception e) {
                 logger.trace("top-level failure", e);
                 listener.onFailure(e);
-            }
-        }
-
-        private void doMasterOperation(ClusterState clusterState, ActionListener<Response> delegate) {
-            try {
-                masterOperation(task, request, clusterState, delegate);
-            } catch (Exception e) {
-                delegate.onFailure(e);
             }
         }
 

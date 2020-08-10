@@ -163,18 +163,18 @@ The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 [discrete]
-=== Transport and HTTP protocols
+=== HTTP and transport network layers
 
-An Elasticsearch node exposes two network protocols which inherit the above
-settings, but may be further configured independently:
+An {es} node has two network layers which inherit the above settings:
 
-TCP Transport::
+HTTP network layer::
 
-Used for communication between nodes in the cluster, by the Java
-{javaclient}/transport-client.html[Transport client].
-See <<modules-transport>>.
+The <<modules-http,HTTP network layer>> exposes the JSON-over-HTTP interface
+used by clients.
 
-HTTP::
+Transport network layer::
 
-Exposes the JSON-over-HTTP interface used by all clients.
-See <<modules-http>>.
+The <<modules-transport,Transport network layer>> exposes a specially-designed
+protocol used for communication between nodes within a cluster, for
+communication with a <<modules-remote-cluster,remote cluster>>, and by the
+{javaclient}/transport-client.html[Java Transport client].

@@ -1461,7 +1461,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assumeTrue("only run on old cluster", isRunningAgainstOldCluster());
         // create index
         Request createTestIndex = new Request("PUT", "/test_index_old");
-        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0, \"index.number_of_shards\": 1}}");
         client().performRequest(createTestIndex);
 
         Request bulk = new Request("POST", "/_bulk");

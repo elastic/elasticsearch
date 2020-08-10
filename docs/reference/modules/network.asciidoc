@@ -176,5 +176,5 @@ Transport network layer::
 
 The <<modules-transport,Transport network layer>> exposes a specially-designed
 protocol used for communication between nodes within a cluster, for
-communication with a <<modules-remote-cluster,remote cluster>>, and by the
+communication with a <<modules-remote-clusters,remote cluster>>, and by the
 {javaclient}/transport-client.html[Java Transport client].

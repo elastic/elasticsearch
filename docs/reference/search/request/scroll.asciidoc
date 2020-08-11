@@ -44,17 +44,17 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_search?scroll=1m
+POST /my-index-000001/_search?scroll=1m
 {
   "size": 100,
   "query": {
     "match": {
-      "title": "elasticsearch"
+      "message": "foo"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
@@ -101,7 +101,7 @@ GET /_search?scroll=1m
   ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[scroll-search-context]]
@@ -201,7 +201,7 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 // TEST[catch:missing]
 
 [discrete]
-[[sliced-scroll]]
+[[slice-scroll]]
 ==== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
@@ -209,7 +209,7 @@ can be consumed independently:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search?scroll=1m
+GET /my-index-000001/_search?scroll=1m
 {
   "slice": {
     "id": 0,                      <1>
@@ -217,11 +217,11 @@ GET /twitter/_search?scroll=1m
   },
   "query": {
     "match": {
-      "title": "elasticsearch"
+      "message": "foo"
     }
   }
 }
-GET /twitter/_search?scroll=1m
+GET /my-index-000001/_search?scroll=1m
 {
   "slice": {
     "id": 1,
@@ -229,12 +229,12 @@ GET /twitter/_search?scroll=1m
   },
   "query": {
     "match": {
-      "title": "elasticsearch"
+      "message": "foo"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 <1> The id of the slice
 <2> The maximum number of slices
@@ -271,21 +271,21 @@ slice gets deterministic results.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search?scroll=1m
+GET /my-index-000001/_search?scroll=1m
 {
   "slice": {
-    "field": "date",
+    "field": "@timestamp",
     "id": 0,
     "max": 10
   },
   "query": {
     "match": {
-      "title": "elasticsearch"
+      "message": "foo"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 For append only time-based indices, the `timestamp` field can be used safely.
 

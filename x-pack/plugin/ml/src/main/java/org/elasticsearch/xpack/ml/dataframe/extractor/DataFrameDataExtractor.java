@@ -282,6 +282,7 @@ public class DataFrameDataExtractor {
         }
 
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setAllowPartialSearchResults(false)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)

@@ -1,9 +1,9 @@
 [[modules-threadpool]]
 === Thread pools
 
-A node uses several thread pools to manage memory consumption. 
-Queues associated with many of the thread pools enable pending requests 
-to be held instead of discarded. 
+A node uses several thread pools to manage memory consumption.
+Queues associated with many of the thread pools enable pending requests
+to be held instead of discarded.
 
 There are several thread pools, but the important ones include:
 
@@ -80,6 +80,11 @@ There are several thread pools, but the important ones include:
     For cluster management.
     Thread pool type is `scaling` with a keep-alive of `5m` and a default
     maximum size of `5`.
+
+`system_read`::
+    For read operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread

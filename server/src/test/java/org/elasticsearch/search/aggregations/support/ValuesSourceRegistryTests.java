@@ -60,9 +60,11 @@ public class ValuesSourceRegistryTests extends ESTestCase {
         );
         ValuesSourceRegistry registry = new ValuesSourceRegistry(
             Collections.singletonMap("bogus", Collections.emptyList()),
-            null);
+            Collections.singletonMap(new ValuesSourceRegistry.RegistryKey<>("bogus", ValuesSourceRegistry.CompositeSupplier.class),
+                Collections.emptyList()),
+            null
+        );
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(fieldOnly, "bogus"));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(scriptOnly, "bogus"));
     }
-
 }

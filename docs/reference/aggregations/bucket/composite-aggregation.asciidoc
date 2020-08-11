@@ -32,6 +32,9 @@ PUT /sales
       "shop": {
           "type": "keyword"
       },
+      "location": {
+          "type": "geo_point"
+      },
       "nested": {
           "type": "nested",
           "properties": {

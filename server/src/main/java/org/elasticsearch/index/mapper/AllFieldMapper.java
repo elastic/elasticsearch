@@ -23,14 +23,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Noop mapper that ensures that mappings created in 6x that explicitly disable the _all field
@@ -52,50 +50,36 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
-        private boolean disableExplicit = false;
+    private static AllFieldMapper toType(FieldMapper in) {
+        return (AllFieldMapper) in;
+    }
 
-        public Builder(MappedFieldType existing) {
-            super(NAME, Defaults.FIELD_TYPE);
-            builder = this;
+    public static class Builder extends MetadataFieldMapper.Builder {
+
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+
+        public Builder() {
+            super(NAME);
         }
 
-        private Builder setDisableExplicit() {
-            this.disableExplicit = true;
-            return this;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.singletonList(enabled);
         }
 
         @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(disableExplicit);
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                 ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                if (fieldName.equals("enabled")) {
-                    boolean enabled = XContentMapValues.nodeBooleanValue(entry.getValue(), "enabled");
-                    if (enabled) {
-                        throw new IllegalArgumentException("[_all] is disabled in this version.");
-                    }
-                    builder.setDisableExplicit();
-                    iterator.remove();
-                }
+            if (enabled.getValue().value()) {
+                throw new IllegalArgumentException("[_all] is disabled in this version.");
             }
-            return builder;
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            return new AllFieldMapper(false);
+            return new AllFieldMapper(enabled.getValue());
         }
     }
+
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new AllFieldMapper(new Explicit<>(true, false)),
+        c -> new Builder()
+    );
 
     static final class AllFieldType extends StringFieldType {
         AllFieldType() {
@@ -113,15 +97,15 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final boolean disableExplicit;
+    private final Explicit<Boolean> enabled;
 
-    private AllFieldMapper(boolean disableExplicit) {
-        super(Defaults.FIELD_TYPE, new AllFieldType());
-        this.disableExplicit = disableExplicit;
+    private AllFieldMapper(Explicit<Boolean> enabled) {
+        super(new AllFieldType());
+        this.enabled = enabled;
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
     }
 
     @Override
@@ -137,7 +121,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         // noop mapper
-        return;
     }
 
     @Override
@@ -145,16 +128,4 @@ public class AllFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        if (includeDefaults || disableExplicit) {
-            builder.startObject(CONTENT_TYPE);
-            if (disableExplicit) {
-                builder.field("enabled", false);
-            }
-            builder.endObject();
-        }
-        return builder;
-    }
 }

@@ -36,7 +36,7 @@ abstract class AbstractGradleFuncTest extends Specification{
 
     def setup() {
         settingsFile = testProjectDir.newFile('settings.gradle')
-        settingsFile << "rootProject.name = 'hello-world'"
+        settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
     }
 
@@ -56,6 +56,12 @@ abstract class AbstractGradleFuncTest extends Specification{
 
     String normalizedString(String input) {
         return input.readLines().join("\n")
+    }
+
+    File file(String path) {
+        File newFile = new File(testProjectDir.root, path)
+        newFile.getParentFile().mkdirs()
+        newFile
     }
 
 }

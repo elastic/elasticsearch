@@ -11,7 +11,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 [discrete]
 ==== Supported by the community:
 
-* http://drupal.org/project/search_api_elasticsearch[Drupal]:
+* https://drupal.org/project/search_api_elasticsearch[Drupal]:
   Drupal Elasticsearch integration via Search API.
 
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
@@ -28,7 +28,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
 
-* http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
+* https://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
   XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
 
 [discrete]
@@ -101,13 +101,6 @@ releases 2.0 and later do not support rivers.
 [discrete]
 ==== Supported by the community:
 
-* http://www.searchtechnologies.com/aspire-for-elasticsearch[Aspire for Elasticsearch]:
-  Aspire, from Search Technologies, is a powerful connector and processing
-  framework designed for unstructured data. It has connectors to internal and
-  external repositories including SharePoint, Documentum, Jive, RDB, file
-  systems, websites and more, and can transform and normalize this data before
-  indexing in Elasticsearch.
-
 * https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
   An Apache camel component to integrate Elasticsearch
 
@@ -117,13 +110,13 @@ releases 2.0 and later do not support rivers.
 * https://github.com/FriendsOfSymfony/FOSElasticaBundle[FOSElasticaBundle]:
   Symfony2 Bundle wrapping Elastica.
 
-* http://grails.org/plugin/elasticsearch[Grails]:
+* https://plugins.grails.org/plugin/puneetbehl/elasticsearch[Grails]:
   Elasticsearch Grails plugin.
 
-* http://haystacksearch.org/[Haystack]:
+* https://haystacksearch.org/[Haystack]:
   Modular search for Django
 
-* http://hibernate.org/search/[Hibernate Search]
+* https://hibernate.org/search/[Hibernate Search]
   Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
 
 * https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
@@ -185,7 +178,7 @@ releases 2.0 and later do not support rivers.
 * https://github.com/radu-gheorghe/check-es[check-es]:
   Nagios/Shinken plugins for checking on Elasticsearch
 
-* http://sematext.com/spm/index.html[SPM for Elasticsearch]:
+* https://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
 * https://www.zabbix.com/integrations/elasticsearch[Zabbix monitoring template]:

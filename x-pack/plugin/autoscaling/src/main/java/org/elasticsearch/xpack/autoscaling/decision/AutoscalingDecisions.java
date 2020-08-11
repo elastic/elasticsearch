@@ -46,9 +46,10 @@ public class AutoscalingDecisions implements ToXContent, Writeable {
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        for (final AutoscalingDecision decision : decisions) {
-            decision.toXContent(builder, params);
-        }
+        builder.startObject();
+        builder.field("decision", type());
+        builder.array("decisions", decisions.toArray());
+        builder.endObject();
         return builder;
     }
 

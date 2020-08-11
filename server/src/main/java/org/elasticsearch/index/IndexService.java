@@ -148,8 +148,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
-    private Supplier<Sort> indexSortSupplier;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final Supplier<Sort> indexSortSupplier;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
             IndexSettings indexSettings,

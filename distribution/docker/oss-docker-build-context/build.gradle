@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.Variant
 
 apply plugin: 'base'
 
-task buildOssDockerBuildContext(type: Tar) {
+tasks.register("buildOssDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
@@ -11,4 +11,4 @@ task buildOssDockerBuildContext(type: Tar) {
   with dockerBuildContext(null, Variant.OSS, false)
 }
 
-assemble.dependsOn buildOssDockerBuildContext
+tasks.named("assemble").configure { dependsOn "buildOssDockerBuildContext" }

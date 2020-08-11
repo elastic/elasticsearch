@@ -10,10 +10,10 @@ to a limited number of nodes in that remote cluster. There are two modes for
 remote cluster connections: <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>.
 
-All the communication required between different clusters
-goes through the <<modules-transport,transport layer>>. Remote cluster
-connections consist of uni-directional connections from the coordinating
-node to the remote remote connections.
+Communication with a remote cluster uses the <<modules-transport,transport
+layer>> to establishe a number of <<long-lived-connections,long-lived>> TCP
+connections from the coordinating nodes of the local cluster to the chosen
+nodes in the remote cluster.
 
 [discrete]
 [[sniff-mode]]

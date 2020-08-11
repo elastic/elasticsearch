@@ -146,6 +146,6 @@ public class IndexingPressure {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
             currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get());
+            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits);
     }
 }

@@ -347,6 +347,21 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (isContinuous()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
+
+            if (changeCollector.isOptimized() == false) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "[{}] could not find any optimizations for continuous execution, "
+                            + "this transform might run slowly, please check your configuration.",
+                        getJobId()
+                    )
+                );
+                auditor.warning(
+                    getJobId(),
+                    "could not find any optimizations for continuous execution, "
+                        + "this transform might run slowly, please check your configuration."
+                );
+            }
         }
     }
 

@@ -85,6 +85,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         ParametrizedFieldMapper.Builder builder = getMergeBuilder();
+        if (builder == null) {
+            return (ParametrizedFieldMapper) mergeWith;
+        }
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
@@ -102,11 +105,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     @Override
     protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
         // TODO remove when everything is parametrized
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return super.toXContent(builder, params);
     }
 
     @Override
@@ -139,6 +137,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
+        private Function<T, String> conflictSerializer = Object::toString;
         private T value;
         private boolean isSet;
 
@@ -182,6 +181,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             this.value = value;
         }
 
+        public boolean isConfigured() {
+            return isSet && Objects.equals(value, defaultValue.get()) == false;
+        }
+
         /**
          * Allows the parameter to accept a {@code null} value
          */
@@ -212,8 +215,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Configure a custom serializer for this parameter
          */
-        public Parameter<T> setSerializer(Serializer<T> serializer) {
+        public Parameter<T> setSerializer(Serializer<T> serializer, Function<T, String> conflictSerializer) {
             this.serializer = serializer;
+            this.conflictSerializer = conflictSerializer;
             return this;
         }
 
@@ -233,15 +237,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
-            if (updateable == false && isSet && Objects.equals(this.value, value) == false) {
-                conflicts.addConflict(name, this.value.toString(), value.toString());
+            T current = getValue();
+            if (updateable == false && Objects.equals(current, value) == false) {
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
             } else {
                 setValue(value);
             }
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || Objects.equals(getValue(), defaultValue.get()) == false) {
+            if (includeDefaults || isConfigured()) {
                 serializer.serialize(builder, name, getValue());
             }
         }
@@ -295,6 +300,20 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer);
         }
 
+        @SuppressWarnings("unchecked")
+        public static Parameter<List<String>> stringArrayParam(String name, boolean updateable,
+                                                           Function<FieldMapper, List<String>> initializer, List<String> defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue,
+                (n, c, o) -> {
+                    List<Object> values = (List<Object>) o;
+                    List<String> strValues = new ArrayList<>();
+                    for (Object item : values) {
+                        strValues.add(item.toString());
+                    }
+                    return strValues;
+                }, initializer);
+        }
+
         /**
          * Defines a parameter that takes an analyzer name
          * @param name              the parameter name
@@ -312,7 +331,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
                 }
                 return a;
-            }, initializer).setSerializer((b, n, v) -> b.field(n, v.name()));
+            }, initializer).setSerializer((b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
         }
 
         /**

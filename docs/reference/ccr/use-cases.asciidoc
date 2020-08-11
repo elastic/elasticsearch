@@ -1,0 +1,89 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-use-cases]]
+=== {ccr-cap} use cases
+++++
+<titleabbrev>Use cases</titleabbrev>
+++++
+
+Use {ccr} to enable several use cases within the Elastic Stack:
+
+* <<ccr-disaster-recovery,Disaster recovery>> in case a primary cluster fails,
+with a secondary cluster serving as a hot backup
+* *Data locality* to serve reads locally and reduce costly latency
+* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
+
+[[ccr-disaster-recovery]]
+==== Disaster recovery and high availability
+Disaster recovery provides your mission-critical applications with the
+tolerance to withstand a datacenter or region outages. You can configure
+clusters in different architectures to support disaster recovery and high
+availability:
+
+* <<ccr-single-datacenter-recovery>>
+* <<ccr-multiple-datacenter-recovery>>
+* <<ccr-chained-replication>>
+* <<ccr-bi-directional-replication>>
+
+[discrete]
+[[ccr-single-datacenter-recovery]]
+===== Single disaster recovery datacenter
+In this configuration, data is replicated from the production datacenter to the
+disaster recovery datacenter. Because the follower indices replicate the leader
+index, {es} can use the disaster recovery datacenter if the production
+datacenter is unavailable.
+
+image::images/ccr-arch-disaster-recovery.png[Production datacenter that replicates data to a disaster recovery datacenter]
+
+[discrete]
+[[ccr-multiple-datacenter-recovery]]
+===== Multiple disaster recovery datacenters
+You can replicate data from one datacenter to multiple datacenters. This
+configuration provides both disaster recovery and high availability, ensuring
+that data is replicated in two datacenters if the primary datacenter is down
+or unavailable.
+
+In the following diagram, data from Datacenter A is replicated to
+Datacenter B and Datacenter C, which both have a read-only copy of the leader
+index in Datacenter A.
+
+image::images/ccr-arch-multiple-dcs.png[Production datacenter that replicates data to two other datacenters]
+
+[discrete]
+[[ccr-chained-replication]]
+===== Chained replication
+You can chain replication across multiple datacenters, which form a replication
+chain. In the following diagram, Datacenter A contains the leader index. Data
+is replicated from Datacenter A to Datacenter B. Datacenter C replicates from
+the follower indices in Datacenter B. The connection between these datacenters
+forms a chained replication pattern.
+
+image::images/ccr-arch-chain-dcs.png[Three datacenters connected to form a replication chain]
+
+[discrete]
+[[ccr-bi-directional-replication]]
+===== Bi-directional replication
+In a bi-directional replication setup, all clusters have access to view
+all data, and all clusters have an index to write to without manually
+implementing failover. Applications can write to the local index within each
+datacenter, and read across multiple indices for a global view of all
+information.
+
+This configuration requires no manual intervention when a cluster or datacenter
+is unavailable. In the following diagram, if Datacenter A is unavailable, you can continue using Datacenter B without manual failover. When Datacenter A
+comes online, replication resumes between the clusters.
+
+image::images/ccr-arch-bi-directional.png[Bi-directional configuration where each cluster contains both a leader index and follower indices]
+
+NOTE: This configuration is useful for index-only workloads, where no updates
+to document values occur. In this configuration, documents indexed by {es} are
+immutable. Clients are located in each datacenter alongside the {es}
+cluster, and do not communicate with clusters in different datacenters.
+
+[[ccr-data-locality]]
+==== Data locality
+replicating data to live closer to a user/application server, such as replicating a product catalog to 20 different datacenters around the world
+
+[[ccr-centralized-reporting]]
+==== Centralized reporting
+replicating data from an Elasticsearch cluster to a central reporting cluster (e.g. 1000 bank branches around the world all writing to their local Elasticsearch cluster, and replicating back to a cluster in HQ for reporting purposes

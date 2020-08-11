@@ -35,13 +35,6 @@ If newer, the versions must also be compatible as outlined in the following matr
 include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
-Use {ccr} to enable several use cases within the Elastic Stack:
-
-* *Disaster recovery* in case a primary cluster fails, with a secondary
-cluster serving as a hot backup
-* *Data locality* to serve reads locally and reduce costly latency
-* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
-
 [discrete]
 [[ccr-replication-mechanics]]
 === Replication mechanics
@@ -165,10 +158,12 @@ This following sections provide more information about how to configure
 and use {ccr}:
 
 * <<ccr-getting-started>>
+* <<ccr-use-cases,Use cases for {ccr}>>
 * <<ccr-managing>>
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
 
+include::use-cases.asciidoc[]
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]

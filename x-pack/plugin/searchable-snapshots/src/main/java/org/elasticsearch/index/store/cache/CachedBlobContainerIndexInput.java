@@ -272,6 +272,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final int alreadyRead = length - b.remaining();
             final int bytesRead = readDirectlyIfAlreadyClosed(position + alreadyRead, b, e);
             assert alreadyRead + bytesRead == length : alreadyRead + " + " + bytesRead + " vs " + length;
+
+            // In principle we could handle an index cache miss here too, ensuring that the direct read was large enough, but this is
+            // already a rare case caused by an overfull/undersized cache.
         }
 
         stats.incrementBytesRead(lastReadPosition, position, length);

@@ -72,18 +72,23 @@ public class InternalHllSketchAggregationTests extends ESTestCase {
         assertSame(Math.round(hllUnion.getEstimate()), result.getValue());
     }
 
+    /**
+     * test equal InternalHllSketchAggregation
+     */
     public void testEquals() {
         final HllSketch hllSketch = new HllSketch(15);
         hllSketch.update(1);
         final HllSketch hllSketchDiff = new HllSketch(15);
         hllSketchDiff.update(1);
-
         final String internalName = "test_equals";
         final HashMap<String, Object> meta = new HashMap<String, Object>();
-
         final InternalHllSketchAggregation internalHllSketchAggregation1 = new InternalHllSketchAggregation(internalName, hllSketch, meta);
         final InternalHllSketchAggregation internalHllSketchAggregation2 = new InternalHllSketchAggregation(internalName, hllSketch, meta);
-        final InternalHllSketchAggregation internalHllSketchAggregationDiff = new InternalHllSketchAggregation(internalName, hllSketchDiff, meta);
+        final InternalHllSketchAggregation internalHllSketchAggregationDiff = new InternalHllSketchAggregation(
+            internalName,
+            hllSketchDiff,
+            meta
+        );
 
         assertTrue(internalHllSketchAggregation1.equals(internalHllSketchAggregation1));
         assertTrue(internalHllSketchAggregation1.equals(internalHllSketchAggregation2));

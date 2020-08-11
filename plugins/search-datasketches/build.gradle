@@ -59,44 +59,10 @@ restResources {
   }
 }
 
-test {
-  systemProperty 'tests.security.manager', false
-}
-
 integTest {
+  systemProperty 'tests.security.manager', false
   runner {
-    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'tests.security.manager', false
   }
 }
-//
-//def policyPath = file("${buildDir}/tmp")
-//File policyFile = file("${buildDir}/tmp/java.policy")
-//task writeJavaPolicy {
-//  if (!policyPath.exists()) {
-//    mkdir policyPath
-//  }
-//  policyFile.write(
-//    [
-//      "grant {",
-//      "permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
-//      "permission java.lang.RuntimePermission \"accessClassInPackage.sun.misc\";",
-//      "permission java.lang.RuntimePermission \"accessClassInPackage.sun.misc.*\";",
-//      "permission java.lang.reflect.ReflectPermission \"suppressAccessChecks\";",
-//      "};"
-//    ].join("\n")
-//  )
-//}
-//
-//// The normal integration test runner will just test that the plugin loads
-//integTest.runner {
-//  systemProperty 'tests.security.manager', false
-//  dependsOn 'writeJavaPolicy'
-//  jvmArgs "-Djava.security.policy=${buildDir}/tmp/java.policy"
-//  systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
-//  //systemProperty 'tests.rest.suite', 'search_datasketches/10_basic'
-//}
-//
-//integTestRunner {
-//  systemProperty 'tests.security.manager', false
-//  jvmArgs "-Djava.security.policy=${buildDir}/tmp/java.policy"
-//}
+

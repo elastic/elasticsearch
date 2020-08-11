@@ -98,36 +98,36 @@ RUN curl --retry 8 -S -L \\
     'source_elasticsearch': sourceElasticsearch,
     'variant'             : variant.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : variant == Variant.UBI ? getChecksum(configurations.dockerSource.singleFile) : ''
+    'version_hash'        : variant == Variant.UBI ? '<insert hash here>' : ''
   ]
 }
 
-private static String getChecksum(File file) {
-  MessageDigest digest = MessageDigest.getInstance("SHA-512")
+//private static String getChecksum(File file) {
+//  MessageDigest digest = MessageDigest.getInstance("SHA-512")
 
-  FileInputStream fis = new FileInputStream(file)
-  byte[] byteArray = new byte[1024]
-  int bytesCount = 0
+//  FileInputStream fis = new FileInputStream(file)
+//  byte[] byteArray = new byte[1024]
+//  int bytesCount = 0
 
-  //Read file data and update in message digest
-  while ((bytesCount = fis.read(byteArray)) != -1) {
-    digest.update(byteArray, 0, bytesCount)
-  }
+//  //Read file data and update in message digest
+//  while ((bytesCount = fis.read(byteArray)) != -1) {
+//    digest.update(byteArray, 0, bytesCount)
+//  }
 
-  fis.close()
+//  fis.close()
 
-  //Get the hash's bytes
-  byte[] bytes = digest.digest()
+//  //Get the hash's bytes
+//  byte[] bytes = digest.digest()
 
-  //This bytes[] has bytes in decimal format;
-  //Convert it to hexadecimal format
-  StringBuilder sb = new StringBuilder()
-  for (int i = 0; i < bytes.length; i++) {
-    sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1))
-  }
+//  //This bytes[] has bytes in decimal format;
+//  //Convert it to hexadecimal format
+//  StringBuilder sb = new StringBuilder()
+//  for (int i = 0; i < bytes.length; i++) {
+//    sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1))
+//  }
 
-  return sb.toString()
-}
+//  return sb.toString()
+//}
 
 private static String buildPath(Architecture architecture, Variant variant) {
   String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().replace('_', '-') + '-'

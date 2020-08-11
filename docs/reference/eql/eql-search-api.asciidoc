@@ -550,12 +550,8 @@ the events in ascending, lexicographic order.
       },
       {
         "_index": "my-index-000001",
-<<<<<<< HEAD
         "_type": "_doc",
-        "_id": "AtOJ4UjUBAAx3XR5kcCM",
-=======
         "_id": "b6bI3XMBI9IjHuIqU0S_",
->>>>>>> d09a6cfc7c6... [DOCS] Make EQL example snippets more realistic (#60971)
         "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:06:07.000Z",

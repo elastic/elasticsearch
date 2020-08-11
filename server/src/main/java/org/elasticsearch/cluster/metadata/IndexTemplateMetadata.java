@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -408,7 +407,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             if (context == Metadata.XContentContext.API) {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor1 : indexTemplateMetadata.mappings()) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
+                    Map<String, Object> mapping = XContentHelper.convertToMap(cursor1.value.uncompressed(), false).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor1.key);
@@ -425,8 +424,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetadata.mappings()) {
                         if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
                             assert documentMapping == null;
-                            byte[] mappingSource = cursor.value.uncompressed();
-                            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                            Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2();
                             documentMapping = reduceMapping(cursor.key, mapping);
                         }
                     }
@@ -439,8 +437,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                 } else {
                     builder.startObject("mappings");
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetadata.mappings()) {
-                        byte[] mappingSource = cursor.value.uncompressed();
-                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                        Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2();
                         mapping = reduceMapping(cursor.key, mapping);
                         builder.field(cursor.key);
                         builder.map(mapping);
@@ -450,8 +447,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             } else {
                 builder.startArray("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetadata.mappings()) {
-                    byte[] data = cursor.value.uncompressed();
-                    builder.map(XContentHelper.convertToMap(new BytesArray(data), true).v2());
+                    builder.map(XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2());
                 }
                 builder.endArray();
             }

@@ -12,44 +12,28 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
@@ -60,9 +44,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,14 +52,11 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -87,19 +66,14 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging(reason = "nocommit", value = "org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput:TRACE")
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(WaitForSnapshotBlobCacheShardsActivePlugin.class);
-        plugins.add(TrackingRepositoryPlugin.class);
         plugins.addAll(super.nodePlugins());
         return List.copyOf(plugins);
     }
@@ -135,7 +109,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         if (randomBoolean()) {
             logger.info("--> force-merging index before snapshotting");
-            final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            final ForceMergeResponse forceMergeResponse = client().admin()
+                .indices()
+                .prepareForceMerge(indexName)
+                .setMaxNumSegments(1)
+                .get();
             assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards.totalNumShards));
             assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
         }
@@ -155,7 +133,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         assertAcked(client().admin().cluster().prepareDeleteRepository(repositoryName));
         createRepository(
             repositoryName,
-            TrackingRepositoryPlugin.TRACKING,
+            "fs",
             Settings.builder().put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation).build(),
             false
         );
@@ -183,8 +161,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureExecutorsAreIdle();
 
         for (final SearchableSnapshotShardStats shardStats : client().execute(
-                SearchableSnapshotsStatsAction.INSTANCE,
-                new SearchableSnapshotsStatsRequest()
+            SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                 assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), greaterThan(0L));
@@ -203,15 +181,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             .setIndexing(true)
             .get()
             .getTotal().indexing.getTotal().getIndexCount();
-
-        ensureBlobStoreRepositoriesWithActiveShards(
-            restoredIndex,
-            (nodeId, blobStore) -> assertThat(
-                "Blob read operations should have been executed on node [" + nodeId + ']',
-                blobStore.numberOfReads(),
-                greaterThan(0L)
-            )
-        );
 
         logger.info("--> verifying documents in index [{}]", restoredIndex);
         assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -233,7 +202,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         );
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndex));
-        resetTrackedFiles();
 
         logger.info("--> mount snapshot [{}] as an index for the second time", snapshot);
         final String restoredAgainIndex = mountSnapshot(
@@ -250,13 +218,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
-                SearchableSnapshotsStatsAction.INSTANCE,
-                new SearchableSnapshotsStatsRequest()
+            SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                 final boolean mayReadMoreThanHeader
-                        // we read the header of each file contained within the .cfs file, which could be anywhere
-                        = indexInputStats.getFileName().endsWith(".cfs")
+                // we read the header of each file contained within the .cfs file, which could be anywhere
+                    = indexInputStats.getFileName().endsWith(".cfs")
                         // we read a couple of longs at the end of the .fdt file (see https://issues.apache.org/jira/browse/LUCENE-9456)
                         // TODO revisit this when this issue is addressed in Lucene
                         || indexInputStats.getFileName().endsWith(".fdt");
@@ -297,8 +265,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .getIndexCount(),
             equalTo(numberOfCacheWrites)
         );
-
-        resetTrackedFiles();
 
         logger.info("--> restarting cluster");
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
@@ -437,163 +403,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             refreshSystemIndex();
             assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
         });
-    }
-
-    /**
-     * Returns the {@link TrackingRepositoryPlugin} instance on a given node.
-     */
-    private TrackingRepositoryPlugin getTrackingRepositoryInstance(String node) {
-        DiscoveryNode discoveryNode = clusterService().state().nodes().resolveNode(node);
-        assertThat("Cannot find node " + node, discoveryNode, notNullValue());
-
-        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, discoveryNode.getName());
-        assertThat("Cannot find PluginsService on node " + node, pluginsService, notNullValue());
-
-        List<TrackingRepositoryPlugin> trackingRepositoryPlugins = pluginsService.filterPlugins(TrackingRepositoryPlugin.class);
-        assertThat("List of TrackingRepositoryPlugin is null on node " + node, trackingRepositoryPlugins, notNullValue());
-        assertThat("List of TrackingRepositoryPlugin is empty on node " + node, trackingRepositoryPlugins, hasSize(1));
-
-        TrackingRepositoryPlugin trackingRepositoryPlugin = trackingRepositoryPlugins.get(0);
-        assertThat("TrackingRepositoryPlugin is null on node " + node, trackingRepositoryPlugin, notNullValue());
-        return trackingRepositoryPlugin;
-    }
-
-    private void resetTrackedFiles() {
-        for (String nodeName : internalCluster().getNodeNames()) {
-            final TrackingRepositoryPlugin tracker = getTrackingRepositoryInstance(nodeName);
-            tracker.reset();
-            assertThat(tracker.numberOfReads(), equalTo(0L));
-            assertThat(tracker.blobs.size(), equalTo(0));
-        }
-    }
-
-    private void ensureBlobStoreRepositoriesWithActiveShards(String indexName, BiConsumer<String, TrackingRepositoryPlugin> consumer) {
-        final ClusterState clusterState = clusterService().state();
-        assertTrue(clusterState.metadata().hasIndex(indexName));
-        assertTrue(SearchableSnapshotsConstants.isSearchableSnapshotStore(clusterState.metadata().index(indexName).getSettings()));
-        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
-        assertThat(indexRoutingTable, notNullValue());
-
-        final ShardsIterator shardsIterator = indexRoutingTable.randomAllActiveShardsIt();
-        assertThat(shardsIterator.size(), greaterThanOrEqualTo(getNumShards(indexName).numPrimaries));
-
-        for (ShardRouting shardRouting : shardsIterator) {
-            consumer.accept(shardRouting.currentNodeId(), getTrackingRepositoryInstance(shardRouting.currentNodeId()));
-        }
-    }
-
-    /**
-     * A plugin that allows to track the read  operations on blobs
-     */
-    public static class TrackingRepositoryPlugin extends Plugin implements RepositoryPlugin {
-
-        static final String TRACKING = "tracking";
-
-        private final Map<String, List<Tuple<Long, Long>>> blobs = new ConcurrentHashMap<>();
-
-        long numberOfReads() {
-            return blobs.values().stream().flatMap(Collection::stream).mapToLong(Tuple::v2).sum();
-        }
-
-        void reset() {
-            blobs.clear();
-        }
-
-        @Override
-        public Map<String, Repository.Factory> getRepositories(
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            RecoverySettings recoverySettings
-        ) {
-            return Collections.singletonMap(
-                TRACKING,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
-
-                    @Override
-                    protected BlobStore createBlobStore() throws Exception {
-                        final BlobStore delegate = super.createBlobStore();
-                        return new BlobStore() {
-                            @Override
-                            public BlobContainer blobContainer(BlobPath path) {
-                                return new TrackingFilesBlobContainer(delegate.blobContainer(path));
-                            }
-
-                            @Override
-                            public void close() throws IOException {
-                                delegate.close();
-                            }
-                        };
-                    }
-                }
-            );
-        }
-
-        class TrackingFilesBlobContainer extends FilterBlobContainer {
-
-            TrackingFilesBlobContainer(BlobContainer delegate) {
-                super(delegate);
-            }
-
-            @Override
-            public InputStream readBlob(String blobName) throws IOException {
-                return new CountingInputStream(buildPath(blobName), 0L, super.readBlob(blobName));
-            }
-
-            @Override
-            public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                return new CountingInputStream(buildPath(blobName), position, super.readBlob(blobName, position, length));
-            }
-
-            private String buildPath(String name) {
-                return path().buildAsString() + name;
-            }
-
-            @Override
-            protected BlobContainer wrapChild(BlobContainer child) {
-                return new TrackingFilesBlobContainer(child);
-            }
-        }
-
-        class CountingInputStream extends FilterInputStream {
-
-            private final String name;
-            private final long offset;
-
-            long bytesRead = 0L;
-
-            protected CountingInputStream(String name, long offset, InputStream in) {
-                super(in);
-                this.name = name;
-                this.offset = offset;
-            }
-
-            @Override
-            public int read() throws IOException {
-                final int result = in.read();
-                if (result == -1) {
-                    return result;
-                }
-                bytesRead += 1L;
-                return result;
-            }
-
-            @Override
-            public int read(byte[] b, int offset, int len) throws IOException {
-                final int result = in.read(b, offset, len);
-                if (result == -1) {
-                    return result;
-                }
-                bytesRead += len;
-                return result;
-            }
-
-            @Override
-            public void close() throws IOException {
-                blobs.computeIfAbsent(name, n -> Collections.synchronizedList(new ArrayList<>())).add(Tuple.tuple(offset, bytesRead));
-                super.close();
-            }
-        }
     }
 
     /**

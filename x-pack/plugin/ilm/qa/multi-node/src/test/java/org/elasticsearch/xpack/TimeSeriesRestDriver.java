@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,12 +37,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -204,4 +208,36 @@ public final class TimeSeriesRestDriver {
         }
     }
 
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
+        throws IOException {
+        createIndexWithSettings(client, index, alias, settings, randomBoolean());
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings,
+                                               boolean useWriteIndex) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+
+        String writeIndexSnippet = "";
+        if (useWriteIndex) {
+            writeIndexSnippet = "\"is_write_index\": true";
+        }
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
+        client.performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("GET", index + "/_segments"));
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
+            response.getEntity().getContent(), false);
+        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        responseEntity = (Map<String, Object>) responseEntity.get(index);
+        responseEntity = (Map<String, Object>) responseEntity.get("shards");
+        List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
+        return (Integer) shards.get(0).get("num_search_segments");
+    }
 }

@@ -24,15 +24,18 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -186,6 +189,20 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT);
         }
 
+        @Override
+        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            GeoPoint originGeoPoint;
+            if (origin instanceof GeoPoint) {
+                originGeoPoint = (GeoPoint) origin;
+            } else if (origin instanceof String) {
+                originGeoPoint = GeoUtils.parseFromString((String) origin);
+            } else {
+                throw new IllegalArgumentException("Illegal type ["+ origin.getClass() + "] for [origin]! " +
+                    "Must be of type [geo_point] or [string] for geo_point fields!");
+            }
+            double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
+            return LatLonPoint.newDistanceFeatureQuery(name(), boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
+        }
     }
 
     // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint

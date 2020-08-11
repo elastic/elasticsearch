@@ -109,7 +109,7 @@ project.ext {
 }
 
 void addCopyDockerContextTask(final String architecture, final boolean oss) {
-  task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
+  tasks.register(taskName("copy", architecture, oss, "DockerContext"), Sync) {
     expansions(architecture, oss, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
@@ -143,7 +143,7 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-task copyKeystore(type: Sync) {
+tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
@@ -167,9 +167,9 @@ elasticsearch_distributions {
   }
 }
 
-preProcessFixture {
+tasks.named("preProcessFixture").configure {
   dependsOn elasticsearch_distributions.docker_default, elasticsearch_distributions.docker_oss
-  dependsOn copyKeystore
+  dependsOn "copyKeystore"
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -187,21 +187,25 @@ preProcessFixture {
   }
 }
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
 }
 
-task integTest(type: Test) {
+tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
-check.dependsOn integTest
+tasks.named("check").configure {
+  dependsOn "integTest"
+}
 
 void addBuildDockerImage(final String architecture, final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", architecture, oss, "DockerImage"), type: DockerBuildTask) {
+  final TaskProvider<DockerBuildTask> buildDockerImageTask =
+          tasks.register(taskName("build", architecture, oss, "DockerImage"), DockerBuildTask) {
+    onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
@@ -220,8 +224,9 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
       ]
     }
   }
-  buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
-  assemble.dependsOn(buildDockerImageTask)
+  tasks.named("assemble").configure {
+    dependsOn(buildDockerImageTask)
+  }
 }
 
 for (final String architecture : ["aarch64", "x64"]) {
@@ -253,7 +258,7 @@ subprojects { Project subProject ->
     def buildTaskName = taskName("build", architecture, oss, "DockerImage")
     def tarFile = "${parent.projectDir}/build/elasticsearch${"aarch64".equals(architecture) ? '-aarch64' : ''}${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
-    final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+    final TaskProvider<LoggedExec> exportDockerImageTask = tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
@@ -261,11 +266,10 @@ subprojects { Project subProject ->
         "-o",
         tarFile,
         "elasticsearch${oss ? '-oss' : ''}:test"
+
+      dependsOn(parent.path + ":" + buildTaskName)
+      onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
     }
-
-    exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
-
-    exportDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'
@@ -273,6 +277,8 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
 
-    assemble.dependsOn exportTaskName
+    tasks.named("assemble").configure {
+      dependsOn(exportTaskName)
+    }
   }
 }

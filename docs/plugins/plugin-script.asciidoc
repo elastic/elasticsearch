@@ -93,7 +93,7 @@ To install a plugin from an HTTP URL:
 +
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install http://some.domain/path/to/plugin.zip
+sudo bin/elasticsearch-plugin install https://some.domain/path/to/plugin.zip
 -----------------------------------
 +
 The plugin script will refuse to talk to an HTTPS URL with an untrusted

@@ -107,11 +107,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            // Use a cache range size setting aligned with BufferedIndexInput's buffer size and BlobStoreCacheService's default size
-            // TODO randomized this
             .put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
-                new ByteSizeValue(BlobStoreCacheService.DEFAULT_SIZE, ByteSizeUnit.BYTES)
+                randomLongBetween(
+                        new ByteSizeValue(4, ByteSizeUnit.KB).getBytes(),
+                        new ByteSizeValue(20, ByteSizeUnit.KB).getBytes()) + "b"
             )
             .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES))
             .build();
@@ -180,6 +180,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         refreshSystemIndex();
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).get().getHits().getTotalHits().value;
+        final long numberOfCacheWrites = systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true)
+                .get().getTotal().indexing.getTotal().getIndexCount();
 
         ensureBlobStoreRepositoriesWithActiveShards(
             restoredIndex,
@@ -247,12 +249,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         logger.info("--> verifying cached documents (again) in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
 
-        logger.info("--> verifying that no cached blobs were indexed in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
+        logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex();
         assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
-
-        logger.info("--> verifying blobs read from the repository");
-        assertBlobsReadFromRemoteRepository(restoredAgainIndex, blobsInSnapshot);
+        assertThat(systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true)
+                .get().getTotal().indexing.getTotal().getIndexCount(), equalTo(numberOfCacheWrites));
 
         resetTrackedFiles();
 
@@ -294,10 +295,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
-
-        logger.info("--> verifying blobs read from the repository after restart");
-        // Without the WaitForSnapshotBlobCacheShardsActivePlugin this would fail
-        assertBlobsReadFromRemoteRepository(restoredAgainIndex, blobsInSnapshot);
 
         // TODO would be great to test when the index is frozen
     }
@@ -396,49 +393,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
             refreshSystemIndex();
             assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
-        });
-    }
-
-    private void assertBlobsReadFromRemoteRepository(
-        final String indexName,
-        final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot
-    ) {
-        ensureBlobStoreRepositoriesWithActiveShards(indexName, (nodeId, blobStore) -> {
-            for (Map.Entry<String, List<Tuple<Long, Long>>> blob : blobStore.blobs.entrySet()) {
-                final String blobName = blob.getKey();
-
-                if (blobName.endsWith(".dat") || blobName.equals("index-0")) {
-                    // The snapshot metadata files are accessed when recovering from the snapshot during restore and do not benefit from
-                    // the snapshot blob cache as the files are accessed outside of a searchable snapshot directory
-                    assertThat(
-                        blobName + " should be fully read from the beginning",
-                        blob.getValue().stream().allMatch(read -> read.v1() == 0L),
-                        is(true)
-                    );
-                    // TODO assert it is read til the end
-
-                    // } else {
-                    // BlobStoreIndexShardSnapshot.FileInfo blobInfo = null;
-                    // for (BlobStoreIndexShardSnapshot blobs : blobsInSnapshot.values()) {
-                    // for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : blobs.indexFiles()) {
-                    // for (int i = 0; i < fileInfo.numberOfParts(); i++) {
-                    // if (blobName.endsWith(fileInfo.partName(i))) {
-                    // blobInfo = fileInfo;
-                    // break;
-                    // }
-                    // }
-                    // }
-                    // }
-                    // assertThat("Unable to find blob " + blobName + " in the blobs on disk", blobInfo, notNullValue());
-                    //
-                    // final String fileExtension = IndexFileNames.getExtension(blobInfo.physicalName());
-                    // assertThat(
-                    // "Only compound files can be read from the blob store after blob store cache is populated, not " + blobInfo,
-                    // fileExtension,
-                    // equalTo("cfs")
-                    // );
-                }
-            }
         });
     }
 

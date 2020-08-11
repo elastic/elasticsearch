@@ -189,8 +189,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             if (canBeFullyCached) {
                 // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
                 indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
-            } else {
+            } else if (isStartOfFile) {
                 indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_SIZE);
+            } else {
+                indexCacheMiss = null;
             }
             logger.trace("recovery cache miss for [{}], falling through with cache miss [{}]", this, indexCacheMiss);
         } else {

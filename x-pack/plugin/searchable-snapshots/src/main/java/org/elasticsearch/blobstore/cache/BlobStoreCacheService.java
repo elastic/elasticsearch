@@ -307,12 +307,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                         public void onResponse(IndexResponse indexResponse) {
                             if (indexResponse.status() == RestStatus.CREATED) {
                                 logger.trace("cache fill: [{}]", request.id());
+                            } else {
+                                logger.trace("not created: [{}] returned [{}]", request.id(), indexResponse.status());
                             }
                             listener.onResponse(null);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
+                            logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
                             listener.onFailure(e);
                         }
                     });

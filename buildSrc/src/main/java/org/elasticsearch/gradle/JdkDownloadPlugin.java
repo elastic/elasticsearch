@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.transform.JdkSymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.JdkUnzipTransform;
-import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -48,7 +48,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         });
 
         ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
-        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, transformSpec -> {
+        project.getDependencies().registerTransform(JdkSymbolicLinkPreservingUntarTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName());
             transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });

@@ -77,8 +77,9 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 Object settings = body.get("settings");
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
                     /*
-                     * You can't sort on a runtime_keyword and it is hard to figure out
-                     * if the sort was a runtime_keyword so lets just skip this test.
+                     * You can't sort the index on a runtime_keyword and it is
+                     * hard to figure out if the sort was a runtime_keyword so
+                     * let's just skip this test.
                      */
                     continue;
                 }

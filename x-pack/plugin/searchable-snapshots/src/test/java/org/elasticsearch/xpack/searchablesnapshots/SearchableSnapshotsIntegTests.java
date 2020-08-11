@@ -703,7 +703,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     private void assertRecoveryStats(String indexName, boolean preWarmEnabled) {
         int shardCount = getNumShards(indexName).totalNumShards;
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
-        assertThat(recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
+        assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {

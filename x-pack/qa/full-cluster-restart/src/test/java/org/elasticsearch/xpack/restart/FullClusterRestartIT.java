@@ -100,7 +100,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRole(true);
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
+            getSettingsRequest.addParameter("allow_system_index_access", "true");
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteSecurityIndex;
@@ -174,7 +176,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.watches/_settings/index.format");
+            getSettingsRequest.addParameter("allow_system_index_access", "true");
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteWatchesIndex;

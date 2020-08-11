@@ -60,7 +60,6 @@ restResources {
 }
 
 integTest {
-  systemProperty 'tests.security.manager', false
   runner {
     systemProperty 'tests.security.manager', false
   }

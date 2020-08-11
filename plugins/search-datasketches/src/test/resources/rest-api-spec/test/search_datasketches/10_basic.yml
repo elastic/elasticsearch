@@ -41,9 +41,9 @@
   - do:
       indices.refresh: {}
 
-  - do:
-      search:
-        index: test
-        body: { "aggs": { "r": { "hll_sketch": { "field": "sketch", "default_lgk": 15 } } } }
-
-  - match: { aggregations.r.value: 89 }
+#  - do:
+#      search:
+#        index: test
+#        body: { "aggs": { "r": { "hll_sketch": { "field": "sketch", "default_lgk": 15 } } } }
+#
+#  - match: { aggregations.r.value: 89 }

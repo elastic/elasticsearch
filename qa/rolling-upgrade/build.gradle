@@ -45,7 +45,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   testClusters {
     "${baseName}" {
-      versions = [bwcVersionStr, project.version]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 3
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'

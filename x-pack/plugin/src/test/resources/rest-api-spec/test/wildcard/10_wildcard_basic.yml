@@ -183,7 +183,7 @@ setup:
               default_field: "my_wildcard"
 
 
-  - match: {hits.total.value: 1}
+  - match: {hits.total.value: 101010101}
 
 ---
 "Term query on wildcard field":

@@ -98,12 +98,12 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         final Parameter<String> variable
             = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
         final Parameter<StringWrapper> wrapper
-            = new Parameter<>("wrapper", true, () -> new StringWrapper("default"),
+            = new Parameter<>("wrapper", false, () -> new StringWrapper("default"),
             (n, c, o) -> {
                 if (o == null) return null;
                 return new StringWrapper(o.toString());
                 },
-            m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name));
+            m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5)
             .setValidator(n -> {
                 if (n > 50) {
@@ -111,7 +111,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 }
             });
         final Parameter<NamedAnalyzer> analyzer
-            = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
+            = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer
             = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
@@ -343,6 +343,12 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertEquals("wrapped value", mapper.wrapper.name);
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        String conflict = "{\"type\":\"test_mapper\",\"wrapper\":\"new value\",\"required\":\"value\"}";
+        TestMapper toMerge = fromMapping(conflict);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge));
+        assertEquals("Mapper for [field] conflicts with existing mapper:\n" +
+            "\tCannot update parameter [wrapper] from [wrapper_wrapped value] to [wrapper_new value]", e.getMessage());
     }
 
     // test validator
@@ -381,6 +387,12 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         String badAnalyzer = "{\"type\":\"test_mapper\",\"analyzer\":\"wibble\",\"required\":\"value\"}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(badAnalyzer));
         assertEquals("analyzer [wibble] has not been configured in mappings", e.getMessage());
+
+        TestMapper original = mapper;
+        TestMapper toMerge = fromMapping(mapping);
+        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge));
+        assertEquals("Mapper for [field] conflicts with existing mapper:\n" +
+            "\tCannot update parameter [analyzer] from [default] to [_standard]", e.getMessage());
     }
 
     public void testDeprecatedParameters() {

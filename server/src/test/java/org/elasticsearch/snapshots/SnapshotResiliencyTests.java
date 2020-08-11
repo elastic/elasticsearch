@@ -159,6 +159,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -1558,7 +1559,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, Collections.emptyList(), false);
+                    threadPool, namedXContentRegistry, new SystemIndices(Map.of()), false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
@@ -1588,7 +1589,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetadataIndexUpgradeService(
                         settings, namedXContentRegistry,
                         mapperRegistry,
-                        indexScopedSettings, null),
+                        indexScopedSettings,
+                        new SystemIndices(Map.of()),
+                        null),
                     clusterSettings,
                         shardLimitValidator
                 );

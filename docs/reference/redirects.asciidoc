@@ -89,7 +89,7 @@ See <<inner-hits>>.
 
 [role="exclude",id="search-request-min-score"]
 === Minimum score parameter for request body search API
-See <<request-body-search-min-score>>.
+See <<search-api-min-score>>.
 
 [role="exclude",id="search-request-named-queries-and-filters"]
 === Named query parameter for request body search API
@@ -97,7 +97,7 @@ See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
-See <<request-body-search-post-filter>>.
+See <<post-filter>>.
 
 [role="exclude",id="search-request-preference"]
 === Preference parameter for request body search API
@@ -1020,10 +1020,24 @@ See <<how-es-highlighters-work-internally>>.
 === Inner hits
 See <<inner-hits>>.
 
+[role="exclude",id="request-body-search-min-score"]
+=== `min_score`
+See <<search-api-min-score>>.
+
 [role="exclude",id="request-body-search-queries-and-filters"]
 === Named queries
 
 See <<named-queries>.
+
+[role="exclude",id="request-body-search-post-filter"]
+=== Post filter
+
+See <<post-filter>>.
+
+[role="exclude",id="request-body-search-rescore"]
+=== Rescoring
+
+See <<rescore>>.
 
 [role="exclude",id="request-body-search-script-fields"]
 ==== Script fields

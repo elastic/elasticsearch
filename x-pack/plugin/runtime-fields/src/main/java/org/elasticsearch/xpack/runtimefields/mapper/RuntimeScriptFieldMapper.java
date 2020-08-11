@@ -199,7 +199,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
                 b.field(n, v);
             }
-        }).acceptsNull();
+        }, Object::toString).acceptsNull();
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             true,
@@ -210,7 +210,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             if (v != null && false == v.equals(Locale.ROOT)) {
                 b.field(n, v.toString());
             }
-        }).acceptsNull();
+        }, Object::toString).acceptsNull();
 
         private final ScriptCompiler scriptCompiler;
 

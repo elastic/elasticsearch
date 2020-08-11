@@ -91,6 +91,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -107,6 +108,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -195,6 +197,7 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
+            null,
             null
         ) {
             // metadata upgrader should do nothing
@@ -217,7 +220,7 @@ public class ClusterStateChanges {
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(SETTINGS, clusterService, indicesService,
             allocationService, new AliasValidator(), shardLimitValidator, environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, Collections.emptyList(), true);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, new SystemIndices(emptyMap()), true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

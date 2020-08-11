@@ -137,13 +137,15 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final TimedCounter cachedBytesWritten;
         private final TimedCounter directBytesRead;
         private final TimedCounter optimizedBytesRead;
+        private final Counter blobStoreBytesRequested;
 
         public CacheIndexInputStats(String fileName, long fileLength, long openCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
                                     Counter cachedBytesRead, TimedCounter cachedBytesWritten,
-                                    TimedCounter directBytesRead, TimedCounter optimizedBytesRead) {
+                                    TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
+                                    Counter blobStoreBytesRequested) {
             this.fileName = fileName;
             this.fileLength = fileLength;
             this.openCount = openCount;
@@ -158,6 +160,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.cachedBytesWritten = cachedBytesWritten;
             this.directBytesRead = directBytesRead;
             this.optimizedBytesRead = optimizedBytesRead;
+            this.blobStoreBytesRequested = blobStoreBytesRequested;
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
@@ -175,6 +178,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
+            this.blobStoreBytesRequested = new Counter(in);
         }
 
         @Override
@@ -194,6 +198,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             cachedBytesWritten.writeTo(out);
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
+            blobStoreBytesRequested.writeTo(out);
         }
 
         public String getFileName() {
@@ -252,6 +257,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return optimizedBytesRead;
         }
 
+        public Counter getBlobStoreBytesRequested() {
+            return blobStoreBytesRequested;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -278,6 +287,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                     builder.field("large", getBackwardLargeSeeks());
                     builder.endObject();
                 }
+                builder.field("blob_store_bytes_requested", getBlobStoreBytesRequested());
             }
             return builder.endObject();
         }
@@ -304,7 +314,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && Objects.equals(cachedBytesRead, stats.cachedBytesRead)
                 && Objects.equals(cachedBytesWritten, stats.cachedBytesWritten)
                 && Objects.equals(directBytesRead, stats.directBytesRead)
-                && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead);
+                && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead)
+                && Objects.equals(blobStoreBytesRequested, stats.blobStoreBytesRequested);
         }
 
         @Override
@@ -314,7 +325,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 forwardLargeSeeks, backwardLargeSeeks,
                 contiguousReads, nonContiguousReads,
                 cachedBytesRead, cachedBytesWritten,
-                directBytesRead, optimizedBytesRead);
+                directBytesRead, optimizedBytesRead,
+                blobStoreBytesRequested);
         }
     }
 

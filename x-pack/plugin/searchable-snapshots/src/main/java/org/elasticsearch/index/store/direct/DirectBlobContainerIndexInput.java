@@ -338,6 +338,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
+        stats.addBlobStoreBytesRequested(length);
         return blobContainer.readBlob(fileInfo.partName(part), pos, length);
     }
 

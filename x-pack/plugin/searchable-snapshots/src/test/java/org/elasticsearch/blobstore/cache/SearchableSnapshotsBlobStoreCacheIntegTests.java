@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -48,11 +49,15 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FilterInputStream;
@@ -87,6 +92,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@TestLogging(reason = "nocommit", value = "org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput:TRACE")
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -109,9 +115,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             .put(super.nodeSettings(nodeOrdinal))
             .put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
-                randomLongBetween(
-                        new ByteSizeValue(4, ByteSizeUnit.KB).getBytes(),
-                        new ByteSizeValue(20, ByteSizeUnit.KB).getBytes()) + "b"
+                randomLongBetween(new ByteSizeValue(4, ByteSizeUnit.KB).getBytes(), new ByteSizeValue(20, ByteSizeUnit.KB).getBytes()) + "b"
             )
             .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES))
             .build();
@@ -129,9 +133,12 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         final long numberOfDocs = indexRequestBuilders.size();
         final NumShards numberOfShards = getNumShards(indexName);
 
-        final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
-        assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards.totalNumShards));
-        assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
+        if (randomBoolean()) {
+            logger.info("--> force-merging index before snapshotting");
+            final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards.totalNumShards));
+            assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
+        }
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
@@ -175,13 +182,27 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredIndex);
         ensureExecutorsAreIdle();
 
+        for (final SearchableSnapshotShardStats shardStats : client().execute(
+                SearchableSnapshotsStatsAction.INSTANCE,
+                new SearchableSnapshotsStatsRequest()
+        ).actionGet().getStats()) {
+            for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
+                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), greaterThan(0L));
+            }
+        }
+
         logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
 
         refreshSystemIndex();
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).get().getHits().getTotalHits().value;
-        final long numberOfCacheWrites = systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true)
-                .get().getTotal().indexing.getTotal().getIndexCount();
+        final long numberOfCacheWrites = systemClient().admin()
+            .indices()
+            .prepareStats(SNAPSHOT_BLOB_CACHE_INDEX)
+            .clear()
+            .setIndexing(true)
+            .get()
+            .getTotal().indexing.getTotal().getIndexCount();
 
         ensureBlobStoreRepositoriesWithActiveShards(
             restoredIndex,
@@ -227,6 +248,24 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
         ensureExecutorsAreIdle();
 
+        logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
+        for (final SearchableSnapshotShardStats shardStats : client().execute(
+                SearchableSnapshotsStatsAction.INSTANCE,
+                new SearchableSnapshotsStatsRequest()
+        ).actionGet().getStats()) {
+            for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
+                final boolean mayReadMoreThanHeader
+                        // we read the header of each file contained within the .cfs file, which could be anywhere
+                        = indexInputStats.getFileName().endsWith(".cfs")
+                        // we read a couple of longs at the end of the .fdt file (see https://issues.apache.org/jira/browse/LUCENE-9456)
+                        // TODO revisit this when this issue is addressed in Lucene
+                        || indexInputStats.getFileName().endsWith(".fdt");
+                if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_SIZE * 2 || mayReadMoreThanHeader == false) {
+                    assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
+                }
+            }
+        }
+
         logger.info("--> verifying documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
         assertHitCount(
@@ -252,8 +291,12 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex();
         assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
-        assertThat(systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true)
-                .get().getTotal().indexing.getTotal().getIndexCount(), equalTo(numberOfCacheWrites));
+        assertThat(
+            systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true).get().getTotal().indexing
+                .getTotal()
+                .getIndexCount(),
+            equalTo(numberOfCacheWrites)
+        );
 
         resetTrackedFiles();
 

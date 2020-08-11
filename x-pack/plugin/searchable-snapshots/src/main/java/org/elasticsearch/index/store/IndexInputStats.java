@@ -45,6 +45,8 @@ public class IndexInputStats {
     private final Counter cachedBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
 
+    private final Counter blobStoreBytesRequested = new Counter();
+
     public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
         this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
     }
@@ -112,6 +114,10 @@ public class IndexInputStats {
         }
     }
 
+    public void addBlobStoreBytesRequested(long bytesRequested) {
+        blobStoreBytesRequested.add(bytesRequested);
+    }
+
     public long getFileLength() {
         return fileLength;
     }
@@ -162,6 +168,10 @@ public class IndexInputStats {
 
     public TimedCounter getCachedBytesWritten() {
         return cachedBytesWritten;
+    }
+
+    public Counter getBlobStoreBytesRequested() {
+        return blobStoreBytesRequested;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")

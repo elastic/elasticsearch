@@ -13,6 +13,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.Nullable;
@@ -144,8 +146,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
-        logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
-
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
         if (length == CodecUtil.footerLength() && isClone == false && position == fileInfo.length() - length) {
@@ -155,6 +155,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             }
             assert b.remaining() == length;
         }
+
+        logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
         final Tuple<Long, Long> indexCacheMiss; // null if not a miss
 
@@ -176,6 +178,50 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         position
                     );
                     b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
+
+                    try {
+                        final CacheFile cacheFile = getCacheFileSafe();
+                        try (Releasable ignored = cacheFile.fileLock()) {
+                            final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());
+                            cacheFile.populateAndRead(
+                                cachedRange,
+                                cachedRange,
+                                channel -> cachedBlob.length(),
+                                (channel, from, to, progressUpdater) -> {
+                                    final long startTimeNanos = stats.currentTimeNanos();
+                                    final BytesRefIterator iterator = cachedBlob.bytes()
+                                        .slice(Math.toIntExact(from - cachedBlob.from()), Math.toIntExact(to - from))
+                                        .iterator();
+                                    long writePosition = from;
+                                    BytesRef current;
+                                    while ((current = iterator.next()) != null) {
+                                        final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
+                                        while (byteBuffer.remaining() > 0) {
+                                            writePosition += positionalWrite(channel, writePosition, byteBuffer);
+                                            progressUpdater.accept(writePosition);
+                                        }
+                                    }
+                                    assert writePosition == to : writePosition + " vs " + to;
+                                    final long endTimeNanos = stats.currentTimeNanos();
+                                    stats.addCachedBytesWritten(to - from, endTimeNanos - startTimeNanos);
+                                    logger.trace("copied bytes [{}-{}] of file [{}] from index cache to node cache", from, to, fileInfo);
+                                },
+                                directory.cacheFetchAsyncExecutor()
+                            );
+                        }
+                    } catch (Exception e) {
+                        logger.debug(
+                            new ParameterizedMessage(
+                                "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
+                                cachedBlob.from(),
+                                cachedBlob.to(),
+                                fileInfo
+                            ),
+                            e
+                        );
+                        // oh well, no big deal, at least we can return them to the caller.
+                    }
+
                     return;
                 }
 
@@ -568,10 +614,20 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + "] from ["
                 + fileInfo
                 + "]";
+            stats.addBlobStoreBytesRequested(length);
             return blobContainer.readBlob(fileInfo.partName(0L), position, length);
         } else {
             final long startPart = getPartNumberForPosition(position);
             final long endPart = getPartNumberForPosition(position + length - 1);
+
+            for (long currentPart = startPart; currentPart <= endPart; currentPart++) {
+                final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                final long endInPart = (currentPart == endPart)
+                    ? getRelativePositionInPart(position + length - 1) + 1
+                    : getLengthOfPart(currentPart);
+                stats.addBlobStoreBytesRequested(endInPart - startInPart);
+            }
+
             return new SlicedInputStream(endPart - startPart + 1L) {
                 @Override
                 protected InputStream openSlice(long slice) throws IOException {

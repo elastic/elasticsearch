@@ -82,6 +82,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        // This would be called from the same thing that calls innerBuild, which also throws.  So it's "safe" to throw here.
         throw new UnsupportedOperationException();
     }
 

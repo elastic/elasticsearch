@@ -11,32 +11,28 @@ testClusters.yamlRestTest {
 }
 
 yamlRestTest {
+  systemProperty 'tests.rest.whitelist',
+    [
+      'search*/*',
+      'suggest/*',
+      'msearch/*',
+      'field_caps/*',
+    ].join(',')
   systemProperty 'tests.rest.blacklist',
     [
+      /////// TO FIX ///////
       'search/330_fetch_fields/*', // The whole API is not yet supported
-      'indices.put_mapping/10_basic/Update per-field metadata', // Broken. Similar error message to dynamic mapping update.
       'search.aggregation/20_terms/Global ordinals are not loaded with the map execution hint', // Broken. Gotta fix.
       'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // Broken. Gotta fix.
       'search/115_multiple_field_collapsing/two levels fields collapsing', // Broken. Gotta fix.
       'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit', // Broken. Gotta fix.
       'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
-
-      // These are all caused by trying to do a dynamic mapping update which is broken for runtime fields currently.
-      'msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms',
-      'msearch/20_typed_keys/Multisearch test with typed_keys parameter',
-      'search.aggregation/50_filter/As a child of terms',
-      'search.aggregation/50_filter/Sorting terms',
-      'suggest/20_completion/Suggestions with source should work',
-      'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values',
-      'search.aggregation/40_range/IP Range avg_bucket',
-
-      '*index_template*', // Our create index modification is going to break these tests
-      'search.aggregation/280_rare_terms/*', // Requires an index and we won't have it
-      // '*90_sig_text*', // significant_text needs an index and we don't have it
-      'search.aggregation/20_terms/string profiler via global ordinals', // Runtime fields don't have global ords
       'search.aggregation/10_histogram/*', // runtime_script doesn't support sub-fields. Maybe it should?
+      /////// TO FIX ///////
 
-      // The way we hack index creation in these tests breaks this:
-      'indices.put_index_template/15_composition/*',
+      /////// NOT SUPPORTED ///////
+      'search.aggregation/280_rare_terms/*', // Requires an index and we won't have it
+      'search.aggregation/20_terms/string profiler via global ordinals', // Runtime fields don't have global ords
+      /////// NOT SUPPORTED ///////
     ].join(',')
 }

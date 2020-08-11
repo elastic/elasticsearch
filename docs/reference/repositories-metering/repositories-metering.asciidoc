@@ -1,0 +1,15 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[repositories-metering-apis]]
+== Repositories metering APIs
+
+experimental[]
+
+You can use the following APIs to retrieve repositories metrics.
+This is an API meant to be used by Elastic's commercial offerings.
+
+* <<get-repositories-metrics-api,Get repositories metrics>>
+* <<clear-repositories-metrics-archive-api,Clear repositories metrics archive>>
+
+include::get-repositories-metrics.asciidoc[]
+include::clear-repositories-metrics-archive.asciidoc[]

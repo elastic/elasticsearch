@@ -18,7 +18,7 @@ services:
     ports:
       - "8091"
 
-  azure-fixture-repositories-stats:
+  azure-fixture-repositories-metering:
     build:
       context: .
       dockerfile: Dockerfile

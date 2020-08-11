@@ -30,7 +30,7 @@ services:
     ports:
       - "80"
 
-  s3-fixture-repositories-stats:
+  s3-fixture-repositories-metering:
     build:
       context: .
       args:

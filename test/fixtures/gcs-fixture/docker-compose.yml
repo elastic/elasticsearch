@@ -36,7 +36,7 @@ services:
       - ./testfixtures_shared/shared:/fixture/shared
     ports:
       - "80"
-  gcs-fixture-repositories-stats:
+  gcs-fixture-repositories-metering:
     build:
       context: .
       args:

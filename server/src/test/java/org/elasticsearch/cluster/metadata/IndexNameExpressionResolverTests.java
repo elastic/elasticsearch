@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_KEY;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -1872,7 +1873,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testSystemIndexResolutionBlocked() {
         // Set up the thread context to disallow system index access
-        threadContext.putHeader("_from_rest", "true");
+        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, "true");
 
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()

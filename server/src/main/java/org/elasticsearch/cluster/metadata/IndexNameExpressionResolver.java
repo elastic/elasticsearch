@@ -62,6 +62,7 @@ import java.util.stream.StreamSupport;
 public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
+    public static final String SYSTEM_INDEX_ACCESS_CONTROL_KEY = "_prevent_system_index_access";
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
@@ -668,7 +669,7 @@ public class IndexNameExpressionResolver {
         if (threadContext == null) {
             return false;
         }
-        return "true".equals(threadContext.getHeader("_from_rest")) == false;
+        return "true".equals(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY)) == false;
     }
 
     public static class Context {

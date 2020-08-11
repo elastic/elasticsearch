@@ -42,6 +42,8 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_KEY;
+
 /**
  * Base handler for REST requests.
  * <p>
@@ -80,11 +82,11 @@ public abstract class BaseRestHandler implements RestHandler {
         if (allowSystemIndexAccessByDefault() == false) {
             final String allow_system_index_access = request.param("allow_system_index_access");
             final ThreadContext threadContext = client.threadPool().getThreadContext();
-            if (threadContext.getHeader("_from_rest") == null
+            if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
                 && (allow_system_index_access == null
                 || allow_system_index_access.isEmpty()
                 || Boolean.parseBoolean(allow_system_index_access) == false)) {
-                threadContext.putHeader("_from_rest", "true");
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, "true");
             }
         }
         // prepare the request for execution; has the side effect of touching the request parameters

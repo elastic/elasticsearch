@@ -81,7 +81,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {
         private final long maxVersionToClear;
 
-        public ClearRepositoriesStatsArchiveNodeRequest(long maxVersionToClear) {
+        ClearRepositoriesStatsArchiveNodeRequest(long maxVersionToClear) {
             this.maxVersionToClear = maxVersionToClear;
         }
 

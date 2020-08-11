@@ -320,8 +320,12 @@ public abstract class AbstractRepositoriesStatsAPIRestTestCase extends ESRestTes
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().longValue()));
                 RepositoryStats repositoryStats = new RepositoryStats(requestCounters);
-                RepositoryStatsSnapshot statsSnapshot =
-                    new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, archived);
+                RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
+                    repositoryInfo,
+                    repositoryStats,
+                    clusterVersion,
+                    archived
+                );
                 repositoriesStats.add(statsSnapshot);
             }
         }

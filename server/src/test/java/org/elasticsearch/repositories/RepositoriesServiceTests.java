@@ -23,10 +23,13 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -85,7 +88,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
                 MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
-            transportService, Collections.emptyMap(), typesRegistry, threadPool);
+            transportService, typesRegistry, typesRegistry, threadPool);
         repositoriesService.start();
     }
 
@@ -134,13 +137,17 @@ public class RepositoriesServiceTests extends ESTestCase {
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
         String repoName = "name";
         expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, MeteredRepositoryTypeA.TYPE);
+
+        ClusterState clusterStateWithRepoTypeA = createClusterStateWithRepo(repoName, MeteredRepositoryTypeA.TYPE);
+
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepoTypeA, emptyState()));
         assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
 
-        repositoriesService.unregisterInternalRepository(repoName);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", emptyState(), clusterStateWithRepoTypeA));
         assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
 
-        repositoriesService.registerInternalRepository(repoName, MeteredRepositoryTypeB.TYPE);
+        ClusterState clusterStateWithRepoTypeB = createClusterStateWithRepo(repoName, MeteredRepositoryTypeB.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepoTypeB, emptyState()));
 
         List<RepositoryStatsSnapshot> repositoriesStats = repositoriesService.repositoriesStats();
         assertThat(repositoriesStats.size(), equalTo(2));
@@ -151,6 +158,20 @@ public class RepositoriesServiceTests extends ESTestCase {
         RepositoryStatsSnapshot repositoryStatsTypeB = repositoriesStats.get(1);
         assertThat(repositoryStatsTypeB.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeB.TYPE));
         assertThat(repositoryStatsTypeB.getRepositoryStats(), equalTo(MeteredRepositoryTypeB.STATS));
+    }
+
+    private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.putCustom(RepositoriesMetadata.TYPE,
+            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY))));
+        state.metadata(mdBuilder);
+
+        return state.build();
+    }
+
+    private ClusterState emptyState() {
+        return ClusterState.builder(new ClusterName("test")).build();
     }
 
     private void assertThrowsOnRegister(String repoName) {

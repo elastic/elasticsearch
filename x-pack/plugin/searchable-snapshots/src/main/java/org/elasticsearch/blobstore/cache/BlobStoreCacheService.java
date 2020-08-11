@@ -146,22 +146,26 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                     {
                         builder.startObject("type");
                         builder.field("type", "keyword");
+                        builder.field("index", "false");
                         builder.endObject();
                     }
                     {
                         builder.startObject("creation_time");
                         builder.field("type", "date");
                         builder.field("format", "epoch_millis");
+                        builder.field("index", "false");
                         builder.endObject();
                     }
                     {
                         builder.startObject("version");
                         builder.field("type", "integer");
+                        builder.field("index", "false");
                         builder.endObject();
                     }
                     {
                         builder.startObject("repository");
                         builder.field("type", "keyword");
+                        builder.field("index", "false");
                         builder.endObject();
                     }
                     {
@@ -172,9 +176,11 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                             {
                                 builder.startObject("name");
                                 builder.field("type", "keyword");
+                                builder.field("index", "false");
                                 builder.endObject();
                                 builder.startObject("path");
                                 builder.field("type", "keyword");
+                                builder.field("index", "false");
                                 builder.endObject();
                             }
                             builder.endObject();
@@ -194,16 +200,19 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                             {
                                 builder.startObject("length");
                                 builder.field("type", "long");
+                                builder.field("index", "false");
                                 builder.endObject();
                             }
                             {
                                 builder.startObject("from");
                                 builder.field("type", "long");
+                                builder.field("index", "false");
                                 builder.endObject();
                             }
                             {
                                 builder.startObject("to");
                                 builder.field("type", "long");
+                                builder.field("index", "false");
                                 builder.endObject();
                             }
                             builder.endObject();

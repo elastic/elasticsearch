@@ -85,15 +85,15 @@ See <<request-body-search-index-boost>>.
 
 [role="exclude",id="search-request-inner-hits"]
 === Inner hits parameter for request body search API
-See <<request-body-search-inner-hits>>.
+See <<inner-hits>>.
 
 [role="exclude",id="search-request-min-score"]
 === Minimum score parameter for request body search API
-See <<request-body-search-min-score>>.
+See <<search-api-min-score>>.
 
 [role="exclude",id="search-request-named-queries-and-filters"]
 === Named query parameter for request body search API
-See <<request-body-search-queries-and-filters>>.
+See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
@@ -113,7 +113,7 @@ See <<request-body-search-rescore>>.
 
 [role="exclude",id="search-request-script-fields"]
 === Script fields parameter for request body search API
-See <<request-body-search-script-fields>>.
+See <<script-fields>>.
 
 [role="exclude",id="search-request-scroll"]
 === Scroll parameter for request body search API
@@ -142,7 +142,7 @@ See <<source-filtering>>.
 
 [role="exclude",id="search-request-stored-fields"]
 === Stored fields parameter for request body search API
-See <<request-body-search-stored-fields>>.
+See <<stored-fields>>.
 
 [role="exclude",id="search-request-track-total-hits"]
 === Track total hits parameter for request body search API
@@ -966,6 +966,21 @@ See <<run-an-es-search>>.
 
 See <<how-es-highlighters-work-internally>>.
 
+[role="exclude",id="eql-search"]
+=== Run an EQL search
+
+See <<run-an-eql-search>>.
+
+[role="exclude",id="eql-limitations"]
+=== EQL limitations
+
+See <<eql-syntax-limitations>>.
+
+[role="exclude",id="eql-requirements"]
+=== EQL requirements
+
+See <<eql-required-fields>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -1001,13 +1016,41 @@ See <<highlighting>>.
 
 See <<how-es-highlighters-work-internally>>.
 
+[role="exclude",id="request-body-search-inner-hits"]
+=== Inner hits
+See <<inner-hits>>.
+
+[role="exclude",id="request-body-search-min-score"]
+=== `min_score`
+See <<search-api-min-score>>.
+
+[role="exclude",id="request-body-search-queries-and-filters"]
+=== Named queries
+
+See <<named-queries>.
+
+[role="exclude",id="request-body-search-script-fields"]
+==== Script fields
+
+See <<script-fields>>.
+
 [role="exclude",id="request-body-search-scroll"]
 ==== Scroll
 
 See <<scroll-search-results>>.
 
+[[_clear_scroll_api]]
+===== Clear scroll API
+
+See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
+
 [role="exclude",id="request-body-search-search-after"]
-==== Search After
+==== Search after
 
 See <<search-after>>.
 
@@ -1020,4 +1063,9 @@ See <<sort-search-results>>.
 ==== Source filtering
 
 See <<source-filtering>>.
+
+[role="exclude",id="request-body-search-stored-fields"]
+==== Stored fields
+
+See <<stored-fields>>.
 ////

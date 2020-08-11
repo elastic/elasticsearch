@@ -654,7 +654,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = search(searcher, query, aggBuilder, fieldTypes);
+                result = searchAndReduce(searcher, query, aggBuilder, fieldTypes);
             } catch (IOException e) {
                 listener.onFailure(e);
             }

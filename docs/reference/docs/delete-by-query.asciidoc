@@ -130,7 +130,7 @@ This is "bursty" instead of "smooth".
 [[docs-delete-by-query-slice]]
 ===== Slicing
 
-Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the
+Delete by query supports <<slice-scroll, sliced scroll>> to parallelize the
 delete process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
@@ -487,7 +487,7 @@ Which results in a sensible `total` like this one:
 ===== Use automatic slicing
 
 You can also let delete-by-query automatically parallelize using
-<<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
+<<slice-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
 the number of slices to use:
 
 [source,console]

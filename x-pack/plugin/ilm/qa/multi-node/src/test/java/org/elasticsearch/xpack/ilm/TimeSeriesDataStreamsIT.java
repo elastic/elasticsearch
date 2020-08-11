@@ -223,10 +223,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     private static Template getTemplate(String policyName) throws IOException {
-        return new Template(getLifcycleSettings(policyName), null, null);
+        return new Template(getLifecycleSettings(policyName), null, null);
     }
 
-    private static Settings getLifcycleSettings(String policyName) {
+    private static Settings getLifecycleSettings(String policyName) {
         return Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)

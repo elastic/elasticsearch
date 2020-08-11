@@ -5,14 +5,14 @@ Specifies search criteria as request body parameters.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "query" : {
-    "term" : { "user" : "kimchy" }
+    "term" : { "user.id" : "kimchy" }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[search-request-body-api-request]]
@@ -63,9 +63,9 @@ matching document was found (per shard).
 
 [source,console]
 --------------------------------------------------
-GET /_search?q=message:number&size=0&terminate_after=1
+GET /_search?q=user.id:elkbee&size=0&terminate_after=1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 The response will not contain any hits as the `size` was set to `0`. The
@@ -125,11 +125,20 @@ See <<highlighting>>.
 
 include::request/index-boost.asciidoc[]
 
-include::request/inner-hits.asciidoc[]
+[[request-body-search-inner-hits]]
+==== Inner hits
 
-include::request/min-score.asciidoc[]
+See <<inner-hits>>.
 
-include::request/named-queries-and-filters.asciidoc[]
+[[request-body-search-min-score]]
+==== `min_score`
+
+See <<search-api-min-score>>.
+
+[[request-body-search-queries-and-filters]]
+==== Named queries
+
+See <<named-queries>>.
 
 include::request/post-filter.asciidoc[]
 
@@ -137,7 +146,10 @@ include::request/preference.asciidoc[]
 
 include::request/rescore.asciidoc[]
 
-include::request/script-fields.asciidoc[]
+[[request-body-search-script-fields]]
+==== Script Fields
+
+See <<script-fields>>.
 
 [[request-body-search-scroll]]
 ==== Scroll
@@ -148,6 +160,11 @@ See <<scroll-search-results>>.
 ===== Clear scroll API
 
 See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+===== Sliced scroll
+
+See <<slice-scroll>>.
 
 [[request-body-search-search-after]]
 ==== Search After
@@ -166,6 +183,9 @@ See <<sort-search-results>>.
 
 See <<source-filtering>>.
 
-include::request/stored-fields.asciidoc[]
+[[request-body-search-stored-fields]]
+==== Stored fields
+
+See <<stored-fields>>.
 
 include::request/track-total-hits.asciidoc[]

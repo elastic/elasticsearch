@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -123,6 +124,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable
         private final SnapshotId source;
 
+        private final ImmutableOpenMap<String, List<ShardSnapshotStatus>> clones;
+
         @Nullable private final Map<String, Object> userMetadata;
         @Nullable private final String failure;
 
@@ -130,7 +133,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      List<String> dataStreams, long startTime, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
-                     Version version, @Nullable SnapshotId source) {
+                     Version version, @Nullable SnapshotId source, @Nullable ImmutableOpenMap<String, List<ShardSnapshotStatus>> clones) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -144,6 +147,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.userMetadata = userMetadata;
             this.version = version;
             this.source = source;
+            if (source == null) {
+                this.clones = ImmutableOpenMap.of();
+            } else {
+                this.clones = clones;
+            }
             assert assertShardsConsistent(source, state, indices, shards);
         }
 

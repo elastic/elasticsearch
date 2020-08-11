@@ -62,7 +62,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         assertThat(
             TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName), //G-> This is probably gonna break inside
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName),
             empty());
 
         metadata = new Metadata.Builder(cs.metadata());

@@ -221,7 +221,7 @@ public interface IndexAbstraction {
         public boolean isSystem() {
             //G-> This is probably not the best way to tell if an alias is a system-index-alias
             // this should probably be checked on the alias layer and added as a property in the AliasMetadata
-            return referenceIndexMetadatas.stream().anyMatch(IndexMetadata::isSystem); // G->
+            return referenceIndexMetadatas.stream().anyMatch(IndexMetadata::isSystem);
         }
 
         /**

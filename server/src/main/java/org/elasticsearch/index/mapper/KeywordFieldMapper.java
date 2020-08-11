@@ -64,21 +64,12 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
-
-        public static final String NULL_VALUE = null;
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
-        public static final boolean EAGER_GLOBAL_ORDINALS = false;
-        public static final boolean SPLIT_QUERIES_ON_WHITESPACE = false;
     }
 
     public static class KeywordField extends Field {
 
         public KeywordField(String field, BytesRef term, FieldType ft) {
             super(field, term, ft);
-        }
-
-        public KeywordField(String field, BytesRef term) {
-            super(field, term, Defaults.FIELD_TYPE);
         }
 
     }

@@ -1,5 +1,6 @@
-[[request-body-search-search-type]]
-==== Search Type
+[discrete]
+[[search-type]]
+=== Search type
 
 There are different execution paths that can be done when executing a
 distributed search. The distributed search operation needs to be
@@ -34,8 +35,9 @@ to execute on a *per search request* basis. The type can be configured
 by setting the *search_type* parameter in the query string. The types
 are:
 
+[discrete]
 [[query-then-fetch]]
-===== Query Then Fetch
+==== Query Then Fetch
 
 Parameter value: *query_then_fetch*.
 
@@ -59,8 +61,9 @@ GET my-index-000001/_search?search_type=query_then_fetch
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
 
+[discrete]
 [[dfs-query-then-fetch]]
-===== Dfs, Query Then Fetch
+==== Dfs, Query Then Fetch
 
 Parameter value: *dfs_query_then_fetch*.
 

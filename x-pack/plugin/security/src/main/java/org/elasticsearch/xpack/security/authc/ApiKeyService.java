@@ -34,6 +34,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -83,7 +84,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityCaches;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -110,6 +110,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -164,6 +165,8 @@ public class ApiKeyService {
     public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
         10000, Property.NodeScope);
 
+    private static final long API_KEY_DOC_FETCHING_INTERVAL_IN_SECONDS = 300L;
+
     private final Clock clock;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -177,7 +180,6 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
-    private final SecurityCaches.SecurityCache<CachedApiKeyDoc> apiKeyDocCache;
     private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
     private volatile long lastExpirationRunMs;
@@ -198,27 +200,19 @@ public class ApiKeyService {
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
+            final Integer maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
                 .setExpireAfterWrite(ttl)
-                .setMaximumWeight(CACHE_MAX_KEYS_SETTING.get(settings))
+                .setMaximumWeight(maximumWeight)
+                .build();
+            this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
+                .setExpireAfterAccess(ttl)  // this uses access
+                .setMaximumWeight(maximumWeight * 2)  // this is the theoretical upper bound
                 .build();
         } else {
             this.apiKeyAuthCache = null;
+            this.roleDescriptorsBytesCache = null;
         }
-        roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
-            .setExpireAfterWrite(TimeValue.timeValueMinutes(5)) // TODO: this can be indefinite
-            .setMaximumWeight(10_000)
-            .build();
-        apiKeyDocCache = SecurityCaches.newSecurityCache(
-            "apiKeyDoc",
-            CacheBuilder.<String, CachedApiKeyDoc>builder().setExpireAfterWrite(TimeValue.timeValueMinutes(5))
-                .setMaximumWeight(10_000)
-                .build(),
-            keys -> {
-                if (keys == null) {
-                    roleDescriptorsBytesCache.invalidateAll();
-                }
-            });
     }
 
     /**
@@ -338,7 +332,7 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
+                validateApiKeyCredentials(ctx, credentials, null, ActionListener.wrap(
                     response -> {
                         credentials.close();
                         listener.onResponse(response);
@@ -364,69 +358,6 @@ public class ApiKeyService {
         final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
                 authResult.getMetadata());
-    }
-
-    private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
-                                                  ActionListener<AuthenticationResult> listener) {
-        final String docId = credentials.getId();
-        CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
-        if (existing != null) {
-            final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.roleDescriptorsHash);
-            final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.limitedByRoleDescriptorsHash);
-            if (roleDescriptorsBytes != null && limitedByRoleDescriptorsBytes != null) {
-                validateApiKeyCredentials(docId, existing.toApiKeyDoc(roleDescriptorsBytes, limitedByRoleDescriptorsBytes),
-                    credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                        listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }));
-                return;
-            }
-        }
-
-        final GetRequest getRequest = client
-            .prepareGet(SECURITY_MAIN_ALIAS, docId)
-            .setFetchSource(true)
-            .request();
-        final SecurityCaches.CacheItemsConsumer<CachedApiKeyDoc> cacheItemsConsumer = apiKeyDocCache.preparePut();
-        executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
-                if (response.isExists()) {
-                    final ApiKeyDoc apiKeyDoc;
-                    try (XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                        response.getSourceAsBytesRef(), XContentType.JSON)) {
-                        apiKeyDoc = ApiKeyDoc.fromXContent(parser);
-                    }
-                    final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
-                    cacheItemsConsumer.consume(docId, cachedApiKeyDoc, () -> {
-                        roleDescriptorsBytesCache.computeIfAbsent(cachedApiKeyDoc.roleDescriptorsHash,
-                            k -> apiKeyDoc.roleDescriptorsBytes);
-                        roleDescriptorsBytesCache.computeIfAbsent(cachedApiKeyDoc.limitedByRoleDescriptorsHash,
-                            k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
-                    });
-                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }));
-                } else {
-                    listener.onResponse(
-                        AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
-                }
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                } else {
-                    listener.onResponse(AuthenticationResult.unsuccessful(
-                        "apikey authentication for id " + credentials.getId() + " encountered a failure",e));
-                }
-            }),
-            client::get);
     }
 
     /**
@@ -543,15 +474,173 @@ public class ApiKeyService {
         return Collections.unmodifiableList(roleDescriptors);
     }
 
-    /**
-     * Validates the ApiKey using the source map
-     * @param docId the identifier of the document that was retrieved from the security index
-     * @param apiKeyDoc the partially deserialized API key document
-     * @param credentials the credentials provided by the user
-     * @param listener the listener to notify after verification
-     */
-    void validateApiKeyCredentials(String docId, ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
+    void validateApiKeyCredentials(ThreadContext ctx, ApiKeyCredentials credentials, ApiKeyDoc previouslyLoadedApiKeyDoc,
                                    ActionListener<AuthenticationResult> listener) {
+        final String docId = credentials.getId();
+        if (apiKeyAuthCache != null) {
+            final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
+            final ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry;
+            try {
+                listenableCacheEntry = apiKeyAuthCache.computeIfAbsent(docId,
+                    k -> {
+                        valueAlreadyInCache.set(false);
+                        return new ListenableFuture<>();
+                    });
+            } catch (ExecutionException e) {
+                listener.onFailure(e);
+                return;
+            }
+
+            if (valueAlreadyInCache.get()) {
+                // Other thread is performing validation of the same key already
+                validateWithCachedEntry(ctx, credentials, listenableCacheEntry, listener);
+            } else {
+                // This thread is performing authentication
+                CheckedBiConsumer<ApiKeyDoc, Boolean, ExecutionException> cachingConsumer = (apiKeyDoc, verified) -> {
+                    final CachedApiKeyHashResult cachedApiKey = apiKeyDocToCachedApiKeyHashResult(
+                        apiKeyDoc, verified, credentials.getKey());
+                    // Cache the descriptors first to best ensure descriptors can be found for a cached key
+                    roleDescriptorsBytesCache.computeIfAbsent(cachedApiKey.roleDescriptorsHash,
+                        k -> apiKeyDoc.roleDescriptorsBytes);
+                    roleDescriptorsBytesCache.computeIfAbsent(cachedApiKey.limitedByRoleDescriptorsHash,
+                        k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+                    listenableCacheEntry.onResponse(cachedApiKey);
+                };
+                if (previouslyLoadedApiKeyDoc == null) {
+                    // No previously loaded API key doc available, so we need load the API key document first
+                    loadApiKeyDocAndValidate(ctx, credentials, cachingConsumer, listener);
+                } else {
+                    // The API key doc has been loaded in previous round, we can go straight to compare hashes
+                    verifyKeyAgainstApiKeyDoc(docId, previouslyLoadedApiKeyDoc, credentials, cachingConsumer, listener);
+                }
+            }
+        } else { // No cache is configured
+            loadApiKeyDocAndValidate(ctx, credentials, null, listener);
+        }
+    }
+
+    private void validateWithCachedEntry(ThreadContext ctx, ApiKeyCredentials credentials,
+                                         ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry,
+                                         ActionListener<AuthenticationResult> listener) {
+
+        listenableCacheEntry.addListener(ActionListener.wrap(cachedApiKeyHashResult -> {
+            final long lastReloadedAt = cachedApiKeyHashResult.lastReloadedAt.get();
+            final Instant nextReloadedAt = Instant.ofEpochMilli(lastReloadedAt).plusSeconds(API_KEY_DOC_FETCHING_INTERVAL_IN_SECONDS);
+
+            if (cachedApiKeyHashResult.success) {
+                if (cachedApiKeyHashResult.verify(credentials.getKey())) {
+                    final ApiKeyDoc apiKeyDoc = cachedApiKeyHashResult.toApiKeyDoc();
+                    if (apiKeyDoc != null) {
+                        // Before we fully rely on this cached entry, check whether it needs to be reload.
+                        if (clock.instant().isAfter(nextReloadedAt)) {
+                            // If the entry needs to be reloaded, attempt to claim the reload by setting a
+                            // new lastReloadedAt time.
+                            if (cachedApiKeyHashResult.lastReloadedAt.compareAndSet(lastReloadedAt, clock.instant().toEpochMilli())) {
+                                reloadApiKeyDocAndValidate(ctx, credentials, listenableCacheEntry, cachedApiKeyHashResult, listener);
+                            } else {
+                                // Some other thread has claimed the reload, proceed as if this is a new authentication.
+                                validateApiKeyCredentials(ctx, credentials, null, listener);
+                            }
+                        } else {
+                            validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                        }
+                    } else {
+                        // Since API key doc and role descriptors are stored in two separate caches,
+                        // it might be possible (though extremely rare) that the key is found in cache
+                        // while the role descriptors are invalidated. When this happens, we invalidate
+                        // the key and start the auth again.
+                        apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                        validateApiKeyCredentials(ctx, credentials, null, listener);
+                    }
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                }
+            } else if (cachedApiKeyHashResult.verify(credentials.getKey())) { // same key, pass the same result
+                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+            } else {
+                // Invalidate the cache since it is a negative entry and we have a potential positive candidate
+                apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                // Re-enter the authentication flow, if the cached API key doc can be reused, we will reuse it
+                // to avoid hitting the index. If it should be reload, no re-use is needed.
+                if (clock.instant().isAfter(nextReloadedAt)) {
+                    validateApiKeyCredentials(ctx, credentials, null, listener);
+                } else {
+                    validateApiKeyCredentials(ctx, credentials, cachedApiKeyHashResult.toApiKeyDoc(), listener);
+                }
+            }
+        }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+    }
+
+    private void reloadApiKeyDocAndValidate(ThreadContext ctx, ApiKeyCredentials credentials,
+                                            ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry,
+                                            CachedApiKeyHashResult existingCachedApiKeyAuthResult,
+                                            ActionListener<AuthenticationResult> listener) {
+        // The caching consumer checks whether the reloaded API key doc is the same as the cached one.
+        // If they are not the same, invalidate the cache and create a new entry with the reloaded one
+        final CheckedBiConsumer<ApiKeyDoc, Boolean, ExecutionException> cachingConsumer = (apiKeyDoc, verified) -> {
+            final CachedApiKeyHashResult newCachedApiKeyAuthResult =
+                apiKeyDocToCachedApiKeyHashResult(apiKeyDoc, verified, credentials.getKey());
+            if (false == newCachedApiKeyAuthResult.equals(existingCachedApiKeyAuthResult)) {
+                apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                final ListenableFuture<CachedApiKeyHashResult> newEntry = new ListenableFuture<>();
+                // TODO: this assumes computeIfAbsent returns the same object if the loader is called
+                if (newEntry == apiKeyAuthCache.computeIfAbsent(credentials.getId(), k -> newEntry)) {
+                    // Cache the descriptors first to ensure when the API key is available in the cache, the descriptors
+                    // are also available
+                    roleDescriptorsBytesCache.computeIfAbsent(newCachedApiKeyAuthResult.roleDescriptorsHash,
+                        k -> apiKeyDoc.roleDescriptorsBytes);
+                    roleDescriptorsBytesCache.computeIfAbsent(newCachedApiKeyAuthResult.limitedByRoleDescriptorsHash,
+                        k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+                    newEntry.onResponse(newCachedApiKeyAuthResult);
+                }
+            }
+        };
+        loadApiKeyDocAndValidate(ctx, credentials, cachingConsumer, listener);
+    }
+
+    /**
+     * Load the API key document and validate the credentials against it. The API key document and the
+     * authentication result may be cached if the cachingConsumer is not null.
+     *
+     * @param cachingConsumer The consumer that implements the caching behaviour for the API key document
+     *                        and authentication result. Can be null if no caching is configured.
+     */
+    private void loadApiKeyDocAndValidate(ThreadContext ctx, ApiKeyCredentials credentials,
+                                  @Nullable CheckedBiConsumer<ApiKeyDoc, Boolean, ExecutionException> cachingConsumer,
+                                  ActionListener<AuthenticationResult> listener) {
+        final String docId = credentials.getId();
+        final GetRequest getRequest = client
+            .prepareGet(SECURITY_MAIN_ALIAS, docId)
+            .setFetchSource(true)
+            .request();
+        executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
+                if (response.isExists()) {
+                    final ApiKeyDoc apiKeyDoc;
+                    try (XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                        response.getSourceAsBytesRef(), XContentType.JSON)) {
+                        apiKeyDoc = ApiKeyDoc.fromXContent(parser);
+                    }
+                    verifyKeyAgainstApiKeyDoc(docId, apiKeyDoc, credentials, cachingConsumer, listener);
+                } else {
+                    listener.onResponse(
+                        AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
+                }
+            },
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful(
+                        "apikey authentication for id " + credentials.getId() + " encountered a failure",e));
+                }
+            }),
+            client::get);
+    }
+
+    private void verifyKeyAgainstApiKeyDoc(String docId, ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials,
+                                           @Nullable CheckedBiConsumer<ApiKeyDoc, Boolean, ExecutionException> cachingConsumer,
+                                           ActionListener<AuthenticationResult> listener) {
         if ("api_key".equals(apiKeyDoc.docType) == false) {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + apiKeyDoc.docType + "] not an api key", null));
@@ -564,63 +653,19 @@ public class ApiKeyService {
                 throw new IllegalStateException("api key hash is missing");
             }
 
-            if (apiKeyAuthCache != null) {
-                final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
-                final ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry;
-                try {
-                    listenableCacheEntry = apiKeyAuthCache.computeIfAbsent(credentials.getId(),
-                        k -> {
-                            valueAlreadyInCache.set(false);
-                            return new ListenableFuture<>();
-                        });
-                } catch (ExecutionException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-
-                if (valueAlreadyInCache.get()) {
-                    listenableCacheEntry.addListener(ActionListener.wrap(result -> {
-                            if (result.success) {
-                                if (result.verify(credentials.getKey())) {
-                                    // move on
-                                    validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                                } else {
-                                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                                }
-                            } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                            } else {
-                                apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                                validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
-                            }
-                        }, listener::onFailure),
-                        threadPool.generic(), threadPool.getThreadContext());
-                } else {
-                    verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(
-                        verified -> {
-                            listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
-                            if (verified) {
-                                // move on
-                                validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                            } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                            }
-                        }, listener::onFailure
-                    ));
-                }
-            } else {
-                verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(
-                    verified -> {
-                        if (verified) {
-                            // move on
-                            validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                        } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                        }
-                    },
-                    listener::onFailure
-                ));
-            }
+            verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(
+                verified -> {
+                    if (cachingConsumer != null) {
+                        cachingConsumer.accept(apiKeyDoc, verified);
+                    }
+                    if (verified) {
+                        // move on
+                        validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                    } else {
+                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                    }
+                }, listener::onFailure
+            ));
         }
     }
 
@@ -1055,16 +1100,100 @@ public class ApiKeyService {
     }
 
     final class CachedApiKeyHashResult {
+        final long creationTime;
+        final long expirationTime;
+        final boolean invalidated;
+        final String hash;
+        final String name;
+        final int version;
+        final Map<String, Object> creator;
+        final String roleDescriptorsHash;
+        final String limitedByRoleDescriptorsHash;
         final boolean success;
-        final char[] hash;
+        final char[] inMemHash;
+        final AtomicLong lastReloadedAt = new AtomicLong();
 
-        CachedApiKeyHashResult(boolean success, SecureString apiKey) {
+        CachedApiKeyHashResult(
+            long creationTime,
+            long expirationTime,
+            boolean invalidated,
+            String hash,
+            String name,
+            int version,
+            Map<String, Object> creator,
+            String roleDescriptorsHash,
+            String limitedByRoleDescriptorsHash,
+            boolean success,
+            SecureString apiKey) {
+
+            this.creationTime = creationTime;
+            this.expirationTime = expirationTime;
+            this.invalidated = invalidated;
+            this.hash = hash;
+            this.name = name;
+            this.version = version;
+            this.creator = creator;
+            this.roleDescriptorsHash = roleDescriptorsHash;
+            this.limitedByRoleDescriptorsHash = limitedByRoleDescriptorsHash;
             this.success = success;
-            this.hash = cacheHasher.hash(apiKey);
+            this.inMemHash = cacheHasher.hash(apiKey);
+            this.lastReloadedAt.set(clock.instant().toEpochMilli());
         }
 
         private boolean verify(SecureString password) {
-            return hash != null && cacheHasher.verify(password, hash);
+            return inMemHash != null && cacheHasher.verify(password, inMemHash);
+        }
+
+        ApiKeyDoc toApiKeyDoc() {
+            final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(roleDescriptorsHash);
+            final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(limitedByRoleDescriptorsHash);
+            if (roleDescriptorsBytes == null || limitedByRoleDescriptorsBytes == null) {
+                return null;
+            }
+            return new ApiKeyDoc(
+                "api_key",
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                roleDescriptorsBytes,
+                limitedByRoleDescriptorsBytes,
+                creator
+            );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            CachedApiKeyHashResult that = (CachedApiKeyHashResult) o;
+            return creationTime == that.creationTime && expirationTime == that.expirationTime
+                && invalidated == that.invalidated && version == that.version && success == that.success
+                && hash.equals(that.hash) && name.equals(that.name) && creator.equals(that.creator)
+                && roleDescriptorsHash.equals(that.roleDescriptorsHash)
+                && limitedByRoleDescriptorsHash.equals(that.limitedByRoleDescriptorsHash)
+                && Arrays.equals(inMemHash, that.inMemHash);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                creator,
+                roleDescriptorsHash,
+                limitedByRoleDescriptorsHash,
+                success);
+            result = 31 * result + Arrays.hashCode(inMemHash);
+            return result;
         }
     }
 
@@ -1124,74 +1253,33 @@ public class ApiKeyService {
             this.creator = creator;
         }
 
-        public CachedApiKeyDoc toCachedApiKeyDoc() {
-            final MessageDigest digest = MessageDigests.sha256();
-            digest.update(BytesReference.toBytes(roleDescriptorsBytes));
-            final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
-            digest.reset();
-            digest.update(BytesReference.toBytes(limitedByRoleDescriptorsBytes));
-            final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
-            return new CachedApiKeyDoc(docType,
-                creationTime,
-                expirationTime,
-                invalidated,
-                hash,
-                name,
-                version,
-                creator,
-                roleDescriptorsHash,
-                limitedByRoleDescriptorsHash);
-        }
-
         static ApiKeyDoc fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
+
     }
 
-    public static final class CachedApiKeyDoc {
-        final String docType;
-        final long creationTime;
-        final long expirationTime;
-        final Boolean invalidated;
-        final String hash;
-        final String name;
-        final int version;
-        final Map<String, Object> creator;
-        final String roleDescriptorsHash;
-        final String limitedByRoleDescriptorsHash;
+    CachedApiKeyHashResult apiKeyDocToCachedApiKeyHashResult(ApiKeyDoc apiKeyDoc, boolean success, SecureString apiKey) {
+        final MessageDigest digest = MessageDigests.sha256();
+        digest.update(BytesReference.toBytes(apiKeyDoc.roleDescriptorsBytes));
+        final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+        digest.reset();
+        digest.update(BytesReference.toBytes(apiKeyDoc.limitedByRoleDescriptorsBytes));
+        final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
 
-        public CachedApiKeyDoc(
-            String docType, long creationTime, long expirationTime,
-            Boolean invalidated,
-            String hash,
-            String name, int version, Map<String, Object> creator,
-            String roleDescriptorsHash,
-            String limitedByRoleDescriptorsHash) {
-            this.docType = docType;
-            this.creationTime = creationTime;
-            this.expirationTime = expirationTime;
-            this.invalidated = invalidated;
-            this.hash = hash;
-            this.name = name;
-            this.version = version;
-            this.creator = creator;
-            this.roleDescriptorsHash = roleDescriptorsHash;
-            this.limitedByRoleDescriptorsHash = limitedByRoleDescriptorsHash;
-        }
-
-        public ApiKeyDoc toApiKeyDoc(BytesReference roleDescriptorsBytes, BytesReference limitedByRoleDescriptorsBytes) {
-            return new ApiKeyDoc(
-                docType,
-                creationTime,
-                expirationTime,
-                invalidated,
-                hash,
-                name,
-                version,
-                roleDescriptorsBytes,
-                limitedByRoleDescriptorsBytes,
-                creator);
-        }
+        return new CachedApiKeyHashResult(
+            apiKeyDoc.creationTime,
+            apiKeyDoc.expirationTime,
+            apiKeyDoc.invalidated,
+            apiKeyDoc.hash,
+            apiKeyDoc.name,
+            apiKeyDoc.version,
+            apiKeyDoc.creator,
+            roleDescriptorsHash,
+            limitedByRoleDescriptorsHash,
+            success,
+            apiKey
+        );
     }
 
 }

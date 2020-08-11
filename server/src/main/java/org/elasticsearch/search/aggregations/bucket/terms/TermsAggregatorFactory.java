@@ -55,11 +55,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(TermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            TermsAggregatorFactory.bytesSupplier());
+            TermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(TermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            TermsAggregatorFactory.numericSupplier());
+            TermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**

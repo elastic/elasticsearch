@@ -40,8 +40,8 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             MaxAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            MaxAggregator::new
-        );
+            MaxAggregator::new,
+                true);
     }
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

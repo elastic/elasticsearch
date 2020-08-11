@@ -61,8 +61,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                     metadata,
                     valuesSourceConfig,
                     maxDocsPerValue
-                )
-        );
+                ),
+                true);
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
@@ -90,8 +90,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                     execution = ExecutionMode.MAP;
                 }
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
-            }
-        );
+            },
+            true);
     }
 
     private final int shardSize;

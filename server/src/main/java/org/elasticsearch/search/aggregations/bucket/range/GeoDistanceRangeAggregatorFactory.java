@@ -79,8 +79,8 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                     cardinality,
                     metadata
                 );
-            }
-        );
+            },
+                true);
     }
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;

@@ -68,6 +68,6 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoBoundsAggregator::new);
+        builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoBoundsAggregator::new, true);
     }
 }

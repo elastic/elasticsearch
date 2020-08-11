@@ -36,7 +36,7 @@ import java.util.Map;
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new);
+        builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

@@ -126,7 +126,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     cardinality,
                     metadata
                 );
-            }
-        );
+            },
+                true);
     }
 }

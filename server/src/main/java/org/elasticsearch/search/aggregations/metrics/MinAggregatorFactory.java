@@ -40,8 +40,8 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             MinAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            MinAggregator::new
-        );
+            MinAggregator::new,
+            true);
     }
 
     MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

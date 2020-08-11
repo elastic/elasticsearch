@@ -100,7 +100,12 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), GeoShapeBoundsAggregator::new);
+        builder.register(
+            GeoBoundsAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            GeoShapeBoundsAggregator::new,
+            true
+        );
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
@@ -111,7 +116,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
-            });
+            },
+            true
+        );
     }
 
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
@@ -133,7 +140,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
-            });
+            },
+            true
+        );
 
         builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
@@ -153,14 +162,16 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     return agg;
                 }
                 throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
-            });
+            },
+            true
+        );
     }
 
     private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), ValueCountAggregator::new);
+        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), ValueCountAggregator::new, true);
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new);
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
     }
 }

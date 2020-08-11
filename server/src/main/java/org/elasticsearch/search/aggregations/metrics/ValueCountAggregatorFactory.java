@@ -36,7 +36,7 @@ import java.util.Map;
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new);
+        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,

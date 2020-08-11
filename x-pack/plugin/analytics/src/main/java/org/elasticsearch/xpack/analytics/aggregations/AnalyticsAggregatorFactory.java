@@ -43,7 +43,7 @@ public class AnalyticsAggregatorFactory {
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
                     "is not compatible with Histogram field");
-            });
+            }, true);
     }
 
     public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
@@ -63,28 +63,28 @@ public class AnalyticsAggregatorFactory {
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
                     "is not compatible with Histogram field");
-            });
+            }, true);
     }
 
     public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(SumAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedSumAggregator::new);
+        builder.register(SumAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedSumAggregator::new, true);
     }
 
     public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedValueCountAggregator::new
-        );
+            HistoBackedValueCountAggregator::new,
+                true);
     }
 
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(AvgAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedAvgAggregator::new);
+        builder.register(AvgAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedAvgAggregator::new, true);
     }
 
     public static void registerHistoBackedHistogramAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(HistogramAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedHistogramAggregator::new
-        );
+            HistoBackedHistogramAggregator::new,
+                true);
     }
 }

@@ -30,8 +30,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             BoxplotAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
-            BoxplotAggregator::new
-        );
+            BoxplotAggregator::new,
+                true);
     }
 
     BoxplotAggregatorFactory(String name,

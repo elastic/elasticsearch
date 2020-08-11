@@ -49,13 +49,13 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final DoubleBounds hardBounds;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new);
+        builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);
 
         builder.register(
             HistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            NumericHistogramAggregator::new
-        );
+            NumericHistogramAggregator::new,
+                true);
     }
 
     public HistogramAggregatorFactory(String name,

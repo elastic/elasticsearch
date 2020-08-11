@@ -53,8 +53,8 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         builder.register(
             MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
-            MedianAbsoluteDeviationAggregator::new
-        );
+            MedianAbsoluteDeviationAggregator::new,
+                true);
     }
 
     @Override

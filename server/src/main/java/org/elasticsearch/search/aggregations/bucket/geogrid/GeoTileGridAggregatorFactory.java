@@ -118,7 +118,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     cardinality,
                     metadata
                 );
-            }
-        );
+            },
+                true);
     }
 }

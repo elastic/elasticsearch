@@ -51,8 +51,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         builder.register(
             registryKey,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::new
-        );
+            RangeAggregator::new,
+                true);
     }
 
     public AbstractRangeAggregatorFactory(String name,

@@ -46,8 +46,8 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             AvgAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            AvgAggregator::new
-        );
+            AvgAggregator::new,
+                true);
     }
 
     @Override

@@ -64,6 +64,6 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoCentroidAggregator::new);
+        builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoCentroidAggregator::new, true);
     }
 }

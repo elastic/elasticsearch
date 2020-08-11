@@ -42,10 +42,10 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            DateHistogramAggregator::new
-        );
+            DateHistogramAggregator::new,
+                true);
 
-        builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new);
+        builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
 
     private final BucketOrder order;

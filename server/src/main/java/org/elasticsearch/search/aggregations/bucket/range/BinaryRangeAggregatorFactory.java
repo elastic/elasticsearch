@@ -36,7 +36,7 @@ import java.util.Map;
 public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new);
+        builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
     }
 
     private final List<BinaryRangeAggregator.Range> ranges;

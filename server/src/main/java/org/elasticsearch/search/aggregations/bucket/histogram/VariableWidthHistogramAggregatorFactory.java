@@ -39,8 +39,8 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
         builder.register(
             VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
-            VariableWidthHistogramAggregator::new
-        );
+            VariableWidthHistogramAggregator::new,
+                true);
     }
 
     private final int numBuckets;

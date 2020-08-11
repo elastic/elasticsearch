@@ -49,8 +49,8 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
             PercentilesAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
-                .createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata)
-        );
+                .createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
+                true);
     }
 
     PercentilesAggregatorFactory(String name, ValuesSourceConfig config, double[] percents,

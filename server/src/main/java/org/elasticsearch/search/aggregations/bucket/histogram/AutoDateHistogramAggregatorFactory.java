@@ -43,8 +43,8 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         builder.register(
             AutoDateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            AutoDateHistogramAggregator::build
-        );
+            AutoDateHistogramAggregator::build,
+                true);
     }
 
     private final int numBuckets;

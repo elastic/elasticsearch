@@ -48,11 +48,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            RareTermsAggregatorFactory.bytesSupplier());
+            RareTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            RareTermsAggregatorFactory.numericSupplier());
+            RareTermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**

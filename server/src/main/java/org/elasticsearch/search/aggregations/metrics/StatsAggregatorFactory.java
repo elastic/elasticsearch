@@ -49,8 +49,8 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             StatsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            StatsAggregator::new
-        );
+            StatsAggregator::new,
+                true);
     }
 
     @Override

@@ -51,11 +51,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            SignificantTermsAggregatorFactory.bytesSupplier());
+            SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            SignificantTermsAggregatorFactory.numericSupplier());
+            SignificantTermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**

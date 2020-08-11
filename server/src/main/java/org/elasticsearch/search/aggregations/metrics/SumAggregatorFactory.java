@@ -49,8 +49,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             SumAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            SumAggregator::new
-        );
+            SumAggregator::new,
+                true);
     }
 
     @Override

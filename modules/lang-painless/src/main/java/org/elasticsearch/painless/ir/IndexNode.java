@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
 
-public enum EnabledAttributeMapper {
-    ENABLED(true), UNSET_ENABLED(true), DISABLED(false), UNSET_DISABLED(false);
+package org.elasticsearch.painless.ir;
 
-    public final boolean enabled;
+public abstract class IndexNode extends ExpressionNode {
 
-    EnabledAttributeMapper(boolean enabled) {
-        this.enabled = enabled;
+    /* ---- begin tree structure ---- */
+
+    private ExpressionNode indexNode;
+
+    public void setIndexNode(ExpressionNode indexNode) {
+        this.indexNode = indexNode;
     }
 
-    public boolean unset() {
-        return this == UNSET_DISABLED || this == UNSET_ENABLED;
+    public ExpressionNode getIndexNode() {
+        return indexNode;
     }
+
+    /* ---- end tree structure ---- */
+
 }

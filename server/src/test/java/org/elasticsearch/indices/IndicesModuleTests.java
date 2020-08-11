@@ -62,17 +62,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    private static class FakeMetadataMapperParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            return null;
-        }
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return null;
-        }
-    }
+    private static MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
@@ -81,7 +71,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("fake-metadata-mapper", new FakeMetadataMapperParser());
+            return Collections.singletonMap("fake-metadata-mapper", PARSER);
         }
     });
 
@@ -166,7 +156,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap(IdFieldMapper.NAME, new FakeMetadataMapperParser());
+                return Collections.singletonMap(IdFieldMapper.NAME, PARSER);
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -178,7 +168,7 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap("foo", new FakeMetadataMapperParser());
+                return Collections.singletonMap("foo", PARSER);
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
@@ -191,7 +181,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap(FieldNamesFieldMapper.NAME, new FakeMetadataMapperParser());
+                return Collections.singletonMap(FieldNamesFieldMapper.NAME, PARSER);
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

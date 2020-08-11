@@ -37,7 +37,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     public static final TypeParser PARSER = new TypeParser((name, parserContext) -> new Builder(name, new ScriptCompiler() {
         @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-            return parserContext.queryShardContextSupplier().get().compile(script, context);
+            return parserContext.scriptService().compile(script, context);
         }
     }));
 

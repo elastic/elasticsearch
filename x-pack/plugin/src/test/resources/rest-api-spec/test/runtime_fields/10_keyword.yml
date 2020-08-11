@@ -162,3 +162,22 @@ setup:
                 query: Monday
                 analyzer: standard
   - match: {hits.total.value: 0}
+
+---
+"dynamic mapping update":
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"animal": "cow"}
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              animal: cow
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.animal: cow}

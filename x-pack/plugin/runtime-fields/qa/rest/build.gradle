@@ -11,12 +11,16 @@ testClusters.yamlRestTest {
 }
 
 yamlRestTest {
-  systemProperty 'tests.rest.whitelist',
+  systemProperty 'tests.rest.suite',
     [
-      'search*/*',
-      'suggest/*',
-      'msearch/*',
-      'field_caps/*',
+      'search',
+      'search.aggregation',
+      'search.highlight',
+      'search.inner_hits',
+      'search_shards',
+      'suggest',
+      'msearch',
+      'field_caps',
     ].join(',')
   systemProperty 'tests.rest.blacklist',
     [

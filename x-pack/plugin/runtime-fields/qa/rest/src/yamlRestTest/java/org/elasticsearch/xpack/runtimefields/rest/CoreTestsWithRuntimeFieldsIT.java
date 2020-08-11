@@ -44,6 +44,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         Map<String, Boolean> seenSetups = new HashMap<>();
         List<Object[]> result = new ArrayList<>();
         for (Object[] orig : ESClientYamlSuiteTestCase.createParameters()) {
+            assert orig.length == 1;
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) orig[0];
             boolean modifiedSetup = seenSetups.computeIfAbsent(
                 candidate.getName(),
@@ -74,7 +75,11 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             }
             for (Map<?, ?> body : doSection.getApiCallSection().getBodies()) {
                 Object settings = body.get("settings");
-                if (settings instanceof Map && containsUnsupportedSettings((Map<?, ?>) settings)) {
+                if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
+                    /*
+                     * You can't sort on a runtime_keyword and it is hard to figure out
+                     * if the sort was a runtime_keyword so lets just skip this test.
+                     */
                     continue;
                 }
                 Object mappings = body.get("mappings");
@@ -128,15 +133,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             }
         }
         return include;
-    }
-
-    private static boolean containsUnsupportedSettings(Map<?, ?> settings) {
-        return
-        /*
-         * You can't sort on a runtime_keyword and it is hard to figure out
-         * if the sort was a runtime_keyword so lets just skip this test.
-         */
-        settings.containsKey("sort.field");
     }
 
     private static String painlessToLoadFromSource(String name, String type) {

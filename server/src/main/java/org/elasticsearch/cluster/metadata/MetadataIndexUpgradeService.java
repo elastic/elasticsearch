@@ -59,13 +59,15 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final ScriptService scriptService;
 
     public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings) {
+                                       IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.scriptService = scriptService;
     }
 
     /**
@@ -181,7 +183,7 @@ public class MetadataIndexUpgradeService {
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false);
+                        mapperRegistry, () -> null, () -> false, scriptService);
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

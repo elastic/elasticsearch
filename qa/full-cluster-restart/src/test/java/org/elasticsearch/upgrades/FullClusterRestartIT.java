@@ -1457,6 +1457,75 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
 
+    public void testCreateSystemIndexInOldVersion() throws Exception {
+        assumeTrue("only run on old cluster", isRunningAgainstOldCluster());
+        // create index
+        Request createTestIndex = new Request("PUT", "/test_index_old");
+        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0, \"index.number_of_shards\": 1}}");
+        client().performRequest(createTestIndex);
+
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
+            "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+        if (isRunningAgainstAncientCluster() == false) {
+            bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        }
+        client().performRequest(bulk);
+
+        // start a async reindex job
+        Request reindex = new Request("POST", "/_reindex");
+        reindex.setJsonEntity(
+            "{\n" +
+                "  \"source\":{\n" +
+                "    \"index\":\"test_index_old\"\n" +
+                "  },\n" +
+                "  \"dest\":{\n" +
+                "    \"index\":\"test_index_reindex\"\n" +
+                "  }\n" +
+                "}");
+        reindex.addParameter("wait_for_completion", "false");
+        Map<String, Object> response = entityAsMap(client().performRequest(reindex));
+        String taskId = (String) response.get("task");
+
+        // wait for task
+        Request getTask = new Request("GET", "/_tasks/" + taskId);
+        getTask.addParameter("wait_for_completion", "true");
+        client().performRequest(getTask);
+
+        // make sure .tasks index exists
+        assertBusy(() -> {
+            Request getTasksIndex = new Request("GET", "/.tasks");
+            if (isRunningAgainstAncientCluster()) {
+                getTasksIndex.addParameter("include_type_name", "false");
+            }
+            assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+        });
+    }
+
+    @SuppressWarnings("unchecked" +
+        "")
+    public void testSystemIndexGetsUpdatedMetadata() throws Exception {
+        assumeFalse("only run in upgraded cluster", isRunningAgainstOldCluster());
+
+        assertBusy(() -> {
+            Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
+            Map<String, Object> response = entityAsMap(client().performRequest(clusterStateRequest));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            assertNotNull(metadata);
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            assertNotNull(indices);
+
+            Map<String, Object> tasksIndex = (Map<String, Object>) indices.get(".tasks");
+            assertNotNull(tasksIndex);
+            assertThat(tasksIndex.get("system"), is(true));
+
+            Map<String, Object> testIndex = (Map<String, Object>) indices.get("test_index_old");
+            assertNotNull(testIndex);
+            assertThat(testIndex.get("system"), is(false));
+        });
+    }
+
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);

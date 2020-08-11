@@ -544,7 +544,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private Executor getExecutor(IndexShard indexShard) {
         assert indexShard != null;
-        return threadPool.executor(indexShard.indexSettings().isSearchThrottled() ? Names.SEARCH_THROTTLED : Names.SEARCH);
+        final String executorName;
+        if (indexShard.isSystem()) {
+            executorName = Names.SYSTEM_READ;
+        } else if (indexShard.indexSettings().isSearchThrottled()) {
+            executorName = Names.SEARCH_THROTTLED;
+        } else {
+            executorName = Names.SEARCH;
+        }
+        return threadPool.executor(executorName);
     }
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,

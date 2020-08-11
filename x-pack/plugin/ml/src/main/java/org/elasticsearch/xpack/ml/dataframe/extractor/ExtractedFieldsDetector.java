@@ -93,6 +93,8 @@ public class ExtractedFieldsDetector {
         ExtractedFields extractedFields = detectExtractedFields(fields, fieldSelection, processedFields);
         addIncludedFields(extractedFields, fieldSelection);
 
+        checkOutputFeatureUniqueness(processedFields, fields);
+
         return Tuple.tuple(extractedFields, Collections.unmodifiableList(new ArrayList<>(fieldSelection)));
     }
 
@@ -522,6 +524,37 @@ public class ExtractedFieldsDetector {
                 FieldSelection.FeatureType.CATEGORICAL : FieldSelection.FeatureType.NUMERICAL;
             fieldSelection.add(FieldSelection.included(includedField.getName(), includedField.getTypes(),
                 requiredFields.contains(includedField.getName()), featureType));
+        }
+    }
+
+    static void checkOutputFeatureUniqueness(List<ProcessedField> processedFields, Set<String> selectedFields) {
+        Set<String> processInputs = processedFields.stream()
+            .map(ProcessedField::getInputFieldNames)
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+        // All analysis fields that we include that are NOT processed
+        // This indicates that they are sent as is
+        Set<String> organicFields = Sets.difference(selectedFields, processInputs);
+
+        Set<String> processedFeatures = new HashSet<>();
+        Set<String> duplicatedFields = new HashSet<>();
+        for (ProcessedField processedField : processedFields) {
+            for (String output : processedField.getOutputFieldNames()) {
+                if(processedFeatures.add(output) == false) {
+                    duplicatedFields.add(output);
+                }
+            }
+        }
+        if (duplicatedFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "feature_processors must define unique output field names; duplicate fields {}",
+                duplicatedFields);
+        }
+        Set<String> duplicateOrganicAndProcessed = Sets.intersection(organicFields, processedFeatures);
+        if (duplicateOrganicAndProcessed.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "feature_processors output fields must not include non-processed analysis fields; duplicate fields {}",
+                duplicateOrganicAndProcessed);
         }
     }
 

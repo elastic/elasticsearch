@@ -140,14 +140,20 @@ See <<search-api-min-score>>.
 
 See <<named-queries>>.
 
-include::request/post-filter.asciidoc[]
+[[request-body-search-post-filter]]
+==== Post filter
+
+See <<post-filter>>.
 
 include::request/preference.asciidoc[]
 
-include::request/rescore.asciidoc[]
+[[request-body-search-rescore]]
+==== Rescoring
+
+See <<rescore>>.
 
 [[request-body-search-script-fields]]
-==== Script Fields
+==== Script fields
 
 See <<script-fields>>.
 

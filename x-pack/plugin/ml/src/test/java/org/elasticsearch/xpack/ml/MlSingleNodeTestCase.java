@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;

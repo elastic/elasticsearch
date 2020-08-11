@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -35,7 +36,7 @@ public class ProcessedField {
     }
 
     public Object[] value(SearchHit hit, Function<String, ExtractedField> fieldExtractor) {
-        HashMap<String, Object> inputs = new HashMap<>(preProcessor.inputFields().size(), 1.0f);
+        Map<String, Object> inputs = new HashMap<>(preProcessor.inputFields().size(), 1.0f);
         for (String field : preProcessor.inputFields()) {
             ExtractedField extractedField = fieldExtractor.apply(field);
             if (extractedField == null) {

@@ -48,7 +48,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
             (a, c) -> new FrequencyEncoding((String)a[0],
                 (String)a[1],
                 (Map<String, Double>)a[2],
-                a[3] == null ? c.isDefaultIsCustomValue() : (Boolean)a[3]));
+                a[3] == null ? c.isCustomByDefault() : (Boolean)a[3]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         parser.declareObject(ConstructingObjectParser.constructorArg(),

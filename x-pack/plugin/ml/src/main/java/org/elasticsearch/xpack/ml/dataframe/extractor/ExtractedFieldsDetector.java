@@ -128,7 +128,7 @@ public class ExtractedFieldsDetector {
         Set<String> fieldsForProcessor = new HashSet<>(processorFields);
         removeFieldsUnderResultsField(fieldsForProcessor);
         if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("fields contained in results field {} cannot be used in a feature_processor",
+            throw ExceptionsHelper.badRequestException("fields contained in results field [{}] cannot be used in a feature_processor",
                 config.getDest().getResultsField());
         }
         removeObjects(fieldsForProcessor);
@@ -404,15 +404,16 @@ public class ExtractedFieldsDetector {
                 if ((requiredFields.contains(parent.getName()) && processorInputFields.contains(multiField.getName()))
                     || (requiredFields.contains(multiField.getName()) && processorInputFields.contains(parent.getName()))) {
                     throw ExceptionsHelper.badRequestException(
-                        "feature_processors cannot be applied to required fields for analysis multi-field [{}] parent [{}]",
+                        "feature_processors cannot be applied to required fields for analysis; multi-field [{}] parent [{}]",
                         multiField.getName(),
                         parent.getName());
                 }
                 // If processor input fields have BOTH, we need to keep both.
                 if (processorInputFields.contains(parent.getName()) && processorInputFields.contains(multiField.getName())) {
-                    nameOrParentToField.put(parent.getName(), parent);
-                    nameOrParentToField.put(multiField.getName(), multiField);
-                    continue;
+                    throw ExceptionsHelper.badRequestException(
+                        "feature_processors refer to both multi-field [{}] and parent [{}]. Please only refer to one or the other",
+                        multiField.getName(),
+                        parent.getName());
                 }
                 nameOrParentToField.put(nameOrParent,
                     chooseMultiFieldOrParent(preferSource, requiredFields, processorInputFields, parent, multiField, fieldSelection));

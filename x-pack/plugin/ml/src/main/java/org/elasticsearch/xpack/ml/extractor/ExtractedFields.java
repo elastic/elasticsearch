@@ -39,7 +39,7 @@ public class ExtractedFields {
         this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
             .toArray(String[]::new);
         this.cardinalitiesForFieldsWithConstraints = Collections.unmodifiableMap(cardinalitiesForFieldsWithConstraints);
-        this.processedFields = processedFields;
+        this.processedFields = processedFields == null ? Collections.emptyList() : processedFields;
     }
 
     public List<ProcessedField> getProcessedFields() {

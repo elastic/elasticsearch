@@ -49,7 +49,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
                 (String)a[1],
                 (Map<String, Double>)a[2],
                 (Double)a[3],
-                a[4] == null ? c.isDefaultIsCustomValue() : (Boolean)a[4]));
+                a[4] == null ? c.isCustomByDefault() : (Boolean)a[4]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         parser.declareObject(ConstructingObjectParser.constructorArg(),

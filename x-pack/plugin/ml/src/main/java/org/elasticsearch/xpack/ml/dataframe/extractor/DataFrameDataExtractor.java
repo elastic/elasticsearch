@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,27 +73,27 @@ public class DataFrameDataExtractor {
     private final CachedSupplier<TrainTestSplitter> trainTestSplitter;
     // These are fields that are sent directly to the analytics process
     // They are not passed through a feature_processor
-    private final List<String> organicExtractedFeatures;
+    private final String[] organicFeatures;
     // These are the output field names for the feature_processors
-    private final List<String> processedOutputFields;
-    private final HashMap<String, ExtractedField> extractedFieldHashMap;
+    private final String[] processedFeatures;
+    private final Map<String, ExtractedField> extractedFieldsByName;
 
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
         Set<String> processedFieldInputs = context.extractedFields.getProcessedFieldInputs();
-        this.organicExtractedFeatures = context.extractedFields.getAllFields()
+        this.organicFeatures = context.extractedFields.getAllFields()
             .stream()
             .map(ExtractedField::getName)
             .filter(f -> processedFieldInputs.contains(f) == false)
-            .collect(Collectors.toList());
-        this.processedOutputFields = context.extractedFields.getProcessedFields()
+            .toArray(String[]::new);
+        this.processedFeatures = context.extractedFields.getProcessedFields()
             .stream()
             .map(ProcessedField::getOutputFieldNames)
             .flatMap(List::stream)
-            .collect(Collectors.toList());
-        this.extractedFieldHashMap = new LinkedHashMap<>();
-        context.extractedFields.getAllFields().forEach(f -> this.extractedFieldHashMap.put(f.getName(), f));
+            .toArray(String[]::new);
+        this.extractedFieldsByName = new LinkedHashMap<>();
+        context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
         searchHasShardFailure = false;
         this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
@@ -212,40 +211,35 @@ public class DataFrameDataExtractor {
         return rows;
     }
 
-    private int extractNonProcessedValues(SearchHit hit, String[] extractedValues) {
-        int lastIndex = 0;
-        for (String organicFeature : organicExtractedFeatures) {
-            ExtractedField field = extractedFieldHashMap.get(organicFeature);
-            Object[] values = field.value(hit);
-            if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
-                extractedValues[lastIndex++] = Objects.toString(values[0]);
-            } else {
-                if (values.length == 0 && context.supportsRowsWithMissingValues) {
-                    // if values is empty then it means it's a missing value
-                    extractedValues[lastIndex++] = NULL_VALUE;
-                } else {
-                    // we are here if we have a missing value but the analysis does not support those
-                    // or the value type is not supported (e.g. arrays, etc.)
-                    return -1;
-                }
-            }
+    private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
+        ExtractedField field = extractedFieldsByName.get(organicFeature);
+        Object[] values = field.value(hit);
+        if (values.length == 1 && isValidValue(values[0])) {
+            return Objects.toString(values[0]);
         }
-        return lastIndex;
+        if (values.length == 0 && context.supportsRowsWithMissingValues) {
+            // if values is empty then it means it's a missing value
+            return NULL_VALUE;
+        }
+        // we are here if we have a missing value but the analysis does not support those
+        // or the value type is not supported (e.g. arrays, etc.)
+        return null;
     }
 
-    private int extractProcessedValue(ProcessedField processedField, SearchHit hit, String[] extractedValues, int start) {
-        int lastIndex = start;
-        Object[] values = processedField.value(hit, extractedFieldHashMap::get);
-        if (values.length == 0) {
-            if (context.supportsRowsWithMissingValues == false) {
-                return -1;
-            }
-            for (String ignored : processedField.getOutputFieldNames()) {
-                // if values is empty then it means it's a missing value
-                extractedValues[lastIndex++] = NULL_VALUE;
-            }
-            return lastIndex;
+    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit) {
+        Object[] values = processedField.value(hit, extractedFieldsByName::get);
+        if (values.length == 0 && context.supportsRowsWithMissingValues == false) {
+            return null;
         }
+        final String[] extractedValue = new String[processedField.getOutputFieldNames().size()];
+        for (int i = 0; i < processedField.getOutputFieldNames().size(); i++) {
+            extractedValue[i] = NULL_VALUE;
+        }
+        // if values is empty then it means it's a missing value
+        if (values.length == 0) {
+            return extractedValue;
+        }
+
         if (values.length != processedField.getOutputFieldNames().size()) {
             throw ExceptionsHelper.badRequestException(
                 "field_processor [{}] output size expected to be [{}], instead it was [{}]",
@@ -253,34 +247,39 @@ public class DataFrameDataExtractor {
                 processedField.getOutputFieldNames().size(),
                 values.length);
         }
-        for (int k = 0; k < processedField.getOutputFieldNames().size(); ++k) {
-            Object value = values[k];
-            if (value instanceof Number || value instanceof String) {
-                extractedValues[lastIndex++] = Objects.toString(value);
-            } else {
-                if (value == null && context.supportsRowsWithMissingValues) {
-                    // if values is null then it means it's a missing value
-                    extractedValues[lastIndex++] = NULL_VALUE;
-                } else {
-                    // we are here if we have a missing value but the analysis does not support those
-                    // or the value type is not supported (e.g. arrays, etc.)
-                    return -1;
-                }
+
+        for (int i = 0; i < processedField.getOutputFieldNames().size(); ++i) {
+            Object value = values[i];
+            if (value == null && context.supportsRowsWithMissingValues) {
+                continue;
             }
+            if (isValidValue(value) == false) {
+                // we are here if we have a missing value but the analysis does not support those
+                // or the value type is not supported (e.g. arrays, etc.)
+                return null;
+            }
+            extractedValue[i] = Objects.toString(value);
         }
-        return lastIndex;
+        return extractedValue;
     }
 
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = new String[organicExtractedFeatures.size() + processedOutputFields.size()];
-        int lastIndex = extractNonProcessedValues(hit, extractedValues);
-        if (lastIndex < 0) {
-            return new Row(null, hit, true);
+        String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
+        int i = 0;
+        for (String organicFeature : organicFeatures) {
+            String extractedValue = extractNonProcessedValues(hit, organicFeature);
+            if (extractedValue == null) {
+                return new Row(null, hit, true);
+            }
+            extractedValues[i++] = extractedValue;
         }
         for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
-            lastIndex = extractProcessedValue(processedField, hit, extractedValues, lastIndex);
-            if (lastIndex < 0) {
+            String[] processedValues = extractProcessedValue(processedField, hit);
+            if (processedValues == null) {
                 return new Row(null, hit, true);
+            }
+            for (String processedValue : processedValues) {
+                extractedValues[i++] = processedValue;
             }
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
@@ -317,7 +316,7 @@ public class DataFrameDataExtractor {
     }
 
     public List<String> getFieldNames() {
-        return Stream.concat(organicExtractedFeatures.stream(), processedOutputFields.stream()).collect(Collectors.toList());
+        return Stream.concat(Arrays.stream(organicFeatures), Arrays.stream(processedFeatures)).collect(Collectors.toList());
     }
 
     public ExtractedFields getExtractedFields() {
@@ -329,12 +328,12 @@ public class DataFrameDataExtractor {
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         long rows = searchResponse.getHits().getTotalHits().value;
         LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
-        return new DataSummary(rows, organicExtractedFeatures.size() + processedOutputFields.size());
+        return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
-        final int numberOfFields = organicExtractedFeatures.size() + processedOutputFields.size();
+        final int numberOfFields = organicFeatures.length + processedFeatures.length;
 
         ClientHelper.executeWithHeadersAsync(context.headers,
             ClientHelper.ML_ORIGIN,
@@ -374,6 +373,10 @@ public class DataFrameDataExtractor {
 
     public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
         return ExtractedFieldsDetector.getCategoricalOutputFields(context.extractedFields, analysis);
+    }
+
+    private static boolean isValidValue(Object value) {
+        return value instanceof Number || value instanceof String;
     }
 
     public static class DataSummary {

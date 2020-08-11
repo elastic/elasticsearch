@@ -25,7 +25,7 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
             this.defaultIsCustomValue = defaultIsCustomValue;
         }
 
-        public boolean isDefaultIsCustomValue() {
+        public boolean isCustomByDefault() {
             return defaultIsCustomValue;
         }
     }

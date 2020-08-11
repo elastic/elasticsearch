@@ -46,7 +46,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
             lenient,
             (a, c) -> new OneHotEncoding((String)a[0],
                 (Map<String, String>)a[1],
-                a[2] == null ? c.isDefaultIsCustomValue() : (Boolean)a[2]));
+                a[2] == null ? c.isCustomByDefault() : (Boolean)a[2]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);

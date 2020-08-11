@@ -341,6 +341,24 @@ public final class PainlessScriptEngine implements ScriptEngine {
         deterAdapter.returnValue();
         deterAdapter.endMethod();
 
+        org.objectweb.asm.commons.Method docFields = new org.objectweb.asm.commons.Method(methodName,
+            MethodType.methodType(List.class).toMethodDescriptorString());
+        GeneratorAdapter docAdapter = new GeneratorAdapter(Opcodes.ASM5, docFields,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, "docFields", docFields.getDescriptor(), null, null));
+        docAdapter.visitCode();
+        docAdapter.newInstance(WriterConstants.ARRAY_LIST_TYPE);
+        docAdapter.dup();
+        docAdapter.push(scriptScope.docFields().size());
+        docAdapter.invokeConstructor(WriterConstants.ARRAY_LIST_TYPE, WriterConstants.ARRAY_LIST_CTOR_WITH_SIZE);
+        for (int i = 0; i < scriptScope.docFields().size(); i++) {
+            docAdapter.dup();
+            docAdapter.push(scriptScope.docFields().get(i));
+            docAdapter.invokeInterface(WriterConstants.LIST_TYPE, WriterConstants.LIST_ADD);
+            docAdapter.pop(); // Don't want the result of calling add
+        }
+        docAdapter.returnValue();
+        docAdapter.endMethod();
+
         writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 

@@ -264,6 +264,7 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setDestIndex(config.getDest().getIndex());
                 reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
                 reindexRequest.setParentTask(task.getParentTaskId());
+                reindexRequest.getSearchRequest().allowPartialSearchResults(false);
 
                 final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);

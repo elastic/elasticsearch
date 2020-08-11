@@ -1,0 +1,18 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# The whitelist for ip-valued runtime fields
+
+class org.elasticsearch.xpack.runtimefields.IpScriptFieldScript @no_import {
+}
+
+static_import {
+    void stringValue(org.elasticsearch.xpack.runtimefields.IpScriptFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.IpScriptFieldScript$StringValue
+}
+
+# This import is required to make painless happy and it isn't 100% clear why
+class org.elasticsearch.xpack.runtimefields.IpScriptFieldScript$Factory @no_import {
+}

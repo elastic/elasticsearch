@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
+import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecision;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionType;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
@@ -68,9 +68,11 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingDecisions(decisions);
     }
 
-    public static SortedMap<String, AutoscalingDecider> randomAutoscalingDeciders() {
+    public static SortedMap<String, AutoscalingDeciderConfiguration> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            List.of(new AlwaysAutoscalingDecider()).stream().collect(Collectors.toMap(AutoscalingDecider::name, Function.identity()))
+            List.of(new AlwaysAutoscalingDeciderConfiguration())
+                .stream()
+                .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
         );
     }
 
@@ -83,7 +85,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {
-        final SortedMap<String, AutoscalingDecider> deciders;
+        final SortedMap<String, AutoscalingDeciderConfiguration> deciders;
         if (randomBoolean()) {
             // if the policy name did not change, or randomly, use a mutated set of deciders
             deciders = mutateAutoscalingDeciders(instance.deciders());
@@ -93,7 +95,9 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingPolicy(randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8)), deciders);
     }
 
-    public static SortedMap<String, AutoscalingDecider> mutateAutoscalingDeciders(final SortedMap<String, AutoscalingDecider> deciders) {
+    public static SortedMap<String, AutoscalingDeciderConfiguration> mutateAutoscalingDeciders(
+        final SortedMap<String, AutoscalingDeciderConfiguration> deciders
+    ) {
         if (deciders.size() == 0) {
             return randomAutoscalingDeciders();
         } else {

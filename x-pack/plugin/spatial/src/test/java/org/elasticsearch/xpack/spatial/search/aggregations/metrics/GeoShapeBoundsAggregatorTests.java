@@ -61,7 +61,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -89,7 +89,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -122,7 +122,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(bounds.top, equalTo(lat));
                 assertThat(bounds.bottom, equalTo(lat));
                 assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
@@ -149,7 +149,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                    () -> search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertThat(exception.getMessage(), startsWith("Unknown geometry type"));
             }
         }
@@ -204,7 +204,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
                 assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));

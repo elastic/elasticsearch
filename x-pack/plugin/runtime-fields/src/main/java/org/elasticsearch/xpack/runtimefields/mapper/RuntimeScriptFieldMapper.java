@@ -10,6 +10,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -21,6 +22,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
@@ -36,7 +38,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     public static final TypeParser PARSER = new TypeParser((name, parserContext) -> new Builder(name, new ScriptCompiler() {
         @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-            return parserContext.queryShardContextSupplier().get().compile(script, context);
+            return parserContext.scriptService().compile(script, context);
         }
     }));
 
@@ -119,6 +121,20 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
                     builder.meta.getValue()
                 );
             },
+            IpFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
+                IpScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    IpScriptFieldScript.CONTEXT
+                );
+                return new ScriptIpMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
             KeywordFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
@@ -184,7 +200,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
                 b.field(n, v);
             }
-        }).acceptsNull();
+        }, Object::toString).acceptsNull();
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             true,
@@ -195,7 +211,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             if (v != null && false == v.equals(Locale.ROOT)) {
                 b.field(n, v.toString());
             }
-        }).acceptsNull();
+        }, Object::toString).acceptsNull();
 
         private final ScriptCompiler scriptCompiler;
 

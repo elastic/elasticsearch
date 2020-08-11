@@ -192,7 +192,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, olderVersion, null, null);
+            null, null, type -> typeParser, olderVersion, null, null, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -207,7 +207,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, version, null, null);
+            null, null, type -> typeParser, version, null, null, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TypeParsers.parseField(builder, "some-field", fieldNodeCopy, context));
@@ -233,7 +233,7 @@ public class TypeParsersTests extends ESTestCase {
 
     public void testParseMeta() {
         FieldMapper.Builder<?> builder = new KeywordFieldMapper.Builder("foo");
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null, null);
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null, null, null);
 
         {
             Map<String, Object> mapping = new HashMap<>(Map.of("meta", 3));

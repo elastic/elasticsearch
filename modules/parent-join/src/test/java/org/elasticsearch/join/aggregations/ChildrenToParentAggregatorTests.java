@@ -303,7 +303,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
+        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
 
@@ -314,7 +314,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
+        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
 
@@ -328,7 +328,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
-        LongTerms result = search(indexSearcher, query, aggregationBuilder, fieldType, subFieldType);
+        LongTerms result = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType, subFieldType);
         verify.accept(result);
     }
 

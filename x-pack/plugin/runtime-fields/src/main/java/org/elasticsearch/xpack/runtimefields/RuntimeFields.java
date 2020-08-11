@@ -29,6 +29,7 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
         return List.of(
             DateScriptFieldScript.CONTEXT,
             DoubleScriptFieldScript.CONTEXT,
+            IpScriptFieldScript.CONTEXT,
             LongScriptFieldScript.CONTEXT,
             StringScriptFieldScript.CONTEXT
         );

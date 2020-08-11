@@ -62,6 +62,7 @@ public class TransformUsageIT extends TransformRestTestCase {
                 + ":"
                 + TransformStoredDoc.NAME
         );
+        statsExistsRequest.addParameter("allow_system_index_access", "true");
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));

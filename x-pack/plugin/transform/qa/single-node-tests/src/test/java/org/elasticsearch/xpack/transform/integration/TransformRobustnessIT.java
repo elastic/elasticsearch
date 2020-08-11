@@ -117,6 +117,8 @@ public class TransformRobustnessIT extends TransformRestTestCase {
     }
 
     private void beEvilAndDeleteTheTransformIndex() throws IOException {
-        adminClient().performRequest(new Request("DELETE", TransformInternalIndexConstants.LATEST_INDEX_NAME));
+        final Request deleteRequest = new Request("DELETE", TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        deleteRequest.addParameter("allow_system_index_access", "true");
+        adminClient().performRequest(deleteRequest);
     }
 }

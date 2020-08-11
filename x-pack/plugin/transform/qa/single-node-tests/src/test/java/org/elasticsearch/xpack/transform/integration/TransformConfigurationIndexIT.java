@@ -43,6 +43,7 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
                     TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+            req.addParameter("allow_system_index_access", "true");
             req.setEntity(entity);
             client().performRequest(req);
         }

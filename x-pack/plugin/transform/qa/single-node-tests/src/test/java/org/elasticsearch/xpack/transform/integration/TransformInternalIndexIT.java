@@ -6,11 +6,10 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -36,7 +34,6 @@ import java.util.Collections;
 
 import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.addTransformsConfigMappings;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 
 public class TransformInternalIndexIT extends ESRestTestCase {
@@ -79,14 +76,18 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             + " } } } },"
             + "\"frequency\":\"1s\""
             + "}";
-        client.index(new IndexRequest(OLD_INDEX)
-                .id(TransformConfig.documentId(transformId))
-                .source(config, XContentType.JSON)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-            RequestOptions.DEFAULT);
-        GetResponse getResponse = client.get(new GetRequest(OLD_INDEX, TransformConfig.documentId(transformId)),
-            RequestOptions.DEFAULT);
-        assertThat(getResponse.isExists(), is(true));
+        Request indexRequest = new Request("PUT", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
+        indexRequest.addParameter("allow_system_index_access", "true");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity(config);
+        assertOK(client().performRequest(indexRequest));
+
+        {
+            Request getRequest = new Request("GET", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
+            getRequest.addParameter("allow_system_index_access", "true");
+            Response getResponse = client().performRequest(getRequest);
+            assertOK(getResponse);
+        }
 
         GetTransformResponse response = client.transform()
             .getTransform(new GetTransformRequest(transformId), RequestOptions.DEFAULT);
@@ -100,13 +101,25 @@ public class TransformInternalIndexIT extends ESRestTestCase {
         assertThat(updated.getTransformConfiguration().getDescription(), equalTo("updated"));
 
         // Old should now be gone
-        getResponse = client.get(new GetRequest(OLD_INDEX, TransformConfig.documentId(transformId)), RequestOptions.DEFAULT);
-        assertThat(getResponse.isExists(), is(false));
+        {
+            Request getRequest = new Request("GET", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
+            getRequest.addParameter("allow_system_index_access", "true");
+            try {
+                Response getResponse = client().performRequest(getRequest);
+                assertThat(getResponse.getStatusLine().getStatusCode(), equalTo(404));
+            } catch (ResponseException e) {
+                // this is fine, we want it to 404
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            }
 
+        }
         // New should be here
-        getResponse = client.get(new GetRequest(CURRENT_INDEX, TransformConfig.documentId(transformId)),
-            RequestOptions.DEFAULT);
-        assertThat(getResponse.isExists(), is(true));
+        {
+            Request getRequest = new Request("GET", CURRENT_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
+            getRequest.addParameter("allow_system_index_access", "true");
+            Response getResponse = client().performRequest(getRequest);
+            assertOK(getResponse);
+        }
     }
 
 

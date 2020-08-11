@@ -100,4 +100,9 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

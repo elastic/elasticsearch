@@ -101,4 +101,9 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

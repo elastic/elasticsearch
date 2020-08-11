@@ -402,4 +402,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return super.doRewrite(queryShardContext);
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

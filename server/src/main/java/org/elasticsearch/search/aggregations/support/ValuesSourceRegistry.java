@@ -85,6 +85,8 @@ public class ValuesSourceRegistry {
         }
     }
 
+    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", ComponentSupplier.class);
+
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private Map<RegistryKey<? extends ComponentSupplier>, List<Map.Entry<ValuesSourceType, ComponentSupplier>>> aggregatorRegistry =
@@ -231,9 +233,8 @@ public class ValuesSourceRegistry {
         return supportedTypes.get(valuesSourceType);
     }
 
-    // TODO: Fix the argument to this method
-    public boolean isRegistered(String aggregationName) {
-        return aggregatorRegistry.containsKey(aggregationName);
+    public boolean isRegistered(RegistryKey<?> registryKey) {
+        return aggregatorRegistry.containsKey(registryKey);
     }
 
     public <T extends ComponentSupplier> T getAggregator(RegistryKey<T> registryKey, ValuesSourceConfig valuesSourceConfig) {
@@ -244,7 +245,7 @@ public class ValuesSourceRegistry {
             );
             if (supplier == null) {
                 throw new IllegalArgumentException(
-                    valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey + "]"
+                    valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
                 );
             }
             return (T) supplier;

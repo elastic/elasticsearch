@@ -164,4 +164,9 @@ public final class CardinalityAggregationBuilder
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

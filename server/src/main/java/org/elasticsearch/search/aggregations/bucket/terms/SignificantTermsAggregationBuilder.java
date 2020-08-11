@@ -339,4 +339,9 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

@@ -140,4 +140,9 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

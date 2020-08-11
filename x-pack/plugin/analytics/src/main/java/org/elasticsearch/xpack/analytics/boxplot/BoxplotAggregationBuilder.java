@@ -134,5 +134,10 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public String getType() {
         return NAME;
     }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }
 

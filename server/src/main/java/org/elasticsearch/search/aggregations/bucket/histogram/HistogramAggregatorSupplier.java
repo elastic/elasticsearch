@@ -23,13 +23,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-public interface HistogramAggregatorSupplier extends ValuesSourceRegistry.ComponentSupplier {
+public interface HistogramAggregatorSupplier {
     Aggregator build(
         String name,
         AggregatorFactories factories,

@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -33,7 +32,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 @FunctionalInterface
-public interface AutoDateHistogramAggregatorSupplier extends ValuesSourceRegistry.ComponentSupplier {
+public interface AutoDateHistogramAggregatorSupplier {
     Aggregator build(
         String name,
         AggregatorFactories factories,

@@ -49,7 +49,7 @@ import java.util.function.LongUnaryOperator;
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
 
     @FunctionalInterface
-    public interface TermsCompositeSupplier extends ValuesSourceRegistry.ComponentSupplier {
+    public interface TermsCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             String name,

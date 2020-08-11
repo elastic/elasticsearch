@@ -25,14 +25,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 @FunctionalInterface
-public interface GeoGridAggregatorSupplier extends ValuesSourceRegistry.ComponentSupplier {
+public interface GeoGridAggregatorSupplier {
 
     GeoGridAggregator build(
         String name,

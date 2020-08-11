@@ -145,8 +145,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        final boolean usePrewarming = false; // TODO randomize this and adapt test
-
         logger.info("--> mount snapshot [{}] as an index for the first time", snapshot);
         final String restoredIndex = mountSnapshot(
             repositoryName,
@@ -154,7 +152,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             indexName,
             Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), usePrewarming)
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .build()
         );
         ensureGreen(restoredIndex);
@@ -210,7 +208,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             indexName,
             Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), usePrewarming)
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .build()
         );
         ensureGreen(restoredAgainIndex);
@@ -304,8 +302,15 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
+        assertThat(
+            systemClient().admin().indices().prepareStats(SNAPSHOT_BLOB_CACHE_INDEX).clear().setIndexing(true).get().getTotal().indexing
+                .getTotal()
+                .getIndexCount(),
+            equalTo(0L)
+        );
 
-        // TODO would be great to test when the index is frozen
+        // TODO also test when the index is frozen
+        // TODO also test when prewarming is enabled
     }
 
     /**

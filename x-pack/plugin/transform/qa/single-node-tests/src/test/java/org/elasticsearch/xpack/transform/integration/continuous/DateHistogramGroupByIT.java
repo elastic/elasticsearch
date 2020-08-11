@@ -39,14 +39,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60781")
-public class DataHistogramGroupByIT extends ContinuousTestCase {
+public class DateHistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-date-histogram-pivot-test";
     private static final String MISSING_BUCKET_KEY = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
         .format(Instant.ofEpochMilli(42));
 
     private final boolean missing;
 
-    public DataHistogramGroupByIT() {
+    public DateHistogramGroupByIT() {
         missing = randomBoolean();
     }
 

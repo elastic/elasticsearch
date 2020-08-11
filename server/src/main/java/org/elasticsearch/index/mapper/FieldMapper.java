@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
@@ -307,9 +309,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         List<Object> values = new ArrayList<>();
         if (parsesArrayValue()) {
             return (List<?>) parseSourceValue(sourceValue, format);
-        } else {
-            List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
-            for (Object value : sourceValues) {
+        }
+
+        // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
+        // So we need to unwrap these arrays before passing them on to be parsed.
+        Queue<Object> queue = new ArrayDeque<>();
+        queue.add(sourceValue);
+        while (queue.isEmpty() == false) {
+            Object value = queue.poll();
+            if (value instanceof List) {
+                queue.addAll((List<?>) value);
+            } else {
                 Object parsedValue = parseSourceValue(value, format);
                 if (parsedValue != null) {
                     values.add(parsedValue);

@@ -424,7 +424,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private void prewarmCache() {
         if (prewarmCache == false) {
-            recoveryState.preWarmFinished();
+            recoveryState.setPreWarmComplete();
             return;
         }
 
@@ -433,7 +433,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
             logger.trace("{} prewarming complete", shardId);
-            recoveryState.preWarmFinished();
+            recoveryState.setPreWarmComplete();
         }, e -> {}), // Ignore pre-warm errors
             snapshot().totalFileCount()
         );

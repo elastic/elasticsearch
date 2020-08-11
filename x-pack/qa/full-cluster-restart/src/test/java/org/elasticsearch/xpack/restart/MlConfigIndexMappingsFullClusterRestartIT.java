@@ -92,6 +92,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     private void assertThatMlConfigIndexDoesNotExist() {
         Request getIndexRequest = new Request("GET", ".ml-config");
+        getIndexRequest.addParameter("allow_system_index_access", "true");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
@@ -113,6 +114,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @SuppressWarnings("unchecked")
     private Map<String, Object> getConfigIndexMappings() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
+        getIndexMappingsRequest.addParameter("allow_system_index_access", "true");
         Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 

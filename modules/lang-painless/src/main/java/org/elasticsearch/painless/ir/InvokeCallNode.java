@@ -21,56 +21,54 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-
-/**
- * Represents reading a value from a member field from
- * the main class.
- */
-public class MemberFieldLoadNode extends ExpressionNode {
+public class InvokeCallNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
-    protected String name;
-    protected boolean isStatic;
+    private PainlessMethod method;
+    private Class<?> box;
 
-    public void setName(String name) {
-        this.name = name;
+    public void setMethod(PainlessMethod method) {
+        this.method = method;
     }
 
-    public String getName() {
-        return name;
+    public PainlessMethod getMethod() {
+        return method;
     }
 
-    public void setStatic(boolean isStatic) {
-        this.isStatic = isStatic;
+    public void setBox(Class<?> box) {
+        this.box = box;
     }
 
-    public boolean isStatic() {
-        return isStatic;
+    public Class<?> getBox() {
+        return box;
     }
 
     /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitMemberFieldLoad(this, input);
+        return irTreeVisitor.visitInvokeCall(this, input);
     }
 
     /* ---- end visitor ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
-        if (isStatic) {
-            methodWriter.getStatic(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
-        } else {
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
+        if (box.isPrimitive()) {
+            methodWriter.box(MethodWriter.getType(box));
         }
+
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.write(classWriter, methodWriter, writeScope);
+        }
+
+        methodWriter.invokeMethodCall(method);
     }
 }

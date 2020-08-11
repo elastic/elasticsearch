@@ -27,8 +27,6 @@ import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
 import org.elasticsearch.painless.ir.BreakNode;
-import org.elasticsearch.painless.ir.CallSubDefNode;
-import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -54,13 +52,14 @@ import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
+import org.elasticsearch.painless.ir.InvokeCallDefNode;
+import org.elasticsearch.painless.ir.InvokeCallMemberNode;
+import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
+import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
-import org.elasticsearch.painless.ir.MemberCallNode;
-import org.elasticsearch.painless.ir.MemberFieldLoadNode;
-import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.ir.NullNode;
@@ -68,6 +67,7 @@ import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.ir.StoreFieldMemberNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -324,12 +324,12 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitMemberFieldLoad(MemberFieldLoadNode irMemberFieldLoadNode, Input input) {
+    public Output visitLoadFieldMember(LoadFieldMemberNode irLoadFieldMemberNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitMemberFieldStore(MemberFieldStoreNode irMemberFieldStoreNode, Input input) {
+    public Output visitStoreFieldMember(StoreFieldMemberNode irStoreFieldMemberNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -344,17 +344,17 @@ public class IRTreeBaseVisitor<Input, Output> implements IRTreeVisitor<Input, Ou
     }
 
     @Override
-    public Output visitCallSubDef(CallSubDefNode irCallSubDefNode, Input input) {
+    public Output visitInvokeCallDef(InvokeCallDefNode irInvokeCallDefNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitCallSub(CallSubNode irCallSubNode, Input input) {
+    public Output visitInvokeCall(InvokeCallNode irInvokeCallNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Output visitMemberCall(MemberCallNode irMemberCallNode, Input input) {
+    public Output visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, Input input) {
         throw new UnsupportedOperationException();
     }
 }

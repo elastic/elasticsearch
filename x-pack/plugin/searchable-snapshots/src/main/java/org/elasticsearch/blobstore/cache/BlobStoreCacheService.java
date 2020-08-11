@@ -99,29 +99,34 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             return;
         }
         try {
-            client.admin().indices().prepareCreate(index).setSettings(settings()).setMapping(mappings()).execute(new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse createIndexResponse) {
-                    assert createIndexResponse.index().equals(index);
-                    listener.onResponse(createIndexResponse.index());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException
-                        || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        listener.onResponse(index);
-                    } else {
-                        listener.onFailure(e);
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(indexSettings())
+                .setMapping(mappings())
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse createIndexResponse) {
+                        assert createIndexResponse.index().equals(index);
+                        listener.onResponse(createIndexResponse.index());
                     }
-                }
-            });
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof ResourceAlreadyExistsException
+                            || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                            listener.onResponse(index);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private static Settings settings() {
+    private static Settings indexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")

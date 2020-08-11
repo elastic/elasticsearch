@@ -123,6 +123,7 @@ teardown:
 
   - do:
       get:
+        allow_system_index_access: true
         index: .security
         id: user-bob
   - set: { _source.password: "hash" }

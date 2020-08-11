@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -126,6 +127,13 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             assertNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
         }
         return responseHolder.get();
+    }
+
+    public static void assertNoException(AtomicReference<Exception> error) throws Exception {
+        if (error.get() == null) {
+            return;
+        }
+        throw error.get();
     }
 
 }

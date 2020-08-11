@@ -36,7 +36,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
+        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
             "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
         client().performRequest(bulk);
 
@@ -63,6 +63,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
         // make sure .tasks index exists
         assertBusy(() -> {
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.addParameter("include_type_name", "false");
             assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
         });
     }

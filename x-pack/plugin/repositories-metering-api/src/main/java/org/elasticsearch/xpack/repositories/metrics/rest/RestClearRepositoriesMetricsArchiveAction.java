@@ -31,7 +31,10 @@ public class RestClearRepositoriesMetricsArchiveAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         long maxVersionToClear = request.paramAsLong("maxVersionToClear", -1);
-        ClearRepositoriesMetricsArchiveRequest clearArchivesRequest = new ClearRepositoriesMetricsArchiveRequest(maxVersionToClear, nodesIds);
+        ClearRepositoriesMetricsArchiveRequest clearArchivesRequest = new ClearRepositoriesMetricsArchiveRequest(
+            maxVersionToClear,
+            nodesIds
+        );
         return channel -> client.execute(
             ClearRepositoriesMetricsArchiveAction.INSTANCE,
             clearArchivesRequest,

@@ -132,6 +132,8 @@ public class DeflateCompressor implements Compressor {
         };
     }
 
+    // Reusable Inflater reference. Note: This is not used for the decompressing stream wrapper because we don't have strong guarantees
+    // about the scope in which the stream wrapper is used.
     private static final ThreadLocal<Inflater> inflaterRef = ThreadLocal.withInitial(() -> new Inflater(true));
 
     private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);
@@ -149,6 +151,8 @@ public class DeflateCompressor implements Compressor {
         return res;
     }
 
+    // Reusable Deflater reference. Note: This is not used for the compressing stream wrapper because we don't have strong guarantees
+    // about the scope in which the stream wrapper is used.
     private static final ThreadLocal<Deflater> deflaterRef = ThreadLocal.withInitial(() -> new Deflater(LEVEL, true));
 
     @Override

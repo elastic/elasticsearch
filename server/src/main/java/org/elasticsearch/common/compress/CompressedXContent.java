@@ -162,7 +162,7 @@ public final class CompressedXContent {
             return false;
         }
 
-        return uncompressed().equals(uncompressed());
+        return uncompressed().equals(that.uncompressed());
     }
 
     @Override

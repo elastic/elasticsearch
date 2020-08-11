@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
@@ -52,7 +50,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-@Repeat(iterations=1000)
 public class DiversifiedSamplerTests extends AggregatorTestCase {
 
     private void writeBooks(RandomIndexWriter iw) throws IOException {

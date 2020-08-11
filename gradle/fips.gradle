@@ -2,10 +2,10 @@ import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.test.RestIntegTestTask;
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
-
 
   allprojects {
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
@@ -21,18 +21,21 @@ if (BuildParams.inFipsJvm) {
         copy 'cacerts.bcfks'
       }
 
-
       pluginManager.withPlugin("elasticsearch.testclusters") {
         afterEvaluate {
           // This afterEvaluate hooks is required to avoid deprecated configuration resolution
           // This configuration can be removed once system modules are available
           def extraFipsJars = configurations.detachedConfiguration(dependencies.create('org.bouncycastle:bc-fips:1.0.1'),
-                  dependencies.create('org.bouncycastle:bctls-fips:1.0.9'),
+            dependencies.create('org.bouncycastle:bctls-fips:1.0.9'),
           )
           testClusters.all {
             extraFipsJars.files.each {
               extraJarFile it
             }
+          }
+          // ensure that bouncycastle is on classpath for the tests
+          tasks.withType(RestIntegTestTask).configureEach { RestIntegTestTask restTest ->
+            restTest.setClasspath(restTest.getClasspath().plus(extraFipsJars))
           }
         }
         testClusters.all {

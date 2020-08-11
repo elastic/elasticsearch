@@ -33,8 +33,9 @@ GET /_search
 `<field>`::
 +
 --
-(Optional, object) Field you wish to search. Supports <<mapping-fields,metadata
-fields>>.
+(Optional, object) Field you wish to search. Supports the
+<<mapping-id-field,`_id`>> and <<mapping-routing-field,`_routing`>> metadata
+fields.
 
 The value of this parameter is an array of terms you wish to find in the
 provided field. To return a document, one or more terms must exactly match a

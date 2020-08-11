@@ -61,7 +61,8 @@ GET /_search
 +
 --
 (Optional, string) Default field you wish to search if no field is provided in
-the query string. Supports <<mapping-fields,metadata fields>>.
+the query string. Supports the <<mapping-id-field,`_id`>> and
+<<mapping-routing-field,`_routing`>> metadata fields.
 
 Defaults to the `index.query.default_field` index setting, which has a default
 value of `*`. The `*` value extracts all fields that are eligible for term

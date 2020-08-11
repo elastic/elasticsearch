@@ -151,8 +151,9 @@ GET /job-candidates/_search
 ==== Top-level parameters for `terms_set`
 
 `<field>`::
-(Required, object) Field you wish to search. Supports <<mapping-fields,metadata
-fields>>.
+(Required, object) Field you wish to search. Supports the
+<<mapping-id-field,`_id`>> and <<mapping-routing-field,`_routing`>> metadata
+fields.
 
 [[terms-set-field-params]]
 ==== Parameters for `<field>`

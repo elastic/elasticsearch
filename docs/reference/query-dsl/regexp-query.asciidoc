@@ -40,8 +40,8 @@ GET /_search
 [[regexp-top-level-params]]
 ==== Top-level parameters for `regexp`
 `<field>`::
-(Required, object) Field you wish to search. Supports <<mapping-fields,metadata
-fields>>.
+(Required, object) Field you wish to search. Supports the
+<<mapping-routing-field,`_routing`>> metadata field.
 
 [[regexp-query-field-params]]
 ==== Parameters for `<field>`

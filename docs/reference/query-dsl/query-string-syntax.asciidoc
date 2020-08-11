@@ -16,8 +16,9 @@ explained below.
 
 ====== Field names
 
-You can specify fields to search in the query syntax. <<mapping-fields,Metadata
-fields>>, such as `_routing`, are supported. For example:
+You can specify fields to search in the query syntax. The
+<<mapping-id-field,`_id`>> and <<mapping-routing-field,`_routing`>> metadata
+fields are supported. For example:
 
 * where the `status` field contains `active`
 

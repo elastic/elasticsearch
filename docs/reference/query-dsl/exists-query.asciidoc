@@ -32,7 +32,7 @@ GET /_search
 ==== Top-level parameters for `exists`
 `field`::
 (Required, string) Name of the field you wish to search. Supports
-<<mapping-fields,metadata fields>>.
+the <<mapping-routing-field,`_routing`>> metadata field.
 +
 While a field is deemed non-existent if the JSON value is `null` or `[]`, these
 values will indicate the field does exist:

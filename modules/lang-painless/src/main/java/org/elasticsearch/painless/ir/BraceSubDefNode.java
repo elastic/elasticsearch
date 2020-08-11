@@ -26,7 +26,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class BraceSubDefNode extends UnaryNode {
+public class BraceSubDefNode extends IndexNode {
 
     /* ---- begin visitor ---- */
 
@@ -50,11 +50,7 @@ public class BraceSubDefNode extends UnaryNode {
 
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.dup();
-        getChildNode().write(classWriter, methodWriter, writeScope);
-        Type methodType = Type.getMethodType(MethodWriter.getType(
-                getChildNode().getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getChildNode().getExpressionType()));
-        methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
+        getIndexNode().write(classWriter, methodWriter, writeScope);
     }
 
     @Override
@@ -62,7 +58,7 @@ public class BraceSubDefNode extends UnaryNode {
         methodWriter.writeDebugInfo(location);
 
         Type methodType = Type.getMethodType(MethodWriter.getType(
-                getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getChildNode().getExpressionType()));
+                getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getIndexNode().getExpressionType()));
         methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -71,7 +67,7 @@ public class BraceSubDefNode extends UnaryNode {
         methodWriter.writeDebugInfo(location);
 
         Type methodType = Type.getMethodType(Type.getType(void.class), Type.getType(Object.class),
-                MethodWriter.getType(getChildNode().getExpressionType()), MethodWriter.getType(getExpressionType()));
+                MethodWriter.getType(getIndexNode().getExpressionType()), MethodWriter.getType(getExpressionType()));
         methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

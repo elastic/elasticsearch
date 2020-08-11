@@ -215,6 +215,7 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             reindexResponse -> {
+
                 // If the reindex task is canceled, this listener is called.
                 // Consequently, we should not signal reindex completion.
                 if (task.isStopping()) {
@@ -224,13 +225,17 @@ public class DataFrameAnalyticsManager {
                     return;
                 }
 
+                task.setReindexingTaskId(null);
+
                 Exception reindexError = getReindexError(task.getParams().getId(), reindexResponse);
                 if (reindexError != null) {
                     task.markAsFailed(reindexError);
                     return;
                 }
 
-                task.setReindexingTaskId(null);
+                LOGGER.debug("[{}] Reindex completed; created [{}]; retries [{}]", task.getParams().getId(),
+                    reindexResponse.getCreated(), reindexResponse.getBulkRetries());
+
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
@@ -320,7 +325,6 @@ public class DataFrameAnalyticsManager {
             LOGGER.error("[{}] reindex task timed out after [{}]", jobId, reindexResponse.getTook().getStringRep());
             return ExceptionsHelper.serverError("reindex task timed out after [" + reindexResponse.getTook().getStringRep() + "]");
         }
-        LOGGER.debug("[{}] Reindex completed with [{}] retries", jobId, reindexResponse.getBulkRetries());
         return null;
     }
 

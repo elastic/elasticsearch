@@ -35,10 +35,10 @@ for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
  
     Specifies whether {es} should form a multiple-node cluster. By default, {es}
     discovers other nodes when forming a cluster and allows other nodes to join
-    the cluster later. If `discovery.type` is set to `single-node`, {es} forms a
-    single-node cluster and suppresses the timeouts set by
-    `cluster.publish.timeout` and `cluster.join.timeout`. For more information
-    about when you might use this setting, see <<single-node-discovery>>.
+    the cluster later. If `discovery.type` is set to `single-node`, {es} forms
+    a single-node cluster and suppresses the timeout set by
+    `cluster.publish.timeout`. For more information about when you might use
+    this setting, see <<single-node-discovery>>.
     
 `cluster.initial_master_nodes`::
 
@@ -178,12 +178,6 @@ or may become unstable or intolerant of certain failures.
     does not successfully apply the cluster state update within this period of
     time, it is considered to have failed and is removed from the cluster. See
     <<cluster-state-publishing>>.
-
-`cluster.join.timeout`::
-
-    Sets how long a node will wait after sending a request to join a cluster
-    before it considers the request to have failed and retries, unless
-    `discovery.type` is set to `single-node`. Defaults to `60s`.
 
 `cluster.max_voting_config_exclusions`::
 

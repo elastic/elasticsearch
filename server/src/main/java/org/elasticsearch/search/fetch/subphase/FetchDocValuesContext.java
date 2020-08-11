@@ -18,95 +18,17 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * All the required context to pull a field from the doc values.
  */
 public class FetchDocValuesContext {
-
-    /**
-     * Wrapper around a field name and the format that should be used to
-     * display values of this field.
-     */
-    public static final class FieldAndFormat implements Writeable {
-
-        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
-                a -> new FieldAndFormat((String) a[0], (String) a[1]));
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
-            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
-        }
-
-        /**
-         * Parse a {@link FieldAndFormat} from some {@link XContent}.
-         */
-        public static FieldAndFormat fromXContent(XContentParser parser) throws IOException {
-            Token token = parser.currentToken();
-            if (token.isValue()) {
-                return new FieldAndFormat(parser.text(), null);
-            } else {
-                return PARSER.apply(parser, null);
-            }
-        }
-
-        /** The name of the field. */
-        public final String field;
-
-        /** The format of the field, or {@code null} if defaults should be used. */
-        public final String format;
-
-        /** Sole constructor. */
-        public FieldAndFormat(String field, @Nullable String format) {
-            this.field = Objects.requireNonNull(field);
-            this.format = format;
-        }
-
-        /** Serialization constructor. */
-        public FieldAndFormat(StreamInput in) throws IOException {
-            this.field = in.readString();
-            format = in.readOptionalString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(field);
-            out.writeOptionalString(format);
-        }
-
-        @Override
-        public int hashCode() {
-            int h = field.hashCode();
-            h = 31 * h + Objects.hashCode(format);
-            return h;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            FieldAndFormat other = (FieldAndFormat) obj;
-            return field.equals(other.field) && Objects.equals(format, other.format);
-        }
-
-    }
 
     private final List<FieldAndFormat> fields;
 

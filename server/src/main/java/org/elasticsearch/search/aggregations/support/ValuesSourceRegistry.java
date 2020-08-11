@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -36,14 +38,47 @@ import java.util.Map;
  */
 public class ValuesSourceRegistry {
 
+    public interface CompositeSupplier {
+        // this interface intentionally left blank
+    }
+
+    public static final class RegistryKey<T extends CompositeSupplier> {
+        private final String name;
+        private final Class<T> supplierType;
+
+        public RegistryKey(String name, Class<T> supplierType) {
+            this.name = Objects.requireNonNull(name);
+            this.supplierType = Objects.requireNonNull(supplierType);
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RegistryKey that = (RegistryKey) o;
+            return name.equals(that.name) && supplierType.equals(that.supplierType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, supplierType);
+        }
+    }
+
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
+        private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
+        private Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry =
+            new HashMap<>();
 
         public Builder() {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
         }
 
-        private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
 
         /**
          * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
@@ -78,6 +113,46 @@ public class ValuesSourceRegistry {
             }
         }
 
+        /**
+         * Register a new key generation function for the
+         * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.
+         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         *                      mapping is being registered for, paired with the name of the key type.
+         * @param valuesSourceType the {@link ValuesSourceType} this mapping applies to
+         * @param compositeSupplier A function returning an appropriate
+         *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
+         */
+        public <T extends CompositeSupplier> void registerComposite(
+            RegistryKey<T> registryKey,
+            ValuesSourceType valuesSourceType,
+            T compositeSupplier
+        ) {
+            if (compositeRegistry.containsKey(registryKey) == false) {
+                compositeRegistry.put(registryKey, new ArrayList<>());
+            }
+            compositeRegistry.get(registryKey).add(new AbstractMap.SimpleEntry<>(valuesSourceType, compositeSupplier));
+        }
+
+        /**
+         * Register a new key generation function for the
+         * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.  This is a convenience version to map
+         * multiple types to the same supplier.
+         * @param registryKey the subclass of {@link CompositeSupplier} associated with the {@link CompositeValuesSourceBuilder} type this
+         *                      mapping is being registered for, paired with the name of the key type.
+         * @param valuesSourceTypes the {@link ValuesSourceType}s this mapping applies to
+         * @param compositeSupplier A function returning an appropriate
+         *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
+         */
+        public <T extends CompositeSupplier> void registerComposite(
+            RegistryKey<T> registryKey,
+            List<ValuesSourceType> valuesSourceTypes,
+            T compositeSupplier
+        ) {
+            for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
+                registerComposite(registryKey, valuesSourceType, compositeSupplier);
+            }
+        }
+
         public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {
             usageServiceBuilder.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
         }
@@ -87,30 +162,38 @@ public class ValuesSourceRegistry {
         }
 
         public ValuesSourceRegistry build() {
-            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
+            return new ValuesSourceRegistry(aggregatorRegistry, compositeRegistry, usageServiceBuilder.build());
         }
     }
 
-    /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
-    private final AggregationUsageService usageService;
-    private Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
-    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
-                                AggregationUsageService usageService) {
+    private static <K, T> Map<K, Map<ValuesSourceType, T>> copyMap(Map<K, List<Map.Entry<ValuesSourceType, T>>> mutableMap) {
         /*
          Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
         @SuppressWarnings("unchecked")
-        Map.Entry<String, Map<ValuesSourceType, AggregatorSupplier>>[] copiedEntries = new Map.Entry[aggregatorRegistry.size()];
+        Map.Entry<K, Map<ValuesSourceType, T>>[] copiedEntries = new Map.Entry[mutableMap.size()];
         int i = 0;
-        for (Map.Entry<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> entry : aggregatorRegistry.entrySet()) {
-            String aggName = entry.getKey();
-            List<Map.Entry<ValuesSourceType, AggregatorSupplier>> values = entry.getValue();
-            @SuppressWarnings("unchecked") Map.Entry<String, Map<ValuesSourceType, AggregatorSupplier>> newEntry =
-                Map.entry(aggName, Map.ofEntries(values.toArray(new Map.Entry[0])));
+        for (Map.Entry<K, List<Map.Entry<ValuesSourceType, T>>> entry : mutableMap.entrySet()) {
+            K topKey = entry.getKey();
+            List<Map.Entry<ValuesSourceType, T>> values = entry.getValue();
+            @SuppressWarnings("unchecked")
+            Map.Entry<K, Map<ValuesSourceType, T>> newEntry = Map.entry(topKey, Map.ofEntries(values.toArray(new Map.Entry[0])));
             copiedEntries[i++] = newEntry;
         }
-        this.aggregatorRegistry = Map.ofEntries(copiedEntries);
+        return Map.ofEntries(copiedEntries);
+    }
+
+    /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
+    private final AggregationUsageService usageService;
+    private Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
+    private Map<RegistryKey<? extends CompositeSupplier>, Map<ValuesSourceType, CompositeSupplier>> compositeRegistry;
+
+    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
+        Map<RegistryKey<? extends CompositeSupplier>, List<Map.Entry<ValuesSourceType, CompositeSupplier>>> compositeRegistry,
+                                AggregationUsageService usageService) {
+        this.aggregatorRegistry = copyMap(aggregatorRegistry);
+        this.compositeRegistry = copyMap(compositeRegistry);
         this.usageService = usageService;
     }
 
@@ -137,6 +220,18 @@ public class ValuesSourceRegistry {
             return supplier;
         }
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
+    }
+
+    public <T extends CompositeSupplier> T getComposite(RegistryKey<T> registryKey, ValuesSourceConfig config) {
+        if (registryKey != null && compositeRegistry.containsKey(registryKey)) {
+            CompositeSupplier supplier = compositeRegistry.get(registryKey).get(config.valueSourceType());
+            if (supplier == null) {
+                throw new IllegalArgumentException(config.getDescription() + " is not supported for composite source [" +
+                    registryKey.getName() + "]");
+            }
+            return (T) supplier; // Safe because we checked the type matched the key at load time
+        }
+        throw new AggregationExecutionException("Unregistered composite source [" + registryKey.getName() + "]");
     }
 
     public AggregationUsageService getUsageService() {

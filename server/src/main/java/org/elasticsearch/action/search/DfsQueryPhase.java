@@ -30,6 +30,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -51,10 +52,11 @@ final class DfsQueryPhase extends SearchPhase {
     DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
                   Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-                  SearchPhaseContext context) {
+                  SearchPhaseContext context, Consumer<Exception> onPartialMergeFailure) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
-        this.queryResult = searchPhaseController.newSearchPhaseResults(progressListener, context.getRequest(), context.getNumShards());
+        this.queryResult = searchPhaseController.newSearchPhaseResults(context, progressListener,
+            context.getRequest(), context.getNumShards(), onPartialMergeFailure);
         this.searchPhaseController = searchPhaseController;
         this.dfsSearchResults = dfsSearchResults;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -68,7 +70,7 @@ final class DfsQueryPhase extends SearchPhase {
         // to free up memory early
         final List<DfsSearchResult> resultList = dfsSearchResults.asList();
         final AggregatedDfs dfs = searchPhaseController.aggregateDfs(resultList);
-        final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
+        final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult,
             resultList.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
         for (final DfsSearchResult dfsResult : resultList) {

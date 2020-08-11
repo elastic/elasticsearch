@@ -67,7 +67,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
                 singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()), MapperPlugin.NOOP_FIELD_FILTER);
+                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, ExternalMetadataMapper.PARSER), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
@@ -128,7 +128,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
-                        .startObject("field")
+                        .startObject("text")
                             .field("type", "text")
                             .field("store", true)
                         .endObject()
@@ -154,7 +154,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField shape = doc.rootDoc().getField("field.shape");
         assertThat(shape, notNullValue());
 
-        IndexableField field = doc.rootDoc().getField("field.field");
+        IndexableField field = doc.rootDoc().getField("field.text");
         assertThat(field, notNullValue());
         assertThat(field.stringValue(), is("foo"));
     }

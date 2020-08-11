@@ -119,22 +119,22 @@ Consider the following example:
 
 [source,console,id=autodatehistogram-aggregation-timezone-example]
 ---------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-PUT my_index/_doc/3?refresh
+PUT my-index-000001/_doc/3?refresh
 {
   "date": "2015-10-01T02:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -185,7 +185,7 @@ midnight UTC:
 
 [source,console]
 ---------------------------------
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {

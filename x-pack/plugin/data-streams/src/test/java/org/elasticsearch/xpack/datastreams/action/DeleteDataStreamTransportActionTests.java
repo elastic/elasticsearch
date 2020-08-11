@@ -105,7 +105,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             new Snapshot(repo, new SnapshotId("", "")),
             false,
             partial,
-            SnapshotsInProgress.State.STARTED,
+            SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),
             List.of(dataStreamName),
             0,

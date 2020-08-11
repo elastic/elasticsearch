@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -69,6 +68,10 @@ public interface FetchSubPhase {
             return docId;
         }
 
+        public int readerDocId() {
+            return docId - readerContext.docBase;
+        }
+
         /**
          * This lookup provides access to the source for the given hit document. Note
          * that it should always be set to the correct doc ID and {@link LeafReaderContext}.
@@ -89,15 +92,5 @@ public interface FetchSubPhase {
         }
     }
 
-    /**
-     * Executes the hits level phase (note, hits are sorted by doc ids).
-     */
-    void hitsExecute(SearchContext context, HitContext[] hits) throws IOException;
-
-    static void executePerHit(SearchContext context, HitContext[] hits,
-                              CheckedBiConsumer<SearchContext, HitContext, IOException> perHit) throws IOException {
-        for (HitContext hitContext: hits) {
-            perHit.accept(context, hitContext);
-        }
-    }
+    FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException;
 }

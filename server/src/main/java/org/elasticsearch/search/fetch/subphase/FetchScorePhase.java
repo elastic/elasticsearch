@@ -26,46 +26,43 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        if (context.trackScores() == false || hits.length == 0 ||
-                // scores were already computed since they are needed on the coordinated node to merge top hits
-                context.sort() == null) {
-            return;
+    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+        if (context.trackScores() == false || context.docIdsToLoadSize() == 0 ||
+            // scores were already computed since they are needed on the coordinated node to merge top hits
+            context.sort() == null) {
+            return null;
         }
-
         final IndexSearcher searcher = context.searcher();
         final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);
-        Iterator<LeafReaderContext> leafContextIterator = searcher.getIndexReader().leaves().iterator();
-        LeafReaderContext leafContext = null;
-        Scorer scorer = null;
-        for (HitContext hit : hits) {
-            if (leafContext == null || leafContext.docBase + leafContext.reader().maxDoc() <= hit.docId()) {
-                do {
-                    leafContext = leafContextIterator.next();
-                } while (leafContext == null || leafContext.docBase + leafContext.reader().maxDoc() <= hit.docId());
-                ScorerSupplier scorerSupplier = weight.scorerSupplier(leafContext);
+        return new FetchSubPhaseExecutor() {
+
+            Scorer scorer;
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                ScorerSupplier scorerSupplier = weight.scorerSupplier(readerContext);
                 if (scorerSupplier == null) {
-                    throw new IllegalStateException("Can't compute score on document " + hit + " as it doesn't match the query");
+                    scorer = null;
+                } else {
+                    scorer = scorerSupplier.get(1L); // random-access
                 }
-                scorer = scorerSupplier.get(1L); // random-access
             }
 
-            final int leafDocID = hit.docId() - leafContext.docBase;
-            assert leafDocID >= 0 && leafDocID < leafContext.reader().maxDoc();
-            int advanced = scorer.iterator().advance(leafDocID);
-            if (advanced != leafDocID) {
-                throw new IllegalStateException("Can't compute score on document " + hit + " as it doesn't match the query");
+            @Override
+            public void execute(HitContext hitContext) throws IOException {
+                if (scorer == null || scorer.iterator().advance(hitContext.docId()) != hitContext.docId()) {
+                    return;
+                }
+                hitContext.hit().score(scorer.score());
             }
-            hit.hit().score(scorer.score());
-        }
+        };
     }
-
 }

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 
@@ -32,28 +33,27 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
-    }
-
-    public void hitExecute(SearchContext context, HitContext hitContext) {
+    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
         if (context.explain() == false || context.hasOnlySuggest()) {
-            return;
+            return null;
         }
-        try {
-            final int topLevelDocId = hitContext.hit().docId();
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+        return new FetchSubPhaseExecutor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
 
-            for (RescoreContext rescore : context.rescore()) {
-                explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
             }
-            // we use the top level doc id, since we work with the top level searcher
-            hitContext.hit().explanation(explanation);
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context.shardTarget(),
-                "Failed to explain doc [" + hitContext.hit().getId() + "]", e);
-        } finally {
-            context.clearReleasables(SearchContext.Lifetime.COLLECTION);
-        }
+
+            @Override
+            public void execute(HitContext hitContext) throws IOException {
+                final int topLevelDocId = hitContext.hit().docId();
+                Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+
+                for (RescoreContext rescore : context.rescore()) {
+                    explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
+                }
+                // we use the top level doc id, since we work with the top level searcher
+                hitContext.hit().explanation(explanation);
+            }
+        };
     }
 }

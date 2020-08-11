@@ -104,32 +104,35 @@ public class FetchPhase implements SearchPhase {
             Arrays.sort(docs);
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-            HitContext[] sortedHits = new HitContext[context.docIdsToLoadSize()];
             Map<String, Object> sharedCache = new HashMap<>();
+
+            FetchPhaseExecutor executor = new FetchPhaseExecutor(fetchSubPhases, context);
+
+            int currentReaderIndex = -1;
+            LeafReaderContext currentReaderContext = null;
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
                 int docId = docs[index].docId;
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-                LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                int subDocId = docId - subReaderContext.docBase;
+                if (currentReaderIndex != readerIndex) {
+                    currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                    currentReaderIndex = readerIndex;
+                    executor.setNextReader(currentReaderContext);
+                }
+                assert currentReaderContext != null;
+                int subDocId = docId - currentReaderContext.docBase;
 
-                int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
+                int rootDocId = findRootDocumentIfNested(context, currentReaderContext, subDocId);
 
-                sortedHits[index] = prepareHitContext(context, fieldsVisitor, docId, subDocId, rootDocId,
-                    storedToRequestedFields, subReaderContext, sharedCache);
-                hits[docs[index].index] = sortedHits[index].hit();
+                HitContext hit = prepareHitContext(context, fieldsVisitor, docId, subDocId, rootDocId,
+                    storedToRequestedFields, currentReaderContext, sharedCache);
+                executor.execute(hit);
+                hits[docs[index].index] = hit.hit();
             }
             if (context.isCancelled()) {
                 throw new TaskCancelledException("cancelled");
-            }
-
-            for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, sortedHits);
-                if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
-                }
             }
 
             TotalHits totalHits = context.queryResult().getTotalHits();

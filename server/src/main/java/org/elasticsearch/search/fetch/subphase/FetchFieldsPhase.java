@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -38,25 +39,30 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
-    }
-
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
+    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) {
+        FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
-            return;
+            return null;
         }
+        return new FetchSubPhaseExecutor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
 
-        SearchHit hit = hitContext.hit();
-        SourceLookup sourceLookup = hitContext.sourceLookup();
-        FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();
+            }
 
-        Set<String> ignoredFields = getIgnoredFields(hit);
-        Map<String, DocumentField> documentFields = fieldValueRetriever.retrieve(sourceLookup, ignoredFields);
-        for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-            hit.setDocumentField(entry.getKey(), entry.getValue());
-        }
+            @Override
+            public void execute(HitContext hitContext) {
+                SearchHit hit = hitContext.hit();
+                SourceLookup sourceLookup = hitContext.sourceLookup();
+                FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();
+
+                Set<String> ignoredFields = getIgnoredFields(hit);
+                Map<String, DocumentField> documentFields = fieldValueRetriever.retrieve(sourceLookup, ignoredFields);
+                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                    hit.setDocumentField(entry.getKey(), entry.getValue());
+                }
+            }
+        };
     }
 
     private Set<String> getIgnoredFields(SearchHit hit) {

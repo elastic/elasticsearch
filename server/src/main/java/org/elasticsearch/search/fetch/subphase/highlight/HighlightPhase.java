@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 public class HighlightPhase implements FetchSubPhase {
     private final Map<String, Highlighter> highlighters;
@@ -44,23 +47,60 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        FetchSubPhase.executePerHit(context, hits, this::hitExecute);
-    }
-
-    public void hitExecute(SearchContext context, HitContext hitContext) {
+    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
         if (context.highlight() == null) {
-            return;
+            return null;
         }
-        hitExecute(context.shardTarget(), context.getQueryShardContext(), context.parsedQuery().query(), context.highlight(), hitContext);
+        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(context.getQueryShardContext(),
+            context.shardTarget(), context.highlight(), context.query());
+        return new FetchSubPhaseExecutor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+
+            }
+
+            @Override
+            public void execute(HitContext hitContext) throws IOException {
+                Map<String, HighlightField> highlightFields = new HashMap<>();
+                for (String field : contextBuilders.keySet()) {
+                    FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
+                    Highlighter highlighter = getHighlighter(fieldContext.field);
+                    if ((highlighter.canHighlight(fieldContext.fieldType) == false) && fieldContext.fromWildcard) {
+                        // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
+                        continue;
+                    }
+                    HighlightField highlightField = highlighter.highlight(fieldContext);
+                    if (highlightField != null) {
+                        // Note that we make sure to use the original field name in the response. This is because the
+                        // original field could be an alias, and highlighter implementations may instead reference the
+                        // concrete field it points to.
+                        highlightFields.put(field,
+                            new HighlightField(field, highlightField.fragments()));
+                    }
+                }
+                hitContext.hit().highlightFields(highlightFields);
+            }
+        };
     }
 
-    public void hitExecute(SearchShardTarget shardTarget,
-                           QueryShardContext context,
-                           Query query,
-                           SearchHighlightContext highlight,
-                           HitContext hitContext) {
-        Map<String, HighlightField> highlightFields = new HashMap<>();
+    private Highlighter getHighlighter(SearchHighlightContext.Field field) {
+        String highlighterType = field.fieldOptions().highlighterType();
+        if (highlighterType == null) {
+            highlighterType = "unified";
+        }
+        Highlighter highlighter = highlighters.get(highlighterType);
+        if (highlighter == null) {
+            throw new IllegalArgumentException("unknown highlighter type [" + highlighterType
+                + "] for the field [" + field.field() + "]");
+        }
+        return highlighter;
+    }
+
+    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(QueryShardContext context,
+                                                                                     SearchShardTarget shardTarget,
+                                                                                     SearchHighlightContext highlight,
+                                                                                     Query query) {
+        Map<String, Function<HitContext, FieldHighlightContext>> builders = new HashMap<>();
         for (SearchHighlightContext.Field field : highlight.fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
@@ -72,7 +112,7 @@ public class HighlightPhase implements FetchSubPhase {
             if (highlight.forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.getMapperService().documentMapper().sourceMapper();
                 if (sourceFieldMapper.enabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight
+                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
                         + " but _source is disabled");
                 }
             }
@@ -98,39 +138,15 @@ public class HighlightPhase implements FetchSubPhase {
                         continue;
                     }
                 }
-                String highlighterType = field.fieldOptions().highlighterType();
-                if (highlighterType == null) {
-                    highlighterType = "unified";
-                }
-                Highlighter highlighter = highlighters.get(highlighterType);
-                if (highlighter == null) {
-                    throw new IllegalArgumentException("unknown highlighter type [" + highlighterType
-                        + "] for the field [" + fieldName + "]");
-                }
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
-                if (highlightQuery == null) {
-                    highlightQuery = query;
-                }
 
                 boolean forceSource = highlight.forceSource(field);
-                FieldHighlightContext fieldContext = new FieldHighlightContext(fieldType.name(),
-                    field, fieldType, shardTarget, context, hitContext, highlightQuery, forceSource);
-
-                if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
-                    // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
-                    continue;
-                }
-                HighlightField highlightField = highlighter.highlight(fieldContext);
-                if (highlightField != null) {
-                    // Note that we make sure to use the original field name in the response. This is because the
-                    // original field could be an alias, and highlighter implementations may instead reference the
-                    // concrete field it points to.
-                    highlightFields.put(fieldName,
-                        new HighlightField(fieldName, highlightField.fragments()));
-                }
+                builders.put(fieldName,
+                    hc -> new FieldHighlightContext(fieldName, field, fieldType, shardTarget, context, hc,
+                        highlightQuery == null ? query : highlightQuery, forceSource, fieldNameContainsWildcards));
             }
         }
-        hitContext.hit().highlightFields(highlightFields);
+        return builders;
     }
 }

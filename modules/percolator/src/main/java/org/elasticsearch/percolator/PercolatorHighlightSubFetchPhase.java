@@ -29,6 +29,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -55,6 +56,24 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
 
     boolean hitsExecutionNeeded(SearchContext context) { // for testing
         return context.highlight() != null && locatePercolatorQuery(context.query()).isEmpty() == false;
+    }
+
+    @Override
+    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException {
+        if (hitsExecutionNeeded(searchContext)) {
+            return null;
+        }
+        return new FetchSubPhaseExecutor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                
+            }
+
+            @Override
+            public void execute(HitContext hitContext) throws IOException {
+
+            }
+        }
     }
 
     @Override

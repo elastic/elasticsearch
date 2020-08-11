@@ -349,6 +349,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // TODO: Clone DS? (probably no, not relevant for searchable snapshots ...)
         // TODO: SnapshotInfo build as always
         // TODO: shards are snapshot shard-by-shard on the master node, no need for coordination here
+        // TODO: throw when no indices match
         // TODO: what about snapshot metadata?
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 

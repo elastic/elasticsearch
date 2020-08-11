@@ -183,7 +183,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert source == null || s.value.nodeId == null :
                         "Shard snapshot must not be assigned to data node when copying from snapshot [" + source + "]";
             });
-            assert indexNames.equals(indexNamesInShards)
+            assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
+            assert source != null || indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
             final boolean shardsCompleted = completed(shards.values());
             assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)

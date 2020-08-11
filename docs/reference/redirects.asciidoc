@@ -91,7 +91,7 @@ See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
-See <<request-body-search-post-filter>>.
+See <<post-filter>>.
 
 [role="exclude",id="search-request-preference"]
 === Preference parameter for request body search API
@@ -1021,6 +1021,16 @@ See <<search-api-min-score>>.
 === Named queries
 
 See <<named-queries>.
+
+[role="exclude",id="request-body-search-post-filter"]
+=== Post filter
+
+See <<post-filter>>.
+
+[role="exclude",id="request-body-search-rescore"]
+=== Rescoring
+
+See <<rescore>>.
 
 [role="exclude",id="request-body-search-script-fields"]
 ==== Script fields

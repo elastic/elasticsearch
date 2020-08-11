@@ -676,11 +676,11 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }            
-            // Possible BWC issue - we ignore any forceAnalyzer set here now that we delegate to fieldtype
-            // for query construction
-//            if (currentFieldType != null) {
-//                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-//            }
+            if (forceAnalyzer != null) {
+                setAnalyzer(forceAnalyzer);
+                return super.getWildcardQuery(currentFieldType.name(), termStr);
+            }
+            
             return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -726,9 +726,10 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            // Possible BWC issue - we ignore any forceAnalyzer set here now that we delegate to fieldtype
-            // for query construction
-//            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            if (forceAnalyzer != null) {
+                setAnalyzer(forceAnalyzer);
+                return super.getRegexpQuery(field, termStr);
+            }            
             return currentFieldType.regexpQuery(termStr, RegExp.ALL, getMaxDeterminizedStates(), 
                 getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {

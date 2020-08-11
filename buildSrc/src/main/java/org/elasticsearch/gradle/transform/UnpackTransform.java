@@ -66,7 +66,7 @@ public interface UnpackTransform extends TransformAction<TransformParameters.Non
      *
      * so we account for this and search the path components until we find the jdk-12.0.1, and strip the leading components.
      */
-    static Path trimArchiveExtractPath(String relativePath) {
+    static Path trimJdkArchiveExtractPath(String relativePath) {
         final Path entryName = Paths.get(relativePath);
         int index = 0;
         for (; index < entryName.getNameCount(); index++) {

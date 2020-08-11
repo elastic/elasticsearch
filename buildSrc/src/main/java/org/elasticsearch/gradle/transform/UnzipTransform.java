@@ -42,7 +42,8 @@ public abstract class UnzipTransform implements UnpackTransform {
                 if (entry.isDirectory()) {
                     continue;
                 }
-                String child = UnpackTransform.trimArchiveExtractPath(entry.getName()).toString();
+                System.out.println("entry = " + entry);
+                String child = maybeTrim(entry);
                 File outFile = new File(targetDir, child);
                 outFile.getParentFile().mkdirs();
                 try (FileOutputStream outputStream = new FileOutputStream(outFile)) {
@@ -51,4 +52,9 @@ public abstract class UnzipTransform implements UnpackTransform {
             }
         }
     }
+
+    protected String maybeTrim(ZipEntry entry) {
+        return entry.getName();
+    }
+
 }

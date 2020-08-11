@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.transform.JdkUnzipTransform;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
-import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -42,7 +42,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+        project.getDependencies().registerTransform(JdkUnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
             transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });

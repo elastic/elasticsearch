@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -72,7 +73,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 } else {
                     b.field(f, InetAddresses.toAddrString(v));
                 }
-            });
+            }, NetworkAddress::format);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

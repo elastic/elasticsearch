@@ -45,7 +45,7 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
 
     @Override
     public Map<String, TypeParser> getMetadataMappers() {
-        return Collections.singletonMap(RankFeatureMetaFieldMapper.CONTENT_TYPE, new RankFeatureMetaFieldMapper.TypeParser());
+        return Collections.singletonMap(RankFeatureMetaFieldMapper.CONTENT_TYPE, RankFeatureMetaFieldMapper.PARSER);
     }
 
     @Override

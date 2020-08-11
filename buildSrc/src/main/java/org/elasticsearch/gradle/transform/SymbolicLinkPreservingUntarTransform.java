@@ -46,7 +46,8 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
         final Path destinationPath = targetDir.toPath();
         TarArchiveEntry entry = tar.getNextTarEntry();
         while (entry != null) {
-            final Path relativePath = UnpackTransform.trimArchiveExtractPath(entry.getName());
+            final Path relativePath = calculatePath(entry.getName());
+            // final Path relativePath = UnpackTransform.trimJdkArchiveExtractPath(entry.getName());
             if (relativePath == null) {
                 entry = tar.getNextTarEntry();
                 continue;
@@ -83,6 +84,10 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             entry = tar.getNextTarEntry();
         }
 
+    }
+
+    protected Path calculatePath(String path) {
+        return Paths.get(path);
     }
 
     private static String permissions(final int permissions) {

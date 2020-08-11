@@ -22,8 +22,8 @@ package org.elasticsearch.gradle
 import com.github.tomakehurst.wiremock.WireMockServer
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.WiremockFixture
-import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
-import org.elasticsearch.gradle.transform.UnzipTransform
+import org.elasticsearch.gradle.transform.JdkSymbolicLinkPreservingUntarTransform
+import org.elasticsearch.gradle.transform.JdkUnzipTransform
 import spock.lang.Unroll
 
 import java.nio.file.Files
@@ -185,8 +185,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform  | transformType
-        "linux"   | SymbolicLinkPreservingUntarTransform.class.simpleName
-        "windows" | UnzipTransform.class.simpleName
+        "linux"   | JdkSymbolicLinkPreservingUntarTransform.class.name
+        "windows" | JdkUnzipTransform.class.simpleName
     }
 
     static boolean assertExtraction(String output, String javaBin) {

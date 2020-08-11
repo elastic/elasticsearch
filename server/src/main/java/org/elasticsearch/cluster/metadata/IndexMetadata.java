@@ -345,7 +345,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_8_0_0;
+    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
 
     private final int routingNumShards;
     private final int routingFactor;

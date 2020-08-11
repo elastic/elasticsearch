@@ -41,6 +41,13 @@
       indices.delete:
         index: logs-foobar
 
+  # close request will not fail but will not match any data streams
+  - do:
+      indices.close:
+        index: logs-*
+  - is_true: acknowledged
+  - length: { indices: 0 }
+
   - do:
       indices.delete_data_stream:
         name: logs-foobar
@@ -83,17 +90,6 @@
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged
-
----
-"APIs temporarily muted":
-  - skip:
-      version: "all"
-      reason: "restore to above test after data stream resolution PRs have been merged"
-
-  - do:
-      catch: bad_request
-      indices.close:
-        index: logs-*
 
 ---
 "Prohibit shrink on data stream's write index":

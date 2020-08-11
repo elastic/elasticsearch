@@ -231,8 +231,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
-    private ValuesSourceRegistry valuesSourceRegistry;
-
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     @Override
     protected void doStart() {
@@ -642,7 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -713,7 +712,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

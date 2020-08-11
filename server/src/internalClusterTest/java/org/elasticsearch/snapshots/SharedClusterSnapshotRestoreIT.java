@@ -1702,10 +1702,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> execution was blocked on node [{}], trying to delete repository", blockedNode);
 
         try {
-            client.admin().cluster().prepareDeleteRepository("test-repo").execute().get();
+            client.admin().cluster().prepareDeleteRepository(randomFrom("test-repo", "test-*", "*")).execute().actionGet();
             fail("shouldn't be able to delete in-use repository");
         } catch (Exception ex) {
             logger.info("--> in-use repository deletion failed");
+            assertThat(ex.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
         }
 
         logger.info("--> trying to move repository to another location");

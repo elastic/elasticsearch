@@ -1,12 +1,11 @@
-[[request-body-search-index-boost]]
-==== Index Boost
+[discrete]
+[[index-boost]]
+=== Index boost
 
-Allows to configure different boost level per index when searching
-across more than one indices. This is very handy when hits coming from
-one index matter more than hits coming from another index (think social
-graph where each user has an index).
+When searching multiple indices, you can use the `indices_boost` parameter to
+boost results from one or more specified indices. This is useful when hits
+coming from one index matter more than hits coming from another index.
 
-deprecated[5.2.0, This format is deprecated. Please use array format instead.]
 [source,console]
 --------------------------------------------------
 GET /_search

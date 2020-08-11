@@ -69,6 +69,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -492,7 +493,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -584,7 +585,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -706,7 +707,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
             clusterService, indicesService, allocationService, null, null, env,
-            null, testThreadPool, null, Collections.emptyList(), false);
+            null, testThreadPool, null, new SystemIndices(Map.of()), false);
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

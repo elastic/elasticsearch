@@ -31,7 +31,7 @@ import java.util.List;
 
 import static org.elasticsearch.painless.symbol.WriteScope.Variable;
 
-public class CallSubDefNode extends ArgumentsNode {
+public class InvokeCallDefNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
@@ -49,7 +49,7 @@ public class CallSubDefNode extends ArgumentsNode {
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitCallSubDef(this, input);
+        return irTreeVisitor.visitInvokeCallDef(this, input);
     }
 
     /* ---- end visitor ---- */

@@ -76,7 +76,17 @@
           "dynamic": "false",
           "properties": {
             "importance": {
-              "type": "double"
+              "properties": {
+                "min": {
+                  "type": "double"
+                },
+                "max": {
+                  "type": "double"
+                },
+                "mean_magnitude": {
+                  "type": "double"
+                }
+              }
             },
             "field_name": {
               "type": "keyword"
@@ -86,7 +96,17 @@
               "dynamic": "false",
               "properties": {
                 "importance": {
-                  "type": "double"
+                  "properties": {
+                    "min": {
+                      "type": "double"
+                    },
+                    "max": {
+                      "type": "double"
+                    },
+                    "mean_magnitude": {
+                      "type": "double"
+                    }
+                  }
                 },
                 "class_name": {
                   "type": "keyword"

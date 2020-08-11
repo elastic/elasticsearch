@@ -27,17 +27,23 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public static final ParseField FIELD_NAME = new ParseField("field_name");
     public static final ParseField IMPORTANCE = new ParseField("importance");
     public static final ParseField CLASS_IMPORTANCE = new ParseField("class_importance");
+    public static final ParseField MEAN_MAGNITUDE = new ParseField("mean_magnitude");
+    public static final ParseField MIN = new ParseField("min");
+    public static final ParseField MAX = new ParseField("max");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<TotalFeatureImportance, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<TotalFeatureImportance, Void> STRICT_PARSER = createParser(false);
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<TotalFeatureImportance, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<TotalFeatureImportance, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new TotalFeatureImportance((String)a[0], (Double)a[1], (List<ClassImportance>)a[2]));
+            a -> new TotalFeatureImportance((String)a[0], (Importance)a[1], (List<ClassImportance>)a[2]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD_NAME);
-        parser.declareDouble(ConstructingObjectParser.constructorArg(), IMPORTANCE);
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
+            IMPORTANCE);
         parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? ClassImportance.LENIENT_PARSER : ClassImportance.STRICT_PARSER,
             CLASS_IMPORTANCE);
@@ -49,16 +55,16 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     }
 
     public final String fieldName;
-    public final double importance;
+    public final Importance importance;
     public final List<ClassImportance> classImportances;
 
     public TotalFeatureImportance(StreamInput in) throws IOException {
         this.fieldName = in.readString();
-        this.importance = in.readDouble();
+        this.importance = in.readOptionalWriteable(Importance::new);
         this.classImportances = in.readList(ClassImportance::new);
     }
 
-    TotalFeatureImportance(String fieldName, double importance, @Nullable List<ClassImportance> classImportances) {
+    TotalFeatureImportance(String fieldName, @Nullable Importance importance, @Nullable List<ClassImportance> classImportances) {
         this.fieldName = fieldName;
         this.importance = importance;
         this.classImportances = classImportances == null ? Collections.emptyList() : classImportances;
@@ -67,7 +73,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeDouble(importance);
+        out.writeOptionalWriteable(importance);
         out.writeList(classImportances);
     }
 
@@ -75,7 +81,9 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_NAME.getPreferredName(), fieldName);
-        builder.field(IMPORTANCE.getPreferredName(), importance);
+        if (importance != null) {
+            builder.field(IMPORTANCE.getPreferredName(), importance);
+        }
         if (classImportances.isEmpty() == false) {
             builder.field(CLASS_IMPORTANCE.getPreferredName(), classImportances);
         }
@@ -88,7 +96,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TotalFeatureImportance that = (TotalFeatureImportance) o;
-        return Double.compare(that.importance, importance) == 0
+        return Objects.equals(that.importance, importance)
             && Objects.equals(fieldName, that.fieldName)
             && Objects.equals(classImportances, that.classImportances);
     }
@@ -96,6 +104,72 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(fieldName, importance, classImportances);
+    }
+
+    public static class Importance implements ToXContentObject, Writeable {
+        private static final String NAME = "importance";
+
+        // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+        public static final ConstructingObjectParser<Importance, Void> LENIENT_PARSER = createParser(true);
+        public static final ConstructingObjectParser<Importance, Void> STRICT_PARSER = createParser(false);
+
+        private static ConstructingObjectParser<Importance, Void> createParser(boolean ignoreUnknownFields) {
+            ConstructingObjectParser<Importance, Void> parser = new ConstructingObjectParser<>(NAME,
+                ignoreUnknownFields,
+                a -> new Importance((double)a[0], (double)a[1], (double)a[2]));
+            parser.declareDouble(ConstructingObjectParser.constructorArg(), MEAN_MAGNITUDE);
+            parser.declareDouble(ConstructingObjectParser.constructorArg(), MIN);
+            parser.declareDouble(ConstructingObjectParser.constructorArg(), MAX);
+            return parser;
+        }
+
+        private final double meanMagnitude;
+        private final double min;
+        private final double max;
+
+        public Importance(double meanMagnitude, double min, double max) {
+            this.meanMagnitude = meanMagnitude;
+            this.min = min;
+            this.max = max;
+        }
+
+        public Importance(StreamInput in) throws IOException {
+            this.meanMagnitude = in.readDouble();
+            this.min = in.readDouble();
+            this.max = in.readDouble();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Importance that = (Importance) o;
+            return Double.compare(that.meanMagnitude, meanMagnitude) == 0 &&
+                Double.compare(that.min, min) == 0 &&
+                Double.compare(that.max, max) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(meanMagnitude, min, max);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(meanMagnitude);
+            out.writeDouble(min);
+            out.writeDouble(max);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(MEAN_MAGNITUDE.getPreferredName(), meanMagnitude);
+            builder.field(MIN.getPreferredName(), min);
+            builder.field(MAX.getPreferredName(), max);
+            builder.endObject();
+            return builder;
+        }
     }
 
     public static class ClassImportance implements ToXContentObject, Writeable {
@@ -111,9 +185,11 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         private static ConstructingObjectParser<ClassImportance, Void> createParser(boolean ignoreUnknownFields) {
             ConstructingObjectParser<ClassImportance, Void> parser = new ConstructingObjectParser<>(NAME,
                 ignoreUnknownFields,
-                a -> new ClassImportance((String)a[0], (Double)a[1]));
+                a -> new ClassImportance((String)a[0], (Importance)a[1]));
             parser.declareString(ConstructingObjectParser.constructorArg(), CLASS_NAME);
-            parser.declareDouble(ConstructingObjectParser.constructorArg(), IMPORTANCE);
+            parser.declareObject(ConstructingObjectParser.constructorArg(),
+                ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
+                IMPORTANCE);
             return parser;
         }
 
@@ -122,14 +198,14 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         }
 
         public final String className;
-        public final double importance;
+        public final Importance importance;
 
         public ClassImportance(StreamInput in) throws IOException {
             this.className = in.readString();
-            this.importance = in.readDouble();
+            this.importance = new Importance(in);
         }
 
-        ClassImportance(String className, double importance) {
+        ClassImportance(String className, Importance importance) {
             this.className = className;
             this.importance = importance;
         }
@@ -137,7 +213,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(className);
-            out.writeDouble(importance);
+            importance.writeTo(out);
         }
 
         @Override
@@ -154,8 +230,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ClassImportance that = (ClassImportance) o;
-            return Double.compare(that.importance, importance) == 0 &&
-                Objects.equals(className, that.className);
+            return Objects.equals(that.importance, importance) && Objects.equals(className, that.className);
         }
 
         @Override

@@ -23,13 +23,17 @@ public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCas
     public static TotalFeatureImportance randomInstance() {
         return new TotalFeatureImportance(
             randomAlphaOfLength(10),
-            randomDouble(),
+            randomBoolean() ? null : randomImportance(),
             randomBoolean() ?
                 null :
-                Stream.generate(() -> new TotalFeatureImportance.ClassImportance(randomAlphaOfLength(10), randomDouble()))
+                Stream.generate(() -> new TotalFeatureImportance.ClassImportance(randomAlphaOfLength(10), randomImportance()))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList())
             );
+    }
+
+    private static TotalFeatureImportance.Importance randomImportance() {
+        return new TotalFeatureImportance.Importance(randomDouble(), randomDouble(), randomDouble());
     }
 
     @Before

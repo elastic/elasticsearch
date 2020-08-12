@@ -22,6 +22,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
@@ -83,9 +84,7 @@ public abstract class BaseRestHandler implements RestHandler {
             final String allow_system_index_access = request.param("allow_system_index_access");
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
-                && (allow_system_index_access == null
-                || allow_system_index_access.isEmpty()
-                || Boolean.parseBoolean(allow_system_index_access) == false)) {
+                && (Booleans.parseBoolean(allow_system_index_access, false) == false)) {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, "true");
             }
         }

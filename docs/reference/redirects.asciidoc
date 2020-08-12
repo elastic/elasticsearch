@@ -682,3 +682,8 @@ See <<ilm-actions>>.
 === {ilm-init} policy definition
 
 See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="_timing"]
+=== Timing
+
+See <<ilm-phase-transitions>>.

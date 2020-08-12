@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,7 +47,16 @@ import static org.mockito.Mockito.mock;
 public class RestBulkActionTests extends ESTestCase {
 
     public void testBulkPipelineUpsert() throws Exception {
-        try (NodeClient verifyingClient = new VerifyingClient(this.getTestName())) {
+        SetOnce<Boolean> bulkCalled = new SetOnce<>();
+        try (NodeClient verifyingClient = new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                bulkCalled.set(true);
+                assertThat(request.requests(), hasSize(2));
+                UpdateRequest updateRequest = (UpdateRequest) request.requests().get(1);
+                assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("timestamps"));
+            }
+        }) {
             final Map<String, String> params = new HashMap<>();
             params.put("pipeline", "timestamps");
             new RestBulkAction(settings(Version.CURRENT).build())
@@ -64,20 +74,7 @@ public class RestBulkActionTests extends ESTestCase {
                         ).withMethod(RestRequest.Method.POST).build(),
                     mock(RestChannel.class), verifyingClient
                 );
-
-        }
-    }
-
-    private static class VerifyingClient extends NoOpNodeClient {
-        VerifyingClient(String testName) {
-            super(testName);
-        }
-
-        @Override
-        public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-            assertThat(request.requests(), hasSize(2));
-            UpdateRequest updateRequest = (UpdateRequest) request.requests().get(1);
-            assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("timestamps"));
+            assertThat(bulkCalled.get(), equalTo(true));
         }
     }
 }

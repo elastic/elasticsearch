@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -1408,7 +1407,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     if (binary) {
                         builder.value(cursor.value.source().compressed());
                     } else {
-                        builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
+                        builder.map(XContentHelper.convertToMap(cursor.value.source().uncompressed(), true).v2());
                     }
                 }
                 builder.endArray();
@@ -1416,7 +1415,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.startObject(KEY_MAPPINGS);
                 for (ObjectObjectCursor<String, MappingMetadata> cursor : indexMetadata.getMappings()) {
                     Map<String, Object> mapping = XContentHelper
-                        .convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
+                        .convertToMap(cursor.value.source().uncompressed(), false).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);

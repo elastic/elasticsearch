@@ -81,7 +81,7 @@ public abstract class RemoteClusterAware {
             if (i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
-                    throw new IllegalStateException("node [" + nodeName + "] does not have the remote cluster client role enabled");
+                    throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
                 String remoteClusterName = index.substring(0, i);
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);

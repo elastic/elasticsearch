@@ -24,9 +24,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,7 +37,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
 
 public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase {
 
@@ -62,15 +63,17 @@ public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase 
             localCluster.startDataOnlyNode();
         }
         final String nodeWithoutRemoteClusterClientRole = localCluster.startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_ROLE));
-        final IllegalStateException error = expectThrows(IllegalStateException.class, () ->
+        ElasticsearchAssertions.assertFutureThrows(
             localCluster.client(nodeWithoutRemoteClusterClientRole)
                 .prepareSearch("demo", "cluster_a:prod")
                 .setQuery(new MatchAllQueryBuilder())
                 .setAllowPartialSearchResults(false)
                 .setSize(1000)
-                .get());
-        assertThat(error.getMessage(),
-            equalTo("node [" + nodeWithoutRemoteClusterClientRole + "] does not have the remote cluster client role enabled"));
+                .execute(),
+            IllegalArgumentException.class,
+            RestStatus.BAD_REQUEST,
+            "node [" + nodeWithoutRemoteClusterClientRole + "] does not have the remote cluster client role enabled"
+        );
 
         final String nodeWithRemoteClusterClientRole = randomFrom(
             StreamSupport.stream(localCluster.clusterService().state().nodes().spliterator(), false)

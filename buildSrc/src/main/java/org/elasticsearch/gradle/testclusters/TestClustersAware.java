@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.Task;
 import org.gradle.api.tasks.Nested;
-import org.gradle.api.tasks.TaskDependency;
 
 import java.util.Collection;
 
@@ -34,10 +33,10 @@ public interface TestClustersAware extends Task {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-
-        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> {
-            dependsOn(distro.getExtracted());
-        });
+        cluster.getNodes()
+            .stream()
+            .flatMap(node -> node.getDistributions().stream())
+            .forEach(distro -> { dependsOn(distro.getExtracted()); });
         getClusters().add(cluster);
     }
 

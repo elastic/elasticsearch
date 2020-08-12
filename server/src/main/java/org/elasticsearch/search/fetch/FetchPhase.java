@@ -97,7 +97,7 @@ public class FetchPhase implements SearchPhase {
         FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
 
         try {
-            SearchLookup lookup = new SearchLookup(context.mapperService(), context.getQueryShardContext()::getForField);
+            SearchLookup lookup = context.getQueryShardContext().lookupForFetch();
             if (context.fetchFieldsContext() != null) {
                 context.fetchFieldsContext().prepare(lookup);
             }

@@ -94,7 +94,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -447,9 +448,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected static List<?> fetchFromDocValues(FieldMapper mapper, DocValueFormat format, Object sourceValue) throws IOException {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(any())).thenReturn(mapper.fieldType());
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = mft -> mft.fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
+            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             BytesReference source = BytesReference.bytes(
                 JsonXContent.contentBuilder().startObject().field(mapper.name(), sourceValue).endObject()

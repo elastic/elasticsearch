@@ -64,7 +64,7 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookupSource) -> fieldData);
     }
 
     private TermsSetQueryScript.LeafFactory compile(String expression) {

@@ -64,7 +64,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookupSource) -> fieldData);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

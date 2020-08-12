@@ -291,9 +291,19 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public SearchLookup lookup() {
         if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(), this::getForField);
+            lookup = new SearchLookup(
+                getMapperService(),
+                (ft, lookupSource) -> indexFieldDataService.apply(ft, fullyQualifiedIndex.getName(), lookupSource)
+            );
         }
         return lookup;
+    }
+
+    public SearchLookup lookupForFetch() {
+        return new SearchLookup(
+            mapperService,
+            (ft, lookupSource) -> indexFieldDataService.apply(ft, fullyQualifiedIndex.getName(), lookupSource)
+        );
     }
 
     public NestedScope nestedScope() {

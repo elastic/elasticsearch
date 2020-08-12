@@ -24,7 +24,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 public class SearchLookup {
 
@@ -34,8 +35,11 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
 
-    public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
-        docMap = new DocLookup(mapperService, fieldDataLookup);
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+    ) {
+        docMap = new DocLookup(mapperService, ft -> fieldDataLookup.apply(ft, () -> this));
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService);
     }

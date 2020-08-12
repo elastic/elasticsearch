@@ -1,13 +1,20 @@
 [[release-notes-6.8.12]]
 == {es} version 6.8.12
 
-coming::[6.8.12]
-
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
-[float]
 [[bug-6.8.12]]
+[float]
 === Bug fixes
+
+CCR::
+* CCR recoveries using wrong setting for chunk sizes {es-pull}59597[#59597]
+* Fix synchronization in ShardFollowNodeTask {es-pull}60490[#60490]
+* Relax ShardFollowTasksExecutor validation {es-pull}60054[#60054] (issue: {es-issue}59625[#59625])
+* Set timeout of master node requests on follower to unbounded {es-pull}60070[#60070] (issue: {es-issue}56891[#56891])
+
+Distributed::
+* Fix cluster health rest api wait_for_no_initializing_shards bug {es-pull}58379[#58379]
 
 Machine Learning::
 * Fix restoration of change detectors after seasonality change {ml-pull}1391[#1391]

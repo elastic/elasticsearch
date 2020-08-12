@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -269,8 +270,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
     public void testNoMasterActionsMetadataWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
-            .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
             .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write")
+            .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")
             .build();
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
@@ -330,6 +331,15 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         client(randomFrom(nodesWithShards)).prepareIndex("test1").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
+
+        // dynamic mapping updates fail
+        expectThrows(MasterNotDiscoveredException.class, () -> client(randomFrom(nodesWithShards)).prepareIndex("test1").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
+            .setTimeout(timeout).get());
+
+        // dynamic index creation fails
+        expectThrows(MasterNotDiscoveredException.class, () -> client(randomFrom(nodesWithShards)).prepareIndex("test2").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());
 
         expectThrows(UnavailableShardsException.class, () -> client(partitionedNode).prepareIndex("test1").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());

@@ -2,7 +2,7 @@
 [[ilm-searchable-snapshot]]
 === Searchable snapshot
 
-Phases allowed: cold.
+Phases allowed: cold, frozen.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
@@ -29,6 +29,20 @@ To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete 
 (Required, string)
 Specifies where to store the snapshot. 
 See <<snapshots-register-repository>> for more information.
+
+`force_merge_index`::
+(Optional, boolean)
+Force merges the managed index to one segment.
+Defaults to `true`.
+If the managed index was already force merged using the
+<<ilm-forcemerge, force merge action>> in a previous action
+the `searchable snapshot` action force merge step will be a no-op.
+
+[NOTE]
+The `forcemerge` action is best effort. It might happen that some of
+the shards are relocating, in which case they will not be merged.
+The `searchable-snapshot` action will continue executing even if not all shards
+are force merged.
 
 [[ilm-searchable-snapshot-ex]]
 ==== Examples

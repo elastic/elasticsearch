@@ -314,7 +314,7 @@ If your cluster has many shards, you can use a wildcard pattern in the
 `<target>` path parameter to limit the API request.
 
 The following request returns information for any data streams or indices
-beginning with `twitt`.
+beginning with `my-index-`.
 
 [source,console]
 ---------------------------------------------------------------------------

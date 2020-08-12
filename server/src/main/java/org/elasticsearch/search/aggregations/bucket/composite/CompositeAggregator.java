@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -44,21 +42,18 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -110,7 +105,12 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         this.sourceConfigs = sourceConfigs;
         for (int i = 0; i < sourceConfigs.length; i++) {
-            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
+            this.sources[i] = sourceConfigs[i].createValuesSource(
+                context.bigArrays(),
+                context.searcher().getIndexReader(),
+                size,
+                this::addRequestCircuitBreakerBytes
+            );
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
@@ -493,81 +493,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
-    }
-
-    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
-                                                              CompositeValuesSourceConfig config, int size) {
-        final int reverseMul = config.reverseMul();
-        if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
-            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
-            return new GlobalOrdinalValuesSource(
-                bigArrays,
-                config.fieldType(),
-                vs::globalOrdinalsValues,
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul
-            );
-        } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
-            ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
-            return new BinaryValuesSource(
-                bigArrays,
-                this::addRequestCircuitBreakerBytes,
-                config.fieldType(),
-                vs::bytesValues,
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul
-            );
-
-        } else if (config.valuesSource() instanceof CellIdSource) {
-            final CellIdSource cis = (CellIdSource) config.valuesSource();
-            return new GeoTileValuesSource(
-                bigArrays,
-                config.fieldType(),
-                cis::longValues,
-                LongUnaryOperator.identity(),
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul);
-        } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
-            final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
-            if (vs.isFloatingPoint()) {
-                return new DoubleValuesSource(
-                    bigArrays,
-                    config.fieldType(),
-                    vs::doubleValues,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-
-            } else {
-                final LongUnaryOperator rounding;
-                if (vs instanceof RoundingValuesSource) {
-                    rounding = ((RoundingValuesSource) vs)::round;
-                } else {
-                    rounding = LongUnaryOperator.identity();
-                }
-                return new LongValuesSource(
-                    bigArrays,
-                    config.fieldType(),
-                    vs::longValues,
-                    rounding,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-            }
-        } else {
-            throw new IllegalArgumentException("Unknown values source type: " + config.valuesSource().getClass().getName() +
-                " for source: " + config.name());
-        }
     }
 
     private static class Entry {

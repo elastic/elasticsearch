@@ -66,6 +66,10 @@ public class RescoreContext {
         return rescoredDocs.contains(docId);
     }
 
+    public Set<Integer> getRescoredDocs() {
+        return rescoredDocs;
+    }
+
     /**
      * Returns queries associated with the rescorer
      */

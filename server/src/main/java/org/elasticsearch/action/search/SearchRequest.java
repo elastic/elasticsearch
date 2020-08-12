@@ -269,10 +269,24 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
+            if (searchContextBuilder() != null) {
+                validationException = addValidationError("using [reader] is not allowed in a scroll context", validationException);
+            }
         }
         if (source != null) {
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+        }
+        if (searchContextBuilder() != null) {
+            if (indices.length > 0) {
+                validationException = addValidationError("[index] cannot be used with search context", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with search context", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with search context", validationException);
             }
         }
         return validationException;
@@ -427,6 +441,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public SearchSourceBuilder.SearchContextBuilder searchContextBuilder() {
+        if (source != null) {
+            return source.searchContextBuilder();
+        }
+        return null;
     }
 
     /**

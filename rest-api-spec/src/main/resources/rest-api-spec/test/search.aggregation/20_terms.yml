@@ -695,6 +695,36 @@ setup:
 
   - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
+---
+"Global ordinals are loaded with the global_ordinals execution hint":
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 1
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 2
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 3
+        routing: 1
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
   - do:
       search:
         index: test_1

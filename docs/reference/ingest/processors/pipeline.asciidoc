@@ -1,5 +1,9 @@
 [[pipeline-processor]]
-=== Pipeline Processor
+=== Pipeline processor
+++++
+<titleabbrev>Pipeline</titleabbrev>
+++++
+
 Executes another pipeline.
 
 [[pipeline-options]]

@@ -1873,7 +1873,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testSystemIndexResolutionBlocked() {
         // Set up the thread context to disallow system index access
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, "true");
+        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, Boolean.FALSE.toString());
 
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()

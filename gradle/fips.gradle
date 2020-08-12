@@ -21,19 +21,25 @@ if (BuildParams.inFipsJvm) {
         copy 'cacerts.bcfks'
       }
 
+      def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.1')
+      def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
+
+      //ensure bouncycastle is on the test runtime classpath
+      project.getDependencies().add("testRuntimeOnly", bcFips);
+      project.getDependencies().add("testRuntimeOnly", bcTlsFips);
+
       pluginManager.withPlugin("elasticsearch.testclusters") {
         afterEvaluate {
           // This afterEvaluate hooks is required to avoid deprecated configuration resolution
           // This configuration can be removed once system modules are available
-          def extraFipsJars = configurations.detachedConfiguration(dependencies.create('org.bouncycastle:bc-fips:1.0.1'),
-            dependencies.create('org.bouncycastle:bctls-fips:1.0.9'),
-          )
+          def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
           testClusters.all {
             extraFipsJars.files.each {
               extraJarFile it
             }
           }
-          // ensure that bouncycastle is on classpath for the tests
+          // ensure that bouncycastle is on classpath for the REST tests, must happen in evaluateAfter since the rest tests explicitly
+          // set the class path to help maintain pure black box testing, and here we are adding to that classpath
           tasks.withType(RestIntegTestTask).configureEach { RestIntegTestTask restTest ->
             restTest.setClasspath(restTest.getClasspath().plus(extraFipsJars))
           }

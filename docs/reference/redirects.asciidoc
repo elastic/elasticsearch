@@ -1095,3 +1095,13 @@ See <<stored-fields>>.
 ==== Track total hits
 
 See <<track-total-hits>>.
+
+[role="exclude",id="_notes_3"]
+=== Joining queries notes
+
+See <<joining-queries-notes>>.
+
+[role="exclude",id="_notes_4"]
+=== Percolate query notes
+
+See <<percolate-query-notes>>.

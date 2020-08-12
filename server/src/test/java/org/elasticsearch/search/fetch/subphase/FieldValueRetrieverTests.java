@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -42,6 +43,9 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
 
@@ -335,6 +339,35 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
 
         Map<String, DocumentField> fields = retrieveFields(mapperService, source, "object");
         assertFalse(fields.containsKey("object"));
+    }
+
+    public void testFetchsSubDocId() throws IOException {
+        SearchLookup lookup = new SearchLookup(null, null);
+        FieldMapper mapper = mock(FieldMapper.class);
+        when(mapper.valueFetcher(lookup, null)).thenReturn(ctx -> id -> List.of(id));
+        FieldValueRetriever fetchFieldsLookup = new FieldValueRetriever(
+            List.of(new FieldValueRetriever.FieldContext("test", List.of(mapper), null))
+        );
+        fetchFieldsLookup.prepare(lookup);
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of());
+            iw.flush();
+            iw.addDocument(List.of());
+            try (DirectoryReader reader = iw.getReader()) {
+                assertThat(reader.leaves(), hasSize(2));
+                IndexSearcher indexSearcher = newSearcher(reader);
+                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(lookup.source());
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                        hitContext.reset(null, ctx, docId, indexSearcher);
+                        assertThat(
+                            fetchFieldsLookup.retrieve(hitContext, Set.of()),
+                            equalTo(Map.of("test", new DocumentField("test", List.of(docId))))
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern)

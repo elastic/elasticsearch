@@ -72,7 +72,7 @@ public class FieldValueRetriever {
     private final List<FieldContext> fieldContexts;
     private LeafReaderContext lastLeaf;
 
-    private FieldValueRetriever(List<FieldContext> fieldContexts) {
+    FieldValueRetriever(List<FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
 
@@ -102,7 +102,7 @@ public class FieldValueRetriever {
 
             List<Object> parsedValues = new ArrayList<>();
             for (LeafValueFetcher fetcher : context.leafFetchers) {
-                parsedValues.addAll(fetcher.fetch(hitContext.docId() - hitContext.readerContext().docBase));
+                parsedValues.addAll(fetcher.fetch(hitContext.docId()));
             }
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
@@ -111,7 +111,7 @@ public class FieldValueRetriever {
         return documentFields;
     }
 
-    private static class FieldContext {
+    static class FieldContext {
         final String fieldName;
         final List<FieldMapper> mappers;
         final @Nullable String format;

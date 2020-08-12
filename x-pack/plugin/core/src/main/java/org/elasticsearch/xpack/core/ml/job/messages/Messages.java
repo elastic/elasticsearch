@@ -61,6 +61,7 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED = "Updated analytics settings: {0}";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED = "Started analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STOPPED = "Stopped analytics";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED = "Stopped analytics (forced)";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_DELETED = "Deleted analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON =
             "Updated analytics task state to [{0}] with reason [{1}]";

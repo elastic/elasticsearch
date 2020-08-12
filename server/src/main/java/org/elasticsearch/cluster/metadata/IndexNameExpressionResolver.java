@@ -666,9 +666,6 @@ public class IndexNameExpressionResolver {
     }
 
     private boolean isSystemIndexAccessAllowed() {
-        if (threadContext == null) {
-            return false;
-        }
         return "true".equals(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY)) == false;
     }
 

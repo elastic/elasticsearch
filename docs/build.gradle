@@ -372,20 +372,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-// Used by index boost doc
-buildRestTests.setups['index_boost'] = '''
-  - do:
-      indices.create:
-          index:  index1
-  - do:
-      indices.create:
-          index:  index2
-
-  - do:
-      indices.put_alias:
-        index: index1
-        name: alias1
-'''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:

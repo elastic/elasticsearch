@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -47,6 +48,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final DiscoveryNode node;
 
+    private final ModelNode modelNode;
+
     private final LinkedHashMap<ShardId, ShardRouting> shards; // LinkedHashMap to preserve order
 
     private final LinkedHashSet<ShardRouting> initializingShards;
@@ -63,10 +66,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
+        this.modelNode = new ModelNode(this);
         this.relocatingShards = new LinkedHashSet<>();
         this.initializingShards = new LinkedHashSet<>();
         this.shardsByIndex = new LinkedHashMap<>();
         for (ShardRouting shardRouting : shards.values()) {
+            if (shardRouting.relocating() == false) {
+                modelNode.addShard(shardRouting);
+            }
             if (shardRouting.initializing()) {
                 initializingShards.add(shardRouting);
             } else if (shardRouting.relocating()) {
@@ -114,6 +121,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     public String nodeId() {
         return this.nodeId;
+    }
+
+    public ModelNode modelNode() {
+        return this.modelNode;
     }
 
     public int size() {
@@ -349,5 +360,135 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
+    }
+
+    public static class ModelNode implements Iterable<ModelIndex> {
+        private final Map<String, ModelIndex> indices = new HashMap<>();
+        private int numShards = 0;
+        public final RoutingNode routingNode;
+
+        ModelNode(RoutingNode routingNode) {
+            this.routingNode = routingNode;
+        }
+
+        public ModelIndex getIndex(String indexId) {
+            return indices.get(indexId);
+        }
+
+        public String getNodeId() {
+            return routingNode.nodeId();
+        }
+
+        public RoutingNode getRoutingNode() {
+            return routingNode;
+        }
+
+        public int numShards() {
+            return numShards;
+        }
+
+        public int numShards(String idx) {
+            ModelIndex index = indices.get(idx);
+            return index == null ? 0 : index.numShards();
+        }
+
+        public int highestPrimary(String index) {
+            ModelIndex idx = indices.get(index);
+            if (idx != null) {
+                return idx.highestPrimary();
+            }
+            return -1;
+        }
+
+        public void addShard(ShardRouting shard) {
+            ModelIndex index = indices.get(shard.getIndexName());
+            if (index == null) {
+                index = new ModelIndex(shard.getIndexName());
+                indices.put(index.getIndexId(), index);
+            }
+            index.addShard(shard);
+            numShards++;
+        }
+
+        public void removeShard(ShardRouting shard) {
+            ModelIndex index = indices.get(shard.getIndexName());
+            if (index != null) {
+                index.removeShard(shard);
+                if (index.numShards() == 0) {
+                    indices.remove(shard.getIndexName());
+                }
+            }
+            numShards--;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Node(").append(routingNode.nodeId()).append(")");
+            return sb.toString();
+        }
+
+        @Override
+        public Iterator<ModelIndex> iterator() {
+            return indices.values().iterator();
+        }
+
+        public boolean containsShard(ShardRouting shard) {
+            ModelIndex index = getIndex(shard.getIndexName());
+            return index == null ? false : index.containsShard(shard);
+        }
+
+    }
+
+    public static final class ModelIndex implements Iterable<ShardRouting> {
+        private final String id;
+        private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private int highestPrimary = -1;
+
+        ModelIndex(String id) {
+            this.id = id;
+        }
+
+        public int highestPrimary() {
+            if (highestPrimary == -1) {
+                int maxId = -1;
+                for (ShardRouting shard : shards) {
+                    if (shard.primary()) {
+                        maxId = Math.max(maxId, shard.id());
+                    }
+                }
+                return highestPrimary = maxId;
+            }
+            return highestPrimary;
+        }
+
+        public String getIndexId() {
+            return id;
+        }
+
+        public int numShards() {
+            return shards.size();
+        }
+
+        @Override
+        public Iterator<ShardRouting> iterator() {
+            return shards.iterator();
+        }
+
+        public void removeShard(ShardRouting shard) {
+            highestPrimary = -1;
+            assert shards.contains(shard) : "Shard not allocated on current node: " + shard;
+            shards.remove(shard);
+        }
+
+        public void addShard(ShardRouting shard) {
+            highestPrimary = -1;
+            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
+            shards.add(shard);
+        }
+
+        public boolean containsShard(ShardRouting shard) {
+            return shards.contains(shard);
+        }
     }
 }

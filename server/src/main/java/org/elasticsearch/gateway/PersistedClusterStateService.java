@@ -609,7 +609,8 @@ public class PersistedClusterStateService {
         void writeIncrementalStateAndCommit(long currentTerm, ClusterState previousClusterState,
                                             ClusterState clusterState) throws IOException {
             ensureOpen();
-            assert fullStateWritten : "Need to write full state first before doing incremental writes";
+            ensureFullStateWritten();
+
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
@@ -628,6 +629,15 @@ public class PersistedClusterStateService {
                 }
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
+            }
+        }
+
+        private void ensureFullStateWritten() {
+            assert fullStateWritten : "Need to write full state first before doing incremental writes";
+            //noinspection ConstantConditions to catch this even if assertions are disabled
+            if (fullStateWritten == false) {
+                logger.error("cannot write incremental state");
+                throw new IllegalStateException("cannot write incremental state");
             }
         }
 
@@ -730,7 +740,13 @@ public class PersistedClusterStateService {
             return new WriterStats(true, metadata.indices().size(), 0);
         }
 
-        public void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
+            ensureOpen();
+            ensureFullStateWritten();
+            commit(currentTerm, lastAcceptedVersion);
+        }
+
+        void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
             ensureOpen();
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {

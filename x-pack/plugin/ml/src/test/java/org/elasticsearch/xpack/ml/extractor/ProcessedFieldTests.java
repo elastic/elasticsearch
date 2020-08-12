@@ -49,8 +49,7 @@ public class ProcessedFieldTests extends ESTestCase {
         String inputField = "foo";
         ExtractedField extractedField = makeExtractedField(new Object[0]);
         ProcessedField processedField = new ProcessedField(makePreProcessor(inputField, "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> extractedField),
-            arrayContainingInAnyOrder(is(nullValue()), is(nullValue())));
+        assertThat(processedField.value(makeHit(), (s) -> extractedField), is(emptyArray()));
     }
 
     public void testProcessedField() {

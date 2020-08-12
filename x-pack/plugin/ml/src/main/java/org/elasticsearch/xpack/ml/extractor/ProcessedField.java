@@ -52,7 +52,7 @@ public class ProcessedField {
             }
         }
         preProcessor.process(inputs);
-        return preProcessor.outputFields().stream().map(inputs::get).toArray();
+        return preProcessor.outputFields().stream().map(inputs::get).filter(Objects::nonNull).toArray();
     }
 
     public String getProcessorName() {

@@ -15,10 +15,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -30,11 +33,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -943,6 +949,196 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
     }
 
+    public void testDetect_givenFeatureProcessorsFailures() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_11", "float")
+            .addNonAggregatableField("field_21", "float")
+            .addAggregatableField("field_21.child", "float")
+            .addNonAggregatableField("field_31", "float")
+            .addAggregatableField("field_31.child", "float")
+            .addNonAggregatableField("object_field", "object")
+            .build();
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("ml.result", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("fields contained in results field [ml] cannot be used in a feature_processor"));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("object_field", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("fields for feature_processors must not be objects"));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("_id", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("the following fields cannot be used in feature_processors"));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("bar", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("the fields [bar] were not found in the field capabilities of the source indices"));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("field_31", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("required analysis fields [field_31] cannot be used in a feature_processor"));
+        }
+
+        {
+            sourceFiltering = new FetchSourceContext(true, null, new String[]{"field_1*"});
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("field_11", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("fields [field_11] required by field_processors are not included in source filtering."));
+            sourceFiltering = null;
+        }
+
+        {
+            analyzedFields = new FetchSourceContext(true, null, new String[]{"field_1*"});
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("field_11", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("fields [field_11] required by field_processors are not included in the analyzed_fields"));
+            analyzedFields = null;
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("field_31.child", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("feature_processors cannot be applied to required fields for analysis; "));
+
+            extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31.child", Arrays.asList(buildPreProcessor("field_31", "foo"))),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("feature_processors cannot be applied to required fields for analysis; "));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31",
+                    Arrays.asList(
+                        buildPreProcessor("field_21", "foo"),
+                        buildPreProcessor("field_21.child", "bar")
+                        )),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("feature_processors refer to both multi-field "));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31",
+                    Arrays.asList(
+                        buildPreProcessor("field_11", "foo"),
+                        buildPreProcessor("field_21", "foo")
+                    )),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString("feature_processors must define unique output field names; duplicate fields [foo]"));
+        }
+
+        {
+            ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+                buildRegressionConfig("field_31",
+                    Arrays.asList(
+                        buildPreProcessor("field_11", "field_21")
+                    )),
+                100,
+                fieldCapabilities,
+                Collections.emptyMap());
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+            assertThat(ex.getMessage(),
+                containsString(
+                    "feature_processors output fields must not include non-processed analysis fields; duplicate fields [field_21]"));
+        }
+    }
+
+    public void testDetect_withFeatureProcessors() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_11", "float")
+            .addAggregatableField("field_21", "float")
+            .addNonAggregatableField("field_31", "float")
+            .addAggregatableField("field_31.child", "float")
+            .addNonAggregatableField("object_field", "object")
+            .build();
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildRegressionConfig("field_11",
+                Arrays.asList(buildPreProcessor("field_31", "foo", "bar"))),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap());
+
+        ExtractedFields extracted = extractedFieldsDetector.detect().v1();
+
+        assertThat(extracted.getProcessedFieldInputs(), containsInAnyOrder("field_31"));
+        assertThat(extracted.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toSet()),
+            containsInAnyOrder("field_11", "field_21", "field_31"));
+        assertThat(extracted.getSourceFields(), arrayContainingInAnyOrder("field_31"));
+        assertThat(extracted.getDocValueFields().stream().map(ExtractedField::getName).collect(Collectors.toSet()),
+            containsInAnyOrder("field_21", "field_11"));
+        assertThat(extracted.getProcessedFields(), hasSize(1));
+    }
+
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
@@ -954,13 +1150,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     }
 
     private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable) {
-        return new DataFrameAnalyticsConfig.Builder()
-            .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
-            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
-            .setAnalyzedFields(analyzedFields)
-            .setAnalysis(new Regression(dependentVariable))
-            .build();
+        return buildRegressionConfig(dependentVariable, Collections.emptyList());
     }
 
     private DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
@@ -970,6 +1160,29 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalysis(new Classification(dependentVariable))
             .build();
+    }
+
+    private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, List<PreProcessor> featureprocessors) {
+        return new DataFrameAnalyticsConfig.Builder()
+            .setId("foo")
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
+            .setAnalyzedFields(analyzedFields)
+            .setAnalysis(new Regression(dependentVariable,
+                BoostedTreeParams.builder().build(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                featureprocessors))
+            .build();
+    }
+
+    private static PreProcessor buildPreProcessor(String inputField, String... outputFields) {
+        return new OneHotEncoding(inputField,
+            Arrays.stream(outputFields).collect(Collectors.toMap((s) -> randomAlphaOfLength(10), Function.identity())),
+            true);
     }
 
     /**

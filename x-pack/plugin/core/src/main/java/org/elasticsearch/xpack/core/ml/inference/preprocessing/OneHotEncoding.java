@@ -127,8 +127,9 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         if (value == null) {
             return;
         }
+        final String stringValue = value.toString();
         hotMap.forEach((val, col) -> {
-            int encoding = value.toString().equals(val) ? 1 : 0;
+            int encoding = stringValue.equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
     }

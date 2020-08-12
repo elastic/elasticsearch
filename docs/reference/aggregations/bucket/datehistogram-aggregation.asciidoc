@@ -263,6 +263,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // NOTCONSOLE
 
+[[datehistogram-aggregation-notes]]
 ===== Notes
 
 In all cases, when the specified end time does not exist, the actual end time is

@@ -28,18 +28,21 @@ boolean internal = Boolean.parseBoolean(System.getProperty("tests.internal", "tr
 BuildParams.init { it.setIsInternal(internal) }
 
 project.gradle.projectsEvaluated {
-  // wire the download service url to wiremock
-  String fakeDownloadService = System.getProperty('tests.download_service')
-  if (fakeDownloadService != null) {
-    IvyArtifactRepository repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-downloads")
-    repository.setUrl(fakeDownloadService)
-    repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-downloads")
-    repository.setUrl(fakeDownloadService)
-    if (internal == false) {
-      repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-snapshots")
-      repository.setUrl(fakeDownloadService)
-      repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-snapshots")
-      repository.setUrl(fakeDownloadService)
+  allprojects {
+    // wire the download service url to wiremock
+    String fakeDownloadService = System.getProperty('tests.download_service')
+    if (fakeDownloadService != null) {
+      repositories.all { repo ->
+        if(repo.name == "elasticsearch-downloads") {
+          repo.setUrl(fakeDownloadService)
+        }
+        if (internal == false) {
+          if(repo.name == "elasticsearch-snapshots") {
+            repo.setUrl(fakeDownloadService)
+            repo.setUrl(fakeDownloadService)
+          }
+        }
+      }
     }
   }
 }

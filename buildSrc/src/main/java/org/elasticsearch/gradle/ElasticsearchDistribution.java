@@ -106,6 +106,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return configuration.getBuildDependencies();
         }
 
+        // TODO toString() should not result in a configuration resolution.
         @Override
         public String toString() {
             return configuration.getSingleFile().toString();

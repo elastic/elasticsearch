@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
@@ -630,7 +631,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
             Collections.singletonList(
                 Collections.singletonMap(InferenceProcessor.TYPE,
-                    Collections.singletonMap(InferenceProcessor.MODEL_ID,
+                    Collections.singletonMap(InferenceResults.MODEL_ID_RESULTS_FIELD,
                         modelId)))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }

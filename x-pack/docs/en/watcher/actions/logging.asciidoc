@@ -3,7 +3,7 @@
 === Logging Action
 
 Use the `logging` action to log text to the standard Elasticsearch
-logs. See <<logging-action-attributes>> for the supported attributes.
+logs of the cluster's master node. See <<logging-action-attributes>> for the supported attributes.
 
 This action is primarily used during development and for debugging purposes.
 

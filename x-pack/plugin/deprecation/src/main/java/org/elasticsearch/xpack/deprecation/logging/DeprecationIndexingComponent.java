@@ -103,19 +103,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      */
     private Consumer<IndexRequest> buildIndexRequestConsumer(ThreadPool threadPool, Client client) {
         final OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN);
-
-        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error("Bulk write of deprecation logs failed: " + failure.getMessage(), failure);
-            }
-        };
+        final BulkProcessor.Listener listener = new DeprecationBulkListener();
 
         BulkProcessor processor = BulkProcessor.builder(originSettingClient::bulk, listener)
             .setBulkActions(100)
@@ -132,5 +120,18 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
                 logger.error("Failed to queue deprecation message index request: " + e.getMessage(), e);
             }
         };
+    }
+
+    private static class DeprecationBulkListener implements BulkProcessor.Listener {
+        @Override
+        public void beforeBulk(long executionId, BulkRequest request) {}
+
+        @Override
+        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
+
+        @Override
+        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            logger.error("Bulk write of deprecation logs failed: " + failure.getMessage(), failure);
+        }
     }
 }

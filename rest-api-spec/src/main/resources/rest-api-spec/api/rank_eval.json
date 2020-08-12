@@ -57,6 +57,10 @@
           "dfs_query_then_fetch"
         ],
         "description":"Search operation type"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

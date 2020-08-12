@@ -63,6 +63,10 @@
       "flat_settings":{
         "type":"boolean",
         "description":"Return settings in flat format (default: false)"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

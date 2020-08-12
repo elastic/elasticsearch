@@ -59,6 +59,10 @@
       "only_expunge_deletes":{
         "type":"boolean",
         "description":"Specify whether the operation should only expunge deleted documents"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

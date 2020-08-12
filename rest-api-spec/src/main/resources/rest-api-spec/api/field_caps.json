@@ -58,6 +58,10 @@
         "type":"boolean",
         "default":false,
         "description":"Indicates whether unmapped fields should be included in the response."
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

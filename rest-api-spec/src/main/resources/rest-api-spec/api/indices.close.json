@@ -53,6 +53,10 @@
       "wait_for_active_shards":{
         "type":"string",
         "description":"Sets the number of active shards to wait for before the operation returns."
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

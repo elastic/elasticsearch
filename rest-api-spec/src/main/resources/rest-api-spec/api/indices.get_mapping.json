@@ -59,6 +59,10 @@
           "version":"7.8.0",
           "description":"This parameter is a no-op and field mappings are always retrieved locally."
         }
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

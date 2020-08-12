@@ -67,6 +67,10 @@
       "request":{
         "type":"boolean",
         "description":"Clear request cache"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

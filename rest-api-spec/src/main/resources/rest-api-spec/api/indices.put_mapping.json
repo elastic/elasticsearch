@@ -55,6 +55,10 @@
         "type":"boolean",
         "default":false,
         "description":"When true, applies mappings only to the write index of an alias or data stream"
+      },
+      "allow_system_index_access": {
+        "type":"boolean",
+        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

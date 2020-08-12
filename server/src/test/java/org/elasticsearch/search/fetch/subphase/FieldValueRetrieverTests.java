@@ -359,30 +359,11 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
                 SearchLookup lookup = new SearchLookup(null, null);
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(lookup.source());
                 fetchFieldsLookup.prepare(lookup);
-                SetOnce<Map<String, DocumentField>> result = new SetOnce<>();
-                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
-                    @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE_NO_SCORES;
-                    }
-
-                    @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        return new LeafCollector() {
-                            @Override
-                            public void setScorer(Scorable scorer) throws IOException {}
-
-                            @Override
-                            public void collect(int doc) throws IOException {
-                                // Position the lookup and set the source to mimick the fetch phase
-                                hitContext.reset(null, context, doc, indexSearcher);
-                                hitContext.sourceLookup().setSource(BytesReference.bytes(source));
-                                result.set(fetchFieldsLookup.retrieve(hitContext, Set.of()));
-                            }
-                        };
-                    }
-                });
-                return result.get();
+                LeafReaderContext context = reader.leaves().get(0);
+                int docId = 0;
+                hitContext.reset(null, context, docId, indexSearcher);
+                hitContext.sourceLookup().setSource(BytesReference.bytes(source));
+                return fetchFieldsLookup.retrieve(hitContext, Set.of());
             }
         }
     }

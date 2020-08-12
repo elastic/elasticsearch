@@ -215,17 +215,17 @@ buildRestTests.setups['sec_logs'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"@timestamp": "2020-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
             {"index":{}}
-            {"@timestamp": "2020-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
             {"index":{}}
-            {"@timestamp": "2020-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
             {"index":{}}
-            {"@timestamp": "2020-12-07T11:07:08.000Z", "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
             {"index":{}}
-            {"@timestamp": "2020-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
             {"index":{}}
-            {"@timestamp": "2020-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
@@ -376,20 +376,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-// Used by index boost doc
-buildRestTests.setups['index_boost'] = '''
-  - do:
-      indices.create:
-          index:  index1
-  - do:
-      indices.create:
-          index:  index2
-
-  - do:
-      indices.put_alias:
-        index: index1
-        name: alias1
-'''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:

@@ -337,14 +337,20 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig config = resolveConfig(queryShardContext);
-        if (queryShardContext.getValuesSourceRegistry().isRegistered(getType())) {
-            // Only test if the values source type is valid if the aggregation uses the registry
-            AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, getType());
+        if (queryShardContext.getValuesSourceRegistry().isRegistered(getRegistryKey())) {
+            /*
+            if the aggregation uses the values source registry, test if the resolved values source type is compatible with this aggregation.
+            This call will throw if the mapping isn't registered, which is what we want.  Note that we need to throw from here because
+            AbstractAggregationBuilder#build, which called this, will attempt to register the agg usage next, and if the usage is invalid
+            that will fail with a weird error.
+             */
+            queryShardContext.getValuesSourceRegistry().getAggregator(getRegistryKey(), config);
         }
-        // TODO: We should pass the supplier in from here.  Right now this just checks that the VST is valid
         ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
+
+    protected abstract ValuesSourceRegistry.RegistryKey<?> getRegistryKey();
 
     /**
      * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver

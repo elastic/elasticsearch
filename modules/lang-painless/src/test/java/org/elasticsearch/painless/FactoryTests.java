@@ -186,6 +186,8 @@ public class FactoryTests extends ScriptTestCase {
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertEquals(4, script.execute(2));
         assertEquals(5, script.execute(3));
+        // The factory interface doesn't define `docFields` so we don't generate it.
+        expectThrows(NoSuchMethodException.class, () -> factory.getClass().getMethod("docFields"));
         script = factory.newInstance(Collections.singletonMap("test", 3));
         assertEquals(5, script.execute(2));
         assertEquals(2, script.execute(-1));

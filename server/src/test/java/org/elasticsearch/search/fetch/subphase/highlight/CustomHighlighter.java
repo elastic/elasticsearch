@@ -41,20 +41,40 @@ public class CustomHighlighter implements Highlighter {
     private CacheEntry setCacheEntry(FieldHighlightContext fieldContext) {
         CacheEntry cacheEntry = (CacheEntry) fieldContext.hitContext.cache().get("test-custom");
         final int docId = fieldContext.hitContext.readerContext().docBase + fieldContext.hitContext.docId();
+        setPosition(fieldContext, cacheEntry, docId);
+        setDocId(cacheEntry, docId);
+        return cacheEntry;
+    }
+    
+    private void setPosition(FieldHighlightContext fieldContext, CacheEntry cacheEntry, int docId) {
         if (cacheEntry == null) {
             cacheEntry = new CacheEntry();
             fieldContext.hitContext.cache().put("test-custom", cacheEntry);
-            cacheEntry.docId = docId;
             cacheEntry.position = 1;
         } else {
+    
             if (cacheEntry.docId == docId) {
                 cacheEntry.position++;
             } else {
-                cacheEntry.docId = docId;
                 cacheEntry.position = 1;
             }
+       }
+    }
+
+    // private void setDocId(CacheEntry cacheEntry, int docId) {
+    //     if (cacheEntry == null) {
+    //     } else {
+    //         if (cacheEntry.docId == docId) {
+    //         } else {
+    //             cacheEntry.docId = docId;
+    //         }
+    //     }
+    // }
+    
+    private void setDocId(CacheEntry cacheEntry, int docId) {
+        if ((cacheEntry != null) && (cacheEntry.docId != docId)) {
+            cacheEntry.docId = docId;
         }
-        return cacheEntry;
     }
 
     private List<Text> generateResponses(FieldHighlightContext fieldContext, CacheEntry cacheEntry) {

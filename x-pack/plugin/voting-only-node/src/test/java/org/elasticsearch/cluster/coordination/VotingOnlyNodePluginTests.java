@@ -206,7 +206,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
             private final ClusterService clusterService;
 
-            public AccessVerifyingRepo(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+            private AccessVerifyingRepo(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
                                        ClusterService clusterService, RecoverySettings recoverySettings) {
                 super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
                 this.clusterService = clusterService;

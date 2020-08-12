@@ -839,7 +839,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
             .build());
 
-        logger.info("Building initial routing table for 'testUnbalancedZones'");
+        logger.info("Building initial routing table for 'testMultipleAwarenessAttributes'");
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))

@@ -10,15 +10,20 @@ Use {ccr} to enable several use cases within the Elastic Stack:
 
 * <<ccr-disaster-recovery,Disaster recovery>> in case a primary cluster fails,
 with a secondary cluster serving as a hot backup
-* *Data locality* to serve reads locally and reduce costly latency
-* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
+* <<ccr-data-locality,Data locality>> to serve reads locally and reduce costly latency
+* <<ccr-centralized-reporting,Centralized reporting>> for preventing search load from interfering with indexing by offloading search to a secondary cluster
+
+Watch the
+https://www.elastic.co/webinars/replicate-elasticsearch-data-with-cross-cluster-replication-ccr[{ccr-cap} webinar] to learn more about the following use cases.
+Then, <<ccr-getting-started,set up {ccr}>> on your local machine and work
+through the demo from the webinar.
 
 [[ccr-disaster-recovery]]
 ==== Disaster recovery and high availability
 Disaster recovery provides your mission-critical applications with the
-tolerance to withstand a datacenter or region outages. You can configure
-clusters in different architectures to support disaster recovery and high
-availability:
+tolerance to withstand a datacenter or region outages. This use case is the
+most common deployment of {ccr}. You can configure clusters in different
+architectures to support disaster recovery and high availability:
 
 * <<ccr-single-datacenter-recovery>>
 * <<ccr-multiple-datacenter-recovery>>
@@ -63,7 +68,7 @@ image::images/ccr-arch-chain-dcs.png[Three datacenters connected to form a repli
 [discrete]
 [[ccr-bi-directional-replication]]
 ===== Bi-directional replication
-In a bi-directional replication setup, all clusters have access to view
+In a https://www.elastic.co/blog/bi-directional-replication-with-elasticsearch-cross-cluster-replication-ccr[bi-directional replication] setup, all clusters have access to view
 all data, and all clusters have an index to write to without manually
 implementing failover. Applications can write to the local index within each
 datacenter, and read across multiple indices for a global view of all
@@ -82,8 +87,33 @@ cluster, and do not communicate with clusters in different datacenters.
 
 [[ccr-data-locality]]
 ==== Data locality
-replicating data to live closer to a user/application server, such as replicating a product catalog to 20 different datacenters around the world
+Bringing data closer to your users or application server can reduce latency
+and response time. This methodology also applies when replicating data in {es}.
+For example, you can replicate a product catalog or reference dataset to 20 or
+more datacenters around the world to minimize the distance between the data and
+the application server.
+
+In the following diagram, data is replicated from one datacenter to three
+additional datacenters, each in their own region. This configuration ensures
+that data is closer to the application accessing it.
+
+image::images/ccr-arch-data-locality.png[A centralized datacenter replicated across three other datacenters, each in their own region]
 
 [[ccr-centralized-reporting]]
 ==== Centralized reporting
-replicating data from an Elasticsearch cluster to a central reporting cluster (e.g. 1000 bank branches around the world all writing to their local Elasticsearch cluster, and replicating back to a cluster in HQ for reporting purposes
+Using a centralized reporting cluster is useful when querying across a large
+network is inefficient. In this configuration, you replicate data from many
+smaller clusters to the centralized reporting cluster.
+
+For example, a large global bank might have 100 {es} clusters around the world
+that are distributed across different regions for each bank branch. Using
+{ccr}, the bank can replicate events from all 100 banks to a central cluster to
+analyze and aggregate events locally for reporting. Rather than maintaining a
+mirrored cluster, the bank can use {ccr} to replicate specific indices.
+
+In the following diagram, data from three datacenters in different regions is
+replicated to a centralized reporting cluster. This configuration enables you
+to copy data from regional hubs to a central cluster, where you can run all
+reports locally.
+
+image::images/ccr-arch-central-reporting.png[Three clusters in different regions sending data to a centralized reporting cluster for analysis]

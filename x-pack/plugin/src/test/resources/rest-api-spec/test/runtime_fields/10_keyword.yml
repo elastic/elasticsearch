@@ -113,7 +113,7 @@ setup:
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---
-"fields_fetch":
+"fetch fields":
   - do:
       search:
         index: sensor

@@ -103,7 +103,7 @@ setup:
   - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
 
 ---
-"fields fetch":
+"fetch fields":
   - do:
       search:
         index: sensor

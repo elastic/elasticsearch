@@ -17,7 +17,7 @@ e.g. `?keep_alive=5m`.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_search_context?keep_alive=1m
+POST /my-index-000001/_search_context?keep_alive=1m
 --------------------------------------------------
 // TEST[setup:my_index]
 

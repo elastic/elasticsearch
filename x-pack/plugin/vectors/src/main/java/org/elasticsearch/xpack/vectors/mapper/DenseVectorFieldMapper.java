@@ -213,7 +213,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return ValueFetcher.fromSource(this, lookup, v -> (List<?>) v);
+        return ValueFetcher.fromSourceManualyHandlingLists(this, lookup, v -> (List<?>) v);
     }
 
     @Override

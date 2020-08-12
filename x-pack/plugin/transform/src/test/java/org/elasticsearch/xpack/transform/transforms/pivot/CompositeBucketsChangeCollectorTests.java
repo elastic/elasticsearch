@@ -15,16 +15,20 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSourceTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSourceTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
@@ -43,6 +47,7 @@ import java.util.Map.Entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +81,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertEquals(10, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10)).size());
 
         // a terms group_by is limited by terms query
-        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSource();
+        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
         groups.put("terms", termsGroupBy);
 
         collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
@@ -136,6 +141,78 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
         assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+    }
+
+    public void testDateHistogramFieldCollector() throws IOException {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+
+        SingleGroupSource groupBy = new DateHistogramGroupSource(
+            "timestamp",
+            null,
+            false,
+            new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
+            null
+        );
+        groups.put("output_timestamp", groupBy);
+
+        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(
+            getCompositeAggregation(groups),
+            groups,
+            "timestamp"
+        );
+
+        QueryBuilder queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        assertNotNull(queryBuilder);
+        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
+        // rounded down
+        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(60_000)));
+        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
+        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
+
+        // timestamp field does not match
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "sync_timestamp");
+
+        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        assertNull(queryBuilder);
+
+        // field does not match, but output field equals sync field
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "output_timestamp");
+
+        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        assertNull(queryBuilder);
+
+        // missing bucket disables optimization
+        groupBy = new DateHistogramGroupSource(
+            "timestamp",
+            null,
+            true,
+            new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
+            null
+        );
+        groups.put("output_timestamp", groupBy);
+
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "timestamp");
+
+        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        assertNull(queryBuilder);
+    }
+
+    public void testNoTermsFieldCollectorForScripts() throws IOException {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+
+        // terms with value script
+        SingleGroupSource termsGroupBy = new TermsGroupSource("id", ScriptConfigTests.randomScriptConfig(), false);
+        groups.put("id", termsGroupBy);
+
+        Map<String, FieldCollector> fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
+        assertTrue(fieldCollectors.isEmpty());
+
+        // terms with only a script
+        termsGroupBy = new TermsGroupSource(null, ScriptConfigTests.randomScriptConfig(), false);
+        groups.put("id", termsGroupBy);
+
+        fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
+        assertTrue(fieldCollectors.isEmpty());
     }
 
     private static CompositeAggregationBuilder getCompositeAggregation(Map<String, SingleGroupSource> groups) throws IOException {

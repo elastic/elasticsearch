@@ -147,9 +147,9 @@ PUT /test
     "alias_1": {},
     "alias_2": {
       "filter": {
-        "term": { "user": "kimchy" }
+        "term": { "user.id": "kimchy" }
       },
-      "routing": "kimchy"
+      "routing": "shard-1"
     }
   }
 }

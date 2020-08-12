@@ -19,7 +19,7 @@ You can query documents using this type using
 ==== Mapping Options
 
 Like the <<geo-shape, geo_shape>> field type, the `shape` field mapping maps
-http://www.geojson.org[GeoJSON] or http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+http://geojson.org[GeoJSON] or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) geometry objects to the shape type. To enable it, users must explicitly map
 fields to the shape type.
 
@@ -96,8 +96,8 @@ precision floats for the vertex values so accuracy is guaranteed to the same pre
 [discrete]
 ==== Input Structure
 
-Shapes can be represented using either the http://www.geojson.org[GeoJSON]
-or http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+Shapes can be represented using either the http://geojson.org[GeoJSON]
+or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
 to Elasticsearch types:
 
@@ -190,7 +190,7 @@ POST /example/_doc
 
 [discrete]
 [[polygon]]
-===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
+===== http://geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
@@ -251,7 +251,7 @@ POST /example/_doc
 https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
 outer polygon must be counterclockwise and interior shapes must be clockwise,
 which agrees with the Open Geospatial Consortium (OGC)
-http://www.opengeospatial.org/standards/sfa[Simple Feature Access]
+https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
 specification for vertex ordering.
 
 By default Elasticsearch expects vertices in counterclockwise (right hand rule)
@@ -277,7 +277,7 @@ POST /example/_doc
 
 [discrete]
 [[multipoint]]
-===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
@@ -306,7 +306,7 @@ POST /example/_doc
 
 [discrete]
 [[multilinestring]]
-===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
@@ -337,7 +337,7 @@ POST /example/_doc
 
 [discrete]
 [[multipolygon]]
-===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
+===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 

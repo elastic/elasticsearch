@@ -24,7 +24,7 @@ tasks.register("setupPorts") {
   }
 }
 
-integTest.runner {
+integTest {
   dependsOn "setupPorts"
 }
 

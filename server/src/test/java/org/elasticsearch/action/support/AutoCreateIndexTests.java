@@ -178,7 +178,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
+        AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 

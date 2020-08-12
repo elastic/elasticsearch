@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
@@ -167,7 +168,7 @@ public class LocalModelTests extends ESTestCase {
             new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING));
 
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("not_to_be"));
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
@@ -177,7 +178,7 @@ public class LocalModelTests extends ESTestCase {
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
@@ -187,7 +188,7 @@ public class LocalModelTests extends ESTestCase {
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));

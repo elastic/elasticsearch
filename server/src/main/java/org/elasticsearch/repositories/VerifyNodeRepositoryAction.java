@@ -76,7 +76,7 @@ public class VerifyNodeRepositoryAction {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            if (RepositoriesService.isDedicatedVotingOnlyNode(node) == false) {
+            if (RepositoriesService.isDedicatedVotingOnlyNode(node.getRoles()) == false) {
                 nodes.add(node);
             }
         }

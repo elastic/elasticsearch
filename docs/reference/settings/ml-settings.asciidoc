@@ -17,10 +17,8 @@ to `false`).
 
 All of these settings can be added to the `elasticsearch.yml` configuration file.
 The dynamic settings can also be updated across a cluster with the
-<<cluster-update-settings,cluster update settings API>>.
-
-TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
-file.
+<<cluster-update-settings,cluster update settings API>>. Dynamic settings take 
+precedence over settings in the `elasticsearch.yml` file.
 
 // end::ml-settings-description-tag[]
 
@@ -29,18 +27,20 @@ file.
 ==== General machine learning settings
 
 `node.roles: [ ml ]`::
-Set `node.roles` to contain `ml` to identify the node as a _{ml} node_. +
+Set `node.roles` to contain `ml` to identify the node as a _{ml} node_ that is 
+capable of running jobs. +
 +
-If a node does not have the `ml` role in `elasticsearch.yml`, or it has the role 
-but `xpack.ml.enabled` is set to `false`, the node cannot run jobs. If you want 
-to run jobs, there must be at least one {ml} node in your cluster. +
+If you use the `node.roles` setting, then all required roles must be explicitly  
+set. The absence of `node.roles` means {ml} enabled by default. However, setting 
+`node.roles:[]` configures a dedicated coordinating node. Consult 
+<<modules-node>> to learn more.
 +
 IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.
 
 
 `xpack.ml.enabled`::
-Set to `true` (default) to enable {ml} on the node.
+Set to `true` (default) to enable {ml} APIs on the node.
 +
 If set to `false`, the {ml} APIs are disabled on the node. Therefore the node
 cannot open jobs, start {dfeeds}, or receive transport (internal) communication

@@ -32,13 +32,13 @@ import java.util.Map;
 public class CustomHighlighter implements Highlighter {
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
-        CacheEntry cacheEntry = (CacheEntry) highlighterContext.hitContext.cache().get("test-custom");
-        final int docId = highlighterContext.hitContext.readerContext().docBase + highlighterContext.hitContext.docId();
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        SearchHighlightContext.Field field = fieldContext.field;
+        CacheEntry cacheEntry = (CacheEntry) fieldContext.hitContext.cache().get("test-custom");
+        final int docId = fieldContext.hitContext.readerContext().docBase + fieldContext.hitContext.docId();
         if (cacheEntry == null) {
             cacheEntry = new CacheEntry();
-            highlighterContext.hitContext.cache().put("test-custom", cacheEntry);
+            fieldContext.hitContext.cache().put("test-custom", cacheEntry);
             cacheEntry.docId = docId;
             cacheEntry.position = 1;
         } else {
@@ -60,7 +60,7 @@ public class CustomHighlighter implements Highlighter {
             }
         }
 
-        return new HighlightField(highlighterContext.fieldName, responses.toArray(new Text[]{}));
+        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[]{}));
     }
 
     @Override

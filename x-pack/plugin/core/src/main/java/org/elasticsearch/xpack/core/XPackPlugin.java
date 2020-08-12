@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
@@ -39,6 +41,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -53,6 +56,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -78,16 +82,20 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
@@ -131,6 +139,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(
             final Settings settings,
@@ -140,7 +149,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings));
+        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -153,9 +162,13 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     protected SSLService getSslService() { return getSharedSslService(); }
     protected LicenseService getLicenseService() { return getSharedLicenseService(); }
     protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
+    protected LongSupplier getEpochMillisSupplier() { return getSharedEpochMillisSupplier(); }
     protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
     protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
     protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
+    protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
+        XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
+    }
 
     public static SSLService getSharedSslService() {
         final SSLService ssl = XPackPlugin.sslService.get();
@@ -166,6 +179,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
     public static LicenseService getSharedLicenseService() { return licenseService.get(); }
     public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
+    public static LongSupplier getSharedEpochMillisSupplier() { return epochMillisSupplier.get(); }
 
     /**
      * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
@@ -239,6 +253,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
+
+        setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
@@ -340,7 +356,27 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
         return settings;
+    }
+
+    @Override
+    public Set<DiscoveryNodeRole> getRoles() {
+        return new HashSet<>(Arrays.asList(
+            DataTier.DATA_HOT_NODE_ROLE,
+            DataTier.DATA_WARM_NODE_ROLE,
+            DataTier.DATA_COLD_NODE_ROLE,
+            DataTier.DATA_FROZEN_NODE_ROLE));
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.singleton(new DataTierAllocationDecider(clusterSettings));
     }
 
     /**

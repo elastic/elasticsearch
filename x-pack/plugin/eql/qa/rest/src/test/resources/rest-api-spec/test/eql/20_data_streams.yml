@@ -1,0 +1,53 @@
+---
+"Verify data stream resolvability in EQL search API":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create:
+              _index: simple-data-stream1
+              _id:    1
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+
+  - do:
+      eql.search:
+        index: simple-data-stream1
+        body:
+          query: "process where user = 'SYSTEM'"
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged

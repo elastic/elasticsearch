@@ -1,8 +1,8 @@
 ---
 "Basic test for index blocks":
   - skip:
-      version: " - 7.99.99"
-      reason:  "index block APIs have only been made available in 8.0.0"
+      version: " - 7.8.99"
+      reason:  "index block APIs have only been made available in 7.9.0"
   - do:
       indices.create:
         index: test_index

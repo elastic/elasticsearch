@@ -32,11 +32,10 @@ setup:
       eql.search:
         index: eql_test
         wait_for_completion_timeout: "0ms"
+        keep_on_completion: true
         body:
           query: "process where user = 'SYSTEM'"
 
-  - match: {is_running: true}
-  - match: {is_partial: true}
   - is_true: id
   - set: {id: id}
 

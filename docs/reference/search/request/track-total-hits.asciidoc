@@ -1,5 +1,6 @@
-[[request-body-search-track-total-hits]]
-==== Track total hits
+[discrete]
+[[track-total-hits]]
+=== Track total hits
 
 Generally the total hit count can't be computed accurately without visiting all
 matches, which is costly for queries that match lots of documents. The
@@ -21,34 +22,34 @@ that `"total.value"` is the accurate count.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "track_total_hits": true,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": true,
+    "query": {
+      "match" : {
+        "user.id" : "elkbee"
+      }
+    }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 \... returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 100,
-    "hits": {
-        "max_score": 1.0,
-        "total" : {
-            "value": 2048,    <1>
-            "relation": "eq"  <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 100,
+  "hits": {
+    "max_score": 1.0,
+    "total" : {
+      "value": 2048,    <1>
+      "relation": "eq"  <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
@@ -66,14 +67,14 @@ the query up to 100 documents:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "track_total_hits": 100,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": 100,
+  "query": {
+    "match": {
+      "user.id": "elkbee"
+    }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -87,17 +88,17 @@ For instance the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 30,
-    "hits" : {
-        "max_score": 1.0,
-        "total" : {
-            "value": 42,         <1>
-            "relation": "eq"     <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 30,
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 42,         <1>
+      "relation": "eq"     <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
@@ -119,15 +120,15 @@ will indicate that the returned value is a lower bound:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "hits" : {
-        "max_score": 1.0,
-        "total" : {
-            "value": 100,         <1>
-            "relation": "gte"     <2>
-        },
-        "hits": ...
-    }
+  "_shards": ...
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 100,         <1>
+      "relation": "gte"     <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:response is already tested in the previous snippet]
@@ -140,14 +141,14 @@ times by setting this option to `false`:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "track_total_hits": false,
-     "query": {
-        "match" : {
-            "message" : "Elasticsearch"
-        }
-     }
+  "track_total_hits": false,
+  "query": {
+    "match": {
+      "user.id": "elkbee"
+    }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -157,13 +158,13 @@ GET twitter/_search
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards": ...
-    "timed_out": false,
-    "took": 10,
-    "hits" : { <1>
-        "max_score": 1.0,
-        "hits": ...
-    }
+  "_shards": ...
+  "timed_out": false,
+  "took": 10,
+  "hits": {             <1>
+    "max_score": 1.0,
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]

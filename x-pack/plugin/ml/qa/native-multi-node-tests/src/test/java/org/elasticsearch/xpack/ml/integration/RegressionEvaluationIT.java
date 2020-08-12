@@ -1,23 +1,4 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
@@ -30,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
@@ -100,7 +82,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredError.Result mseResult = (MeanSquaredError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredError.NAME.getPreferredName()));
-        assertThat(mseResult.getError(), equalTo(1000000.0));
+        assertThat(mseResult.getValue(), equalTo(1000000.0));
     }
 
     public void testEvaluate_MeanSquaredLogarithmicError() {
@@ -114,7 +96,21 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredLogarithmicError.Result msleResult = (MeanSquaredLogarithmicError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicError.NAME.getPreferredName()));
-        assertThat(msleResult.getError(), closeTo(Math.pow(Math.log(1001), 2), 10E-6));
+        assertThat(msleResult.getValue(), closeTo(Math.pow(Math.log(1000 + 1), 2), 10E-6));
+    }
+
+    public void testEvaluate_Huber() {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                HOUSES_DATA_INDEX,
+                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new Huber((Double) null))));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Huber.Result huberResult = (Huber.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(huberResult.getMetricName(), equalTo(Huber.NAME.getPreferredName()));
+        assertThat(huberResult.getValue(), closeTo(Math.sqrt(1000000 + 1) - 1, 10E-6));
     }
 
     public void testEvaluate_RSquared() {
@@ -151,5 +147,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         if (bulkResponse.hasFailures()) {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

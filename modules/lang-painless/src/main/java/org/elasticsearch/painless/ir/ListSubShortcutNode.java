@@ -21,13 +21,11 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 
-public class ListSubShortcutNode extends UnaryNode {
+public class ListSubShortcutNode extends IndexNode {
 
     /* ---- begin node data ---- */
 
@@ -50,12 +48,19 @@ public class ListSubShortcutNode extends UnaryNode {
         return getter;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        setup(classWriter, methodWriter, scopeTable);
-        load(classWriter, methodWriter, scopeTable);
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitListSubShortcut(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        setup(classWriter, methodWriter, writeScope);
+        load(classWriter, methodWriter, writeScope);
     }
 
     @Override
@@ -64,21 +69,12 @@ public class ListSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getChildNode().write(classWriter, methodWriter, scopeTable);
-
-        Label noFlip = new Label();
-        methodWriter.dup();
-        methodWriter.ifZCmp(Opcodes.IFGE, noFlip);
-        methodWriter.swap();
-        methodWriter.dupX1();
-        methodWriter.invokeInterface(WriterConstants.COLLECTION_TYPE, WriterConstants.COLLECTION_SIZE);
-        methodWriter.visitInsn(Opcodes.IADD);
-        methodWriter.mark(noFlip);
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getIndexNode().write(classWriter, methodWriter, writeScope);
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
 
@@ -88,7 +84,7 @@ public class ListSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

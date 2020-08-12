@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -44,43 +42,14 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
-
-    @Before
-    public void addModifiers() {
-        addModifier(t -> {
-            KeywordFieldType copy = t.clone();
-            if (copy.normalizer() == null) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-            } else {
-                copy.setSearchAnalyzer(null);
-            }
-            return copy;
-        });
-        addModifier(t -> {
-            KeywordFieldType copy = t.clone();
-            if (copy.searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
-            } else {
-                copy.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            }
-            return copy;
-        });
-    }
-
-    @Override
-    protected KeywordFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new KeywordFieldMapper.KeywordFieldType(name, true, true, meta);
-    }
+public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field");
@@ -102,7 +71,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testTermQueryWithNormalizer() {
-        MappedFieldType ft = new KeywordFieldType("field");
         Analyzer normalizer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
@@ -115,7 +83,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
                 return new LowerCaseFilter(in);
             }
         };
-        ft.setSearchAnalyzer(new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
+        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
         assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
     }
 
@@ -193,9 +161,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
 
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
-        ft.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
-        ft.setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
+        ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
     }
 }

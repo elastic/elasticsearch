@@ -200,14 +200,13 @@ public class TransportSimulateIndexTemplateAction
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api
         List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
-            "{}", simulatedState, matchingTemplate, xContentRegistry);
+            "{}", simulatedState, matchingTemplate, xContentRegistry, indexName);
 
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (Map<String, Object> mapping : mappings) {
                     if (!mapping.isEmpty()) {
-                        assert mapping.size() == 1 : mapping;
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                     }
                 }

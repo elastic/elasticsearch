@@ -24,16 +24,20 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
@@ -221,6 +226,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    public MultiFields multiFields() {
+        return multiFields;
+    }
+
+    /**
+     * A value to use in place of a {@code null} value in the document source.
+     */
+    protected Object nullValue() {
+        return null;
+    }
+
     /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
@@ -268,6 +284,60 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
+    /**
+     * Given access to a document's _source, return this field's values.
+     *
+     * In addition to pulling out the values, mappers can parse them into a standard form. This
+     * method delegates parsing to {@link #parseSourceValue} for parsing. Most mappers will choose
+     * to override {@link #parseSourceValue} -- for example numeric field mappers make sure to
+     * parse the source value into a number of the right type. Some mappers may need more
+     * flexibility and can override this entire method instead.
+     *
+     * Note that for array values, the order in which values are returned is undefined and should
+     * not be relied on.
+     *
+     * @param lookup a lookup structure over the document's source.
+     * @param format an optional format string used when formatting values, for example a date format.
+     * @return a list a standardized field values.
+     */
+    public List<?> lookupValues(SourceLookup lookup, @Nullable String format) {
+        Object sourceValue = lookup.extractValue(name(), nullValue());
+        if (sourceValue == null) {
+            return List.of();
+        }
+
+        List<Object> values = new ArrayList<>();
+        if (parsesArrayValue()) {
+            return (List<?>) parseSourceValue(sourceValue, format);
+        }
+
+        // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
+        // So we need to unwrap these arrays before passing them on to be parsed.
+        Queue<Object> queue = new ArrayDeque<>();
+        queue.add(sourceValue);
+        while (queue.isEmpty() == false) {
+            Object value = queue.poll();
+            if (value instanceof List) {
+                queue.addAll((List<?>) value);
+            } else {
+                Object parsedValue = parseSourceValue(value, format);
+                if (parsedValue != null) {
+                    values.add(parsedValue);
+                }
+            }
+        }
+        return values;
+    }
+
+    /**
+     * Given a value that has been extracted from a document's source, parse it into a standard
+     * format. This parsing logic should closely mirror the value parsing in
+     * {@link #parseCreateField} or {@link #parse}.
+     *
+     * Note that when overriding this method, {@link #lookupValues} should *not* be overridden.
+     */
+    protected abstract Object parseSourceValue(Object value, @Nullable String format);
+
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
@@ -292,7 +362,50 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public final void validate(MappingLookup mappers) {
+        if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
+            if (mappers.isMultiField(this.name())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            }
+
+            final String sourceScope = mappers.getNestedScope(this.name());
+            for (String copyTo : this.copyTo().copyToFields()) {
+                if (mappers.isMultiField(copyTo)) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                }
+                if (mappers.isObjectField(copyTo)) {
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                final String targetScope = mappers.getNestedScope(copyTo);
+                checkNestedScopeCompatibility(sourceScope, targetScope);
+            }
+        }
+        for (Mapper multiField : multiFields()) {
+            multiField.validate(mappers);
+        }
+        doValidate(mappers);
+    }
+
+    protected void doValidate(MappingLookup mappers) { }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                    "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                    source + "] to [" + target + "]");
+        }
+    }
+
+    @Override
+    public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
         if (mergeWith instanceof FieldMapper == false) {
@@ -323,7 +436,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         FieldType other = mergeWith.fieldType;
         MappedFieldType otherm = mergeWith.mappedFieldType;
-        this.mappedFieldType.updateMeta(otherm.meta());
 
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
@@ -429,15 +541,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().searchAnalyzer().name();
+            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
+                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
+            final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
+                ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
             boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer = searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer
+                = Objects.equals(searchAnalyzerName, searchQuoteAnalyzerName) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
                 if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", searchAnalyzerName);
                     if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
-                        builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
+                        builder.field("search_quote_analyzer", searchQuoteAnalyzerName);
                     }
                 }
             }
@@ -483,7 +599,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public static class MultiFields {
+    public static class MultiFields implements Iterable<Mapper> {
 
         public static MultiFields empty() {
             return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
@@ -498,8 +614,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public Builder add(Mapper mapper) {
+                mapperBuilders.put(mapper.simpleName(), new Mapper.Builder(mapper.simpleName()) {
+                    @Override
+                    public Mapper build(BuilderContext context) {
+                        return mapper;
+                    }
+                });
+                return this;
+            }
+
+            public Builder update(Mapper toMerge, ContentPath contentPath) {
+                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                    add(toMerge);
+                } else {
+                    Mapper.Builder builder = mapperBuilders.get(toMerge.simpleName());
+                    Mapper existing = builder.build(new BuilderContext(Settings.EMPTY, contentPath));
+                    add(existing.merge(toMerge));
+                }
+                return this;
+            }
+
             @SuppressWarnings("unchecked")
-            public MultiFields build(FieldMapper.Builder mainFieldBuilder, BuilderContext context) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, BuilderContext context) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
@@ -564,6 +701,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new MultiFields(mappers);
         }
 
+        @Override
         public Iterator<Mapper> iterator() {
             return StreamSupport.stream(mappers.values().spliterator(), false).map((p) -> (Mapper)p.value).iterator();
         }
@@ -629,6 +767,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return EMPTY;
                 }
                 return new CopyTo(Collections.unmodifiableList(copyToBuilders));
+            }
+
+            public void reset(CopyTo copyTo) {
+                copyToBuilders.clear();
+                copyToBuilders.addAll(copyTo.copyToFields);
             }
         }
 

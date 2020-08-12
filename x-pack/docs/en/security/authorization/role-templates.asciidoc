@@ -18,7 +18,7 @@ POST /_security/role/example1
 {
   "indices" : [
     {
-      "names" : [ "my_index" ],
+      "names" : [ "my-index-000001" ],
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
@@ -54,7 +54,7 @@ POST /_security/role/example2
 {
   "indices" : [
     {
-      "names" : [ "my_index" ],
+      "names" : [ "my-index-000001" ],
       "privileges" : [ "read" ],
       "query" : {
         "template" : {

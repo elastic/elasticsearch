@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -23,6 +26,8 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -72,6 +77,64 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
         ensureEmptyWriteBuffers();
+    }
+
+    public void testWriteLimitsIncremented() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
+        assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader");
+
+        // Use a sufficiently small number of docs to ensure that they are well below the number of docs that
+        // can be sent in a single TransportBulkShardOperationsAction
+        final long firstBatchNumDocs = randomIntBetween(10, 20);
+        long sourceSize = 0;
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            BytesArray source = new BytesArray("{}");
+            sourceSize += source.length();
+            client().prepareIndex("leader").setSource(source, XContentType.JSON).get();
+        }
+
+        ThreadPool nodeThreadPool = getInstanceFromNode(ThreadPool.class);
+        ThreadPool.Info writeInfo = StreamSupport.stream(nodeThreadPool.info().spliterator(), false)
+            .filter(i -> i.getName().equals(ThreadPool.Names.WRITE)).findAny().get();
+        int numberOfThreads = writeInfo.getMax();
+        CountDownLatch threadBlockedLatch = new CountDownLatch(numberOfThreads);
+        CountDownLatch blocker = new CountDownLatch(1);
+
+        for (int i = 0; i < numberOfThreads; ++i) {
+            nodeThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+                try {
+                    threadBlockedLatch.countDown();
+                    blocker.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+        }
+        threadBlockedLatch.await();
+
+        try {
+            final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
+            client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+            IndexingPressure memoryLimits = getInstanceFromNode(IndexingPressure.class);
+            final long finalSourceSize = sourceSize;
+            assertBusy(() -> {
+                // The actual write bytes will be greater due to other request fields. However, this test is
+                // just spot checking that the bytes are incremented at all.
+                assertTrue(memoryLimits.getCurrentCombinedCoordinatingAndPrimaryBytes() > finalSourceSize);
+            });
+            blocker.countDown();
+            assertBusy(() -> {
+                assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
+            });
+            ensureEmptyWriteBuffers();
+        } finally {
+            if (blocker.getCount() > 0) {
+                blocker.countDown();
+            }
+        }
+
     }
 
     public void testRemoveRemoteConnection() throws Exception {

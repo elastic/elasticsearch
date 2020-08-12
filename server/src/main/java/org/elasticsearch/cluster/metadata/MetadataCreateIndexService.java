@@ -73,6 +73,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -80,7 +81,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -104,6 +104,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 
 /**
  * Service responsible for submitting create index requests
@@ -123,7 +124,7 @@ public class MetadataCreateIndexService {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
-    private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
+    private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
 
@@ -138,7 +139,7 @@ public class MetadataCreateIndexService {
         final IndexScopedSettings indexScopedSettings,
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
-        final Collection<SystemIndexDescriptor> systemIndexDescriptors,
+        final SystemIndices systemIndices,
         final boolean forbidPrivateIndexSettings) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -149,7 +150,7 @@ public class MetadataCreateIndexService {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
-        this.systemIndexDescriptors = systemIndexDescriptors;
+        this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
     }
@@ -179,32 +180,26 @@ public class MetadataCreateIndexService {
     /**
      * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
      * @param index The name of the index in question
-     * @param state The current cluster state
      * @param isHidden Whether or not this is a hidden index
      */
-    public void validateDotIndex(String index, ClusterState state, @Nullable Boolean isHidden) {
+    public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
+        boolean isSystem = false;
         if (index.charAt(0) == '.') {
-            List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
-                .filter(descriptor -> descriptor.matchesIndexPattern(index))
-                .collect(toList());
-            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
+            if (matchingDescriptor != null) {
+                logger.trace("index [{}] is a system index because it matches index pattern [{}] with description [{}]",
+                    index, matchingDescriptor.getIndexPattern(), matchingDescriptor.getDescription());
+                isSystem = true;
+            } else if (isHidden) {
+                logger.trace("index [{}] is a hidden index", index);
+            } else {
                 deprecationLogger.deprecate("index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
-                    "starting with a dot are reserved for hidden indices and system indices", index);
-            } else if (matchingDescriptors.size() > 1) {
-                // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
-                StringBuilder errorMessage = new StringBuilder()
-                    .append("index name [")
-                    .append(index)
-                    .append("] is claimed as a system index by multiple system index patterns: [")
-                    .append(matchingDescriptors.stream()
-                        .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
-                            "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
-                // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
-                assert false : errorMessage.toString();
-                throw new IllegalStateException(errorMessage.toString());
+                        "starting with a dot are reserved for hidden indices and system indices", index);
             }
         }
+
+        return isSystem;
     }
 
     /**
@@ -398,7 +393,7 @@ public class MetadataCreateIndexService {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, mappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
             } catch (Exception e) {
                 logger.debug("failed on parsing mappings on index creation [{}]", request.index());
                 throw e;
@@ -409,7 +404,8 @@ public class MetadataCreateIndexService {
             final IndexMetadata indexMetadata;
             try {
                 indexMetadata = buildIndexMetadata(request.index(), aliases, indexService.mapperService()::documentMapper,
-                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata);
+                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata,
+                    temporaryIndexMeta.isSystem());
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
                 throw e;
@@ -434,7 +430,7 @@ public class MetadataCreateIndexService {
                                                                  final int routingNumShards) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
-        validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
+        final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
@@ -444,6 +440,7 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
+        tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -488,15 +485,8 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        final List<Map<String, Object>> mappings = collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
-
-        if (request.dataStreamName() != null) {
-            DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
-            if (dataStream != null) {
-                mappings.add(dataStream.getTimeStampField().getTimestampFieldMapping());
-            }
-        }
-
+        final List<Map<String, Object>> mappings =
+            collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
@@ -516,10 +506,12 @@ public class MetadataCreateIndexService {
     public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
                                                               final ClusterState currentState,
                                                               final String templateName,
-                                                              final NamedXContentRegistry xContentRegistry) throws Exception {
+                                                              final NamedXContentRegistry xContentRegistry,
+                                                              final String indexName) throws Exception {
         List<Map<String, Object>> result = new ArrayList<>();
 
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName);
+        List<CompressedXContent> templateMappings =
+            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName, xContentRegistry);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
             result.add(parsedTemplateMapping);
@@ -776,8 +768,9 @@ public class MetadataCreateIndexService {
 
     static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
                                             Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
-                                            @Nullable IndexMetadata sourceMetadata) {
+                                            @Nullable IndexMetadata sourceMetadata, boolean isSystem) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
+        indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper mapper = documentMapperSupplier.get();
@@ -839,12 +832,13 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(IndexService indexService, List<Map<String, Object>> mappings,
+    private static void updateIndexMappingsAndBuildSortOrder(IndexService indexService,
+                                                             CreateIndexClusterStateUpdateRequest request,
+                                                             List<Map<String, Object>> mappings,
                                                              @Nullable IndexMetadata sourceMetadata) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
             if (!mapping.isEmpty()) {
-                assert mapping.size() == 1 : mapping;
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
@@ -855,6 +849,9 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
+        }
+        if (request.dataStreamName() != null) {
+            validateTimestampFieldMapping("@timestamp", mapperService);
         }
     }
 

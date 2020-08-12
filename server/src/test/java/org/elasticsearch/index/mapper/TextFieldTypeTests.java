@@ -38,47 +38,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
-
-    @Before
-    public void addModifiers() {
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddata(t.fielddata() == false);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMaxFrequency(t.fielddataMaxFrequency() + 1);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMinFrequency(t.fielddataMinFrequency() + 1);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMinSegmentSize(t.fielddataMinSegmentSize() + 1);
-            return copy;
-        });
-    }
-
-    @Override
-    protected TextFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new TextFieldType(name, true, meta);
-    }
+public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new TextFieldType("field");

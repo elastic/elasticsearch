@@ -32,21 +32,21 @@ for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
     obtains the seed node addresses from the `discovery.seed_hosts` setting.
 
 `discovery.type`::
- 
+
     Specifies whether {es} should form a multiple-node cluster. By default, {es}
     discovers other nodes when forming a cluster and allows other nodes to join
-    the cluster later. If `discovery.type` is set to `single-node`, {es} forms a
-    single-node cluster and suppresses the timeouts set by
-    `cluster.publish.timeout` and `cluster.join.timeout`. For more information
-    about when you might use this setting, see <<single-node-discovery>>.
-    
+    the cluster later. If `discovery.type` is set to `single-node`, {es} forms
+    a single-node cluster and suppresses the timeout set by
+    `cluster.publish.timeout`. For more information about when you might use
+    this setting, see <<single-node-discovery>>.
+
 `cluster.initial_master_nodes`::
 
     Sets the initial set of master-eligible nodes in a brand-new cluster. By
     default this list is empty, meaning that this node expects to join a cluster
     that has already been bootstrapped. See <<initial_master_nodes>>.
-            
-[float]
+
+[discrete]
 ==== Expert settings
 
 Discovery and cluster formation are also affected by the following
@@ -179,12 +179,6 @@ or may become unstable or intolerant of certain failures.
     time, it is considered to have failed and is removed from the cluster. See
     <<cluster-state-publishing>>.
 
-`cluster.join.timeout`::
-
-    Sets how long a node will wait after sending a request to join a cluster
-    before it considers the request to have failed and retries, unless
-    `discovery.type` is set to `single-node`. Defaults to `60s`.
-
 `cluster.max_voting_config_exclusions`::
 
     Sets a limit on the number of voting configuration exclusions at any one
@@ -205,7 +199,7 @@ or may become unstable or intolerant of certain failures.
 
 [[no-master-block]]`cluster.no_master_block`::
 Specifies which operations are rejected when there is no active master in a
-cluster. This setting has two valid values:
+cluster. This setting has three valid values:
 +
 --
 `all`::: All operations on the node (both read and write operations) are rejected.
@@ -217,6 +211,12 @@ based on the last known cluster configuration. This situation may result in
 partial reads of stale data as this node may be isolated from the rest of the
 cluster.
 
+`metadata_write`::: Only metadata write operations (e.g. mapping updates,
+routing table changes) are rejected but regular indexing operations continue
+to work. Read and write operations succeed, based on the last known cluster
+configuration. This situation may result in partial reads of stale data as
+this node may be isolated from the rest of the cluster.
+
 [NOTE]
 ===============================
 * The `cluster.no_master_block` setting doesn't apply to nodes-based APIs
@@ -227,3 +227,22 @@ APIs are not be blocked and can run on any available node.
 ===============================
 
 --
+
+`monitor.fs.health.enabled`::
+
+    (<<cluster-update-settings,Dynamic>>, boolean) If `true`, the node runs
+    periodic <<cluster-fault-detection-filesystem-health,filesystem health
+    checks>>. Defaults to `true`.
+
+`monitor.fs.health.refresh_interval`::
+
+    (<<time-units, Time value>>) Interval between successive
+    <<cluster-fault-detection-filesystem-health,filesystem health checks>>.
+    Defaults to `2m`.
+
+`monitor.fs.health.slow_path_logging_threshold`::
+
+    (<<time-units, Time value>>) If a
+    <<cluster-fault-detection-filesystem-health,filesystem health checks>>
+    takes longer than this threshold then {es} logs a warning. Defaults to
+    `5s`.

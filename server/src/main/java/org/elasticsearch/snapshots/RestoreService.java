@@ -199,6 +199,11 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 final SnapshotId snapshotId = matchingSnapshotId.get();
+                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                    throw new SnapshotRestoreException(repositoryName, snapshotName,
+                        "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got [" + snapshotId.getUUID() + "]");
+                }
+
                 final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
                 final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
@@ -311,7 +316,7 @@ public class RestoreService implements ClusterStateApplier {
                                     // Make sure that the index we are about to create has a validate name
                                     boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
                                     createIndexService.validateIndexName(renamedIndexName, currentState);
-                                    createIndexService.validateDotIndex(renamedIndexName, currentState, isHidden);
+                                    createIndexService.validateDotIndex(renamedIndexName, isHidden);
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
                                     IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
                                         .state(IndexMetadata.State.OPEN)

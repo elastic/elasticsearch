@@ -51,7 +51,6 @@ class ClientTransformIndexerBuilder {
             executorName,
             transformsConfigManager,
             checkpointProvider,
-            new TransformProgressGatherer(parentTaskClient),
             new AtomicReference<>(this.indexerState),
             initialPosition,
             parentTaskClient,

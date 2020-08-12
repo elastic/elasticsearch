@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,13 +48,13 @@ public class NestedAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         if (childObjectMapper == null) {
             return new Unmapped(name, searchContext, parent, metadata);
         }
         return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
-            metadata, collectsFromSingleBucket);
+            cardinality, metadata);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

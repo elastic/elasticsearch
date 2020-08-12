@@ -1,9 +1,10 @@
-[[request-body-search-search-after]]
-==== Search After
+[discrete]
+[[search-after]]
+=== Search after
 
 Pagination of results can be done by using the `from` and `size` but the cost becomes prohibitive when the deep pagination is reached.
 The `index.max_result_window` which defaults to 10,000 is a safeguard, search requests take heap memory and time proportional to `from + size`.
-The <<request-body-search-scroll,Scroll>> api is recommended for efficient deep scrolling but scroll contexts are costly and it is not
+The <<scroll-search-results,scroll>> API is recommended for efficient deep scrolling but scroll contexts are costly and it is not
 recommended to use it for real time user requests.
 The `search_after` parameter circumvents this problem by providing a live cursor.
 The idea is to use the results from the previous page to help the retrieval of the next page.
@@ -12,21 +13,21 @@ Suppose that the query to retrieve the first page looks like this:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "size": 10,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
-    },
-    "sort": [
-        {"date": "asc"},
-        {"tie_breaker_id": "asc"}      <1>
-    ]
+  "size": 10,
+  "query": {
+    "match" : {
+      "message" : "foo"
+    }
+  },
+  "sort": [
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}      <1>
+  ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 // TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 <1> A copy of the `_id` field with `doc_values` enabled
@@ -55,22 +56,22 @@ For instance we can use the `sort values` of the last document and pass it to `s
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "size": 10,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
-    },
-    "search_after": [1463538857, "654323"],
-    "sort": [
-        {"date": "asc"},
-        {"tie_breaker_id": "asc"}
-    ]
+  "size": 10,
+  "query": {
+    "match" : {
+      "message" : "foo"
+    }
+  },
+  "search_after": [1463538857, "654323"],
+  "sort": [
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}
+  ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 // TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.

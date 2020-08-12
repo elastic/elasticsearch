@@ -21,6 +21,9 @@ package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.node.ANode;
+import org.elasticsearch.painless.symbol.Decorator.Condition;
+import org.elasticsearch.painless.symbol.Decorator.Decoration;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -293,6 +296,42 @@ public abstract class SemanticScope {
 
     public ScriptScope getScriptScope() {
         return scriptScope;
+    }
+
+    public <T extends Decoration> T putDecoration(ANode node, T decoration) {
+        return scriptScope.put(node.getIdentifier(), decoration);
+    }
+
+    public <T extends Decoration> T removeDecoration(ANode node, Class<T> type) {
+        return scriptScope.remove(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> T getDecoration(ANode node, Class<T> type) {
+        return scriptScope.get(node.getIdentifier(), type);
+    }
+
+    public boolean hasDecoration(ANode node, Class<? extends Decoration> type) {
+        return scriptScope.has(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
+        return scriptScope.copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
+    public boolean setCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.set(node.getIdentifier(), type);
+    }
+
+    public boolean deleteCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.delete(node.getIdentifier(), type);
+    }
+
+    public boolean getCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.exists(node.getIdentifier(), type);
+    }
+
+    public boolean replicateCondition(ANode originalNode, ANode targetNode, Class<? extends Condition> type) {
+        return scriptScope.replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 
     public abstract Class<?> getReturnType();

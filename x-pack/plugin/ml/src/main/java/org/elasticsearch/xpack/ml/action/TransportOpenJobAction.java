@@ -218,7 +218,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         OpenJobAction.JobParams jobParams = request.getJobParams();
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
 
             // Clear job finished time once the job is started and respond
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(

@@ -42,7 +42,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
 
     public void testEvaluate() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_mean_squared_logarithmic_error", 0.8123),
+            mockSingleValue("regression_msle", 0.8123),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
@@ -50,7 +50,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
         msle.process(aggs);
 
         EvaluationMetricResult result = msle.getResult().get();
-        String expected = "{\"error\":0.8123}";
+        String expected = "{\"value\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 

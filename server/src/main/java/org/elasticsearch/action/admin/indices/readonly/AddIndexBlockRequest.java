@@ -63,6 +63,9 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         if (CollectionUtils.isEmpty(indices)) {
             validationException = addValidationError("index is missing", validationException);
         }
+        if (block == APIBlock.READ_ONLY_ALLOW_DELETE) {
+            validationException = addValidationError("read_only_allow_delete block is for internal use only", validationException);
+        }
         return validationException;
     }
 

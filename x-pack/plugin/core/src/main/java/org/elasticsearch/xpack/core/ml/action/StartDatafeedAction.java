@@ -7,14 +7,12 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,9 +81,6 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             params = new DatafeedParams(in);
-        }
-
-        public Request() {
         }
 
         public DatafeedParams getParams() {
@@ -195,11 +190,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions = IndicesOptions.readIndicesOptions(in);
-            } else {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-            }
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         DatafeedParams() {
@@ -285,9 +276,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -335,13 +324,6 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
                     Objects.equals(jobId, other.jobId) &&
                     Objects.equals(indicesOptions, other.indicesOptions) &&
                     Objects.equals(datafeedIndices, other.datafeedIndices);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
-
-        RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
-            super(client, action, new Request());
         }
     }
 

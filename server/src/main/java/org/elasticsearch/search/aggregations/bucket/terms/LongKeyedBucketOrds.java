@@ -20,11 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps long bucket keys to bucket ordinals.
@@ -33,8 +32,9 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds}.
      */
-    public static LongKeyedBucketOrds build(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        return collectsFromSingleBucket ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+    public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        // TODO nothing NONE?
+        return cardinality != CardinalityUpperBound.MANY ? new FromSingle(bigArrays) : new FromMany(bigArrays);
     }
 
     private LongKeyedBucketOrds() {}
@@ -122,6 +122,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long add(long owningBucketOrd, long value) {
+            // This is in the critical path for collecting most aggs. Be careful of performance.
             assert owningBucketOrd == 0;
             return ords.add(value);
         }
@@ -187,121 +188,69 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * Implementation that works properly when collecting from many buckets.
      */
     public static class FromMany extends LongKeyedBucketOrds {
-        // TODO we can almost certainly do better here by building something fit for purpose rather than trying to lego together stuff
-        private static class Buckets implements Releasable {
-            private final LongHash valueToThisBucketOrd;
-            private LongArray thisBucketOrdToGlobalOrd;
-
-            Buckets(BigArrays bigArrays) {
-                valueToThisBucketOrd = new LongHash(1, bigArrays);
-                thisBucketOrdToGlobalOrd = bigArrays.newLongArray(1, false);
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(valueToThisBucketOrd, thisBucketOrdToGlobalOrd);
-            }
-        }
-        private final BigArrays bigArrays; 
-        private ObjectArray<Buckets> owningOrdToBuckets;
-        private long lastGlobalOrd = -1;
+        private final LongLongHash ords;
 
         public FromMany(BigArrays bigArrays) {
-            this.bigArrays = bigArrays;
-            owningOrdToBuckets = bigArrays.newObjectArray(1);
+            ords = new LongLongHash(2, bigArrays);
         }
 
         @Override
         public long add(long owningBucketOrd, long value) {
-            Buckets buckets = bucketsForOrd(owningBucketOrd);
-            long thisBucketOrd = buckets.valueToThisBucketOrd.add(value);
-            if (thisBucketOrd < 0) {
-                // Already in the hash
-                thisBucketOrd = -1 - thisBucketOrd;
-                return -1 - buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
-            }
-            buckets.thisBucketOrdToGlobalOrd = bigArrays.grow(buckets.thisBucketOrdToGlobalOrd, thisBucketOrd + 1);
-            lastGlobalOrd++;
-            buckets.thisBucketOrdToGlobalOrd.set(thisBucketOrd, lastGlobalOrd);
-            return lastGlobalOrd;
-        }
-
-        private Buckets bucketsForOrd(long owningBucketOrd) {
-            if (owningOrdToBuckets.size() <= owningBucketOrd) {
-                owningOrdToBuckets = bigArrays.grow(owningOrdToBuckets, owningBucketOrd + 1); 
-                Buckets buckets = new Buckets(bigArrays);
-                owningOrdToBuckets.set(owningBucketOrd, buckets);
-                return buckets;
-            }
-            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
-            if (buckets == null) {
-                buckets = new Buckets(bigArrays);
-                owningOrdToBuckets.set(owningBucketOrd, buckets);
-            }
-            return buckets;
+            // This is in the critical path for collecting most aggs. Be careful of performance.
+            return ords.add(owningBucketOrd, value);
         }
 
         @Override
         public long find(long owningBucketOrd, long value) {
-            if (owningBucketOrd >= owningOrdToBuckets.size()) {
-                return -1;
-            }
-            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
-            if (buckets == null) {
-                return -1;
-            }
-            long thisBucketOrd = buckets.valueToThisBucketOrd.find(value);
-            if (thisBucketOrd < 0) {
-                return -1;
-            }
-            return buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
+            return ords.find(owningBucketOrd, value);
         }
 
         @Override
         public long bucketsInOrd(long owningBucketOrd) {
-            if (owningBucketOrd >= owningOrdToBuckets.size()) {
-                return 0;
+            // TODO it'd be faster to count the number of buckets in a list of these ords rather than one at a time
+            long count = 0;
+            for (long i = 0; i < ords.size(); i++) {
+                if (ords.getKey1(i) == owningBucketOrd) {
+                    count++;
+                }
             }
-            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
-            if (buckets == null) {
-                return 0;
-            }
-            return buckets.valueToThisBucketOrd.size();
+            return count;
         }
 
         @Override
         public long size() {
-            return lastGlobalOrd + 1;
+            return ords.size();
         }
 
         @Override
         public long maxOwningBucketOrd() {
-            return owningOrdToBuckets.size() - 1;
+            // TODO this is fairly expensive to compute. Can we avoid needing it?
+            long max = -1;
+            for (long i = 0; i < ords.size(); i++) {
+                max = Math.max(max, ords.getKey1(i));
+            }
+            return max;
         }
 
         @Override
         public BucketOrdsEnum ordsEnum(long owningBucketOrd) {
-            if (owningBucketOrd >= owningOrdToBuckets.size()) {
-                return BucketOrdsEnum.EMPTY;
-            }
-            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
-            if (buckets == null) {
-                return BucketOrdsEnum.EMPTY;
-            }
+            // TODO it'd be faster to iterate many ords at once rather than one at a time
             return new BucketOrdsEnum() {
-                private long thisBucketOrd = -1;
+                private long ord = -1;
                 private long value;
-                private long ord;
 
                 @Override
                 public boolean next() {
-                    thisBucketOrd++;
-                    if (thisBucketOrd >= buckets.valueToThisBucketOrd.size()) {
-                        return false;
+                    while (true) {
+                        ord++;
+                        if (ord >= ords.size()) {
+                            return false;
+                        }
+                        if (ords.getKey1(ord) == owningBucketOrd) {
+                            value = ords.getKey2(ord);
+                            return true;
+                        }
                     }
-                    value = buckets.valueToThisBucketOrd.get(thisBucketOrd);
-                    ord = buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
-                    return true;
                 }
 
                 @Override
@@ -318,13 +267,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
-            for (long owningBucketOrd = 0; owningBucketOrd < owningOrdToBuckets.size(); owningBucketOrd++) {
-                Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
-                if (buckets != null) {
-                    buckets.close();
-                }
-            }
-            owningOrdToBuckets.close();
+            ords.close();
         }
     }
 }

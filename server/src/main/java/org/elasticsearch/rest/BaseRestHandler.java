@@ -84,11 +84,11 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (allowSystemIndexAccessByDefault() == false) {
-            final String allow_system_index_access = request.param(ALLOW_SYSTEM_INDEX_ACCESS_KEY);
+            final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_KEY);
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
-                && (Booleans.parseBoolean(allow_system_index_access, false) == false)) {
-                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, "true");
+                && Booleans.parseBoolean(allowSystemIndexParameter, false)) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, Boolean.FALSE.toString());
             }
         }
         // prepare the request for execution; has the side effect of touching the request parameters

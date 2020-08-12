@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -62,7 +63,7 @@ import java.util.stream.StreamSupport;
 public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
-    public static final String SYSTEM_INDEX_ACCESS_CONTROL_KEY = "_prevent_system_index_access";
+    public static final String SYSTEM_INDEX_ACCESS_CONTROL_KEY = "_system_index_access_allowed";
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
@@ -666,7 +667,7 @@ public class IndexNameExpressionResolver {
     }
 
     private boolean isSystemIndexAccessAllowed() {
-        return "true".equals(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY)) == false;
+        return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY), true);
     }
 
     public static class Context {

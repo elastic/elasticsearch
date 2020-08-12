@@ -1,0 +1,56 @@
+# Integration tests for Search DataSketches components
+#
+
+---
+"Search DataSketches":
+  - skip:
+      features: ["headers", "contains"]
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              enabled: false
+            dynamic: false
+            properties:
+              sketch:
+                type: binary
+                doc_values: true
+
+  - do:
+      search:
+        index: test
+        body: { "aggs": { "r": { "hll_sketch": { "field": "sketch", "default_lgk": 15 } } } }
+
+  - match: { aggregations.r.value: 0 }
+
+  # sketch updated from 0 to 88, base64 encoded
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      index:
+        index: test
+        body:
+          sketch: AwEHDAcIAAFZAAAAZBO3BoG8XQYCIrQEsqi4BoRpzAWFiqsLhi/5DYe2qgTnUe4ExmI0B++d8xCNxIkJzqDvBZNUMQWUB8IEFUS2B4/DsAaXu2AatUytDxq80AWUwyEE/JC2BZ4tageNSawFoXrkCSI76wWj85wKqj5jB+fPlRfDnJofqTu1B6pzhxYr8vsGLEYFBrA+nQeuPIgRLxoTBzBDXw4yJWIF1ZcUBzSiYQ41qTEEti8JBrg/+QfbF5oKIGbjEjtprgSaiDcH4K6sCO3oPQU/kEgEwekXBcPdUQTEtZ8HNkcJB8YZagSdCmwPyHokBMvXwgTO8Fsf0U97BdIWcwewW0YS13g0Bll/1A3bUi0E3Z96C97bGQvVIhcT4DFZEGGZpwdkPRYFuFapDJ7kmxj8LUIK6aSOE2pAOw1t5R0HbsU0Bu8t9wdGSrcEvhmBBfJ4XAx1gWYH9nHyBqR4swfVUpUJe2XmCHx0uQc=
+
+  # sketch updated from 0 to 75, base64 encoded
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      index:
+        index: test
+        body:
+          sketch: AwEHDAcIAAFMAAAAZBO3BoG8XQYCIrQEsqi4BoRpzAWFiqsLhi/5DedR7gTGYjQH753zEI3EiQnOoO8Fk1QxBZQHwgQVRLYHj8OwBpe7YBoavNAF/JC2BZ4tageNSawFoXrkCSI76wWj85wKqj5jB+fPlRfDnJofqTu1B6pzhxYr8vsGLEYFBrA+nQeuPIgRLxoTBzBDXw4yJWIF1ZcUBzSiYQ41qTEEti8JBrg/+QfbF5oK7eg9BT+QSATB6RcFw91RBMS1nwc2RwkHxhlqBMh6JATL18IEzvBbH9FPewXSFnMHsFtGEtd4NAZZf9QN21ItBN2fegvVIhcT4DFZEGGZpwdkPRYFuFapDJ7kmxj8LUIKbeUdB27FNAbvLfcHRkq3BPJ4XAx1gWYH9nHyBtVSlQl7ZeYIfHS5Bw==
+
+  - do:
+      indices.refresh: {}
+
+#  - do:
+#      search:
+#        index: test
+#        body: { "aggs": { "r": { "hll_sketch": { "field": "sketch", "default_lgk": 15 } } } }
+#
+#  - match: { aggregations.r.value: 89 }

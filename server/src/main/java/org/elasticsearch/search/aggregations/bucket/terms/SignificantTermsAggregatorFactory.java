@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -51,13 +49,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            SignificantTermsAggregatorFactory.bytesSupplier());
+            SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            SignificantTermsAggregatorFactory.numericSupplier());
+            SignificantTermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**
@@ -197,17 +195,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            SignificantTermsAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected SignificantTermsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        SignificantTermsAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(SignificantTermsAggregationBuilder.REGISTRY_KEY, config);
 
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -233,9 +228,21 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             backgroundFilter
         );
 
-        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
-            bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, lookup, cardinality, metadata);
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            config.getValuesSource(),
+            config.format(),
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            searchContext,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata
+        );
     }
 
     public enum ExecutionMode {

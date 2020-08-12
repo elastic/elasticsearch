@@ -149,8 +149,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
             KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetadataFieldBuilder.docValues(false);
-            queryMetadataFieldBuilder.store(false);
-            queryMetadataFieldBuilder.indexOptions(IndexOptions.DOCS);
             return queryMetadataFieldBuilder.build(context);
         }
 

@@ -32,20 +32,20 @@ for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
     obtains the seed node addresses from the `discovery.seed_hosts` setting.
 
 `discovery.type`::
- 
+
     Specifies whether {es} should form a multiple-node cluster. By default, {es}
     discovers other nodes when forming a cluster and allows other nodes to join
     the cluster later. If `discovery.type` is set to `single-node`, {es} forms
     a single-node cluster and suppresses the timeout set by
     `cluster.publish.timeout`. For more information about when you might use
     this setting, see <<single-node-discovery>>.
-    
+
 `cluster.initial_master_nodes`::
 
     Sets the initial set of master-eligible nodes in a brand-new cluster. By
     default this list is empty, meaning that this node expects to join a cluster
     that has already been bootstrapped. See <<initial_master_nodes>>.
-            
+
 [discrete]
 ==== Expert settings
 
@@ -199,7 +199,7 @@ or may become unstable or intolerant of certain failures.
 
 [[no-master-block]]`cluster.no_master_block`::
 Specifies which operations are rejected when there is no active master in a
-cluster. This setting has two valid values:
+cluster. This setting has three valid values:
 +
 --
 `all`::: All operations on the node (both read and write operations) are rejected.
@@ -210,6 +210,12 @@ index settings, put mapping and cluster state API.
 based on the last known cluster configuration. This situation may result in
 partial reads of stale data as this node may be isolated from the rest of the
 cluster.
+
+`metadata_write`::: Only metadata write operations (e.g. mapping updates,
+routing table changes) are rejected but regular indexing operations continue
+to work. Read and write operations succeed, based on the last known cluster
+configuration. This situation may result in partial reads of stale data as
+this node may be isolated from the rest of the cluster.
 
 [NOTE]
 ===============================

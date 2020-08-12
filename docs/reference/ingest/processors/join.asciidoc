@@ -1,5 +1,9 @@
 [[join-processor]]
-=== Join Processor
+=== Join processor
+++++
+<titleabbrev>Join</titleabbrev>
+++++
+
 Joins each element of an array into a single string using a separator character between each element.
 Throws an error when the field is not an array.
 

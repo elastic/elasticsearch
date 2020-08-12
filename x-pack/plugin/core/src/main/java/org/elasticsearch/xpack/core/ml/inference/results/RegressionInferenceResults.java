@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,13 +79,6 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     @Override
     public Object predictedValue() {
         return super.value();
-    }
-
-    @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
-        document.setFieldValue(parentResultField, asMap());
     }
 
     @Override

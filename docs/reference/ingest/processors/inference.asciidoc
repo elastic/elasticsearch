@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[inference-processor]]
-=== {infer-cap} Processor
+=== {infer-cap} processor
+++++
+<titleabbrev>{infer-cap}</titleabbrev>
+++++
 
 Uses a pre-trained {dfanalytics} model to infer against the data that is being
 ingested in the pipeline.

@@ -28,7 +28,6 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +50,51 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class DeprecationHttpIT extends ESRestTestCase {
 
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
-        return builder.build();
+    /**
+     * Check that configuring deprecation settings causes a warning to be added to the
+     * response headers.
+     */
+    public void testDeprecatedSettingsReturnWarnings() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("transient")
+            .field(TEST_DEPRECATED_SETTING_TRUE1.getKey(), !TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
+            .field(TEST_DEPRECATED_SETTING_TRUE2.getKey(), !TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
+            // There should be no warning for this field
+            .field(TEST_NOT_DEPRECATED_SETTING.getKey(), !TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
+            .endObject()
+            .endObject();
+
+        final Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity(Strings.toString(builder));
+        final Response response = client().performRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
+
+        for (Setting<Boolean> setting : List.of(TEST_DEPRECATED_SETTING_TRUE1, TEST_DEPRECATED_SETTING_TRUE2)) {
+            headerMatchers.add(
+                equalTo(
+                    "["
+                        + setting.getKey()
+                        + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                )
+            );
+        }
+
+        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+        for (final String deprecatedWarning : deprecatedWarnings) {
+            assertThat("Header does not conform to expected pattern",
+                deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
+        }
+
+        final List<String> actualWarningValues = deprecatedWarnings.stream()
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+            .collect(Collectors.toList());
+        for (Matcher<String> headerMatcher : headerMatchers) {
+            assertThat(actualWarningValues, hasItem(headerMatcher));
+        }
     }
 
     /**
@@ -124,25 +162,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     private void doTestDeprecationWarningsAppearInHeaders() throws IOException {
         final boolean useDeprecatedField = randomBoolean();
-        final boolean useNonDeprecatedSetting = randomBoolean();
-
-        // deprecated settings should also trigger a deprecation warning
-        final List<Setting<Boolean>> settings = new ArrayList<>(3);
-        settings.add(TEST_DEPRECATED_SETTING_TRUE1);
-
-        if (randomBoolean()) {
-            settings.add(TEST_DEPRECATED_SETTING_TRUE2);
-        }
-
-        if (useNonDeprecatedSetting) {
-            settings.add(TEST_NOT_DEPRECATED_SETTING);
-        }
-
-        Collections.shuffle(settings, random());
 
         // trigger all deprecations
         Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-        request.setEntity(buildSettingsRequest(settings, useDeprecatedField));
+        request.setEntity(buildSettingsRequest(useDeprecatedField));
         Response response = client().performRequest(request);
         assertOK(response);
 
@@ -152,18 +175,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
         headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT));
         if (useDeprecatedField) {
             headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_USAGE));
-        }
-        for (Setting<?> setting : settings) {
-            if (setting.isDeprecated()) {
-                headerMatchers.add(
-                    equalTo(
-                        "["
-                            + setting.getKey()
-                            + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version."
-                    )
-                );
-            }
         }
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
@@ -185,24 +196,35 @@ public class DeprecationHttpIT extends ESRestTestCase {
         try {
             configureWriteDeprecationLogsToIndex(true);
 
-            doTestDeprecationWarningsAppearInHeaders();
+            Request request = new Request("GET", "/_test_cluster/deprecated_settings");
+            request.setEntity(buildSettingsRequest(true));
+            assertOK(client().performRequest(request));
 
             assertBusy(() -> {
-                final Response response = client().performRequest(new Request("GET", "logs-deprecation-elasticsearch/_search"));
+                Response response;
+                try {
+                    response = client().performRequest(new Request("GET", "logs-deprecation-elasticsearch/_search"));
+                }
+                catch (Exception e) {
+                    // It can take a moment for the index to be created. If it doesn't exist then the client
+                    // throws an exception. Translate it into an assertion error so that assertBusy() will
+                    // continue trying.
+                    throw new AssertionError(e);
+                }
                 assertOK(response);
 
                 ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
-                assertThat(jsonNode.at("hits/total/value").intValue(), greaterThan(0));
+                assertThat(jsonNode.at("/hits/total/value").intValue(), greaterThan(0));
 
-                final JsonNode firstHit = jsonNode.at("hits/hits/0");
+                final JsonNode firstHit = jsonNode.at("/hits/hits/0/_source");
 
                 final Map<String, Object> document = new HashMap<>();
-                firstHit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue()));
+                firstHit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue().textValue()));
 
                 assertThat(document, hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"));
-            }, 120, TimeUnit.SECONDS);
+            });
         } finally {
             configureWriteDeprecationLogsToIndex(null);
             client().performRequest(new Request("DELETE", "_data_stream/logs-deprecation-elasticsearch"));
@@ -212,7 +234,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
-        client().performRequest(request);
+        assertOK(client().performRequest(request));
     }
 
     private List<String> getWarningHeaders(Header[] headers) {
@@ -227,17 +249,24 @@ public class DeprecationHttpIT extends ESRestTestCase {
         return warnings;
     }
 
-    private HttpEntity buildSettingsRequest(List<Setting<Boolean>> settings, boolean useDeprecatedField) throws IOException {
+    private HttpEntity buildSettingsRequest(boolean useDeprecatedField) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
 
-        builder.startObject().startArray(useDeprecatedField ? "deprecated_settings" : "settings");
+        builder.startObject().startArray(useDeprecatedField ? "deprecated_settings" : "settings").endArray().endObject();
 
-        for (Setting<Boolean> setting : settings) {
-            builder.value(setting.getKey());
-        }
+        final String string = Strings.toString(builder);
+        return new StringEntity(string, ContentType.APPLICATION_JSON);
+    }
 
-        builder.endArray().endObject();
-
-        return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+    /**
+     * Builds a REST client that will tolerate warnings in the response headers. The default
+     * is to throw an exception.
+     */
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
     }
 }

@@ -71,8 +71,8 @@ public class FilePermissionUtils {
         }
 
         // add each path twice: once for itself, again for files underneath it
-        policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+        policy.add(new FilePermission(path.toString(), permissions));
         /*
          * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
          * https://github.com/elastic/elasticsearch/issues/21534.

@@ -118,7 +118,8 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults,
+            createDataPathPermission(environment)));
 
         // enable security manager
         final String[] classesThatCanExit =
@@ -254,6 +255,28 @@ final class Security {
         return policy;
     }
 
+    static Permissions createDataPathPermission(Environment environment) throws IOException {
+        Permissions policy = new Permissions();
+        final Set<Path> dataFilesPaths = new HashSet<>();
+        for (Path path : environment.dataFiles()) {
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            /*
+             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
+             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
+             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
+             */
+            try {
+                final Path realPath = path.toRealPath();
+                if (!dataFilesPaths.add(realPath)) {
+                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
+                }
+            } catch (final IOException e) {
+                throw new IllegalStateException("unable to access [" + path + "]", e);
+            }
+        }
+        return policy;
+    }
+
     /** Adds access to classpath jars/classes for jar hell scan, etc */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static void addClasspathPermissions(Permissions policy) throws IOException {
@@ -291,23 +314,6 @@ final class Security {
         if (environment.sharedDataFile() != null) {
             addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
                 "read,readlink,write,delete");
-        }
-        final Set<Path> dataFilesPaths = new HashSet<>();
-        for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
-            /*
-             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
-             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
-             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
-             */
-            try {
-                final Path realPath = path.toRealPath();
-                if (!dataFilesPaths.add(realPath)) {
-                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
-                }
-            } catch (final IOException e) {
-                throw new IllegalStateException("unable to access [" + path + "]", e);
-            }
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");

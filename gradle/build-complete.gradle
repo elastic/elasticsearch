@@ -17,6 +17,8 @@ if (buildNumber) {
             include("**/*.hprof")
             include("**/reaper.log")
             include("**/build/test-results/**/*.xml")
+            include("**/build/testrun/**/*.sysout")
+            include("**/build/testrun/**/*.syserr")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")

@@ -7,7 +7,7 @@ filter and analyze log data stored on clusters in different data centers.
 
 IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
-[float]
+[discrete]
 [[ccs-supported-apis]]
 === Supported APIs
 
@@ -18,11 +18,11 @@ The following APIs support {ccs}:
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
 
-[float]
+[discrete]
 [[ccs-example]]
 === {ccs-cap} examples
 
-[float]
+[discrete]
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
 
@@ -61,26 +61,27 @@ PUT _cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:930\d+/\${transport_host}/]
 
-[float]
+[discrete]
 [[ccs-search-remote-cluster]]
 ==== Search a single remote cluster
 
 The following <<search-search,search>> API request searches the
-`twitter` index on a single remote cluster, `cluster_one`.
+`my-index-000001` index on a single remote cluster, `cluster_one`.
 
 [source,console]
 --------------------------------------------------
-GET /cluster_one:twitter/_search
+GET /cluster_one:my-index-000001/_search
 {
   "query": {
     "match": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
-  }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -108,14 +109,20 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter", <1>
+        "_index": "cluster_one:my-index-000001", <1>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       }
     ]
@@ -129,11 +136,11 @@ The API returns the following response:
 <1> The search response body includes the name of the remote cluster in the
 `_index` parameter.
 
-[float]
+[discrete]
 [[ccs-search-multi-remote-cluster]]
 ==== Search multiple remote clusters
 
-The following <<search,search>> API request searches the `twitter` index on
+The following <<search,search>> API request searches the `my-index-000001` index on
 three clusters:
 
 * Your local cluster
@@ -141,13 +148,14 @@ three clusters:
 
 [source,console]
 --------------------------------------------------
-GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
+GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_search
 {
   "query": {
     "match": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
-  }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -179,36 +187,54 @@ The API returns the following response:
     "max_score": 1,
     "hits": [
       {
-        "_index": "twitter", <1>
+        "_index": "my-index-000001", <1>
         "_id": "0",
         "_score": 2,
         "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       },
       {
-        "_index": "cluster_one:twitter", <2>
+        "_index": "cluster_one:my-index-000001", <2>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       },
       {
-        "_index": "cluster_two:twitter", <3>
+        "_index": "cluster_two:my-index-000001", <3>
         "_id": "0",
         "_score": 1,
         "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
         }
       }
     ]
@@ -225,7 +251,7 @@ means the document came from the local cluster.
 <2> This document came from `cluster_one`.
 <3> This document came from `cluster_two`.
 
-[float]
+[discrete]
 [[skip-unavailable-clusters]]
 === Skip unavailable clusters
 
@@ -288,8 +314,8 @@ handling network delays:
 By default, {es} reduces the number of network roundtrips between remote
 clusters. This reduces the impact of network delays on search speed. However,
 {es} can't reduce network roundtrips for large search requests, such as those
-including a <<request-body-search-scroll, scroll>> or
-<<request-body-search-inner-hits,inner hits>>.
+including a <<scroll-search-results, scroll>> or
+<<inner-hits,inner hits>>.
 +
 See <<ccs-min-roundtrips>> to learn how this option works.
 
@@ -372,3 +398,21 @@ image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
 final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
+
+[discrete]
+[[ccs-supported-configurations]]
+=== Supported configurations
+
+Generally, <<gateway-nodes-selection, cross cluster search>> can search remote
+clusters that are one major version ahead or behind the coordinating node's
+version. Cross cluster search can also search remote clusters that are being
+<<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
+"upgrade to" version are compatible with the gateway node.
+
+For example, a coordinating node running {es} 5.6 can search a remote cluster
+running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
+you should first upgrade the coordinating node to 7.1 and then upgrade remote
+cluster.
+
+WARNING: Running multiple versions of {es} in the same cluster beyond the
+duration of an upgrade is not supported.

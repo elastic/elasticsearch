@@ -31,13 +31,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
@@ -51,16 +53,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMERIC_FIELD = "numeric";
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
-    private VariableWidthHistogramAggregationBuilder aggregationBuilder;
 
     public void testNoDocs() throws Exception{
         final List<Number> dataset = Arrays.asList();
-        testBothCases(DEFAULT_QUERY, dataset, true,
+        testSearchCase(DEFAULT_QUERY, dataset, true,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
@@ -82,8 +87,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedMins.put(-3d, -3d);
         expectedMins.put(10d, 10d);
 
-        testBothCases(DEFAULT_QUERY, dataset, true,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(4),
+        testSearchCase(DEFAULT_QUERY, dataset, true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCount.size(), buckets.size());
@@ -159,7 +164,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedMaxesOnlySearch.put(8.8, 8.8);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setInitialBuffer(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedCentroidsOnlySearch.size(), buckets.size());
@@ -193,7 +198,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedMaxesSearchReduce.put(5.3, 5.9);
         expectedMaxesSearchReduce.put(8.8, 8.8);
 
-        testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
+        testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setInitialBuffer(4),
             histogram -> {
             final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
@@ -212,32 +217,28 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     // Once the cache limit is reached, cached documents are collected into (3/4 * shard_size) buckets
     // A new bucket should be added when there is a document that is distant from all existing buckets
     public void testNewBucketCreation() throws Exception {
-        final List<Number> dataset = Arrays.asList(-1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 40, 30, 25, 32, 38, 80, 50, 75);
+        final List<Number> dataset = Arrays.asList(-1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 40, 30, 25, 32, 36, 80, 50, 75, 60);
         double doubleError = 1d / 10000d;
 
-        // Search (no reduce)
-
-        // Expected clusters: [ (-1), (1), (3), (5), (7), (9), (11), (13), (15), (17),
-        //                      (19), (25, 30, 32), (38, 40), (50), (75, 80) ]
-        // Corresponding keys (centroids): [ -1, 1, 3, ..., 17, 19, 29, 39, 50, 77.5]
-        // Note: New buckets are created for 30, 50, and 80 because they are distant from the other buckets
-        final List<Double> keys = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 29d, 39d, 50d, 77.5d);
-        final List<Double> mins = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 25d, 38d, 50d, 75d);
-        final List<Double> maxes = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 32d, 40d, 50d, 80d);
-        final List<Integer> docCounts = Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 1, 2);
+        // Expected clusters: [ (-1, 1), (3, 5), (7, 9), (11, 13), (15, 17),
+        //                      (19), (25), (30), (32), (36), (40), (50), (60), (75), (80) ]
+        final List<Double> keys = Arrays.asList(0d, 4d, 8d, 12d, 16d, 19d, 25d, 30d, 32d, 36d, 40d, 50d, 60d, 75d, 80d);
+        final List<Double> mins = Arrays.asList(-1d, 3d, 7d, 11d, 15d, 19d, 25d, 30d, 32d, 36d, 40d, 50d, 60d, 75d, 80d);
+        final List<Double> maxes = Arrays.asList(1d, 5d, 9d, 13d, 17d, 19d, 25d, 30d, 32d, 36d, 40d, 50d, 60d, 75d, 80d);
+        final List<Integer> docCounts = Arrays.asList(2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         assert keys.size() == docCounts.size() && keys.size() == keys.size();
 
         final Map<Double, Integer> expectedDocCountOnlySearch = new HashMap<>();
         final Map<Double, Double> expectedMinsOnlySearch = new HashMap<>();
         final Map<Double, Double> expectedMaxesOnlySearch = new HashMap<>();
-        for(int i=0; i<keys.size(); i++){
+        for(int i=0; i < keys.size(); i++){
             expectedDocCountOnlySearch.put(keys.get(i), docCounts.get(i));
             expectedMinsOnlySearch.put(keys.get(i), mins.get(i));
             expectedMaxesOnlySearch.put(keys.get(i), maxes.get(i));
         }
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(16).setInitialBuffer(12),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(15),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCountOnlySearch.size(), buckets.size());
@@ -245,6 +246,31 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     long expectedDocCount = expectedDocCountOnlySearch.getOrDefault(bucket.getKey(), 0).longValue();
                     double expectedCentroid = expectedMinsOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
                     double expectedMax = expectedMaxesOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    assertEquals(bucket.getKeyAsString(), expectedDocCount, bucket.getDocCount());
+                    assertEquals(bucket.getKeyAsString(), expectedCentroid, bucket.min(), doubleError);
+                    assertEquals(bucket.getKeyAsString(), expectedMax, bucket.max(), doubleError);
+                });
+            });
+
+        // Rerun the test with very large keys which can cause an overflow
+        final Map<Double, Integer> expectedDocCountBigKeys = new HashMap<>();
+        final Map<Double, Double> expectedMinsBigKeys = new HashMap<>();
+        final Map<Double, Double> expectedMaxesBigKeys = new HashMap<>();
+        for(int i=0; i< keys.size(); i++){
+            expectedDocCountBigKeys.put(Long.MAX_VALUE * keys.get(i), docCounts.get(i));
+            expectedMinsBigKeys.put(Long.MAX_VALUE * keys.get(i), Long.MAX_VALUE * mins.get(i));
+            expectedMaxesBigKeys.put(Long.MAX_VALUE * keys.get(i), Long.MAX_VALUE * maxes.get(i));
+        }
+
+        testSearchCase(DEFAULT_QUERY, dataset.stream().map(n -> Double.valueOf(n.doubleValue() * Long.MAX_VALUE)).collect(toList()), false,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(15),
+            histogram -> {
+                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(expectedDocCountOnlySearch.size(), buckets.size());
+                buckets.forEach(bucket -> {
+                    long expectedDocCount = expectedDocCountBigKeys.getOrDefault(bucket.getKey(), 0).longValue();
+                    double expectedCentroid = expectedMinsBigKeys.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    double expectedMax = expectedMaxesBigKeys.getOrDefault(bucket.getKey(), 0d).doubleValue();
                     assertEquals(expectedDocCount, bucket.getDocCount());
                     assertEquals(expectedCentroid, bucket.min(), doubleError);
                     assertEquals(expectedMax, bucket.max(), doubleError);
@@ -254,28 +280,22 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
     // There should not be more than `shard_size` documents on a node, even when very distant documents appear
     public void testNewBucketLimit() throws Exception{
-        final List<Number> dataset =  Arrays.asList(1,2,3,4,5, 10, 20, 50, 100, 5400, -900);
+        final List<Number> dataset =  Arrays.asList(1, 2, 3, 4, 5, 10, 20, 50, 100, 5400, -900);
         double doubleError = 1d / 10000d;
 
-        // Expected clusters: [ (-900, 1, 2), (3, 4), (5), (10, 20, 50, 100, 5400)]
-        // Corresponding keys (centroids): [ -299, 3.5, 5, 1116]
+        // Expected clusters: [ (-900, 1, 2, 3, 4, 5), (10, 20, 50, 100, 5400)]
+        // Corresponding keys (centroids): [ -147.5, 1116]
         final Map<Double, Integer> expectedDocCount = new HashMap<>();
-        expectedDocCount.put(-299d, 3);
-        expectedDocCount.put(3.5d, 2);
-        expectedDocCount.put(5d, 1);
-        expectedDocCount.put(1116d, 5);
+        expectedDocCount.put(-147.5d, 6);
+        expectedDocCount.put(1116.0d, 5);
 
         final Map<Double, Double> expectedMins = new HashMap<>();
-        expectedMins.put(-299d, -900d);
-        expectedMins.put(3.5d, 3d);
-        expectedMins.put(5d, 5d);
-        expectedMins.put(1116d, 10d);
+        expectedMins.put(-147.5d, -900d);
+        expectedMins.put(1116.0d, 10d);
 
         final Map<Double, Double> expectedMaxes = new HashMap<>();
-        expectedMaxes.put(-299d, 2d);
-        expectedMaxes.put(3.5d, 4d);
-        expectedMaxes.put(5d, 5d);
-        expectedMaxes.put(1116d, 5400d);
+        expectedMaxes.put(-147.5d, 5d);
+        expectedMaxes.put(1116.0d, 5400d);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD) .setNumBuckets(2).setShardSize(4).setInitialBuffer(5),
@@ -295,14 +315,13 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     public void testSimpleSubAggregations() throws IOException{
         final List<Number> dataset =  Arrays.asList(5, 1, 9, 2, 8);
 
-        testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
+        testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(3)
                 .setInitialBuffer(3)
                 .setShardSize(4)
                 .subAggregation(AggregationBuilders.stats("stats").field(NUMERIC_FIELD)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d/10000d;
 
                 // Expected clusters: [ (1, 2), (5), (8,9) ]
@@ -337,7 +356,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 .setShardSize(4)
                 .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d / 10000d;
 
                 // Expected clusters: [ (0, 1, 2, 3), (4, 5, 6, 7), (8, 9, 10, 11) ]
@@ -375,16 +393,15 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                                         .shardSize(2)
                                         .size(1)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d / 10000d;
 
                 // This is a test to make sure that the sub aggregations get reduced
                 // This terms sub aggregation has shardSize (2) != size (1), so we will get 1 bucket only if
                 // InternalVariableWidthHistogram reduces the sub aggregations.
 
-                InternalTerms terms = histogram.getBuckets().get(0).getAggregations().get("terms");
+                LongTerms terms = histogram.getBuckets().get(0).getAggregations().get("terms");
                 assertEquals(1L, terms.getBuckets().size(), deltaError);
-                assertEquals(1L, ((InternalTerms.Bucket) terms.getBuckets().get(0)).getKey());
+                assertEquals(1L, terms.getBuckets().get(0).getKey());
             });
     }
 
@@ -399,7 +416,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         // To account for this case of a document switching clusters, we check that each cluster centroid is within
         // a certain range, rather than asserting exact values.
 
-        testSearchAndReduceCase(DEFAULT_QUERY, dataset, true,
+        testSearchCase(DEFAULT_QUERY, dataset, true,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(2)
                 .setInitialBuffer(4)
@@ -424,25 +441,105 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
     }
 
+    public void testAsSubAggregation() throws IOException {
+        AggregationBuilder builder = new TermsAggregationBuilder("t").field("t")
+            .subAggregation(new VariableWidthHistogramAggregationBuilder("v").field("v").setNumBuckets(2));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11)));
 
-    private void testSearchCase(final Query query, final List<Number> dataset, boolean multipleSegments,
-                                final Consumer<VariableWidthHistogramAggregationBuilder> configure,
-                                final Consumer<InternalVariableWidthHistogram> verify) throws IOException {
-        executeTestCase(false, query, dataset, multipleSegments, configure, verify);
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30)));
+        };
+        Consumer<LongTerms> verify = terms -> {
+            /*
+             * This is what the result should be but it never gets called because of
+             * the explicit check. We do expect to remove the check in the future,
+             * thus, this stays.
+             */
+            LongTerms.Bucket t1 = terms.getBucketByKey("1");
+            InternalVariableWidthHistogram v1 = t1.getAggregations().get("v");
+            assertThat(
+                v1.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
+                equalTo(List.of(1.0, 10.5))
+            );
+
+            LongTerms.Bucket t2 = terms.getBucketByKey("1");
+            InternalVariableWidthHistogram v2 = t2.getAggregations().get("v");
+            assertThat(
+                v2.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
+                equalTo(List.of(20.0, 30))
+            );
+        };
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(builder, DEFAULT_QUERY, buildIndex, verify, longField("t"), longField("v"))
+        );
+        assertThat(e.getMessage(), containsString("cannot be nested"));
     }
 
-
-    private void testSearchAndReduceCase(final Query query, final List<Number> dataset, boolean multipleSegments,
-                                         final Consumer<VariableWidthHistogramAggregationBuilder> configure,
-                                         final Consumer<InternalVariableWidthHistogram> verify) throws IOException {
-        executeTestCase(true, query, dataset, multipleSegments, configure, verify);
+    public void testShardSizeTooSmall() throws Exception{
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            new VariableWidthHistogramAggregationBuilder("test").setShardSize(1));
+        assertThat(e.getMessage(), equalTo("shard_size must be greater than [1] for [test]"));
     }
 
-    private void testBothCases(final Query query, final List<Number> dataset, boolean multipleSegments,
-                               final Consumer<VariableWidthHistogramAggregationBuilder> configure,
-                               final Consumer<InternalVariableWidthHistogram> verify) throws IOException {
-        executeTestCase(true, query, dataset, multipleSegments, configure, verify);
-        executeTestCase(false, query, dataset, multipleSegments, configure, verify);
+    public void testSmallShardSize() throws Exception {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
+            DEFAULT_QUERY,
+            List.of(),
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
+            histogram -> {fail();}
+        ));
+        assertThat(e.getMessage(), equalTo("3/4 of shard_size must be at least buckets but was [1<2] for [_name]"));
+    }
+
+    public void testHugeShardSize() throws Exception {
+        final List<Number> dataset = Arrays.asList(1, 2, 3);
+        testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.field(NUMERIC_FIELD).setShardSize(1000000000),
+            histogram -> assertThat(
+                histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
+                equalTo(List.of(1.0, 2.0, 3.0)))
+        );
+    }
+
+    public void testSmallInitialBuffer() throws Exception {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(
+            DEFAULT_QUERY,
+            List.of(),
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
+            histogram -> {fail();}
+        ));
+        assertThat(e.getMessage(), equalTo("initial_buffer must be at least buckets but was [1<10] for [_name]"));
+    }
+
+    public void testOutOfOrderInitialBuffer() throws Exception {
+        final List<Number> dataset = Arrays.asList(1, 2, 3);
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
+            true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(3).setNumBuckets(3),
+            histogram -> {
+                assertThat(
+                    histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
+                    equalTo(List.of(1.0, 2.0, 3.0))
+                );
+            }
+        );
+    }
+
+    public void testDefaultShardSizeDependsOnNumBuckets() throws Exception {
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setNumBuckets(3).getShardSize(), equalTo(150));
+    }
+
+    public void testDefaultInitialBufferDependsOnNumBuckets() throws Exception {
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setShardSize(50).getInitialBuffer(), equalTo(500));
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setShardSize(10000).getInitialBuffer(), equalTo(50000));
+        assertThat(new VariableWidthHistogramAggregationBuilder("test").setNumBuckets(3).getInitialBuffer(), equalTo(1500));
     }
 
     @Override
@@ -460,10 +557,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void executeTestCase(final boolean reduced, final Query query,
-                                 final List<Number> dataset, boolean multipleSegments,
-                                 final Consumer<VariableWidthHistogramAggregationBuilder> configure,
-                                 final Consumer<InternalVariableWidthHistogram> verify) throws IOException {
+    private void testSearchCase(final Query query, final List<Number> dataset, boolean multipleSegments,
+                                final Consumer<VariableWidthHistogramAggregationBuilder> configure,
+                                final Consumer<InternalVariableWidthHistogram> verify) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexSampleData(dataset, indexWriter, multipleSegments);
@@ -491,12 +587,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
 
 
-                final InternalVariableWidthHistogram histogram;
-                if (reduced) {
-                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                } else {
-                    histogram = search(indexSearcher, query, aggregationBuilder, fieldType);
-                }
+                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
                 verify.accept(histogram);
             }
         }
@@ -517,10 +608,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             // Create multiple segments in the index
             final Document document = new Document();
             for (final Number doc : dataset) {
-                if (frequently()) {
-                    indexWriter.commit();
-                }
-
                 long fieldVal = convertDocumentToSortableValue(doc);
                 document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, fieldVal));
                 indexWriter.addDocument(document);

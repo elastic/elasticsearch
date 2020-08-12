@@ -141,7 +141,7 @@ public class UpdateByQueryIT extends ESRestHighLevelClientTestCase {
                 }
             });
 
-            TaskId taskIdToRethrottle = findTaskToRethrottle(UpdateByQueryAction.NAME);
+            TaskId taskIdToRethrottle = findTaskToRethrottle(UpdateByQueryAction.NAME, updateByQueryRequest.getDescription());
             float requestsPerSecond = 1000f;
             ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
                 highLevelClient()::updateByQueryRethrottle, highLevelClient()::updateByQueryRethrottleAsync);

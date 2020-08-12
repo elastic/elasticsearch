@@ -203,8 +203,9 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         ModelSnapshot.Builder modelSnapshotBuilder = new ModelSnapshot.Builder();
         modelSnapshotBuilder.setJobId(jobId).setSnapshotId(snapshotId).setTimestamp(timestamp).setSnapshotDocCount(numDocs);
 
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
-        indexRequest.id(ModelSnapshot.documentId(jobId, snapshotId));
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+            .id(ModelSnapshot.documentId(jobId, snapshotId))
+            .setRequireAlias(true);
         if (immediateRefresh) {
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
@@ -219,12 +220,12 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     private void persistModelStateDocs(String jobId, String snapshotId, int numDocs) {
         assertThat(numDocs, greaterThan(0));
 
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest().requireAlias(true);
         for (int i = 1; i <= numDocs; ++i) {
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-            indexRequest.id(ModelState.documentId(jobId, snapshotId, i));
-            // The exact contents of the model state doesn't matter - we are not going to try and restore it
-            indexRequest.source(Collections.singletonMap("compressed", Collections.singletonList("foo")));
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                .id(ModelState.documentId(jobId, snapshotId, i))
+                // The exact contents of the model state doesn't matter - we are not going to try and restore it
+                .source(Collections.singletonMap("compressed", Collections.singletonList("foo")));
             bulkRequest.add(indexRequest);
         }
 

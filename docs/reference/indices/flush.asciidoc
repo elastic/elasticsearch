@@ -4,21 +4,21 @@
 <titleabbrev>Flush</titleabbrev>
 ++++
 
-Flushes one or more indices.
+Flushes one or more data streams or indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_flush
+POST /my-index-000001/_flush
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[flush-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_flush`
+`POST /<target>/_flush`
 
-`GET /<index>/_flush`
+`GET /<target>/_flush`
 
 `POST /_flush`
 
@@ -28,7 +28,7 @@ POST /twitter/_flush
 [[flush-api-desc]]
 ==== {api-description-title}
 
-Flushing an index is the process of making sure that any data that is currently
+Flushing a data stream or index is the process of making sure that any data that is currently
 only stored in the <<index-modules-translog,transaction log>> is also
 permanently stored in the Lucene index. When restarting, {es} replays any
 unflushed operations from the transaction log into the Lucene index to bring it
@@ -52,11 +52,13 @@ flush API was called.
 [[flush-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to flush.
+Wildcard expressions (`*`) are supported.
 +
-To flush all indices,
-omit this parameter
-or use a value of `_all` or `*`.
+To flush all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[flush-api-query-params]]
@@ -111,27 +113,27 @@ Defaults to `true`.
 
 
 [[flush-api-specific-ex]]
-===== Flush a specific index
+===== Flush a specific data stream or index
 
 [source,console]
 ----
-POST /kimchy/_flush
+POST /my-index-000001/_flush
 ----
-// TEST[s/^/PUT kimchy\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 
 [[flush-multi-index]]
-===== Flush several indices
+===== Flush several data streams and indices
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_flush
+POST /my-index-000001,my-index-000002/_flush
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[flush-api-all-ex]]
-===== Flush all indices
+===== Flush all data streams and indices in a cluster
 
 [source,console]
 ----

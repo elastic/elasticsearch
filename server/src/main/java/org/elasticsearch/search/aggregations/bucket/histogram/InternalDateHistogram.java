@@ -76,7 +76,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             this.keyed = keyed;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -160,13 +160,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         final Rounding rounding;
         final InternalAggregations subAggregations;
-        final ExtendedBounds bounds;
+        final LongBounds bounds;
 
         EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations) {
             this(rounding, subAggregations, null);
         }
 
-        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, ExtendedBounds bounds) {
+        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, LongBounds bounds) {
             this.rounding = rounding;
             this.subAggregations = subAggregations;
             this.bounds = bounds;
@@ -174,8 +174,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         EmptyBucketInfo(StreamInput in) throws IOException {
             rounding = Rounding.read(in);
-            subAggregations = new InternalAggregations(in);
-            bounds = in.readOptionalWriteable(ExtendedBounds::new);
+            subAggregations = InternalAggregations.readFrom(in);
+            bounds = in.readOptionalWriteable(LongBounds::new);
         }
 
         void writeTo(StreamOutput out) throws IOException {
@@ -377,7 +377,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
-        ExtendedBounds bounds = emptyBucketInfo.bounds;
+        LongBounds bounds = emptyBucketInfo.bounds;
         ListIterator<Bucket> iter = list.listIterator();
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)

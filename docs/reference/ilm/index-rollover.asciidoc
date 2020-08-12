@@ -15,12 +15,12 @@ Using rolling indices enables you to:
 We recommend using <<indices-create-data-stream, data streams>> to manage time-series
 data. Data streams automatically track the write index while keeping configuration to a minimum.
 
-Each data stream requires a <<indices-templates,composable index template>> that contains:
+Each data stream requires an <<indices-templates,index template>> that contains:
 
 * A name or wildcard (`*`) pattern for the data stream.
 
 * The data stream's timestamp field. This field must be mapped as a
-  <<date,`date`>> or <<date_nanos,`date_nanos`>> field datatype and must be
+  <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type and must be
   included in every document indexed to the data stream.
   
   * The mappings and settings applied to each backing index when it's created.

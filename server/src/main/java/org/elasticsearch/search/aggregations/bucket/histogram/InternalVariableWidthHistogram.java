@@ -105,7 +105,7 @@ public class InternalVariableWidthHistogram
             centroid = in.readDouble();
             docCount = in.readVLong();
             bounds = new BucketBounds(in);
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -207,7 +207,7 @@ public class InternalVariableWidthHistogram
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            this(new InternalAggregations(in));
+            this(InternalAggregations.readFrom(in));
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -400,7 +400,6 @@ public class InternalVariableWidthHistogram
         }
 
         mergeBucketsIfNeeded(reducedBuckets, targetNumBuckets, reduceContext);
-
         return reducedBuckets;
     }
 
@@ -451,7 +450,8 @@ public class InternalVariableWidthHistogram
             }
             toMerge.add(buckets.get(startIdx)); // Don't remove the startIdx bucket because it will be replaced by the merged bucket
 
-            reduceContext.consumeBucketsAndMaybeBreak(- (toMerge.size() - 1));
+            int toRemove = toMerge.stream().mapToInt(b -> countInnerBucket(b)+1).sum();
+            reduceContext.consumeBucketsAndMaybeBreak(-toRemove + 1);
             Bucket merged_bucket = reduceBucket(toMerge, reduceContext);
 
             buckets.set(startIdx, merged_bucket);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,7 +41,10 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+
+    // Flag set for disallowing index auto creation for an individual write request.
+    String REQUIRE_ALIAS = "require_alias";
 
     /**
      * Set the index for this request
@@ -141,6 +145,11 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     OpType opType();
 
+    /**
+     * Should this request override specifically require the destination to be an alias?
+     * @return boolean flag, when true specifically requires an alias
+     */
+    boolean isRequireAlias();
     /**
      * Requested operation type to perform on the document
      */

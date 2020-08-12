@@ -7,7 +7,7 @@
 <titleabbrev>Get async EQL search</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 Returns the current status and available results for an <<eql-search-async,async
 EQL search>> or a <<eql-search-store-sync-eql-search,stored synchronous EQL
@@ -27,12 +27,12 @@ GET /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUTo
 [[get-async-eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-requirements,EQL requirements>>.
+See <<eql-required-fields>>.
 
 [[get-async-eql-search-api-limitations]]
 ===== Limitations
 
-See <<eql-limitations,EQL limitations>>.
+See <<eql-syntax-limitations,EQL limitations>>.
 
 [[get-async-eql-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -70,8 +70,8 @@ meaning the request waits for complete search results.
 If this parameter is specified and the request completes during this period,
 complete search results are returned.
 +
-If the request does not complete during this period, partial results, if
-available, are returned.
+If the request does not complete during this period, the response returns an
+`is_partial` value of `true` and no search results.
 
 [role="child_attributes"]
 [[get-async-eql-search-api-response-body]]

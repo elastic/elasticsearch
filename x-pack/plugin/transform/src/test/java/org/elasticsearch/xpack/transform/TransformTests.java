@@ -50,7 +50,7 @@ public class TransformTests extends ESTestCase {
             transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
-        if (transformPluginEnabled && useExplicitSetting && useLegacySetting) {
+        if (useExplicitSetting && useLegacySetting) {
             assertSettingDeprecationsAndWarnings(new String[]{"node.transform"});
         }
     }

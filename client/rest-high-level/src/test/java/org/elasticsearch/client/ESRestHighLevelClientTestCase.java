@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -315,7 +316,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
-    protected static TaskId findTaskToRethrottle(String actionName) throws IOException {
+    protected static TaskId findTaskToRethrottle(String actionName, String description) throws IOException {
         long start = System.nanoTime();
         ListTasksRequest request = new ListTasksRequest();
         request.setActions(actionName);
@@ -323,13 +324,16 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         do {
             ListTasksResponse list = highLevelClient().tasks().list(request, RequestOptions.DEFAULT);
             list.rethrowFailures("Finding tasks to rethrottle");
+            List<TaskGroup> taskGroups =
+                list.getTaskGroups().stream()
+                    .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description)).collect(Collectors.toList());
             assertThat("tasks are left over from the last execution of this test",
-                list.getTaskGroups(), hasSize(lessThan(2)));
-            if (0 == list.getTaskGroups().size()) {
+                taskGroups, hasSize(lessThan(2)));
+            if (0 == taskGroups.size()) {
                 // The parent task hasn't started yet
                 continue;
             }
-            TaskGroup taskGroup = list.getTaskGroups().get(0);
+            TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
             return taskGroup.getTaskInfo().getTaskId();
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));

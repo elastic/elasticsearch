@@ -1,0 +1,718 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql]]
+= EQL search
+++++
+<titleabbrev>EQL</titleabbrev>
+++++
+
+experimental::[]
+
+{eql-ref}/index.html[Event Query Language (EQL)] is a query language for
+event-based, time-series data, such as logs.
+
+[discrete]
+[[eql-advantages]]
+== Advantages of EQL
+
+* *EQL lets you express relationships between events.* +
+Many query languages allow you to match only single events. EQL lets you match a
+sequence of events across different event categories and time spans.
+
+* *EQL has a low learning curve.* +
+EQL syntax looks like other query languages. It lets you write and read queries
+intuitively, which makes for quick, iterative searching.
+
+* *We designed EQL for security use cases.* +
+While you can use EQL for any event-based data, we created EQL for threat
+hunting. EQL not only supports indicator of compromise (IOC) searching but
+makes it easy to describe activity that goes beyond IOCs.
+
+[discrete]
+[[eql-required-fields]]
+== Required fields
+
+TIP: While no schema is required to use EQL in {es}, we recommend using the
+{ecs-ref}[Elastic Common Schema (ECS)]. EQL search is designed to work
+with core ECS fields by default.
+
+EQL assumes each document in a data stream or index corresponds to an event. To
+run an EQL search, each document must contain a _timestamp_ and _event category_
+field.
+
+EQL uses the `@timestamp` and `event.category` fields from the {ecs-ref}[ECS] as
+the default timestamp and event category fields. If your documents use a
+different timestamp or event category field, you must specify it in the search
+request. See <<specify-a-timestamp-or-event-category-field>>.
+
+[discrete]
+[[run-an-eql-search]]
+== Run an EQL search
+
+You can use the <<eql-search-api,EQL search API>> to run an EQL search.
+
+The following request searches `my-index-000001` for events with an
+`event.category` of `process` and a `process.name` of `regsvr32.exe`. Each
+document in `my-index-000001` includes a `@timestamp` and `event.category`
+field.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
+
+The API returns the following response. Matching events are included in the
+`hits.events` property. These events are sorted by timestamp, converted to
+milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+ascending order.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "my-index-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:09.000Z",
+          "event": {
+            "category": "process",
+            "id": "aR3NWVOs",
+            "sequence": 4
+          },
+          "process": {
+            "pid": 2012,
+            "name": "regsvr32.exe",
+            "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe"
+          }
+        }
+      },
+      {
+        "_index": "my-index-000001",
+        "_id": "xLkCaj4EujzdNSxfYLbO",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:10.000Z",
+          "event": {
+            "category": "process",
+            "id": "GTSmSqgz0U",
+            "sequence": 6,
+            "type": "termination"
+          },
+          "process": {
+            "pid": 2012,
+            "name": "regsvr32.exe",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
+
+[discrete]
+[[eql-search-sequence]]
+=== Search for a sequence of events
+
+You can use EQL's <<eql-sequences,sequence syntax>> to search for an ordered
+series of events.
+
+The following EQL search request matches a sequence that:
+
+. Starts with an event with:
++
+--
+* An `event.category` of `process`
+* A `process.name` of `regsvr32.exe`
+--
+. Followed by an event with:
++
+--
+* An `event.category` of `file`
+* A `file.name` that contains the substring `scrobj.dll`
+--
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    sequence
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response. Matching sequences are included in the
+`hits.sequences` property.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "events": [
+          {
+            "_index": "my-index-000001",
+            "_id": "OQmfCaduce8zoHT93o4H",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
+            "_score": null,
+            "_source": {
+              "@timestamp": "2099-12-07T11:07:09.000Z",
+              "event": {
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 4
+              },
+              "process": {
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              }
+            }
+          },
+          {
+            "_index": "my-index-000001",
+            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
+            "_score": null,
+            "_source": {
+              "@timestamp": "2099-12-07T11:07:10.000Z",
+              "event": {
+                "category": "file",
+                "id": "tZ1NWVOs",
+                "sequence": 5
+              },
+              "process": {
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+
+You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
+constrain a sequence to a specified timespan.
+
+The following EQL search request adds `with maxspan=1h` to the previous query.
+This ensures all events in a matching sequence occur within `1h` (one hour) of
+the first event's timestamp.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    sequence with maxspan=1h
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+You can further constrain matching event sequences using the
+<<eql-by-keyword,`by` keyword>>.
+
+The following EQL search request adds `by process.pid` to each event item. This
+ensures events matching the sequence share the same `process.pid` field value.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    sequence with maxspan=1h
+      [ process where process.name == "regsvr32.exe" ] by process.pid
+      [ file where stringContains(file.name, "scrobj.dll") ] by process.pid
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+Because the `process.pid` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following query is equivalent to the
+previous one.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    sequence by process.pid with maxspan=1h
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response. The `hits.sequences.join_keys` property
+contains the shared `process.pid` value for each matching event.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "join_keys": [
+          "2012"
+        ],
+        "events": [
+          {
+            "_index": "my-index-000001",
+            "_id": "OQmfCaduce8zoHT93o4H",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
+            "_score": null,
+            "_source": {
+              "@timestamp": "2099-12-07T11:07:09.000Z",
+              "event": {
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 4
+              },
+              "process": {
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              }
+            }
+          },
+          {
+            "_index": "my-index-000001",
+            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
+            "_score": null,
+            "_source": {
+              "@timestamp": "2099-12-07T11:07:10.000Z",
+              "event": {
+                "category": "file",
+                "id": "tZ1NWVOs",
+                "sequence": 5
+              },
+              "process": {
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+
+You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
+event for sequences. Matching sequences must end before this event.
+
+The following request adds `until [ process where event.type == "termination" ]`
+to the previous query. This ensures matching sequences end before a `process`
+event with an `event.type` of `termination`.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    sequence by process.pid with maxspan=1h
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
+    until [ process where event.type == "termination" ]
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+[discrete]
+[[specify-a-timestamp-or-event-category-field]]
+=== Specify a timestamp or event category field
+
+To run an EQL search, each searched document must contain a timestamp and event
+category field. The EQL search API uses the `@timestamp` and `event.category`
+fields from the {ecs-ref}[Elastic Common Schema (ECS)] by default. If your
+documents use a different timestamp or event category field, you must specify it
+in the search request using the `timestamp_field` or `event_category_field`
+parameters.
+
+The event category field is typically mapped as a <<keyword,`keyword`>> or
+<<constant-keyword,constant keyword>> field. The timestamp field is typically
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
+
+NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
+field as the timestamp or event category field. See <<eql-nested-fields>>.
+
+The following request uses the `timestamp_field` parameter to specify
+`file.accessed` as the timestamp field. The request also uses the
+`event_category_field` parameter to specify `file.type` as the event category
+field.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "timestamp_field": "file.accessed",
+  "event_category_field": "file.type",
+  "query": """
+    file where (file.size > 1 and file.type == "file")
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+[discrete]
+[[eql-search-filter-query-dsl]]
+=== Filter using query DSL
+
+You can use the `filter` parameter to specify an additional query using
+<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
+runs.
+
+The following request uses a `range` query to filter `my-index-000001` to only
+documents with a `file.size` value greater than `1` but less than `1000000`
+bytes. The EQL query in `query` parameter then runs on these filtered documents.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "filter": {
+    "range" : {
+      "file.size" : {
+        "gte" : 1,
+        "lte" : 1000000
+      }
+    }
+  },
+  "query": """
+    file where (file.type == "file" and file.name == "cmd.exe")
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+[discrete]
+[[eql-search-case-sensitive]]
+=== Run a case-sensitive EQL search
+
+By default, matching for EQL queries is case-insensitive. You can use the
+`case_sensitive` parameter to toggle case sensitivity on or off.
+
+The following search request contains a query that matches `process` events
+with a `process.executable` containing `System32`.
+
+Because `case_sensitive` is `true`, this query only matches `process.executable`
+values containing `System32` with the exact same capitalization. A
+`process.executable` value containing `system32` or `SYSTEM32` would not match
+this query.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "keep_on_completion": true,
+  "case_sensitive": true,
+  "query": """
+    process where stringContains(process.executable, "System32")
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+[discrete]
+[[eql-search-async]]
+=== Run an async EQL search
+
+EQL searches are designed to run on large volumes of data quickly, often
+returning results in milliseconds. For this reason, EQL searches are
+_synchronous_ by default. The search request waits for complete results before
+returning a response. 
+
+However, complete results can take longer for searches across:
+
+* <<frozen-indices,Frozen indices>>
+* <<modules-cross-cluster-search,Multiple clusters>>
+* Many shards
+
+To avoid long waits, you can use the `wait_for_completion_timeout` parameter to
+run an _asynchronous_, or _async_, EQL search.
+
+Set `wait_for_completion_timeout` to a duration you'd like to wait
+for complete search results. If the search request does not finish within this
+period, the search becomes async and returns a response that includes:
+
+* A search ID, which can be used to monitor the progress of the async search.
+* An `is_partial` value of `true`, meaning the response does not contain
+  complete search results.
+* An `is_running` value of `true`, meaning the search is async and ongoing.
+
+The async search continues to run in the background without blocking
+other requests.
+
+The following request searches the `frozen-my-index-000001` index, which has been
+<<frozen-indices,frozen>> for storage and is rarely searched.
+
+Because searches on frozen indices are expected to take longer to complete, the
+request contains a `wait_for_completion_timeout` parameter value of `2s` (two
+seconds). If the request does not return complete results in two seconds, the
+search becomes async and returns a search ID.
+
+[source,console]
+----
+GET /frozen-my-index-000001/_eql/search
+{
+  "wait_for_completion_timeout": "2s",
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+// TEST[s/frozen-my-index-000001/my-index-000001/]
+
+After two seconds, the request returns the following response. Note `is_partial`
+and `is_running` properties are `true`, indicating an async search.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_partial": true,
+  "is_running": true,
+  "took": 2000,
+  "timed_out": false,
+  "hits": ...
+}
+----
+// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
+// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TESTRESPONSE[s/"took": 2000/"took": $body.took/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+You can use the the search ID and the <<get-async-eql-search-api,get async EQL
+search API>> to check the progress of an async search.
+
+The get async EQL search API also accepts a `wait_for_completion_timeout`
+parameter. If ongoing search does not complete during this period, the response
+returns an `is_partial` value of `true` and no search results.
+
+The following get async EQL search API request checks the progress of the
+previous async EQL search. The request specifies a `wait_for_completion_timeout`
+query parameter value of `2s` (two seconds).
+
+[source,console]
+----
+GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=2s
+----
+// TEST[skip: no access to search ID]
+
+The request returns the following response. Note `is_partial` and `is_running`
+are `false`, indicating the async search has finished and the search results
+in the `hits` property are complete.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_partial": false,
+  "is_running": false,
+  "took": 2000,
+  "timed_out": false,
+  "hits": ...
+}
+----
+// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
+// TESTRESPONSE[s/"took": 2000/"took": $body.took/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+[discrete]
+[[eql-search-store-async-eql-search]]
+=== Change the search retention period
+
+By default, the EQL search API stores async searches for five days. After this
+period, any searches and their results are deleted. You can use the `keep_alive`
+parameter to change this retention period.
+
+In the following EQL search request, the `keep_alive` parameter is `2d` (two
+days). If the search becomes async, its results
+are stored on the cluster for two days. After two days, the async
+search and its results are deleted, even if it's still ongoing.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "keep_alive": "2d",
+  "wait_for_completion_timeout": "2s",
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+You can use the <<get-async-eql-search-api,get async EQL search API>>'s
+`keep_alive`parameter to later change the retention period. The new
+retention period starts after the get request executes.
+
+The following request sets the `keep_alive` query parameter to `5d` (five days).
+The async search and its results are deleted five days after the get request
+executes.
+
+[source,console]
+----
+GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+----
+// TEST[skip: no access to search ID]
+
+You can use the <<delete-async-eql-search-api,delete async EQL search API>> to
+manually delete an async EQL search before the `keep_alive` period ends. If the
+search is still ongoing, this cancels the search request.
+
+The following request deletes an async EQL search and its results.
+
+[source,console]
+----
+DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+----
+// TEST[skip: no access to search ID]
+
+[discrete]
+[[eql-search-store-sync-eql-search]]
+=== Store synchronous EQL searches
+
+By default, the EQL search API only stores async searches that cannot be
+completed within the period set by `wait_for_completion_timeout`.
+
+To save the results of searches that complete during this period, set the
+`keep_on_completion` parameter to `true`.
+
+In the following search request, `keep_on_completion` is `true`. This means the
+search results are stored on the cluster, even if the search completes within
+the `2s` (two-second) period set by the `wait_for_completion_timeout` parameter.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "keep_on_completion": true,
+  "wait_for_completion_timeout": "2s",
+  "query": """
+    process where process.name == "cmd.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response. A search ID is provided in the `id`
+property. `is_partial` and `is_running` are `false`, indicating the EQL search
+was synchronous and returned complete results in `hits`.
+
+[source,console-result]
+----
+{
+  "id": "FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUToxMDY=",
+  "is_partial": false,
+  "is_running": false,
+  "took": 52,
+  "timed_out": false,
+  "hits": ...
+}
+----
+// TESTRESPONSE[s/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUToxMDY=/$body.id/]
+// TESTRESPONSE[s/"took": 52/"took": $body.took/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+You can use the search ID and the <<get-async-eql-search-api,get async EQL
+search API>> to retrieve the same results later.
+
+[source,console]
+----
+GET /_eql/search/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUToxMDY=
+----
+// TEST[skip: no access to search ID]
+
+Saved synchronous searches are still subject to the retention period set by the
+`keep_alive` parameter. After this period, the search and its results are
+deleted.
+
+You can also manually delete saved synchronous searches using the
+<<delete-async-eql-search-api,delete async EQL search API>>.
+
+include::syntax.asciidoc[]
+include::functions.asciidoc[]
+include::pipes.asciidoc[]

@@ -251,7 +251,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
                 }
             });
 
-            TaskId taskIdToRethrottle = findTaskToRethrottle(DeleteByQueryAction.NAME);
+            TaskId taskIdToRethrottle = findTaskToRethrottle(DeleteByQueryAction.NAME, deleteByQueryRequest.getDescription());
             float requestsPerSecond = 1000f;
             ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
                 highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);

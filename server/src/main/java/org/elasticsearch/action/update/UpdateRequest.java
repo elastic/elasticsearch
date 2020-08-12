@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -59,6 +60,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
+
     private static ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -120,6 +124,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
+    private boolean requireAlias = false;
 
     @Nullable
     private IndexRequest doc;
@@ -156,6 +161,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            requireAlias = in.readBoolean();
+        } else {
+            requireAlias = false;
+        }
     }
 
     public UpdateRequest(String index, String id) {
@@ -805,6 +815,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public boolean isRequireAlias() {
+        return requireAlias;
+    }
+
+    public UpdateRequest setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         doWrite(out, false);
@@ -863,6 +883,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(requireAlias);
+        }
     }
 
     @Override
@@ -927,5 +950,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
         res.append(", detect_noop[").append(detectNoop).append("]");
         return res.append("}").toString();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long childRequestBytes = 0;
+        if (doc != null) {
+            childRequestBytes += doc.ramBytesUsed();
+        }
+        if (upsertRequest != null) {
+            childRequestBytes += upsertRequest.ramBytesUsed();
+        }
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
     }
 }

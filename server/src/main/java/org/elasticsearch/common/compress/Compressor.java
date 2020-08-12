@@ -39,4 +39,20 @@ public interface Compressor {
      * output. Closing the returned {@link StreamOutput} will close the provided stream output.
      */
     StreamOutput streamOutput(OutputStream out) throws IOException;
+
+    /**
+     * Decompress bytes into a newly allocated buffer.
+     *
+     * @param bytesReference bytes to decompress
+     * @return decompressed bytes
+     */
+    BytesReference uncompress(BytesReference bytesReference) throws IOException;
+
+    /**
+     * Compress bytes into a newly allocated buffer.
+     *
+     * @param bytesReference bytes to compress
+     * @return compressed bytes
+     */
+    BytesReference compress(BytesReference bytesReference) throws IOException;
 }

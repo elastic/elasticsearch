@@ -7,15 +7,23 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,6 +35,7 @@ import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -47,7 +56,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
-        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -83,6 +92,13 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     blobContainer = singleBlobContainer;
                 }
 
+                final Path shardDir;
+                try {
+                    shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
@@ -98,10 +114,19 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         () -> 0L,
                         cacheService,
                         cacheDir,
+                        shardPath,
                         threadPool
                     )
                 ) {
-                    final boolean loaded = directory.loadSnapshot();
+                    ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                        randomAlphaOfLength(10),
+                        0,
+                        randomAlphaOfLength(10),
+                        true,
+                        ShardRoutingState.INITIALIZING
+                    );
+                    RecoveryState recoveryState = createRecoveryState();
+                    final boolean loaded = directory.loadSnapshot(recoveryState);
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -157,7 +182,14 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
+            final Path shardDir;
+            try {
+                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -170,10 +202,12 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
+                    shardPath,
                     threadPool
                 )
             ) {
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
+                RecoveryState recoveryState = createRecoveryState();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState);
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
@@ -204,6 +238,18 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
         }
         return containsEOFException(throwable.getCause(), seenThrowables);
+    }
+
+    private SearchableSnapshotRecoveryState createRecoveryState() {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            randomAlphaOfLength(10),
+            0,
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
     }
 
     /**

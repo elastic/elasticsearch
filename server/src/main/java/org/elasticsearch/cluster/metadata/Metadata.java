@@ -839,16 +839,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static class MetadataDiff implements Diff<Metadata> {
 
-        private long version;
-        private String clusterUUID;
-        private boolean clusterUUIDCommitted;
-        private CoordinationMetadata coordinationMetadata;
-        private Settings transientSettings;
-        private Settings persistentSettings;
-        private Diff<DiffableStringMap> hashesOfConsistentSettings;
-        private Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
-        private Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final long version;
+        private final String clusterUUID;
+        private final boolean clusterUUIDCommitted;
+        private final CoordinationMetadata coordinationMetadata;
+        private final Settings transientSettings;
+        private final Settings persistentSettings;
+        private final Diff<DiffableStringMap> hashesOfConsistentSettings;
+        private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
+        private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
+        private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
         MetadataDiff(Metadata before, Metadata after) {
             clusterUUID = after.clusterUUID;

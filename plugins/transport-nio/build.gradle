@@ -19,23 +19,26 @@ import org.elasticsearch.gradle.info.BuildParams
  * under the License.
  */
 apply plugin: "elasticsearch.publish"
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'
   classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
+// integTest have been converted to internalClusterTest 
+integTest.enabled = false
 dependencies {
-  compile project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-nio')
 
   // network stack
-  compile "io.netty:netty-buffer:${versions.netty}"
-  compile "io.netty:netty-codec:${versions.netty}"
-  compile "io.netty:netty-codec-http:${versions.netty}"
-  compile "io.netty:netty-common:${versions.netty}"
-  compile "io.netty:netty-handler:${versions.netty}"
-  compile "io.netty:netty-resolver:${versions.netty}"
-  compile "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -1,0 +1,6 @@
+---
+"No features should be used just by starting up with default configuration":
+  - do:
+      license.get_feature_usage: {}
+
+  - length: { features: 0 }

@@ -54,6 +54,7 @@ public abstract class UnzipTransform implements UnpackTransform {
     }
 
     protected String maybeTrim(ZipEntry entry) {
+        System.out.println("UnzipTransform.maybeTrim");
         return entry.getName();
     }
 

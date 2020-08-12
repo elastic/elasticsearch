@@ -29,6 +29,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
@@ -41,6 +43,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        Attribute<Boolean> jdkAttribute = Attribute.of("jdk", Boolean.class);
+        project.getDependencies().getAttributesSchema().attribute(jdkAttribute);
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
         project.getDependencies().registerTransform(JdkUnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
@@ -49,14 +53,19 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
         project.getDependencies().registerTransform(JdkSymbolicLinkPreservingUntarTransform.class, transformSpec -> {
-            transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName());
-            transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+            transformSpec.getFrom()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName())
+                .attribute(jdkAttribute, true);
+            transformSpec.getTo()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(jdkAttribute, true);
         });
 
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {
             Configuration configuration = project.getConfigurations().create("jdk_" + name);
             configuration.setCanBeConsumed(false);
             configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+            configuration.getAttributes().attribute(jdkAttribute, true);
             Jdk jdk = new Jdk(name, configuration, project.getObjects());
             configuration.defaultDependencies(dependencies -> {
                 jdk.finalizeValues();

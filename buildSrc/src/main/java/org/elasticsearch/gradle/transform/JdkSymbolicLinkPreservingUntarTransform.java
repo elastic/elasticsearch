@@ -23,7 +23,8 @@ import java.nio.file.Path;
 
 public abstract class JdkSymbolicLinkPreservingUntarTransform extends SymbolicLinkPreservingUntarTransform {
 
-    protected Path calculatePath(String input) {
-        return UnpackTransform.trimJdkArchiveExtractPath(input);
+    @Override
+    protected Path calculatePath(String path) {
+        return UnpackTransform.trimJdkArchiveExtractPath(path);
     }
 }

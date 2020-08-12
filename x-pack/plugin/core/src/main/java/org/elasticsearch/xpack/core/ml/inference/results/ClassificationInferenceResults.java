@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -79,18 +76,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictionFieldType = in.readEnum(PredictionFieldType.class);
-        } else {
-            this.predictionFieldType = PredictionFieldType.STRING;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            this.predictionProbability = in.readOptionalDouble();
-            this.predictionScore = in.readOptionalDouble();
-        } else {
-            this.predictionProbability = topClasses.size() > 0 ? topClasses.get(0).getProbability() : null;
-            this.predictionScore = topClasses.size() > 0 ? topClasses.get(0).getScore() : null;
-        }
+        this.predictionFieldType = in.readEnum(PredictionFieldType.class);
+        this.predictionProbability = in.readOptionalDouble();
+        this.predictionScore = in.readOptionalDouble();
     }
 
     public String getClassificationLabel() {
@@ -112,13 +100,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);
         out.writeString(resultsField);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeEnum(predictionFieldType);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalDouble(predictionProbability);
-            out.writeOptionalDouble(predictionScore);
-        }
+        out.writeEnum(predictionFieldType);
+        out.writeOptionalDouble(predictionProbability);
+        out.writeOptionalDouble(predictionScore);
     }
 
     @Override
@@ -158,13 +142,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public Object predictedValue() {
         return predictionFieldType.transformPredictedValue(value(), valueAsString());
-    }
-
-    @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
-        document.setFieldValue(parentResultField, asMap());
     }
 
     public Double getPredictionProbability() {

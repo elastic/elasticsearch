@@ -126,6 +126,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -152,6 +153,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
+    private boolean forceExecute;
     private ClusterService clusterService;
     private TransportService transportService;
     private CapturingTransport transport;
@@ -172,6 +174,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        forceExecute = randomBoolean();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
@@ -839,7 +842,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             //noinspection unchecked
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject(), eq(forceExecute));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -1272,7 +1275,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()),
-                Request::new, Request::new, ThreadPool.Names.SAME);
+                Request::new, Request::new, ThreadPool.Names.SAME, false, forceExecute);
         }
 
         @Override
@@ -1343,7 +1346,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(forceExecute));
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];

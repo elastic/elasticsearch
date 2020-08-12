@@ -25,6 +25,7 @@ import org.elasticsearch.painless.lookup.def;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
+    private final List<ConverterSignature> converterSignatures;
 
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
@@ -54,6 +56,8 @@ public class ScriptClassInfo {
         List<org.objectweb.asm.commons.Method> needsMethods = new ArrayList<>();
         List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
         List<Class<?>> getReturns = new ArrayList<>();
+
+        Class<?> returnType = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.isDefault()) {
                 continue;
@@ -61,16 +65,19 @@ public class ScriptClassInfo {
             if (m.getName().equals("execute")) {
                 if (executeMethod == null) {
                     executeMethod = m;
+                    returnType = m.getReturnType();
                 } else {
                     throw new IllegalArgumentException(
                             "Painless can only implement interfaces that have a single method named [execute] but [" + baseClass.getName()
                                     + "] has more than one.");
                 }
-            }
-            if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
+            } else if (m.getName().startsWith("needs") &&
+                       m.getReturnType() == boolean.class &&
+                       m.getParameterTypes().length == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
-            }
-            if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
+            } else if (m.getName().startsWith("get") &&
+                       m.getName().equals("getClass") == false &&
+                       Modifier.isStatic(m.getModifiers()) == false) {
                 getReturns.add(
                     definitionTypeForClass(painlessLookup, m.getReturnType(), componentType -> "[" + m.getName() + "] has unknown return " +
                         "type [" + componentType.getName() + "]. Painless can only support getters with return types that are " +
@@ -81,6 +88,22 @@ public class ScriptClassInfo {
 
             }
         }
+
+        if (executeMethod == null) {
+            throw new IllegalStateException("no execute method found");
+        }
+        ArrayList<ConverterSignature> converterSignatures = new ArrayList<>();
+        for (java.lang.reflect.Method m : baseClass.getMethods()) {
+            if (m.getName().startsWith("convertFrom") &&
+                m.getParameterTypes().length == 1 &&
+                m.getReturnType() == returnType &&
+                Modifier.isStatic(m.getModifiers())) {
+
+                converterSignatures.add(new ConverterSignature(m));
+            }
+        }
+        this.converterSignatures = unmodifiableList(converterSignatures);
+
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
         executeMethodReturnType = definitionTypeForClass(painlessLookup, executeMethod.getReturnType(),
@@ -215,5 +238,24 @@ public class ScriptClassInfo {
         } catch (IllegalArgumentException | IllegalAccessException e) {
             throw new IllegalArgumentException("Error trying to read [" + iface.getName() + "#ARGUMENTS]", e);
         }
+    }
+
+    private static class ConverterSignature {
+        final Class<?> parameter;
+        final Method method;
+
+        ConverterSignature(Method method) {
+            this.method = method;
+            this.parameter = method.getParameterTypes()[0];
+        }
+    }
+
+    public Method getConverter(Class<?> original) {
+        for (ConverterSignature converterSignature: converterSignatures) {
+            if (converterSignature.parameter.isAssignableFrom(original)) {
+                return converterSignature.method;
+            }
+        }
+        return null;
     }
 }

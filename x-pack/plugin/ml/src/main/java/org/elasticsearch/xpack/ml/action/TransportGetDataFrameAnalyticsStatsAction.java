@@ -63,6 +63,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -167,6 +168,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         AtomicInteger counter = new AtomicInteger(stoppedConfigs.size());
         AtomicArray<Stats> jobStats = new AtomicArray<>(stoppedConfigs.size());
+        AtomicReference<Exception> searchException = new AtomicReference<>();
         for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
             DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
@@ -174,6 +176,10 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 stats -> {
                     jobStats.set(slot, stats);
                     if (counter.decrementAndGet() == 0) {
+                        if (searchException.get() != null) {
+                            listener.onFailure(searchException.get());
+                            return;
+                        }
                         List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
                         allTasksStats.addAll(jobStats.asList());
                         Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
@@ -181,7 +187,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
                             allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
                     }
                 },
-                listener::onFailure)
+                e -> {
+                    // take the first error
+                    searchException.compareAndSet(null, e);
+                    if (counter.decrementAndGet() == 0) {
+                        listener.onFailure(e);
+                    }
+                })
             );
         }
     }

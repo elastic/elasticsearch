@@ -1,7 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[ingest-circle-processor]]
-=== Circle Processor
+=== Circle processor
+++++
+<titleabbrev>Circle</titleabbrev>
+++++
+
 Converts circle definitions of shapes to regular polygons which approximate them.
 
 [[circle-processor-options]]

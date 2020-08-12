@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -38,12 +38,12 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
-    private final DocumentFieldMappers fieldMappers;
+    private final MappingLookup fieldMappers;
     private final List<FieldContext> fieldContexts;
 
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<FieldAndFormat> fieldAndFormats) {
-        DocumentFieldMappers fieldMappers = mapperService.documentMapper().mappers();
+        MappingLookup fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fields = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
@@ -63,7 +63,7 @@ public class FieldValueRetriever {
     }
 
 
-    private FieldValueRetriever(DocumentFieldMappers fieldMappers,
+    private FieldValueRetriever(MappingLookup fieldMappers,
                                 List<FieldContext> fieldContexts) {
         this.fieldMappers = fieldMappers;
         this.fieldContexts = fieldContexts;

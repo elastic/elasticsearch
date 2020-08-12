@@ -22,6 +22,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -64,7 +65,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 1.0,
                 1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
     }
@@ -78,9 +79,20 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             1.0,
             1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("1.0"));
+
+        result = new ClassificationInferenceResults(2.0,
+            null,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            ClassificationConfig.EMPTY_PARAMS,
+            1.0,
+            1.0);
+        writeResult(result, document, "result_field", "test");
+        assertThat(document.getFieldValue("result_field.0.predicted_value", String.class), equalTo("1.0"));
+        assertThat(document.getFieldValue("result_field.1.predicted_value", String.class), equalTo("2.0"));
     }
 
     @SuppressWarnings("unchecked")
@@ -97,7 +109,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             0.7,
             0.7);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.bar", List.class);
         assertThat(list.size(), equalTo(3));
@@ -126,7 +138,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             1.0,
             1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
         @SuppressWarnings("unchecked")

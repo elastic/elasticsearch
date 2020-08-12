@@ -67,8 +67,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -1303,12 +1301,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void cacheRepositoryData(BytesReference updated, long generation) {
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
-            BytesStreamOutput out = new BytesStreamOutput();
             try {
-                try (StreamOutput tmp = CompressorFactory.COMPRESSOR.streamOutput(out)) {
-                    updated.writeTo(tmp);
-                }
-                serialized = out.bytes();
+                serialized = CompressorFactory.COMPRESSOR.compress(updated);
                 final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug("Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in" +

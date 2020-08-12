@@ -41,19 +41,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     // TODO: check reuse of root task across projects MOVE TO UNIT TEST
     // TODO: future: check integ-test-zip to maven, snapshots to snapshot service for external project
-    public void testCurrentExternal() throws Exception {
-        checkService(
-            VersionProperties.getElasticsearch(),
-            "archive",
-            "linux",
-            null,
-            null,
-            "/downloads/elasticsearch/elasticsearch-" + VersionProperties.getElasticsearch() + "-linux-x86_64.tar.gz",
-            "tests.internal",
-            "false"
-        );
-    }
-
     public void testBwcExternal() throws Exception {
         checkService(
             "8.1.0-SNAPSHOT",

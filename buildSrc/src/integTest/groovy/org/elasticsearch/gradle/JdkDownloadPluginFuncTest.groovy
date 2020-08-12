@@ -185,7 +185,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform  | transformType
-        "linux"   | JdkSymbolicLinkPreservingUntarTransform.class.name
+        "linux"   | JdkSymbolicLinkPreservingUntarTransform.class.simpleName
         "windows" | JdkUnzipTransform.class.simpleName
     }
 

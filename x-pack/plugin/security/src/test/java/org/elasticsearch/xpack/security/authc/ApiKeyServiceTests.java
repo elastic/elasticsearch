@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -326,26 +324,19 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     private void mockKeyDocument(ApiKeyService service, String id, String key, User user, boolean invalidated,
                                  Duration expiry) throws IOException {
-        mockKeyDocument(service, id, key, user, invalidated, expiry, Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), null);
-    }
-
-    private void mockKeyDocument(ApiKeyService service, String id, String key, User user, boolean invalidated,
-                                 Duration expiry, Set<RoleDescriptor> userRoleDescriptors,
-                                 List<RoleDescriptor> keyRoleDescriptors) throws IOException {
         final Authentication authentication;
         if (user.isRunAs()) {
             authentication = new Authentication(user, new RealmRef("authRealm", "test", "foo"),
-                new RealmRef("realm1", "native", "node01"), Version.CURRENT,
-                randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
-                    AuthenticationType.ANONYMOUS), Collections.emptyMap());
+                    new RealmRef("realm1", "native", "node01"), Version.CURRENT,
+                    randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
+                            AuthenticationType.ANONYMOUS), Collections.emptyMap());
         } else {
             authentication = new Authentication(user, new RealmRef("realm1", "native", "node01"), null,
-                Version.CURRENT, randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
-                AuthenticationType.ANONYMOUS), Collections.emptyMap());
+                    Version.CURRENT, randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
+                            AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
-            userRoleDescriptors, Instant.now(),
-            expiry == null ? null : Instant.now().plus(expiry), keyRoleDescriptors,
+            Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), null,
             Version.CURRENT);
         if (invalidated) {
             Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
@@ -371,73 +362,53 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testValidateApiKey() throws Exception {
-        ThreadContext threadContext = threadPool.getThreadContext();
         final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
-
-        // First auth with no expiration
-        String docId = randomAlphaOfLength(12);
-        ApiKeyService.ApiKeyCredentials creds = new ApiKeyService.ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-
-        BytesArray roleDescriptorsBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
-        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(docId, roleDescriptorsBytes);
-        BytesArray limitedByRoleDescriptorsBytes = new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}");
-        Set<RoleDescriptor> limitedByRoleDescriptors = Set.copyOf(service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), false, null,
-            limitedByRoleDescriptors, roleDescriptors);
-
+        ApiKeyService.ApiKeyCredentials creds =
+            new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         AuthenticationResult result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(((BytesArray)result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString(),
-            containsString("\"a role\""));
-        assertThat(((BytesArray)result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString(),
-            containsString("{\"limited role\""));
+        assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
-        // Second auth of expiration time in 1 hour
-        docId = randomAlphaOfLength(12);
-        creds = new ApiKeyService.ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), false, Duration.ofHours(1),
-            limitedByRoleDescriptors, roleDescriptors);
+        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(((BytesArray)result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString(),
-            containsString("\"a role\""));
-        assertThat(((BytesArray)result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString(),
-            containsString("{\"limited role\""));
+        assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
-        // Third auth with expiration in the past
-        docId = randomAlphaOfLength(12);
-        creds = new ApiKeyService.ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), false, Duration.ofSeconds(-3600),
-            limitedByRoleDescriptors, roleDescriptors);
+        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
 
-        // Fourth auth with key being invalidated
-        docId = randomAlphaOfLength(12);
-        creds = new ApiKeyService.ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), true, null,
-            limitedByRoleDescriptors, roleDescriptors);
+        apiKeyDoc = buildApiKeyDoc(hash, -1, true);
+        creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
@@ -595,71 +566,53 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("api_keys"));
     }
 
-    public void testApiKeyCache() throws IOException {
-        ThreadContext threadContext = threadPool.getThreadContext();
-
+    public void testApiKeyCache() {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
-
-        // First authentication
-        String docId = randomAlphaOfLength(12);
-        ApiKeyCredentials creds = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-
-        BytesArray roleDescriptorsBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
-        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(docId, roleDescriptorsBytes);
-        BytesArray limitedByRoleDescriptorsBytes = new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}");
-        Set<RoleDescriptor> limitedByRoleDescriptors = Set.copyOf(service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), false, null,
-            limitedByRoleDescriptors, roleDescriptors);
-
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         AuthenticationResult result = future.actionGet();
         assertThat(result.isAuthenticated(), is(true));
         CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
         assertNotNull(cachedApiKeyHashResult);
         assertThat(cachedApiKeyHashResult.success, is(true));
 
-        // Second authentication with same ID but wrong key secret
-        creds = new ApiKeyCredentials(docId, new SecureString("foobar".toCharArray()));
+        creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar".toCharArray()));
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.actionGet();
         assertThat(result.isAuthenticated(), is(false));
         final CachedApiKeyHashResult shouldBeSame = service.getFromCache(creds.getId());
         assertNotNull(shouldBeSame);
         assertThat(shouldBeSame, sameInstance(cachedApiKeyHashResult));
 
-        // 3rd auth for negative caching
-        docId = randomAlphaOfLength(12);
-        creds = new ApiKeyCredentials(docId, new SecureString("foobar1".toCharArray()));
-        mockKeyDocument(service, docId, "foobar", new User("test_user"), false, null,
-            limitedByRoleDescriptors, roleDescriptors);
-
+        apiKeyDoc = buildApiKeyDoc(hasher.hash(new SecureString("foobar".toCharArray())), -1, false);
+        creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString("foobar1".toCharArray()));
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.actionGet();
         assertThat(result.isAuthenticated(), is(false));
         cachedApiKeyHashResult = service.getFromCache(creds.getId());
         assertNotNull(cachedApiKeyHashResult);
         assertThat(cachedApiKeyHashResult.success, is(false));
 
-        // 4th auth for negative caching again
         creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar2".toCharArray()));
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.actionGet();
         assertThat(result.isAuthenticated(), is(false));
         assertThat(service.getFromCache(creds.getId()), not(sameInstance(cachedApiKeyHashResult)));
         assertThat(service.getFromCache(creds.getId()).success, is(false));
 
-        // 5th auth for positive caching
         creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar".toCharArray()));
         future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.actionGet();
         assertThat(result.isAuthenticated(), is(true));
         assertThat(service.getFromCache(creds.getId()), not(sameInstance(cachedApiKeyHashResult)));
@@ -724,25 +677,20 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(cachedApiKeyHashResult.success, is(true));
     }
 
-    public void testApiKeyCacheDisabled() throws IOException {
-        ThreadContext threadContext = threadPool.getThreadContext();
+    public void testApiKeyCacheDisabled() {
         final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder()
             .put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s")
             .build();
 
-        ApiKeyService service = createApiKeyService(settings);
-        final String docId = randomAlphaOfLength(12);
-        ApiKeyCredentials creds = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-        BytesArray roleDescriptorsBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
-        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(docId, roleDescriptorsBytes);
-        BytesArray limitedByRoleDescriptorsBytes = new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}");
-        Set<RoleDescriptor> limitedByRoleDescriptors = Set.copyOf(service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes));
-        mockKeyDocument(service, docId, apiKey, new User("test_user"), false, null,
-            limitedByRoleDescriptors, roleDescriptors);
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
 
+        ApiKeyService service = createApiKeyService(settings);
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        service.validateApiKeyCredentials(threadContext, creds, null, future);
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         AuthenticationResult result = future.actionGet();
         assertThat(result.isAuthenticated(), is(true));
         CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());

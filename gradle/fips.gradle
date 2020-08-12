@@ -22,6 +22,7 @@ if (BuildParams.inFipsJvm) {
         test.setClasspath(test.getClasspath().plus(extraFipsJars))
       }
     }
+
     pluginManager.withPlugin('elasticsearch.java') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {
@@ -30,9 +31,6 @@ if (BuildParams.inFipsJvm) {
         copy 'fips_java.policy'
         copy 'cacerts.bcfks'
       }
-
-      project.getDependencies().add("testRuntimeOnly", bcFips);
-      project.getDependencies().add("testRuntimeOnly", bcTlsFips);
 
       pluginManager.withPlugin("elasticsearch.testclusters") {
         afterEvaluate {

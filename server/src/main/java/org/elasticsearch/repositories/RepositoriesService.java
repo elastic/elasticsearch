@@ -279,6 +279,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
+    static boolean isDedicatedVotingOnlyNode(DiscoveryNode node) {
+        return node.isMasterNode() && node.isDataNode() == false &&
+            node.getRoles().stream().anyMatch(role -> role.roleName().equals("voting_only"));
+    }
 
     /**
      * Checks if new repositories appeared in or disappeared from cluster metadata and updates current list of
@@ -290,6 +294,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
+            if (isDedicatedVotingOnlyNode(state.nodes().getLocalNode())) {
+                return;
+            }
             RepositoriesMetadata oldMetadata = event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE);
             RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE);
 

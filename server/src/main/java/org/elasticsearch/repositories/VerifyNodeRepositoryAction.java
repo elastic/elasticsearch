@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +76,9 @@ public class VerifyNodeRepositoryAction {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            nodes.add(node);
+            if (RepositoriesService.isDedicatedVotingOnlyNode(node) == false) {
+                nodes.add(node);
+            }
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());

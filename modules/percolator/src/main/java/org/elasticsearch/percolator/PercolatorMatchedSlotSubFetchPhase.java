@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -35,9 +34,11 @@ import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -55,62 +56,86 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     static final String FIELD_NAME_PREFIX = "_percolator_document_slot";
 
     @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        innerHitsExecute(context.query(), context.searcher(), hits);
+    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException {
+
+        List<PercolateContext> percolateContexts = new ArrayList<>();
+        for (PercolateQuery pq : locatePercolatorQuery(searchContext.query())) {
+            percolateContexts.add(new PercolateContext(pq));
+        }
+        if (percolateContexts.isEmpty()) {
+            return null;
+        }
+        boolean singlePercolateQuery = percolateContexts.size() == 1;
+
+        return new FetchSubPhaseExecutor() {
+
+            LeafReaderContext ctx;
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+                this.ctx = readerContext;
+            }
+
+            @Override
+            public void execute(HitContext hitContext) throws IOException {
+                for (PercolateContext pc : percolateContexts) {
+                    String fieldName = pc.fieldName(singlePercolateQuery);
+                    Query query = pc.percolateQuery.getQueryStore().getQueries(ctx).apply(hitContext.readerDocId());
+                    if (query == null) {
+                        // This is not a document with a percolator field.
+                        return;
+                    }
+                    query = pc.filterNestedDocs(query);
+                    IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
+                    int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
+                    TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
+                    if (topDocs.totalHits.value == 0) {
+                        // This hit didn't match with a percolate query,
+                        // likely to happen when percolating multiple documents
+                        return;
+                    }
+
+                    IntStream slots = convertTopDocsToSlots(topDocs, pc.rootDocsBySlot);
+                    // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
+                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                }
+            }
+        };
     }
 
-    static void innerHitsExecute(Query mainQuery,
-                                 IndexSearcher indexSearcher,
-                                 HitContext[] hits) throws IOException {
-        List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
-        if (percolateQueries.isEmpty()) {
-            return;
-        }
+    static class PercolateContext {
+        final PercolateQuery percolateQuery;
+        final int[] rootDocsBySlot;
 
-        boolean singlePercolateQuery = percolateQueries.size() == 1;
-        for (PercolateQuery percolateQuery : percolateQueries) {
-            String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
+        PercolateContext(PercolateQuery pq) throws IOException {
+            this.percolateQuery = pq;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
             Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter());
             Weight weight = percolatorIndexSearcher.createWeight(nonNestedFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
             BitSet rootDocs = BitSet.of(s.iterator(), memoryIndexMaxDoc);
-            int[] rootDocsBySlot = null;
             boolean hasNestedDocs = rootDocs.cardinality() != percolatorIndexSearcher.getIndexReader().numDocs();
             if (hasNestedDocs) {
-                rootDocsBySlot = buildRootDocsSlots(rootDocs);
+                this.rootDocsBySlot = buildRootDocsSlots(rootDocs);
+            } else {
+                this.rootDocsBySlot = null;
             }
+        }
 
-            PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
-            List<LeafReaderContext> ctxs = indexSearcher.getIndexReader().leaves();
-            for (HitContext hit : hits) {
-                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.hit().docId(), ctxs));
-                int segmentDocId = hit.hit().docId() - ctx.docBase;
-                Query query = queryStore.getQueries(ctx).apply(segmentDocId);
-                if (query == null) {
-                    // This is not a document with a percolator field.
-                    continue;
-                }
-                if (hasNestedDocs) {
-                    // Ensures that we filter out nested documents
-                    query = new BooleanQuery.Builder()
-                        .add(query, BooleanClause.Occur.MUST)
-                        .add(nonNestedFilter, BooleanClause.Occur.FILTER)
-                        .build();
-                }
+        String fieldName(boolean singlePercolateQuery) {
+            return singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
+        }
 
-                TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
-                if (topDocs.totalHits.value == 0) {
-                    // This hit didn't match with a percolate query,
-                    // likely to happen when percolating multiple documents
-                    continue;
-                }
-
-                IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
-                hit.hit().setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+        Query filterNestedDocs(Query in) {
+            if (rootDocsBySlot != null) {
+                // Ensures that we filter out nested documents
+                return new BooleanQuery.Builder()
+                    .add(in, BooleanClause.Occur.MUST)
+                    .add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER)
+                    .build();
             }
+            return in;
         }
     }
 

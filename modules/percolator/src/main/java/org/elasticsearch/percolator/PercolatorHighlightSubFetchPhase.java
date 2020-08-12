@@ -20,20 +20,17 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,104 +48,85 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     private final HighlightPhase highlightPhase;
 
     PercolatorHighlightSubFetchPhase(Map<String, Highlighter> highlighters) {
-        this.highlightPhase = new HighlightPhase(highlighters);
-    }
-
-    boolean hitsExecutionNeeded(SearchContext context) { // for testing
-        return context.highlight() != null && locatePercolatorQuery(context.query()).isEmpty() == false;
+        this.highlightPhase = new HighlightPhase(highlighters, true);   // MemoryIndex doesn't store fields
     }
 
     @Override
     public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException {
-        if (hitsExecutionNeeded(searchContext)) {
+        if (searchContext.highlight() == null) {
+            return null;
+        }
+        List<PercolateQuery> percolateQueries = locatePercolatorQuery(searchContext.query());
+        if (percolateQueries.isEmpty()) {
             return null;
         }
         return new FetchSubPhaseExecutor() {
+
+            LeafReaderContext ctx;
+
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                
+                this.ctx = readerContext;
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void execute(HitContext hit) throws IOException {
+                boolean singlePercolateQuery = percolateQueries.size() == 1;
+                for (PercolateQuery percolateQuery : percolateQueries) {
+                    String fieldName = singlePercolateQuery ? PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX :
+                        PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
+                    IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
+                    PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
-            }
-        }
-    }
+                    LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
+                    final Query query = queryStore.getQueries(ctx).apply(hit.readerDocId());
+                    if (query != null) {
+                        DocumentField field = hit.hit().field(fieldName);
+                        if (field == null) {
+                            // It possible that a hit did not match with a particular percolate query,
+                            // so then continue highlighting with the next hit.
+                            return;
+                        }
 
-    @Override
-    public void hitsExecute(SearchContext context, HitContext[] hits) throws IOException {
-        if (hitsExecutionNeeded(context) == false) {
-            return;
-        }
-        List<PercolateQuery> percolateQueries = locatePercolatorQuery(context.query());
-        if (percolateQueries.isEmpty()) {
-            // shouldn't happen as we checked for the existence of a percolator query in hitsExecutionNeeded(...)
-            throw new IllegalStateException("couldn't locate percolator query");
-        }
-
-        boolean singlePercolateQuery = percolateQueries.size() == 1;
-        for (PercolateQuery percolateQuery : percolateQueries) {
-            String fieldName = singlePercolateQuery ? PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX :
-                PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
-            List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
-            IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
-
-            LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
-
-            for (HitContext hit : hits) {
-                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
-                int segmentDocId = hit.docId() - ctx.docBase;
-                final Query query = queryStore.getQueries(ctx).apply(segmentDocId);
-                if (query != null) {
-                    DocumentField field = hit.hit().field(fieldName);
-                    if (field == null) {
-                        // It possible that a hit did not match with a particular percolate query,
-                        // so then continue highlighting with the next hit.
-                        continue;
-                    }
-
-                    for (Object matchedSlot : field.getValues()) {
-                        int slot = (int) matchedSlot;
-                        BytesReference document = percolateQuery.getDocuments().get(slot);
-                        // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-                        SearchHighlightContext highlight = new SearchHighlightContext(context.highlight().fields(), true);
-                        QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
-                        shardContext.freezeContext();
-                        HitContext subContext = new HitContext(
-                            new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
-                            percolatorLeafReaderContext, slot, percolatorIndexSearcher, new HashMap<>()
-                        );
-                        subContext.sourceLookup().setSource(document);
-                        highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, subContext);
-                        for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
-                            if (percolateQuery.getDocuments().size() == 1) {
-                                String hlFieldName;
-                                if (singlePercolateQuery) {
-                                    hlFieldName = entry.getKey();
+                        for (Object matchedSlot : field.getValues()) {
+                            int slot = (int) matchedSlot;
+                            BytesReference document = percolateQuery.getDocuments().get(slot);
+                            HitContext subContext = new HitContext(
+                                new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
+                                percolatorLeafReaderContext, slot, percolatorIndexSearcher, new HashMap<>()
+                            );
+                            subContext.sourceLookup().setSource(document);
+                            FetchSubPhaseExecutor executor = highlightPhase.getExecutor(searchContext);
+                            executor.setNextReader(percolatorLeafReaderContext);
+                            executor.execute(subContext);
+                            for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
+                                if (percolateQuery.getDocuments().size() == 1) {
+                                    String hlFieldName;
+                                    if (singlePercolateQuery) {
+                                        hlFieldName = entry.getKey();
+                                    } else {
+                                        hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
+                                    }
+                                    hit.hit().getHighlightFields().put(hlFieldName,
+                                        new HighlightField(hlFieldName, entry.getValue().fragments()));
                                 } else {
-                                    hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
+                                    // In case multiple documents are being percolated we need to identify to which document
+                                    // a highlight belongs to.
+                                    String hlFieldName;
+                                    if (singlePercolateQuery) {
+                                        hlFieldName = slot + "_" + entry.getKey();
+                                    } else {
+                                        hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
+                                    }
+                                    hit.hit().getHighlightFields().put(hlFieldName,
+                                        new HighlightField(hlFieldName, entry.getValue().fragments()));
                                 }
-                                hit.hit().getHighlightFields().put(hlFieldName,
-                                    new HighlightField(hlFieldName, entry.getValue().fragments()));
-                            } else {
-                                // In case multiple documents are being percolated we need to identify to which document
-                                // a highlight belongs to.
-                                String hlFieldName;
-                                if (singlePercolateQuery) {
-                                    hlFieldName = slot + "_" + entry.getKey();
-                                } else {
-                                    hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
-                                }
-                                hit.hit().getHighlightFields().put(hlFieldName,
-                                    new HighlightField(hlFieldName, entry.getValue().fragments()));
                             }
                         }
                     }
                 }
             }
-        }
+        };
     }
 
     static List<PercolateQuery> locatePercolatorQuery(Query query) {

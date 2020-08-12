@@ -40,10 +40,17 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class HighlightPhase implements FetchSubPhase {
+
     private final Map<String, Highlighter> highlighters;
+    private final boolean globalForceSource;
 
     public HighlightPhase(Map<String, Highlighter> highlighters) {
+        this(highlighters, false);
+    }
+
+    public HighlightPhase(Map<String, Highlighter> highlighters, boolean globalForceSource) {
         this.highlighters = highlighters;
+        this.globalForceSource = globalForceSource;
     }
 
     @Override
@@ -141,7 +148,7 @@ public class HighlightPhase implements FetchSubPhase {
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
-                boolean forceSource = highlight.forceSource(field);
+                boolean forceSource = globalForceSource || highlight.forceSource(field);
                 builders.put(fieldName,
                     hc -> new FieldHighlightContext(fieldName, field, fieldType, shardTarget, context, hc,
                         highlightQuery == null ? query : highlightQuery, forceSource, fieldNameContainsWildcards));

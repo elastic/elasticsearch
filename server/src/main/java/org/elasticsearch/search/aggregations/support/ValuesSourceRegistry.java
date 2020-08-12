@@ -159,7 +159,6 @@ public class ValuesSourceRegistry {
     ) {
         this.usageService = usageService;
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
-        this.usageService = usageService;
     }
 
     public boolean isRegistered(RegistryKey<?> registryKey) {

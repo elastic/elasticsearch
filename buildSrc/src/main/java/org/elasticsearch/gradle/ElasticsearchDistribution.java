@@ -103,18 +103,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
         @Override
         public TaskDependency getBuildDependencies() {
-            System.out.println("configuration.getName() = " + configuration.getName());
-            System.out.println("configuration.getName() = " + configuration.getName());
-            configuration.getDependencies().forEach(d -> System.out.println("d = " + d));
             TaskDependency buildDependencies = configuration.getBuildDependencies();
-            System.out.println("buildDependencies = " + buildDependencies);
             return configuration.getBuildDependencies();
-        }
-
-        // TODO toString() should not result in a configuration resolution.
-        @Override
-        public String toString() {
-            return configuration.getSingleFile().toString();
         }
 
         public Configuration getConfiguration() {

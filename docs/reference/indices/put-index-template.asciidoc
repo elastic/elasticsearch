@@ -88,8 +88,8 @@ IMPORTANT: {es} comes with built-in index templates for the `metrics-*-*` and
 `logs-*-*` index patterns.
 {ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
 create data streams. To avoid accidentally applying these templates, use a
-non-overlapping index pattern, or assign your templates a `priority` greater
-or lower than `100`.
+non-overlapping index pattern, or assign your templates a `priority` less
+than `100`.
 
 [xpack]#`data_stream`#::
 (Optional, object)

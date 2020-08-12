@@ -38,7 +38,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
 
     private void assertEquals(CompressedXContent s1, CompressedXContent s2) {
         Assert.assertEquals(s1, s2);
-        assertArrayEquals(s1.uncompressed(), s2.uncompressed());
+        assertEquals(s1.uncompressed(), s2.uncompressed());
         assertEquals(s1.hashCode(), s2.hashCode());
     }
 

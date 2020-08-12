@@ -10,13 +10,13 @@ coming from one index matter more than hits coming from another index.
 --------------------------------------------------
 GET /_search
 {
-  "indices_boost" : {
-    "index1" : 1.4,
-    "index2" : 1.3
-  }
+  "indices_boost": [
+    { "my-index-000001": 1.4 },
+    { "my-index-000002": 1.3 }
+  ]
 }
 --------------------------------------------------
-// TEST[setup:index_boost warning:Object format in indices_boost is deprecated, please use array format instead]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 You can also specify it as an array to control the order of boosts.
 
@@ -24,13 +24,13 @@ You can also specify it as an array to control the order of boosts.
 --------------------------------------------------
 GET /_search
 {
-  "indices_boost" : [
-    { "alias1" : 1.4 },
-    { "index*" : 1.3 }
+  "indices_boost": [
+    { "my-alias":  1.4 },
+    { "my-index*": 1.3 }
   ]
 }
 --------------------------------------------------
-// TEST[continued]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000001\/_alias\/my-alias\n/]
 
 This is important when you use aliases or wildcard expression.
 If multiple matches are found, the first match will be used.

@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotReque
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -106,6 +107,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -403,11 +405,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repositoryData.getSnapshots(indexId).contains(sourceSnapshotId) &&
                                 Regex.simpleMatch(request.indices(), indexId.getName())).collect(Collectors.toList());
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
-                // TODO: load all index metadata blobs for the indices to copy and then assign shard clones
-                // TODO: tricky here ... index uuid in shard-id does not matter
-                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.of();
-                newEntry = SnapshotsInProgress.startClone(snapshot, sourceSnapshotId,
-                        indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, version);
+                newEntry = SnapshotsInProgress.startClone(
+                        snapshot, sourceSnapshotId, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), version);
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
@@ -424,7 +423,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
                 addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
-
+                startCloning(repositoryData, newEntry);
             }
 
             @Override
@@ -432,6 +431,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+    }
+
+    /**
+     * Determine the number of shards in each index of a clone operation and update the cluster state accordingly.
+     *
+     * @param repositoryData  repository data at the time the clone operation was started
+     * @param cloneEntry      clone operation in the cluster state
+     */
+    private void startCloning(RepositoryData repositoryData, SnapshotsInProgress.Entry cloneEntry) {
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final List<IndexId> indices = cloneEntry.indices();
+        final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener = new GroupedActionListener<>(
+                ActionListener.wrap(counts -> {
+                    final ImmutableOpenMap.Builder<String, List<ShardState>> builder = ImmutableOpenMap.builder();
+                    for (Tuple<IndexId, Integer> count : counts) {
+                        // TODO: fill with either init or started then submit cs update and actually run the clones that are possible
+                        //  to execute
+                    }
+                }, e -> removeFailedSnapshotFromClusterState(cloneEntry.snapshot(), e, repositoryData)), indices.size());
     }
 
     private void ensureBelowConcurrencyLimit(String repository, String name, SnapshotsInProgress snapshotsInProgress,
@@ -1176,10 +1194,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * used when the snapshot fails for some reason. During normal operation the snapshot repository will remove the
      * {@link SnapshotsInProgress.Entry} from the cluster state once it's done finalizing the snapshot.
      *
-     * @param snapshot snapshot that failed
-     * @param failure  exception that failed the snapshot
+     * @param snapshot       snapshot that failed
+     * @param failure        exception that failed the snapshot
+     * @param repositoryData repository data if the next finalization operation on the repository should be attempted or {@code null} if
+     *                       no further actions should be executed
      */
-    private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, RepositoryData repositoryData) {
+    private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, @Nullable RepositoryData repositoryData) {
         assert failure != null : "Failure must be supplied";
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
@@ -1210,7 +1230,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 failSnapshotCompletionListeners(snapshot, failure);
-                runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
+                if (repositoryData != null) {
+                    runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
+                }
             }
         });
     }

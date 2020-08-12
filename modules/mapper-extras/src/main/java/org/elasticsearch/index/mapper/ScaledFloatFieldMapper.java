@@ -486,7 +486,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return sourceValueFetcher(lookup, value -> {
+        return ValueFetcher.fromSource(this, lookup, value -> {
             double doubleValue;
             if (value.equals("")) {
                 if (nullValue == null) {
@@ -626,7 +626,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public LeafValueFetcher buildFetcher(DocValueFormat format) {
+        public ValueFetcher.LeafValueFetcher buildFetcher(DocValueFormat format) {
             SortedNumericDoubleValues doubles = getDoubleValues();
             return docId -> {
                 if (false == doubles.advanceExact(docId)) {

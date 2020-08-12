@@ -194,7 +194,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         CheckedFunction<Object, Object, IOException> formatter = mappedFieldType.geometryParser().formatter(this, format);
-        return sourceListValueFetcher(lookup, v -> (List<?>) formatter.apply(v));
+        return ValueFetcher.fromSource(this, lookup, v -> (List<?>) formatter.apply(v));
     }
 
 

@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -171,7 +172,7 @@ public class HistogramFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return sourceValueFetcher(lookup, v -> v);
+        return ValueFetcher.fromSource(this, lookup, v -> v);
     }
 
     public static class HistogramFieldType extends MappedFieldType {

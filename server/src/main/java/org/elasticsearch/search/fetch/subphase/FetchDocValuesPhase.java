@@ -24,8 +24,8 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -81,7 +81,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     format = fieldType.docValueFormat(formatDesc, null);
                 }
                 LeafReaderContext subReaderContext = null;
-                LeafValueFetcher fetcher = null;
+                ValueFetcher.LeafValueFetcher fetcher = null;
                 for (SearchHit hit : hits) {
                     // if the reader index has changed we need to get a new doc values reader instance
                     if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {

@@ -410,7 +410,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return sourceValueFetcher(lookup, value -> {
+        return ValueFetcher.fromSource(this, lookup, value -> {
             String keywordValue = value.toString();
             if (keywordValue.length() > ignoreAbove) {
                 return null;

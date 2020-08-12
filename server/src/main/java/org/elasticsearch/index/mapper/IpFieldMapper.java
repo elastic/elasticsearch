@@ -413,7 +413,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return sourceValueFetcher(lookup, value -> {
+        return ValueFetcher.fromSource(this, lookup, value -> {
             InetAddress address;
             if (value instanceof InetAddress) {
                 address = (InetAddress) value;

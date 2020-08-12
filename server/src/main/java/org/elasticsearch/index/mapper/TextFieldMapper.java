@@ -841,7 +841,7 @@ public class TextFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return sourceValueFetcher(lookup, Object::toString);
+        return ValueFetcher.fromSource(this, lookup, Object::toString);
     }
 
     @Override

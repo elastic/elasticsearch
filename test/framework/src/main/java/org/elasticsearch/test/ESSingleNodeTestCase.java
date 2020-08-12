@@ -66,11 +66,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcher.LeafValueFetcher;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -422,7 +423,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
+                        ValueFetcher.LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) throws IOException {}

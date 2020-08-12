@@ -22,11 +22,11 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
-import org.elasticsearch.index.mapper.FieldMapper.ValueFetcher;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcher.LeafValueFetcher;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -116,7 +116,7 @@ public class FieldValueRetriever {
         final List<FieldMapper> mappers;
         final @Nullable String format;
         final List<ValueFetcher> fetchers;
-        final List<LeafValueFetcher> leafFetchers;
+        final List<ValueFetcher.LeafValueFetcher> leafFetchers;
 
         FieldContext(String fieldName,
                      List<FieldMapper> mappers,

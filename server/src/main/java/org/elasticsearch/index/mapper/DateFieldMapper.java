@@ -600,7 +600,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         DateFormatter dtFormatter = format == null
             ? fieldType().dateTimeFormatter()
             : DateFormatter.forPattern(format).withLocale(fieldType().dateTimeFormatter().locale());
-       return sourceValueFetcher(lookup, value -> {
+       return ValueFetcher.fromSource(this, lookup, value -> {
            String date = value.toString();
            long timestamp = fieldType().parse(date);
            ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);

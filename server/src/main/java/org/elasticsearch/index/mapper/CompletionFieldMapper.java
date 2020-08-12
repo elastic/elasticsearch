@@ -543,7 +543,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return sourceListValueFetcher(lookup, value -> {
+        return ValueFetcher.fromSourceManualyHandlingLists(this, lookup, value -> {
             if (value instanceof List) {
                 return (List<?>) value;
             } else {

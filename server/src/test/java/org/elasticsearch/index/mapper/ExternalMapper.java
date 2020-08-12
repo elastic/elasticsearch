@@ -203,7 +203,7 @@ public class ExternalMapper extends FieldMapper {
 
     @Override
     public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
-        return sourceValueFetcher(lookup, v -> v);
+        return ValueFetcher.fromSource(this, lookup, v -> v);
     }
 
     @Override

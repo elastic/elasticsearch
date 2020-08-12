@@ -25,8 +25,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
@@ -36,9 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -286,8 +282,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *
      * Subclasses should return a fetcher that resolves the values for the
      * document, normalizes the values into a standard form, and then applies the
-     * specified format. They can use {@link #sourceValueFetcher} to implement this
-     * by loading from source.
+     * specified format. They can use {@link ValueFetcher#fromSource} to implement
+     * this by loading from source. Or {@link ValueFetcher#fromDocValues} to load
+     * from doc values.
      *
      * For example, {@link DateFieldMapper} parses the values as a date and then
      * format the date with the format provided.
@@ -300,94 +297,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @return a list a standardized field values.
      */
     public abstract ValueFetcher valueFetcher(SearchLookup lookup, @Nullable String format);
-
-    /**
-     * Reads values for documents in a leaf. 
-     */
-    @FunctionalInterface
-    public interface ValueFetcher {
-        LeafValueFetcher leaf(LeafReaderContext context) throws IOException;
-    }
-    /**
-     * Fetch values for a particular document.
-     */
-    @FunctionalInterface
-    public interface LeafValueFetcher {
-        List<?> fetch(int docId) throws IOException;
-    }
-
-    /**
-     * Build a {@linkplain ValueFetcher} that reads values from the source
-     * then calls {@code convertSourceValues} to parse, normalize, and format each value.
-     * <p>
-     * If the source doesn't contain any values then this will return an
-     * empty list and won't call {@code convertSourceValues} at all.
-     */
-    protected final ValueFetcher sourceValueFetcher(SearchLookup lookup, CheckedFunction<Object, Object, IOException> convertSourceValue) {
-        assert parsesArrayValue() == false;
-        return uncheckedSourceValueFetcher(lookup, sourceValue -> {
-            if (sourceValue instanceof List) {
-                List<?> sourceValues = (List<?>) sourceValue;
-                List<Object> values = new ArrayList<>(sourceValues.size());
-                for (Object value : sourceValues) {
-                    Object converted = convertSourceValue.apply(value);
-                    if (converted != null) {
-                        values.add(converted);
-                    }
-                }
-                return values;
-            }
-            Object converted = convertSourceValue.apply(sourceValue);
-            if (converted != null) {
-                return List.of(converted);
-            }
-            return List.of();
-        });
-    }
-
-    /**
-     * Build a {@linkplain ValueFetcher} that reads values from the source
-     * then calls {@code convertSourceValues} to parse, normalize, and format the value.
-     * <p>
-     * If the source doesn't contain the value then this will return an
-     * empty list and won't call {@code convertSourceValues} at all.
-     */
-    protected final ValueFetcher sourceListValueFetcher(
-        SearchLookup lookup,
-        CheckedFunction<Object, List<?>, IOException> convertSourceValues
-    ) {
-        assert parsesArrayValue();
-        return uncheckedSourceValueFetcher(lookup, convertSourceValues);
-    }
-
-    private ValueFetcher uncheckedSourceValueFetcher(
-        SearchLookup lookup,
-        CheckedFunction<Object, List<?>, IOException> convertSourceValues
-    ) {
-        return ctx -> docId -> {
-            /*
-             * setSegmentAndDocument out of pure paranoia. The fetch phase should already
-             * have positioned us at the right document. So we assert that too.
-             */
-            boolean alreadyPositioned = lookup.source().setSegmentAndDocument(ctx, docId);
-            assert alreadyPositioned;
-            Object sourceValue = lookup.source().extractValue(name(), nullValue());
-            if (sourceValue == null) {
-                return List.of();
-            }
-            return convertSourceValues.apply(sourceValue);
-        };
-    }
-
-    /**
-     * Build a {@linkplain ValueFetcher} that reads values from doc values using the
-     * same logic as the doc values fetch phase.
-     */
-    protected final ValueFetcher docValuesFetcher(SearchLookup lookup, String format) {
-        DocValueFormat dvFormat = fieldType().docValueFormat(format, null);
-        IndexFieldData<?> fd = lookup.doc().getForField(fieldType());
-        return ctx -> fd.load(ctx).buildFetcher(dvFormat);
-    }
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public interface LeafFieldData extends Accountable, Releasable {
      */
     SortedBinaryDocValues getBytesValues();
 
-    default LeafValueFetcher buildFetcher(DocValueFormat format) {
+    default ValueFetcher.LeafValueFetcher buildFetcher(DocValueFormat format) {
         SortedBinaryDocValues bytes = getBytesValues();
         return docId -> {
             if (false == bytes.advanceExact(docId)) {

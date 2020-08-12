@@ -27,8 +27,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
-import org.elasticsearch.index.mapper.FieldMapper.ValueFetcher;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -224,6 +222,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
-        return sourceValueFetcher(lookup, mappedFieldType.geometryParser().formatter(this, format));
+        return ValueFetcher.fromSource(this, lookup, mappedFieldType.geometryParser().formatter(this, format));
     }
 }

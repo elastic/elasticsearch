@@ -136,7 +136,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     @Override
     public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
-        return sourceValueFetcher(lookup, Object::toString);
+        return ValueFetcher.fromSource(this, lookup, Object::toString);
     }
 
     @Override

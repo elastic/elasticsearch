@@ -21,12 +21,12 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.ArrayList;
@@ -87,7 +87,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public LeafValueFetcher buildFetcher(DocValueFormat format) {
+    public ValueFetcher.LeafValueFetcher buildFetcher(DocValueFormat format) {
         SortedNumericDoubleValues doubles = getDoubleValues();
         return docId -> {
             if (false == doubles.advanceExact(docId)) {

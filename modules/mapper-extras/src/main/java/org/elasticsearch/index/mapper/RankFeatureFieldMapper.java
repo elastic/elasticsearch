@@ -187,7 +187,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return sourceValueFetcher(lookup, this::objectToFloat);
+        return ValueFetcher.fromSource(this, lookup, this::objectToFloat);
     }
 
     @Override

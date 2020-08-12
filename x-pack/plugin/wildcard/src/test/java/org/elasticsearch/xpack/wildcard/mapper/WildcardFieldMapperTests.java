@@ -57,12 +57,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.LeafValueFetcher;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -936,7 +936,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
+                        ValueFetcher.LeafValueFetcher lvf = mapper.valueFetcher(lookup, format).leaf(context);
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) throws IOException {}

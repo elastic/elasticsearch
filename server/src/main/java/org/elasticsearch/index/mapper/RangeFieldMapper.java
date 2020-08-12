@@ -383,7 +383,7 @@ public class RangeFieldMapper extends FieldMapper {
             ? fieldType().dateTimeFormatter()
             : DateFormatter.forPattern(format).withLocale(fieldType().dateTimeFormatter().locale());
 
-        return sourceValueFetcher(lookup, value -> {
+        return ValueFetcher.fromSource(this, lookup, value -> {
             if (!(value instanceof Map)) {
                 assert rangeType == RangeType.IP;
                 Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());

@@ -197,7 +197,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return sourceValueFetcher(lookup, v -> v);
+        return ValueFetcher.fromSource(this, lookup, v -> v);
     }
 
     @Override

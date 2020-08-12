@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -73,7 +74,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ValueFetcher valueFetcher(SearchLookup lookup, String format) {
-        return docValuesFetcher(lookup, format);
+        return ValueFetcher.fromDocValues(fieldType(), lookup, format);
     }
 
     @Override

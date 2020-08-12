@@ -275,6 +275,55 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
+    public void testClusterAndIndex() {
+        ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
+            Settings.builder()
+                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_frozen")
+                .build());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, 0);
+        clusterSettings.applySettings(Settings.builder()
+            .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_frozen")
+            .build());
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
+                    "tier filters [data_warm,data_frozen]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
+                    "tier filters [data_warm,data_frozen]"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(FROZEN_NODE, DATA_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(d.getExplanation(),
+                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_frozen]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(d.getExplanation(),
+                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_frozen]"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
+        }
+    }
+
     private ClusterState prepareState(ClusterState initialState) {
         return prepareState(initialState, Settings.EMPTY);
     }

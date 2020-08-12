@@ -55,6 +55,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {
             Configuration configuration = project.getConfigurations().create("jdk_" + name);
+            configuration.setCanBeConsumed(false);
             configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
             Jdk jdk = new Jdk(name, configuration, project.getObjects());
             configuration.defaultDependencies(dependencies -> {

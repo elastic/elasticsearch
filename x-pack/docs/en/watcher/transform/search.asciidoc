@@ -55,7 +55,7 @@ The following table lists all available settings for the search
 |======
 | Name                                          |Required   | Default           | Description
 
-| `request.search_type`                         | no        | query_then_fetch  | The search <<request-body-search-search-type,type>>.
+| `request.search_type`                         | no        | query_then_fetch  | The search <<search-type,type>>.
 
 | `request.indices`                             | no        | all indices       | One or more indices to search on.
 

@@ -126,7 +126,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertNotNull(rootCause);
             assertThat(rootCause.getClass(), equalTo(SearchException.class));
             assertThat(rootCause.getMessage(),
-                equalTo("`stored_fields` cannot be disabled if _source is requested"));
+                equalTo("[stored_fields] cannot be disabled if [_source] is requested"));
         }
         {
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
@@ -135,7 +135,16 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertNotNull(rootCause);
             assertThat(rootCause.getClass(), equalTo(SearchException.class));
             assertThat(rootCause.getMessage(),
-                equalTo("`stored_fields` cannot be disabled if version is requested"));
+                equalTo("[stored_fields] cannot be disabled if [version] is requested"));
+        }
+        {
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test").storedFields("_none_").addFetchField("field").get());
+            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
+            assertNotNull(rootCause);
+            assertThat(rootCause.getClass(), equalTo(SearchException.class));
+            assertThat(rootCause.getMessage(),
+                equalTo("[stored_fields] cannot be disabled when using the [fields] option"));
         }
         {
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,

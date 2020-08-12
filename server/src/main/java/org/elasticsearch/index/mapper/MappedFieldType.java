@@ -43,6 +43,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -239,6 +240,11 @@ public abstract class MappedFieldType {
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
+            "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
 
     /**

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -180,25 +179,14 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         modifiedUsername = in.readOptionalString();
         type = Type.fromString(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            event = in.readBoolean() ? in.readEnum(Event.class) : null;
-            detectorIndex = in.readOptionalInt();
-            partitionFieldName = in.readOptionalString();
-            partitionFieldValue = in.readOptionalString();
-            overFieldName = in.readOptionalString();
-            overFieldValue = in.readOptionalString();
-            byFieldName = in.readOptionalString();
-            byFieldValue = in.readOptionalString();
-        } else {
-            event = null;
-            detectorIndex = null;
-            partitionFieldName = null;
-            partitionFieldValue = null;
-            overFieldName = null;
-            overFieldValue = null;
-            byFieldName = null;
-            byFieldValue = null;
-        }
+        event = in.readBoolean() ? in.readEnum(Event.class) : null;
+        detectorIndex = in.readOptionalInt();
+        partitionFieldName = in.readOptionalString();
+        partitionFieldValue = in.readOptionalString();
+        overFieldName = in.readOptionalString();
+        overFieldValue = in.readOptionalString();
+        byFieldName = in.readOptionalString();
+        byFieldValue = in.readOptionalString();
     }
 
     @Override
@@ -222,21 +210,19 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            if (event != null) {
-                out.writeBoolean(true);
-                out.writeEnum(event);
-            } else {
-                out.writeBoolean(false);
-            }
-            out.writeOptionalInt(detectorIndex);
-            out.writeOptionalString(partitionFieldName);
-            out.writeOptionalString(partitionFieldValue);
-            out.writeOptionalString(overFieldName);
-            out.writeOptionalString(overFieldValue);
-            out.writeOptionalString(byFieldName);
-            out.writeOptionalString(byFieldValue);
+        if (event != null) {
+            out.writeBoolean(true);
+            out.writeEnum(event);
+        } else {
+            out.writeBoolean(false);
         }
+        out.writeOptionalInt(detectorIndex);
+        out.writeOptionalString(partitionFieldName);
+        out.writeOptionalString(partitionFieldValue);
+        out.writeOptionalString(overFieldName);
+        out.writeOptionalString(overFieldValue);
+        out.writeOptionalString(byFieldName);
+        out.writeOptionalString(byFieldValue);
     }
 
     public String getAnnotation() {

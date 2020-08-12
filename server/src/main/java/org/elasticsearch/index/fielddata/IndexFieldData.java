@@ -253,7 +253,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
+        IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 }

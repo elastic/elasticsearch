@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -12,9 +12,7 @@ dependencies {
 
 integTest {
   description = "Run tests against a cluster that doesn't have security"
-  runner {
-    systemProperty 'tests.has_security', 'false'
-  }
+  systemProperty 'tests.has_security', 'false'
 }
 
 testClusters.integTest {
@@ -25,7 +23,7 @@ testClusters.integTest {
   setting 'xpack.security.enabled', 'false'
 }
 
-task integTestSecurity(type: RestTestRunnerTask) {
+task integTestSecurity(type: StandaloneRestIntegTestTask) {
   description = "Run tests against a cluster that has security"
   useCluster testClusters.integTest
   dependsOn integTest

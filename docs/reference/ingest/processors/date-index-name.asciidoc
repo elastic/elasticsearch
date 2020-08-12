@@ -4,7 +4,7 @@
 The purpose of this processor is to point documents to the right time based index based
 on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.
 
-The processor sets the `_index` meta field with a date math index name expression based on the provided index name
+The processor sets the `_index` metadata field with a date math index name expression based on the provided index name
 prefix, a date or timestamp field in the documents being processed and the provided date rounding.
 
 First, this processor fetches the date or timestamp from a field in the document being processed. Optionally,

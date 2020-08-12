@@ -526,7 +526,7 @@ public final class DiffableUtils {
      * Serializes Integer keys of a map as a VInt. Requires keys to be positive.
      */
     private static final class VIntKeySerializer implements KeySerializer<Integer> {
-        public static final IntKeySerializer INSTANCE = new IntKeySerializer();
+        public static final VIntKeySerializer INSTANCE = new VIntKeySerializer();
 
         @Override
         public void writeKey(Integer key, StreamOutput out) throws IOException {

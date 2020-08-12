@@ -32,15 +32,18 @@ makes it easy to describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 == Required fields
 
-EQL assumes each document in a data stream or index corresponds to an event. To
-search using EQL, each document in the searched data stream or index must
-include a _timestamp_ field and an _event category_ field.
+TIP: While no schema is required to use EQL in {es}, we recommend using the
+{ecs-ref}[Elastic Common Schema (ECS)]. EQL search is designed to work
+with core ECS fields by default.
 
-{es} EQL uses the `@timestamp` and `event.category` fields from the
-{ecs-ref}[Elastic Common Schema (ECS)] as the default timestamp and event
-category fields. If your searched documents use a different timestamp or event
-category field, you must specify it in the search request. See
-<<specify-a-timestamp-or-event-category-field>>.
+EQL assumes each document in a data stream or index corresponds to an event. To
+run an EQL search, each document must contain a _timestamp_ and _event category_
+field.
+
+EQL uses the `@timestamp` and `event.category` fields from the {ecs-ref}[ECS] as
+the default timestamp and event category fields. If your documents use a
+different timestamp or event category field, you must specify it in the search
+request. See <<specify-a-timestamp-or-event-category-field>>.
 
 [discrete]
 [[run-an-eql-search]]
@@ -404,10 +407,12 @@ GET /my-index-000001/_eql/search
 [[specify-a-timestamp-or-event-category-field]]
 === Specify a timestamp or event category field
 
-By default, the EQL search API uses `@timestamp` and `event.category` as the
-required timestamp and event category fields. If your searched documents use
-a different timestamp or event category field, you must specify it in the search
-request using the `timestamp_field` or `event_category_field` parameters.
+To run an EQL search, each searched document must contain a timestamp and event
+category field. The EQL search API uses the `@timestamp` and `event.category`
+fields from the {ecs-ref}[Elastic Common Schema (ECS)] by default. If your
+documents use a different timestamp or event category field, you must specify it
+in the search request using the `timestamp_field` or `event_category_field`
+parameters.
 
 The event category field is typically mapped as a <<keyword,`keyword`>> or
 <<constant-keyword,constant keyword>> field. The timestamp field is typically

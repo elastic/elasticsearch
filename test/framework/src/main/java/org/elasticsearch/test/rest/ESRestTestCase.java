@@ -97,6 +97,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.BaseRestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -642,7 +643,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
-        boolean includeSystem = minimumNodeVersion().onOrAfter(Version.V_8_0_0);
+        boolean includeSystem = minimumNodeVersion().onOrAfter(ALLOW_SYSTEM_INDEX_ADDED_VERSION);
         try {
             final Request deleteRequest = new Request("DELETE", "*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));

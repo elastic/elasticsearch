@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -57,6 +58,8 @@ public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
+    public static final Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;
+    public static final String ALLOW_SYSTEM_INDEX_ACCESS_KEY = "allow_system_index_access";
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -81,7 +84,7 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (allowSystemIndexAccessByDefault() == false) {
-            final String allow_system_index_access = request.param("allow_system_index_access");
+            final String allow_system_index_access = request.param(ALLOW_SYSTEM_INDEX_ACCESS_KEY);
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
                 && (Booleans.parseBoolean(allow_system_index_access, false) == false)) {

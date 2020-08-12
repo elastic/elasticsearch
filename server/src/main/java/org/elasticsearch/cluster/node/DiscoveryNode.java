@@ -74,9 +74,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Note, due to the way that plugins may not be available when settings are being initialized,
-     * do not use this from a static {@link Setting} default value function, as it may not contain
-     * all roles at that point.
+     * Due to the way that plugins may not be available when settings are being initialized,
+     * not all roles may be available from a static/initializing context such as a {@link Setting}
+     * default value function. In that case, be warned that this may not include all plugin roles.
      */
     public static boolean isDataNode(final Settings settings) {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);

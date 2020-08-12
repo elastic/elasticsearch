@@ -34,6 +34,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -78,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -636,7 +638,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {
-        final boolean onlySystemIndices = Arrays.stream(indices).allMatch(index -> clusterState.metadata().index(index).isSystem());
+        final boolean onlySystemIndices = Arrays.stream(indices)
+            .allMatch(index -> {
+                final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                return indexMetadata != null && indexMetadata.isSystem();
+            });
         return onlySystemIndices ? threadPool.executor(ThreadPool.Names.SYSTEM_READ) : threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
@@ -858,11 +864,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static Map<String, OriginalIndices> getIndicesFromSearchContexts(SearchContextId searchContext,
                                                                      IndicesOptions indicesOptions) {
-        final Map<String, List<String>> indices = new HashMap<>();
+        final Map<String, Set<String>> indices = new HashMap<>();
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             String clusterAlias = entry.getValue().getClusterAlias() == null ?
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : entry.getValue().getClusterAlias();
-            indices.computeIfAbsent(clusterAlias, k -> new ArrayList<>()).add(entry.getKey().getIndexName());
+            indices.computeIfAbsent(clusterAlias, k -> new HashSet<>()).add(entry.getKey().getIndexName());
         }
         return indices.entrySet().stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new OriginalIndices(e.getValue().toArray(String[]::new), indicesOptions)));

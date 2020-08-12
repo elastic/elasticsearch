@@ -28,17 +28,16 @@ file.
 [[general-ml-settings]]
 ==== General machine learning settings
 
-`node.ml`::
-deprecated:[7.9.0,"Use <<modules-node,node.roles>> instead."]
-Set to `true` (default) to identify the node as a _machine learning node_. +
+`node.roles: [ ml ]`::
+Set `node.roles` to contain `ml` to identify the node as a _{ml} node_. +
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run jobs. If set to
-`true` but `xpack.ml.enabled` is set to `false`, the `node.ml` setting is
-ignored and the node cannot run jobs. If you want to run jobs, there must be at
-least one machine learning node in your cluster. +
+If a node does not have the `ml` role in `elasticsearch.yml`, or it has the role 
+but `xpack.ml.enabled` is set to `false`, the node cannot run jobs. If you want 
+to run jobs, there must be at least one {ml} node in your cluster. +
 +
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
-the `node.ml` role.
+IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
+the `ml` role.
+
 
 `xpack.ml.enabled`::
 Set to `true` (default) to enable {ml} on the node.
@@ -51,10 +50,10 @@ from clients (including {kib}) also fail. For more information about disabling
 {kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
 +
 IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
-that you set `xpack.ml.enabled` to `true` on all nodes. This is the
-default behavior. At a minimum, it must be enabled on all master-eligible nodes.
-If you want to use {ml-features} in clients or {kib}, it must also be enabled on
-all coordinating nodes.
+that you set `xpack.ml.enabled` to `true` on all nodes. This is the default 
+behavior. At a minimum, it must be enabled on all master-eligible nodes. If you 
+want to use {ml-features} in clients or {kib}, it must also be enabled on all 
+coordinating nodes.
 
 `xpack.ml.inference_model.cache_size`::
 The maximum inference cache size allowed. The inference cache exists in the JVM

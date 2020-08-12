@@ -92,30 +92,42 @@ public class DataTierAllocationDecider extends AllocationDecider {
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         decision = shouldIndexFilter(indexMetadata, node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         decision = shouldIndexFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
     }
 
     private Decision shouldFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         decision = shouldIndexFilter(indexMd, node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
     }

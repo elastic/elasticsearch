@@ -6,6 +6,10 @@
         body:
           settings:
             number_of_shards: "2"
+          mappings:
+            properties:
+              max:
+                type: long
 
   - do:
       indices.create:
@@ -13,6 +17,10 @@
         body:
           settings:
             number_of_shards: "1"
+          mappings:
+            properties:
+              max:
+                type: long
 
   - do:
       indices.create:
@@ -20,6 +28,10 @@
         body:
           settings:
             number_of_shards: "3"
+          mappings:
+            properties:
+              max:
+                type: long
 
   - do:
       index:

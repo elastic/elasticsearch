@@ -923,9 +923,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             if (concatenate) {
-                StringConcatenationNode irStringConcenationNode = (StringConcatenationNode)irCompoundNode;
-                irStringConcenationNode.addArgumentNode(irLoadNode);
-                irStringConcenationNode.addArgumentNode(irValueNode);
+                StringConcatenationNode irStringConcatenationNode = (StringConcatenationNode)irCompoundNode;
+                irStringConcatenationNode.addArgumentNode(irLoadNode);
+                irStringConcatenationNode.addArgumentNode(irValueNode);
             } else {
                 BinaryMathNode irBinaryMathNode = (BinaryMathNode)irCompoundNode;
                 irBinaryMathNode.setLeftNode(irLoadNode);

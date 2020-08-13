@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -326,7 +325,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         client(randomFrom(nodesWithShards)).prepareUpdate("test1", "type1", "1")
             .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
 
-        expectThrows(UnavailableShardsException.class, () -> client(partitionedNode).prepareUpdate("test1", "type1", "1")
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareUpdate("test1", "type1", "1")
             .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get());
 
         client(randomFrom(nodesWithShards)).prepareIndex("test1", "type1").setId("1")
@@ -343,7 +342,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());
 
-        expectThrows(UnavailableShardsException.class, () -> client(partitionedNode).prepareIndex("test1", "type1").setId("1")
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareIndex("test1", "type1").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());
 
         internalCluster().clearDisruptionScheme(true);

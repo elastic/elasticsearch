@@ -50,7 +50,7 @@ import java.util.function.LongUnaryOperator;
 
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
     @FunctionalInterface
-    public interface GeoTileCompositeSuppier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface GeoTileCompositeSuppier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             int precision,
@@ -84,7 +84,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     static void register(ValuesSourceRegistry.Builder builder) {
 
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
             (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
@@ -126,8 +126,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                         );
                     }
                 );
-            }
-        );
+            },
+            false);
     }
 
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
@@ -208,7 +208,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+            .getAggregator(REGISTRY_KEY, config)
             .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 

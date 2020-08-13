@@ -119,7 +119,7 @@ the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
 WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>>,
-<<request-body-search-rescore, rescore>> or <<search-after, search after>>.
+<<rescore, rescore>> or <<search-after, search after>>.
 
 [discrete]
 [[second-level-of-collapsing]]

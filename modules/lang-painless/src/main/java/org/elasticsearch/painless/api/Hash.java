@@ -19,31 +19,24 @@
 
 package org.elasticsearch.painless.api;
 
-import java.math.BigInteger; 
-import java.security.MessageDigest; 
+import java.math.BigInteger;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class Hash {
 
     public static String hash(String input, String method) throws NoSuchAlgorithmException {
-        try { 
-  
-            // Accepts all message digest algorithms supported by java.security.MessageDigest
-            MessageDigest md = MessageDigest.getInstance(method); 
-            byte[] messageDigest = md.digest(input.getBytes()); 
-            BigInteger no = new BigInteger(1, messageDigest); 
-  
-            // Convert message digest into hex value 
-            String hashtext = no.toString(16); 
-            while (hashtext.length() < 32) { 
-                hashtext = "0" + hashtext; 
-            } 
-            return hashtext; 
-        }  
-  
-        // For specifying wrong message digest algorithms 
-        catch (NoSuchAlgorithmException e) { 
-            throw new RuntimeException(e); 
-        } 
+        // Accepts all message digest algorithms supported by
+        // java.security.MessageDigest
+        MessageDigest md = MessageDigest.getInstance(method);
+        byte[] messageDigest = md.digest(input.getBytes());
+        BigInteger mdNum = new BigInteger(1, messageDigest);
+
+        // Convert message digest into hex value
+        String hashString = mdNum.toString(16);
+        while (hashString.length() < 32) {
+            hashString = "0" + hashString;
+        }
+        return hashString;
     }
 }

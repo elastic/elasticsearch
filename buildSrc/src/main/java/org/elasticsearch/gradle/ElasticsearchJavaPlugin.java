@@ -148,7 +148,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings
+                // fail on all javac warnings.
+                // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
                 List<String> compilerArgs = compileOptions.getCompilerArgs();
                 compilerArgs.add("-Werror");
                 compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
@@ -163,6 +164,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
                 compileOptions.setEncoding("UTF-8");
                 compileOptions.setIncremental(true);
+                // TODO Discuss this required workaround with the Gradle team
                 compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
                 compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
                 compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));

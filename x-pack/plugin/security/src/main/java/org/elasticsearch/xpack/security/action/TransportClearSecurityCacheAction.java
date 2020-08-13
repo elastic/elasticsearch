@@ -1,0 +1,72 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.security.action;
+
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.security.support.SecurityCacheRegistry;
+
+import java.io.IOException;
+import java.util.List;
+
+public class TransportClearSecurityCacheAction extends TransportNodesAction<ClearSecurityCacheRequest, ClearSecurityCacheResponse,
+    ClearSecurityCacheRequest.Node, ClearSecurityCacheResponse.Node> {
+
+    @Inject
+    public TransportClearSecurityCacheAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters) {
+        super(
+            ClearSecurityCacheAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ClearSecurityCacheRequest::new,
+            ClearSecurityCacheRequest.Node::new,
+            ThreadPool.Names.MANAGEMENT,
+            ClearSecurityCacheResponse.Node.class);
+    }
+
+    @Override
+    protected ClearSecurityCacheResponse newResponse(
+        ClearSecurityCacheRequest request, List<ClearSecurityCacheResponse.Node> nodes, List<FailedNodeException> failures) {
+        return new ClearSecurityCacheResponse(clusterService.getClusterName(), nodes, failures);
+    }
+
+    @Override
+    protected ClearSecurityCacheRequest.Node newNodeRequest(ClearSecurityCacheRequest request) {
+        return new ClearSecurityCacheRequest.Node(request);
+    }
+
+    @Override
+    protected ClearSecurityCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+        return new ClearSecurityCacheResponse.Node(in);
+    }
+
+    @Override
+    protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, Task task) {
+        if (request.getKeys() == null || request.getKeys().length == 0) {
+            SecurityCacheRegistry.invalidateAll(request.getCacheName());
+        } else {
+            SecurityCacheRegistry.invalidate(request.getCacheName(), List.of(request.getKeys()));
+        }
+        return new ClearSecurityCacheResponse.Node(clusterService.localNode());
+    }
+}

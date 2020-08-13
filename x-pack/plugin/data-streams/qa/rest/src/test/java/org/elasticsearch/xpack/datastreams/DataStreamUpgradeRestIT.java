@@ -110,6 +110,9 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         assertOK(client().performRequest(refreshRequest));
 
         verifyTotalHitCount("logs-mysql-error", "{\"query\":{\"match\":{\"thread.id\": 24}}}", 2, "thread.id");
+
+        Request deleteDateStreamRequest = new Request("DELETE", "/_data_stream/logs-mysql-error");
+        assertOK(client().performRequest(deleteDateStreamRequest));
     }
 
     public void testConflictingMappingUpgrade() throws Exception {
@@ -201,6 +204,9 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         assertOK(client().performRequest(refreshRequest));
 
         verifyTotalHitCount("logs-mysql-error", "{\"query\":{\"match\":{\"thread.id\": 24}}}", 2, "thread.id");
+
+        Request deleteDateStreamRequest = new Request("DELETE", "/_data_stream/logs-mysql-error");
+        assertOK(client().performRequest(deleteDateStreamRequest));
     }
 
     static void verifyTotalHitCount(String index, String requestBody, int expectedTotalHits, String requiredField) throws IOException {

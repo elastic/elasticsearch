@@ -66,21 +66,14 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 from(elasticsearch_distributions.test_distro.extracted)
                 into("build/distro")
             }
-            
-            tasks.register("setupDistro2") {
-                dependsOn(elasticsearch_distributions.test_distro.extracted)
-                doLast {
-                    println "worked!"
-                }
-            }
         """
 
         when:
-        def result = gradleRunner("setupDistro2", '-g', testProjectDir.newFolder('GUH').path).build()
+        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
         result.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
-        result.task(":setupDistro2").outcome == TaskOutcome.SUCCESS
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated(distroVersion, "build/distro", 'current-marker.txt')
     }
 

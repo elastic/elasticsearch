@@ -53,7 +53,7 @@ if (['rpm', 'deb'].contains(distroType) == false) {
   tasks.register("assertDistroExtracted") {
     dependsOn elasticsearch_distributions.test_distro.extracted, assertDistroFile
     doLast {
-      File distroExtracted = new File(elasticsearch_distributions.test_distro.extracted.toString())
+      File distroExtracted = elasticsearch_distributions.test_distro.extracted.configuration.singleFile
       if (distroExtracted.exists() == false) {
         throw new GradleException("extracted does not exist: ${distroExtracted}")
       }

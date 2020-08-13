@@ -21,10 +21,13 @@ package org.elasticsearch.gradle.transform;
 
 import shadow.org.apache.tools.zip.ZipEntry;
 
+import java.nio.file.Path;
+
 public abstract class JdkUnzipTransform extends UnzipTransform {
 
     @Override
     protected String maybeTrim(ZipEntry entry) {
-        return UnpackTransform.trimJdkArchiveExtractPath(entry.getName()).toString();
+        Path path = UnpackTransform.trimJdkArchiveExtractPath(entry.getName());
+        return path == null ? null : path.toString();
     }
 }

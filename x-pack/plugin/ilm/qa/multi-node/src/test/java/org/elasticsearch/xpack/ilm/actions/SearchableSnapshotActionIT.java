@@ -103,9 +103,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
         assertTrue(waitUntil(() -> {
             try {
-                return getNumberOfSegments(client(), backingIndexName) == 1;
-            } catch (IOException e) {
-                return false;
+                Integer numberOfSegments = getNumberOfSegments(client(), backingIndexName);
+                logger.info("index {} has {} segments", backingIndexName, numberOfSegments);
+                return numberOfSegments == 1;
+            } catch (Exception e) {
+                try {
+                    // if ILM executed the action already we don't have an index to assert on so we don't fail the test
+                    return indexExists(backingIndexName) == false;
+                } catch (IOException ex) {
+                    return false;
+                }
             }
         }, 60, TimeUnit.SECONDS));
 

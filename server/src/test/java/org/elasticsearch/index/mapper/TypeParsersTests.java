@@ -182,19 +182,23 @@ public class TypeParsersTests extends ESTestCase {
             .endObject()
         .endObject();
 
+        Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
+
         Map<String, Object> fieldNode = XContentHelper.convertToMap(
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, Version.CURRENT, null, null);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
+            null, mapperService, type -> typeParser, Version.CURRENT, null, null);
 
-        TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);
-        assertWarnings("At least one multi-field, [sub-field], was " +
-            "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
-            "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
-            "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
-            "switching to [copy_to] if appropriate.");
+        TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
+        assertWarnings("At least one multi-field, [sub-field], " +
+            "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
+            "and will no longer be supported in 8.0. To resolve the issue, all instances of [fields] " +
+            "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
+            "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
     }
 
     private Analyzer createAnalyzerWithMode(String name, AnalysisMode mode) {
@@ -214,21 +218,15 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testParseMeta() {
-        FieldMapper.Builder<?> builder = new KeywordFieldMapper.Builder("foo");
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null, null);
-
         {
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", 3));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                    () -> TypeParsers.parseMeta("foo", 3));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta",
-                Collections.singletonMap("veryloooooooooooongkey", 3L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                    () -> TypeParsers.parseMeta("foo", Collections.singletonMap("veryloooooooooooongkey", 3L)));
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
                     e.getMessage());
         }
@@ -241,18 +239,16 @@ public class TypeParsersTests extends ESTestCase {
             meta.put("foo4", "3");
             meta.put("foo5", "3");
             meta.put("foo6", "3");
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", meta));
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
                     e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta",
-                Collections.singletonMap("foo", Collections.singletonMap("bar", "baz"))));
+            Map<String, Object> mapping = Collections.singletonMap("foo", Collections.singletonMap("bar", "baz"));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", mapping));
             assertEquals("[meta] values can only be strings, but got SingletonMap[{bar=baz}] for field [foo]",
                     e.getMessage());
         }
@@ -261,9 +257,8 @@ public class TypeParsersTests extends ESTestCase {
             Map<String, Object> inner = new HashMap<>();
             inner.put("bar", "baz");
             inner.put("foo", 3);
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", inner));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", inner));
             assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
                     e.getMessage());
         }
@@ -271,9 +266,8 @@ public class TypeParsersTests extends ESTestCase {
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", meta));
             assertEquals("[meta] values can't be null (field [foo])",
                     e.getMessage());
         }
@@ -282,9 +276,8 @@ public class TypeParsersTests extends ESTestCase {
             String longString = IntStream.range(0, 51)
                     .mapToObj(Integer::toString)
                     .collect(Collectors.joining());
-            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", Collections.singletonMap("foo", longString)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", Collections.singletonMap("foo", longString)));
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
         }
     }

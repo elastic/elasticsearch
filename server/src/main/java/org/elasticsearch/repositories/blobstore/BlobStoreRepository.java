@@ -67,8 +67,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -1193,7 +1191,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 return seed;
             }
-        } catch (IOException exp) {
+        } catch (Exception exp) {
             throw new RepositoryVerificationException(metadata.name(), "path " + basePath() + " is not accessible on master node", exp);
         }
     }
@@ -1204,7 +1202,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final String testPrefix = testBlobPrefix(seed);
                 blobStore().blobContainer(basePath().add(testPrefix)).delete();
-            } catch (IOException exp) {
+            } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
         }
@@ -1318,12 +1316,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void cacheRepositoryData(BytesReference updated, long generation) {
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
-            BytesStreamOutput out = new BytesStreamOutput();
             try {
-                try (StreamOutput tmp = CompressorFactory.COMPRESSOR.streamOutput(out)) {
-                    updated.writeTo(tmp);
-                }
-                serialized = out.bytes();
+                serialized = CompressorFactory.COMPRESSOR.compress(updated);
                 final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug("Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in" +
@@ -2170,7 +2164,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly()) {
             try {
                 latestIndexBlobId();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RepositoryVerificationException(metadata.name(), "path " + basePath() +
                     " is not accessible on node " + localNode, e);
             }
@@ -2181,7 +2175,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try (InputStream stream = bytes.streamInput()) {
                     testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                 }
-            } catch (IOException exp) {
+            } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
                     "] is not accessible on the node [" + localNode + "]", exp);
             }
@@ -2196,7 +2190,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "] cannot be accessed on the node [" + localNode + "]. " +
                     "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
                     "that permissions on the store don't allow reading files written by the master node", e);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
             }
         }

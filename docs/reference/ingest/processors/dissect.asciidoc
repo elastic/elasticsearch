@@ -1,5 +1,9 @@
 [[dissect-processor]]
-=== Dissect Processor
+=== Dissect processor
+++++
+<titleabbrev>Dissect</titleabbrev>
+++++
+
 
 Similar to the <<grok-processor,Grok Processor>>, dissect also extracts structured fields out of a single text field
 within a document.  However unlike the <<grok-processor,Grok Processor>>, dissect does not use

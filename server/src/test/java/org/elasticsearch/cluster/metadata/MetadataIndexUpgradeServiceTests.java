@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -128,12 +130,34 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
+    public void testMaybeMarkAsSystemIndex() {
+        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+        IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
+        assertFalse(src.isSystem());
+        IndexMetadata indexMetadata = service.maybeMarkAsSystemIndex(src);
+        assertSame(indexMetadata, src);
+
+        src = newIndexMeta(".system", Settings.EMPTY);
+        assertFalse(src.isSystem());
+        indexMetadata = service.maybeMarkAsSystemIndex(src);
+        assertNotSame(indexMetadata, src);
+        assertTrue(indexMetadata.isSystem());
+
+        // test with the whole upgrade
+        assertFalse(src.isSystem());
+        indexMetadata = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        assertTrue(indexMetadata.isSystem());
+    }
+
     private MetadataIndexUpgradeService getMetadataIndexUpgradeService() {
         return new MetadataIndexUpgradeService(
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            new SystemIndices(Collections.singletonMap("system-plugin",
+                Collections.singletonList(new SystemIndexDescriptor(".system", "a system index"))))
+        );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

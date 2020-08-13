@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -377,7 +376,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetadata indexTemplateMetadata = getIndexTemplateMetadata();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            BytesReference jsonMappings = indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed();
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
                 .patterns(indexTemplateMetadata.patterns())
                 .version(indexTemplateMetadata.version())
@@ -413,7 +412,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetadata indexTemplateMetadata = getAuditIndexTemplateMetadata(clusterService.state().nodes().getMinNodeVersion());
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            BytesReference jsonMappings = indexTemplateMetadata.mappings().get(SINGLE_MAPPING_NAME).uncompressed();
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
                 indexTemplateMetadata.patterns()
             )

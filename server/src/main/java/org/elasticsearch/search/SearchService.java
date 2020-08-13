@@ -544,7 +544,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private Executor getExecutor(IndexShard indexShard) {
         assert indexShard != null;
-        return threadPool.executor(indexShard.indexSettings().isSearchThrottled() ? Names.SEARCH_THROTTLED : Names.SEARCH);
+        final String executorName;
+        if (indexShard.isSystem()) {
+            executorName = Names.SYSTEM_READ;
+        } else if (indexShard.indexSettings().isSearchThrottled()) {
+            executorName = Names.SEARCH_THROTTLED;
+        } else {
+            executorName = Names.SEARCH;
+        }
+        return threadPool.executor(executorName);
     }
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
@@ -986,10 +994,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
                 if (context.version()) {
-                    throw new SearchException(shardTarget, "`stored_fields` cannot be disabled if version is requested");
+                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
                 }
                 if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "`stored_fields` cannot be disabled if _source is requested");
+                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
+                }
+                if (context.fetchFieldsContext() != null) {
+                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
                 }
             }
             context.storedFieldsContext(source.storedFields());

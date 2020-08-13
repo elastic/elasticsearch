@@ -42,10 +42,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class VariableWidthHistogramAggregationBuilder
-    extends ValuesSourceAggregationBuilder<VariableWidthHistogramAggregationBuilder> {
+public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<VariableWidthHistogramAggregationBuilder> {
 
     public static final String NAME = "variable_width_histogram";
+    public static final ValuesSourceRegistry.RegistryKey<VariableWidthHistogramAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, VariableWidthHistogramAggregatorSupplier.class);
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
 
@@ -213,4 +214,9 @@ public class VariableWidthHistogramAggregationBuilder
 
     @Override
     public String getType() { return NAME; }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

@@ -36,14 +36,14 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ParentAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
+public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
 
     public static final String NAME = "parent";
 
@@ -178,5 +178,10 @@ public class ParentAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
 }

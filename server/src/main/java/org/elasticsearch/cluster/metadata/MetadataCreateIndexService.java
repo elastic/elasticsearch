@@ -68,6 +68,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.IndexCreationListener;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -83,6 +84,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -127,6 +129,7 @@ public class MetadataCreateIndexService {
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
+    private final Set<IndexCreationListener> indexCreationListeners = new HashSet<>();
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -153,6 +156,20 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+    }
+
+    /**
+     * Add a listener to be invoked when a new index is created, prior to finalizing the new
+     * index's settings.
+     */
+    public void addIndexCreationListener(IndexCreationListener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+        if (indexCreationListeners.contains(listener)) {
+            throw new IllegalArgumentException("listener already added");
+        }
+        this.indexCreationListeners.add(listener);
     }
 
     /**
@@ -464,7 +481,7 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator);
+                null, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -490,7 +507,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator);
+                null, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -536,7 +553,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -596,7 +613,8 @@ public class MetadataCreateIndexService {
      */
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings templateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
-                                           IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator) {
+                                           IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
+                                           Set<IndexCreationListener> indexCreationListeners) {
         Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
             indexSettingsBuilder.put(templateSettings);
@@ -634,6 +652,18 @@ public class MetadataCreateIndexService {
                 request.resizeType(),
                 request.copySettings(),
                 indexScopedSettings);
+        } else {
+            // The index creation listeners are only invoked if we are not recovering from an
+            // existing source metadata, as we don't want a shrunk (or other) index's settings to
+            // be inconsistent. They should always inherit the settings from its originator.
+            for (IndexCreationListener listener : indexCreationListeners) {
+                try {
+                    listener.beforeIndexCreated(request.index(), indexSettingsBuilder);
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("failed invoking index creation listener for creation of [{}] index",
+                        request.index()), e);
+                }
+            }
         }
 
         Settings indexSettings = indexSettingsBuilder.build();

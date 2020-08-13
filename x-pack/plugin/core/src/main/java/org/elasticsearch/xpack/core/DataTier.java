@@ -10,6 +10,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexCreationListener;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+
+import java.util.Set;
 
 /**
  * The {@code DataTier} class encapsulates the formalization of the "hot",
@@ -136,5 +140,29 @@ public class DataTier {
 
     public static boolean isFrozenNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DATA_FROZEN_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+    }
+
+    /**
+     * This listener injects the setting allocating all newly created indices with
+     * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
+     * setting while the index is being created (in a create index request for instance)
+     */
+    public static class DefaultHotAllocationListener implements IndexCreationListener {
+        @Override
+        public void beforeIndexCreated(String indexName, Settings.Builder indexSettings) {
+            Set<String> settings = indexSettings.keys();
+            // Only put the "include" setting in place if there are no other index-level _tier
+            // settings put in the request
+            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE) == false &&
+                settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE) == false &&
+                settings.contains(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE) == false) {
+                indexSettings.put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT);
+            } else if (indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE) == null) {
+                // The user nulled out the index.routing.allocation.include._tier setting, in which
+                // case, it should be removed so it doesn't show up as a null when retrieving the
+                // index's settings
+                indexSettings.remove(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE);
+            }
+        }
     }
 }

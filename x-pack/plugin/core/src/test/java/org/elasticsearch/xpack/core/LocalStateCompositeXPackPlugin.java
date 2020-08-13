@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.shard.IndexCreationListener;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -55,6 +56,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.IndexLifecyclePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -370,7 +372,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     public Set<DiscoveryNodeRole> getRoles() {
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
+        roles.addAll(super.getRoles());
         return roles;
+    }
+
+    @Override
+    public Collection<IndexCreationListener> getIndexCreationListeners() {
+        Set<IndexCreationListener> listeners = new HashSet<>();
+        filterPlugins(IndexLifecyclePlugin.class).stream().forEach(p -> listeners.addAll(p.getIndexCreationListeners()));
+        listeners.addAll(super.getIndexCreationListeners());
+        return listeners;
+
     }
 
     @Override
@@ -483,10 +495,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return filterPlugins(ClusterPlugin.class)
+        Set<AllocationDecider> deciders = new HashSet<>();
+        deciders.addAll(filterPlugins(ClusterPlugin.class)
             .stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
-            .collect(Collectors.toList());
+            .collect(Collectors.toList()));
+        deciders.addAll(super.createAllocationDeciders(settings, clusterSettings));
+        return deciders;
     }
 
     @Override

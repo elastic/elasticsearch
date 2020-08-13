@@ -32,72 +32,72 @@ shape                | GEOMETRY   | shape
 selectAllPointsAsStrings
 SELECT city, CAST(location AS STRING) location, CAST(location_no_dv AS STRING) location_no_dv, CAST(geoshape AS STRING) geoshape, CAST(shape AS STRING) shape, region FROM "geo" ORDER BY "city";
 
-     city:s    |             location:s                       |      location_no_dv:s        |             geoshape:s            |               shape:s             |  region:s
-Amsterdam      |POINT (4.850311987102032 52.347556999884546)  |POINT (4.850312 52.347557)    |POINT (4.850312 52.347557 2.0)     |POINT (4.850312 52.347557 2.0)     |Europe
-Berlin         |POINT (13.390888944268227 52.48670099303126)  |POINT (13.390889 52.486701)   |POINT (13.390889 52.486701 34.0)   |POINT (13.390889 52.486701 34.0)   |Europe
-Chicago        |POINT (-87.63787407428026 41.888782968744636) |POINT (-87.637874 41.888783)  |POINT (-87.637874 41.888783 181.0) |POINT (-87.637874 41.888783 181.0) |Americas
-Hong Kong      |POINT (114.18392493389547 22.28139698971063)  |POINT (114.183925 22.281397)  |POINT (114.183925 22.281397 552.0) |POINT (114.183925 22.281397 552.0) |Asia
-London         |POINT (-0.12167204171419144 51.51087098289281)|POINT (-0.121672 51.510871)   |POINT (-0.121672 51.510871 11.0)   |POINT (-0.121672 51.510871 11.0)   |Europe
-Mountain View  |POINT (-122.08384302444756 37.38648299127817) |POINT (-122.083843 37.386483) |POINT (-122.083843 37.386483 30.0) |POINT (-122.083843 37.386483 30.0) |Americas
-Munich         |POINT (11.537504978477955 48.14632098656148)  |POINT (11.537505 48.146321)   |POINT (11.537505 48.146321 519.0)  |POINT (11.537505 48.146321 519.0)  |Europe
-New York       |POINT (-73.9900270756334 40.74517097789794)   |POINT (-73.990027 40.745171)  |POINT (-73.990027 40.745171 10.0)  |POINT (-73.990027 40.745171 10.0)  |Americas
-Paris          |POINT (2.3517729341983795 48.84553796611726)  |POINT (2.351773 48.845538)    |POINT (2.351773 48.845538 35.0)    |POINT (2.351773 48.845538 35.0)    |Europe
-Phoenix        |POINT (-111.97350500151515 33.37624196894467) |POINT (-111.973505 33.376242) |POINT (-111.973505 33.376242 331.0)|POINT (-111.973505 33.376242 331.0)|Americas
-San Francisco  |POINT (-122.39422800019383 37.789540970698)   |POINT (-122.394228 37.789541) |POINT (-122.394228 37.789541 16.0) |POINT (-122.394228 37.789541 16.0) |Americas
-Seoul          |POINT (127.06085099838674 37.50913198571652)  |POINT (127.060851 37.509132)  |POINT (127.060851 37.509132 38.0)  |POINT (127.060851 37.509132 38.0)  |Asia
-Singapore      |POINT (103.8555349688977 1.2958679627627134)  |POINT (103.855535 1.295868)   |POINT (103.855535 1.295868 15.0)   |POINT (103.855535 1.295868 15.0)   |Asia
-Sydney         |POINT (151.20862897485495 -33.863385021686554)|POINT (151.208629 -33.863385) |POINT (151.208629 -33.863385 100.0)|POINT (151.208629 -33.863385 100.0)|Asia
-Tokyo          |POINT (139.76402222178876 35.66961596254259)  |POINT (139.76402225 35.669616)|POINT (139.76402225 35.669616 40.0)|POINT (139.76402225 35.669616 40.0)|Asia
+     city:s    |             location:s       |      location_no_dv:s        |             geoshape:s            |               shape:s             |  region:s
+Amsterdam      |POINT (4.850312 52.347557)    |POINT (4.850312 52.347557)    |POINT (4.850312 52.347557 2.0)     |POINT (4.850312 52.347557 2.0)     |Europe         
+Berlin         |POINT (13.390889 52.486701)   |POINT (13.390889 52.486701)   |POINT (13.390889 52.486701 34.0)   |POINT (13.390889 52.486701 34.0)   |Europe         
+Chicago        |POINT (-87.637874 41.888783)  |POINT (-87.637874 41.888783)  |POINT (-87.637874 41.888783 181.0) |POINT (-87.637874 41.888783 181.0) |Americas       
+Hong Kong      |POINT (114.183925 22.281397)  |POINT (114.183925 22.281397)  |POINT (114.183925 22.281397 552.0) |POINT (114.183925 22.281397 552.0) |Asia           
+London         |POINT (-0.121672 51.510871)   |POINT (-0.121672 51.510871)   |POINT (-0.121672 51.510871 11.0)   |POINT (-0.121672 51.510871 11.0)   |Europe         
+Mountain View  |POINT (-122.083843 37.386483) |POINT (-122.083843 37.386483) |POINT (-122.083843 37.386483 30.0) |POINT (-122.083843 37.386483 30.0) |Americas       
+Munich         |POINT (11.537505 48.146321)   |POINT (11.537505 48.146321)   |POINT (11.537505 48.146321 519.0)  |POINT (11.537505 48.146321 519.0)  |Europe         
+New York       |POINT (-73.990027 40.745171)  |POINT (-73.990027 40.745171)  |POINT (-73.990027 40.745171 10.0)  |POINT (-73.990027 40.745171 10.0)  |Americas       
+Paris          |POINT (2.351773 48.845538)    |POINT (2.351773 48.845538)    |POINT (2.351773 48.845538 35.0)    |POINT (2.351773 48.845538 35.0)    |Europe         
+Phoenix        |POINT (-111.973505 33.376242) |POINT (-111.973505 33.376242) |POINT (-111.973505 33.376242 331.0)|POINT (-111.973505 33.376242 331.0)|Americas       
+San Francisco  |POINT (-122.394228 37.789541) |POINT (-122.394228 37.789541) |POINT (-122.394228 37.789541 16.0) |POINT (-122.394228 37.789541 16.0) |Americas       
+Seoul          |POINT (127.060851 37.509132)  |POINT (127.060851 37.509132)  |POINT (127.060851 37.509132 38.0)  |POINT (127.060851 37.509132 38.0)  |Asia           
+Singapore      |POINT (103.855535 1.295868)   |POINT (103.855535 1.295868)   |POINT (103.855535 1.295868 15.0)   |POINT (103.855535 1.295868 15.0)   |Asia           
+Sydney         |POINT (151.208629 -33.863385) |POINT (151.208629 -33.863385) |POINT (151.208629 -33.863385 100.0)|POINT (151.208629 -33.863385 100.0)|Asia           
+Tokyo          |POINT (139.76402225 35.669616)|POINT (139.76402225 35.669616)|POINT (139.76402225 35.669616 40.0)|POINT (139.76402225 35.669616 40.0)|Asia           
 ;
 
 // TODO: Both shape and location contain the same data for now, we should change it later to make things more interesting
 selectAllPointsAsWKT
 SELECT city, ST_ASWKT(location) location_wkt, ST_ASWKT(geoshape) geoshape_wkt, region FROM "geo" ORDER BY "city";
 
-     city:s    |                     location_wkt:s           |        geoshape_wkt:s              |  region:s
-Amsterdam      |POINT (4.850311987102032 52.347556999884546)  |POINT (4.850312 52.347557 2.0)      |Europe
-Berlin         |POINT (13.390888944268227 52.48670099303126)  |POINT (13.390889 52.486701 34.0)    |Europe
-Chicago        |POINT (-87.63787407428026 41.888782968744636) |POINT (-87.637874 41.888783 181.0)  |Americas
-Hong Kong      |POINT (114.18392493389547 22.28139698971063)  |POINT (114.183925 22.281397 552.0)  |Asia
-London         |POINT (-0.12167204171419144 51.51087098289281)|POINT (-0.121672 51.510871 11.0)    |Europe
-Mountain View  |POINT (-122.08384302444756 37.38648299127817) |POINT (-122.083843 37.386483 30.0)  |Americas
-Munich         |POINT (11.537504978477955 48.14632098656148)  |POINT (11.537505 48.146321 519.0)   |Europe
-New York       |POINT (-73.9900270756334 40.74517097789794)   |POINT (-73.990027 40.745171 10.0)   |Americas
-Paris          |POINT (2.3517729341983795 48.84553796611726)  |POINT (2.351773 48.845538 35.0)     |Europe
-Phoenix        |POINT (-111.97350500151515 33.37624196894467) |POINT (-111.973505 33.376242 331.0) |Americas
-San Francisco  |POINT (-122.39422800019383 37.789540970698)   |POINT (-122.394228 37.789541 16.0)  |Americas
-Seoul          |POINT (127.06085099838674 37.50913198571652)  |POINT (127.060851 37.509132 38.0)   |Asia
-Singapore      |POINT (103.8555349688977 1.2958679627627134)  |POINT (103.855535 1.295868 15.0)    |Asia
-Sydney         |POINT (151.20862897485495 -33.863385021686554)|POINT (151.208629 -33.863385 100.0) |Asia
-Tokyo          |POINT (139.76402222178876 35.66961596254259)  |POINT (139.76402225 35.669616 40.0) |Asia
+     city:s    |       location_wkt:s         |        geoshape_wkt:s             |  region:s
+Amsterdam      |POINT (4.850312 52.347557)    |POINT (4.850312 52.347557 2.0)     |Europe         
+Berlin         |POINT (13.390889 52.486701)   |POINT (13.390889 52.486701 34.0)   |Europe         
+Chicago        |POINT (-87.637874 41.888783)  |POINT (-87.637874 41.888783 181.0) |Americas       
+Hong Kong      |POINT (114.183925 22.281397)  |POINT (114.183925 22.281397 552.0) |Asia           
+London         |POINT (-0.121672 51.510871)   |POINT (-0.121672 51.510871 11.0)   |Europe         
+Mountain View  |POINT (-122.083843 37.386483) |POINT (-122.083843 37.386483 30.0) |Americas       
+Munich         |POINT (11.537505 48.146321)   |POINT (11.537505 48.146321 519.0)  |Europe         
+New York       |POINT (-73.990027 40.745171)  |POINT (-73.990027 40.745171 10.0)  |Americas       
+Paris          |POINT (2.351773 48.845538)    |POINT (2.351773 48.845538 35.0)    |Europe         
+Phoenix        |POINT (-111.973505 33.376242) |POINT (-111.973505 33.376242 331.0)|Americas       
+San Francisco  |POINT (-122.394228 37.789541) |POINT (-122.394228 37.789541 16.0) |Americas       
+Seoul          |POINT (127.060851 37.509132)  |POINT (127.060851 37.509132 38.0)  |Asia           
+Singapore      |POINT (103.855535 1.295868)   |POINT (103.855535 1.295868 15.0)   |Asia           
+Sydney         |POINT (151.208629 -33.863385) |POINT (151.208629 -33.863385 100.0)|Asia           
+Tokyo          |POINT (139.76402225 35.669616)|POINT (139.76402225 35.669616 40.0)|Asia           
 ;
 
 selectWithAsWKTInWhere
 SELECT city, ST_ASWKT(location) location_wkt, region FROM "geo" WHERE LOCATE('114', ST_ASWKT(location)) > 0 ORDER BY "city";
 
-     city:s    |                   location_wkt:s           |  region:s
-Hong Kong      |POINT (114.18392493389547 22.28139698971063)|Asia
+     city:s    |      location_wkt:s        |  region:s
+Hong Kong      |POINT (114.183925 22.281397)|Asia           
 ;
 
 selectAllPointsOrderByLonFromAsWKT
 SELECT city, SUBSTRING(ST_ASWKT(location), 8, LOCATE(' ', ST_ASWKT(location), 8) - 8) lon FROM "geo" ORDER BY lon;
 
      city:s    |  lon:s
-London         |-0.12167204171419144
-Phoenix        |-111.97350500151515
-Mountain View  |-122.08384302444756
-San Francisco  |-122.39422800019383
-New York       |-73.9900270756334
-Chicago        |-87.63787407428026
-Singapore      |103.8555349688977
-Munich         |11.537504978477955
-Hong Kong      |114.18392493389547
-Seoul          |127.06085099838674
-Berlin         |13.390888944268227
-Tokyo          |139.76402222178876
-Sydney         |151.20862897485495
-Paris          |2.3517729341983795
-Amsterdam      |4.850311987102032
+London         |-0.121672      
+Phoenix        |-111.973505    
+Mountain View  |-122.083843    
+San Francisco  |-122.394228    
+New York       |-73.990027     
+Chicago        |-87.637874     
+Singapore      |103.855535     
+Munich         |11.537505      
+Hong Kong      |114.183925     
+Seoul          |127.060851     
+Berlin         |13.390889      
+Tokyo          |139.76402225   
+Sydney         |151.208629     
+Paris          |2.351773       
+Amsterdam      |4.850312       
 ;
 
 selectAllPointsGroupByHemisphereFromAsWKT
@@ -157,11 +157,11 @@ selectCitiesByDistance
 SELECT region, city, ST_Distance(location, ST_WktToSQL('POINT (-71 42)')) distance FROM geo WHERE distance < 5000000 ORDER BY region, city;
 
    region:s    |    city:s     |    distance:d
-Americas       |Chicago        |1373941.5140200066
-Americas       |Mountain View  |4335936.909375596
-Americas       |New York       |285839.6579622518
-Americas       |Phoenix        |3692895.0346903414
-Americas       |San Francisco  |4343565.010996301
+Americas       |Chicago        |1373941.5075370357
+Americas       |Mountain View  |4335936.907008218 
+Americas       |New York       |285839.6512191343 
+Americas       |Phoenix        |3692895.0329883597
+Americas       |San Francisco  |4343565.009715615
 ;
 
 selectCitiesByDistanceFloored
@@ -267,27 +267,27 @@ SELECT COUNT(*) cnt, FLOOR(ST_Y(location)/45) north, FLOOR(ST_X(location)/90) ea
 selectFilterByXOfLocation
 SELECT city, ST_X(geoshape) x, ST_Y(geoshape) y, ST_Z(geoshape) z, ST_X(location) lx, ST_Y(location) ly FROM geo WHERE lx > 0 ORDER BY ly;
 
-   city:s      |      x:d      |     y:d       |      z:d      |         lx:d     |     ly:d
-Sydney         |151.208629     |-33.863385     |100.0          |151.20862897485495|-33.863385021686554
-Singapore      |103.855535     |1.295868       |15.0           |103.8555349688977 |1.2958679627627134
-Hong Kong      |114.183925     |22.281397      |552.0          |114.18392493389547|22.28139698971063
-Tokyo          |139.76402225   |35.669616      |40.0           |139.76402222178876|35.66961596254259
-Seoul          |127.060851     |37.509132      |38.0           |127.06085099838674|37.50913198571652
-Munich         |11.537505      |48.146321      |519.0          |11.537504978477955|48.14632098656148
-Paris          |2.351773       |48.845538      |35.0           |2.3517729341983795|48.84553796611726
-Amsterdam      |4.850312       |52.347557      |2.0            |4.850311987102032 |52.347556999884546
-Berlin         |13.390889      |52.486701      |34.0           |13.390888944268227|52.48670099303126
+   city:s      |      x:d      |     y:d       |      z:d      |      lx:d     |     ly:d
+Sydney         |151.208629     |-33.863385     |100.0          |151.208629     |-33.863385     
+Singapore      |103.855535     |1.295868       |15.0           |103.855535     |1.295868       
+Hong Kong      |114.183925     |22.281397      |552.0          |114.183925     |22.281397      
+Tokyo          |139.76402225   |35.669616      |40.0           |139.76402225   |35.669616      
+Seoul          |127.060851     |37.509132      |38.0           |127.060851     |37.509132      
+Munich         |11.537505      |48.146321      |519.0          |11.537505      |48.146321      
+Paris          |2.351773       |48.845538      |35.0           |2.351773       |48.845538      
+Amsterdam      |4.850312       |52.347557      |2.0            |4.850312       |52.347557      
+Berlin         |13.390889      |52.486701      |34.0           |13.390889      |52.486701
 ;
 
 selectFilterByRegionPoint
 SELECT city, region, ST_X(location) x FROM geo WHERE ST_X(ST_WKTTOSQL(region_point)) < 0 ORDER BY x;
 
     city:s     |   region:s    |       x:d
-San Francisco  |Americas       |-122.39422800019383
-Mountain View  |Americas       |-122.08384302444756
-Phoenix        |Americas       |-111.97350500151515
-Chicago        |Americas       |-87.63787407428026
-New York       |Americas       |-73.9900270756334
+San Francisco  |Americas       |-122.394228    
+Mountain View  |Americas       |-122.083843    
+Phoenix        |Americas       |-111.973505    
+Chicago        |Americas       |-87.637874     
+New York       |Americas       |-73.990027
 ;
 
 selectLargeLat

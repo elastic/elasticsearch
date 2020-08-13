@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.execution.search;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -22,8 +21,7 @@ import java.util.Set;
  */
 public class QlSourceBuilder {
     // The LinkedHashMaps preserve the order of the fields in the response
-    private final Set<String> sourceFields = new LinkedHashSet<>();
-    private final Set<FieldAndFormat> docFields = new LinkedHashSet<>();
+    private final Set<FieldAndFormat> fetchFields = new LinkedHashSet<>();
     private final Map<String, Script> scriptFields = new LinkedHashMap<>();
 
     boolean trackScores = false;
@@ -39,17 +37,10 @@ public class QlSourceBuilder {
     }
 
     /**
-     * Retrieve the requested field from the {@code _source} of the document
+     * Retrieve the requested field using the "fields" API
      */
-    public void addSourceField(String field) {
-        sourceFields.add(field);
-    }
-
-    /**
-     * Retrieve the requested field from doc values (or fielddata) of the document
-     */
-    public void addDocField(String field, String format) {
-        docFields.add(new FieldAndFormat(field, format));
+    public void addFetchField(String field, String format) {
+        fetchFields.add(new FieldAndFormat(field, format));
     }
 
     /**
@@ -65,14 +56,11 @@ public class QlSourceBuilder {
      */
     public void build(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(this.trackScores);
-        if (!sourceFields.isEmpty()) {
-            sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
-        }
-        docFields.forEach(field -> sourceBuilder.docValueField(field.field, field.format));
+        fetchFields.forEach(field -> sourceBuilder.fetchField(new FieldAndFormat(field.field, field.format, null)));
         scriptFields.forEach(sourceBuilder::scriptField);
     }
 
     public boolean noSource() {
-        return sourceFields.isEmpty();
+        return true;
     }
 }

@@ -111,7 +111,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                     + "txt, csv or tsv formats");
         }
-
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override

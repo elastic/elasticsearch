@@ -106,7 +106,7 @@ public class ColumnInfo implements ToXContentObject {
     /**
      * Used by JDBC
      */
-    public int displaySize() {
+    public Integer displaySize() {
         return displaySize;
     }
 

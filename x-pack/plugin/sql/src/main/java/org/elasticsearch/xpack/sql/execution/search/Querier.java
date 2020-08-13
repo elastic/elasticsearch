@@ -83,6 +83,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.sql.execution.PlanExecutor.FIELDS_API_INTRODUCTION_VERSION;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -143,12 +144,17 @@ public class Querier {
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
-        return client.prepareSearch(indices)
-                // always track total hits accurately
-                .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
+        source.trackTotalHits(true);
+        source.timeout(timeout);
+
+        SearchRequest searchRequest = new SearchRequest(FIELDS_API_INTRODUCTION_VERSION);
+        searchRequest.indices(indices);
+        searchRequest.source(source);
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.indicesOptions(
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+
+        return searchRequest;
     }
 
     protected static void logSearchResponse(SearchResponse response, Logger logger) {

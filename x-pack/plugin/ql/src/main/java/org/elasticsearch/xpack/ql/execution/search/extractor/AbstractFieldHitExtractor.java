@@ -9,6 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private static final Version SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION = Version.V_7_4_0;
+    private static final Version SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API = Version.V_7_10_0;
 
     /**
      * Source extraction requires only the (relative) field name, without its parent path.
@@ -54,6 +57,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     private final boolean useDocValue;
     private final boolean arrayLeniency;
     private final String[] path;
+    private final InternalHitExtractor hitExtractorDelegate;
+    protected final GeoPointParser geoPointParserDelegate;
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
         this(name, null, dataType, zoneId, useDocValue, null, false);
@@ -80,22 +85,37 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
 
         this.path = sourcePath(fieldName, useDocValue, hitName);
+        hitExtractorDelegate = new FieldsApiFieldHitExtractor();
+        geoPointParserDelegate = new FieldsApiGeoPointParser();
     }
 
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)) {
+        if (in.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)
+            && in.getVersion().before(SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API)) {
             fullFieldName = in.readOptionalString();
+            hitExtractorDelegate = new SourceDocValuesFieldHitExtractor();
+            geoPointParserDelegate = new SourceDocValuesGeoPointParser();
         } else {
             fullFieldName = null;
+            hitExtractorDelegate = new FieldsApiFieldHitExtractor();
+            geoPointParserDelegate = new FieldsApiGeoPointParser();
         }
         String typeName = in.readOptionalString();
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
-        useDocValue = in.readBoolean();
+        if (in.getVersion().before(SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API)) {
+            useDocValue = in.readBoolean();
+        } else {
+            useDocValue = false; // for "fields" API usage, extraction from _source or from docvalues doesn't matter
+        }
         hitName = in.readOptionalString();
         arrayLeniency = in.readBoolean();
-        path = sourcePath(fieldName, useDocValue, hitName);
         zoneId = readZoneId(in);
+        if (in.getVersion().before(SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API)) {
+            path = sourcePath(fieldName, useDocValue, hitName);
+        } else {
+            path = null;
+        }
     }
 
     protected DataType loadTypeFromName(String typeName) {
@@ -107,45 +127,52 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)) {
+        if (out.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)
+            && out.getVersion().before(SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API)) {
             out.writeOptionalString(fullFieldName);
         }
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
-        out.writeBoolean(useDocValue);
+        if (out.getVersion().before(SWITCHED_FROM_SOURCE_EXTRACTION_TO_FIELDS_API)) {
+            out.writeBoolean(useDocValue);
+        }
         out.writeOptionalString(hitName);
         out.writeBoolean(arrayLeniency);
     }
 
     @Override
     public Object extract(SearchHit hit) {
-        Object value = null;
-        if (useDocValue) {
-            DocumentField field = hit.field(fieldName);
-            if (field != null) {
-                value = unwrapMultiValue(field.getValues());
-            }
+        if (hitExtractorDelegate != null) {
+            return hitExtractorDelegate.extract(hit);
         } else {
-            // if the field was ignored because it was malformed and ignore_malformed was turned on
-            if (fullFieldName != null
-                    && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
-                    && isFromDocValuesOnly(dataType) == false) {
-                /*
-                 * We check here the presence of the field name (fullFieldName including the parent name) in the list
-                 * of _ignored fields (due to malformed data, which was ignored).
-                 * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
-                 * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
-                 * data for the "text" sub-field.
-                 */
-                if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
-                    return null;
+            return new FieldsApiFieldHitExtractor().extract(hit);
+        }
+    }
+
+    protected Object unwrapFieldsMultiValue(Object values) {
+        if (values == null) {
+            return null;
+        }
+        if (values instanceof List) {
+            List<?> list = (List<?>) values;
+            if (list.isEmpty()) {
+                return null;
+            } else {
+                if (isPrimitive(list) == false) {
+                    if (list.size() == 1 || arrayLeniency) {
+                        return unwrapFieldsMultiValue(list.get(0));
+                    } else {
+                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    }
                 }
             }
-            Map<String, Object> source = hit.getSourceAsMap();
-            if (source != null) {
-                value = extractFromSource(source);
-            }
         }
-        return value;
+
+        Object unwrapped = unwrapCustomValue(values);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+
+        return values;
     }
 
     protected Object unwrapMultiValue(Object values) {
@@ -335,5 +362,83 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     @Override
     public int hashCode() {
         return Objects.hash(fieldName, useDocValue, hitName, arrayLeniency);
+    }
+
+    /*
+     * Logic specific to extraction preferably from _source when possible, falling back to extraction from doc_values otherwise.
+     * This has been introduced in 7.4.0 and not needed anymore starting with 7.10.0
+     */
+    private class SourceDocValuesFieldHitExtractor implements InternalHitExtractor {
+        public Object extract(SearchHit hit) {
+            Object value = null;
+            if (useDocValue) {
+                DocumentField field = hit.field(fieldName);
+                if (field != null) {
+                    value = unwrapMultiValue(field.getValues());
+                }
+            } else {
+                // if the field was ignored because it was malformed and ignore_malformed was turned on
+                if (fullFieldName != null
+                        && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
+                        && isFromDocValuesOnly(dataType) == false
+                        && dataType.isNumeric()) {
+                    /*
+                     * ignore_malformed makes sense for extraction from _source for numeric fields only.
+                     * And we check here that the data type is actually a numeric one to rule out
+                     * any non-numeric sub-fields (for which the "parent" field should actually be extracted from _source).
+                     * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
+                     * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
+                     * data for the "text" sub-field. Also, the _ignored section of the response contains the full field
+                     * name, thus the need to do the comparison with that and not only the field name.
+                     */
+                    if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
+                        return null;
+                    }
+                }
+                Map<String, Object> source = hit.getSourceAsMap();
+                if (source != null) {
+                    value = extractFromSource(source);
+                }
+            }
+            return value;
+        }
+    }
+
+    /*
+     * Logic specific to extraction from "fields" API (introduced in 7.10.0) 
+     */
+    private class FieldsApiFieldHitExtractor implements InternalHitExtractor {
+        public Object extract(SearchHit hit) {
+            Object value = null;
+            DocumentField field = hit.field(fieldName);
+            if (field != null) {
+                value = unwrapFieldsMultiValue(field.getValues());
+            }
+            return value;
+        }
+    }
+
+    private interface InternalHitExtractor {
+        Object extract(SearchHit hit);
+    }
+
+    private class SourceDocValuesGeoPointParser implements GeoPointParser {
+        @Override
+        public GeoPoint parse(Object values) {
+            return GeoUtils.parseGeoPoint(values, true);
+        }
+    }
+
+    private class FieldsApiGeoPointParser implements GeoPointParser {
+        @Override
+        public GeoPoint parse(Object values) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) values;
+            return GeoUtils.parseGeoPoint(map.get("coordinates"), true);
+        }
+    }
+
+    public interface GeoPointParser {
+        GeoPoint parse(Object values);
     }
 }

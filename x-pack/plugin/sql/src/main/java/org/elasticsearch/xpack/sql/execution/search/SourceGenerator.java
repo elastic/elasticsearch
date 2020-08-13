@@ -186,8 +186,5 @@ public abstract class SourceGenerator {
 
     private static void disableSource(SearchSourceBuilder builder) {
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        if (builder.storedFields() == null) {
-            builder.storedFields(NO_STORED_FIELD);
-        }
     }
 }

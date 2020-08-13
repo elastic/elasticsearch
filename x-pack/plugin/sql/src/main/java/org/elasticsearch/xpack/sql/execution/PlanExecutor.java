@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -22,9 +23,9 @@ import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.stats.QueryMetric;
@@ -34,6 +35,7 @@ import java.util.List;
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
+    public static final Version FIELDS_API_INTRODUCTION_VERSION = Version.V_7_10_0;
     private final Client client;
     private final NamedWriteableRegistry writableRegistry;
 
@@ -44,7 +46,7 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    
+
     private final Metrics metrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {

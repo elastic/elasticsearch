@@ -36,7 +36,7 @@ abstract class AbstractGradleFuncTest extends Specification{
 
     def setup() {
         settingsFile = testProjectDir.newFile('settings.gradle')
-        settingsFile << "rootProject.name = 'hello-world'"
+        settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
     }
 

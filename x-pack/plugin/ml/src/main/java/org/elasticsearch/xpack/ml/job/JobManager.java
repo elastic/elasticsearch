@@ -172,13 +172,13 @@ public class JobManager {
      * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
-     * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
      * @param jobsListener The jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
+    public void expandJobs(String expression, boolean allowNoMatch, ActionListener<QueryPage<Job>> jobsListener) {
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
 
-        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
                     for (Job.Builder jb : jobBuilders) {
@@ -203,10 +203,10 @@ public class JobManager {
         ));
     }
 
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
+    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoMatch, ClusterState clusterState) {
         Map<String, Job> jobIdToJob = new HashMap<>();
         try {
-            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoMatch);
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
             for (String expandedJobId : expandedJobIds) {
                 jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));

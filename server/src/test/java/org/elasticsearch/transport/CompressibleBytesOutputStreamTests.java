@@ -114,8 +114,10 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
         @Override
         public void close() {
-            int size = (int) bytes.size();
-            bytes.set(0, new byte[size], 0, size);
+            if (bytes != null) {
+                int size = (int) bytes.size();
+                bytes.set(0, new byte[size], 0, size);
+            }
         }
     }
 }

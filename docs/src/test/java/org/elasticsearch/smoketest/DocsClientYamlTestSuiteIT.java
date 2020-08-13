@@ -104,7 +104,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void waitForRequirements() throws Exception {
-        if (isCcrTest() || isGetLicenseTest()) {
+        if (isCcrTest() || isGetLicenseTest() || isXpackInfoTest()) {
             ESRestTestCase.waitForActiveLicense(adminClient());
         }
     }
@@ -178,6 +178,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected boolean isGetLicenseTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("/get-license/") || testName.contains("\\get-license\\"));
+    }
+
+    protected boolean isXpackInfoTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
     /**

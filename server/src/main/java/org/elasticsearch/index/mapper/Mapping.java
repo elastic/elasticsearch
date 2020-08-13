@@ -75,6 +75,13 @@ public final class Mapping implements ToXContentFragment {
         return root;
     }
 
+    public void validate(MappingLookup mappers) {
+        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
+            metadataFieldMapper.validate(mappers);
+        }
+        root.validate(mappers);
+    }
+
     /**
      * Generate a mapping update for the given root object mapper.
      */

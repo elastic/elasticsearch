@@ -219,7 +219,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * This injects additional ir nodes required for resolving the def type at runtime.
      * This includes injection of ir nodes to add a function to call
      * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
-     * to do the runtime resolution.
+     * to do the runtime resolution, and several supporting static fields.
      */
     protected void injectBootstrapMethod(ScriptScope scriptScope) {
         // adds static fields required for def bootstrapping
@@ -402,16 +402,32 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         return irCastNode;
     }
 
+    /**
+     * This helper generates a set of ir nodes that are required for an assignment
+     * handling both regular assignment and compound assignment. It only stubs out
+     * the compound assignment.
+     * @param accessDepth The number of arguments to dup for an additional read.
+     * @param location The location for errors.
+     * @param isNullSafe Whether or not the null safe operator is used.
+     * @param irPrefixNode The prefix node for this store/load. The 'a.b' of 'a.b.c', etc.
+     * @param irIndexNode The index node if this is a brace access.
+     * @param irLoadNode The load node if this a read.
+     * @param irStoreNode The store node if this is a write.
+     * @return The root node for this assignment.
+     */
     protected ExpressionNode buildLoadStore(int accessDepth, Location location, boolean isNullSafe,
             ExpressionNode irPrefixNode, ExpressionNode irIndexNode, ExpressionNode irLoadNode, StoreNode irStoreNode) {
 
         ExpressionNode irExpressionNode;
 
+        // this load/store is only a load (read)
         if (irStoreNode == null) {
             ExpressionNode irAccessNode;
 
+            // this load is a symbol or dot load with no index node
             if (irIndexNode == null) {
                 irAccessNode = irLoadNode;
+            // this load is a dot or brace load with an index node
             } else {
                 BinaryNode irBinaryNode = new BinaryNode();
                 irBinaryNode.setLocation(location);
@@ -422,6 +438,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irAccessNode = irBinaryNode;
             }
 
+            // this wraps the load if this is a null-safe operation
             if (isNullSafe) {
                 NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
                 nullSafeSubNode.setChildNode(irAccessNode);
@@ -430,8 +447,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irAccessNode = nullSafeSubNode;
             }
 
+            // this load is a symbol access with no prefix
             if (irPrefixNode == null) {
                 irExpressionNode = irAccessNode;
+            // this load is a dot or brace access with a prefix node
             } else {
                 BinaryNode irParentNode = new BinaryNode();
                 irParentNode.setLocation(location);
@@ -441,11 +460,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
                 irExpressionNode = irParentNode;
             }
+        // this is a store (write) and possibly also a load (read) for compound assignment
         } else {
             ExpressionNode irAccessNode;
 
+            // this store is a symbol or dot store with no index node
             if (irIndexNode == null) {
                 irAccessNode = irPrefixNode;
+            // this store is a dot or brace load with an index node
             } else {
                 BinaryNode irBinaryNode = new BinaryNode();
                 irBinaryNode.setLocation(location);
@@ -456,11 +478,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irAccessNode = irBinaryNode;
             }
 
+            // this is a simple store
             if (irLoadNode == null) {
+                // this store is a dot or brace store
                 if (irAccessNode != null) {
                     ((StoreAccessNode)irStoreNode).setAccessNode(irAccessNode);
                 }
+            // this is a compound assignment
             } else {
+                // this store has a prefix node that we must dup for a load
                 if (irAccessNode != null) {
                     DupNode dupNode = new DupNode();
                     dupNode.setLocation(location);
@@ -810,8 +836,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 scriptScope.getDecoration(userAssignmentNode, CompoundType.class).getCompoundType() : null;
 
         StoreNode irStoreNode;
+        // add a cast node if necessary for the value node for the assignment
         ExpressionNode irValueNode = injectCast(userAssignmentNode.getRightNode(), scriptScope);
 
+        // handles a compound assignment using the stub generated from buildLoadStore
         if (compoundType != null) {
             boolean concatenate = userAssignmentNode.getOperation() == Operation.ADD && compoundType == String.class;
             scriptScope.setCondition(userAssignmentNode.getLeftNode(), Compound.class);
@@ -819,11 +847,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             ExpressionNode irLoadNode = irStoreNode.getChildNode();
             ExpressionNode irCompoundNode;
 
+            // handles when the operation is a string concatenation
             if (concatenate) {
                 StringConcatenationNode stringConcatenationNode = new StringConcatenationNode();
                 stringConcatenationNode.setLocation(irStoreNode.getLocation());
                 stringConcatenationNode.setExpressionType(String.class);
                 irCompoundNode = stringConcatenationNode;
+            // handles when the operation is mathematical
             } else {
                 BinaryMathNode irBinaryMathNode = new BinaryMathNode();
                 irBinaryMathNode.setLocation(irStoreNode.getLocation());
@@ -831,6 +861,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irBinaryMathNode.setExpressionType(compoundType);
                 irBinaryMathNode.setBinaryType(compoundType);
                 irBinaryMathNode.setOperation(userAssignmentNode.getOperation());
+                // add a compound assignment flag to the binary math node
                 irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
                 irCompoundNode = irBinaryMathNode;
             }
@@ -838,9 +869,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             PainlessCast downcast = scriptScope.hasDecoration(userAssignmentNode, DowncastPainlessCast.class) ?
                     scriptScope.getDecoration(userAssignmentNode, DowncastPainlessCast.class).getDowncastPainlessCast() : null;
 
+            // no need to downcast so the binary math node is the value for the store node
             if (downcast == null) {
                 irCompoundNode.setExpressionType(irStoreNode.getStoreType());
                 irStoreNode.setChildNode(irCompoundNode);
+            // add a cast node to do a downcast as the value for the store node
             } else {
                 CastNode irCastNode = new CastNode();
                 irCastNode.setLocation(irCompoundNode.getLocation());
@@ -850,10 +883,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irStoreNode.setChildNode(irCastNode);
             }
 
+            // the value is also read from this assignment
             if (read) {
                 int accessDepth = scriptScope.getDecoration(userAssignmentNode.getLeftNode(), AccessDepth.class).getAccessDepth();
                 DupNode irDupNode = new DupNode();
 
+                // the value is read from prior to assignment (post-increment)
                 if (userAssignmentNode.postIfRead()) {
                     irDupNode.setLocation(irLoadNode.getLocation());
                     irDupNode.setExpressionType(irLoadNode.getExpressionType());
@@ -861,6 +896,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     irDupNode.setDepth(accessDepth);
                     irDupNode.setChildNode(irLoadNode);
                     irLoadNode = irDupNode;
+                // the value is read from after the assignment (pre-increment/compound)
                 } else {
                     irDupNode.setLocation(irStoreNode.getLocation());
                     irDupNode.setExpressionType(irStoreNode.getStoreType());
@@ -874,6 +910,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             PainlessCast upcast = scriptScope.hasDecoration(userAssignmentNode, UpcastPainlessCast.class) ?
                     scriptScope.getDecoration(userAssignmentNode, UpcastPainlessCast.class).getUpcastPainlessCast() : null;
 
+            // upcast the stored value if necessary
             if (upcast != null) {
                 CastNode irCastNode = new CastNode();
                 irCastNode.setLocation(irLoadNode.getLocation());
@@ -884,17 +921,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             if (concatenate) {
-                StringConcatenationNode irStringConcenationNode = (StringConcatenationNode)irCompoundNode;
-                irStringConcenationNode.addArgumentNode(irLoadNode);
-                irStringConcenationNode.addArgumentNode(irValueNode);
+                StringConcatenationNode irStringConcatenationNode = (StringConcatenationNode)irCompoundNode;
+                irStringConcatenationNode.addArgumentNode(irLoadNode);
+                irStringConcatenationNode.addArgumentNode(irValueNode);
             } else {
                 BinaryMathNode irBinaryMathNode = (BinaryMathNode)irCompoundNode;
                 irBinaryMathNode.setLeftNode(irLoadNode);
                 irBinaryMathNode.setRightNode(irValueNode);
             }
+        // handles a standard assignment
         } else {
             irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
 
+            // the value is read from after the assignment
             if (read) {
                 int accessDepth = scriptScope.getDecoration(userAssignmentNode.getLeftNode(), AccessDepth.class).getAccessDepth();
 
@@ -1427,6 +1466,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userNewArrayFunctionRefNode, new IRNodeDecoration(irReferenceNode));
     }
 
+    /**
+     * This handles both load and store for symbol accesses as necessary. This uses buildLoadStore to
+     * stub out the appropriate load and store ir nodes.
+     */
     @Override
     public void visitSymbol(ESymbol userSymbolNode, ScriptScope scriptScope) {
         ExpressionNode irExpressionNode;
@@ -1474,6 +1517,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userSymbolNode, new IRNodeDecoration(irExpressionNode));
     }
 
+    /**
+     * This handles both load and store for dot accesses as necessary. This uses buildLoadStore to
+     * stub out the appropriate load and store ir nodes.
+     */
     @Override
     public void visitDot(EDot userDotNode, ScriptScope scriptScope) {
         ExpressionNode irExpressionNode;
@@ -1634,6 +1681,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userDotNode, new IRNodeDecoration(irExpressionNode));
     }
 
+    /**
+     * This handles both load and store for brace accesses as necessary. This uses buildLoadStore to
+     * stub out the appropriate load and store ir nodes.
+     */
     @Override
     public void visitBrace(EBrace userBraceNode, ScriptScope scriptScope) {
         boolean read = scriptScope.getCondition(userBraceNode, Read.class);

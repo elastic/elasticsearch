@@ -21,8 +21,6 @@ package org.elasticsearch.gradle.util;
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
@@ -47,7 +45,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 public abstract class GradleUtils {
@@ -58,28 +55,6 @@ public abstract class GradleUtils {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name);
-            action.execute(result);
-            return result;
-        });
-
-    }
-
-    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name, type);
-            action.execute(result);
-            return result;
-        });
-
     }
 
     public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {

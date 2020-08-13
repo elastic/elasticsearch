@@ -12,7 +12,8 @@ project.forbiddenPatterns {
 
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 
-task buildZip(type: Zip, dependsOn: jar) {
+tasks.register("buildZip", Zip) {
+  dependsOn "jar"
   String parentDir = "license-tools-${archiveVersion}"
   into(parentDir + '/lib') {
     from jar
@@ -23,4 +24,4 @@ task buildZip(type: Zip, dependsOn: jar) {
   }
 }
 
-assemble.dependsOn buildZip
+tasks.named("assemble").configure { dependsOn("buildZip") }

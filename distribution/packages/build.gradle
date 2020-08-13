@@ -59,7 +59,7 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
   String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-  task(taskName, type: Copy) {
+  tasks.register(taskName, Copy) {
     into packagingFiles
 
     with copySpec {
@@ -456,15 +456,15 @@ subprojects {
       }
     }
 
-    check.dependsOn checkExtraction
+    tasks.named("check").configure { dependsOn "checkExtraction" }
     if (project.name.contains('deb')) {
-      checkExtraction {
+      tasks.named("checkExtraction").configure {
         onlyIf dpkgExists
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.get()outputs.files.filter(debFilter).singleFile}", packageExtractionDir
+        commandLine 'dpkg-deb', '-x', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
-      checkExtraction {
+      tasks.named("checkExtraction").configure {
         onlyIf rpmExists
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
@@ -483,12 +483,12 @@ subprojects {
       }
     }
 
-    task checkLicense {
-      dependsOn buildDist, checkExtraction
+    tasks.register("checkLicense") {
+      dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicense
+    check.dependsOn "checkLicense"
     if (project.name.contains('deb')) {
-      checkLicense {
+      tasks.named("checkLicense").configure {
         onlyIf dpkgExists
         doLast {
           Path copyrightPath
@@ -513,7 +513,7 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicense {
+      tasks.named("checkLicense").configure {
         onlyIf rpmExists
         doLast {
           String licenseFilename
@@ -529,8 +529,8 @@ subprojects {
       }
     }
 
-    task checkNotice {
-      dependsOn buildDist, checkExtraction
+    tasks.register("checkNotice") {
+      dependsOn buildDist, "checkExtraction"
       onlyIf {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
@@ -540,10 +540,10 @@ subprojects {
         assertLinesInFile(noticePath, noticeLines)
       }
     }
-    check.dependsOn checkNotice
+    tasks.named("check").configure { dependsOn "checkNotice" }
 
     tasks.register('checkLicenseMetadata', LoggedExec) {
-      dependsOn buildDist, checkExtraction
+      dependsOn buildDist, "checkExtraction"
     }
     check.dependsOn checkLicenseMetadata
     if (project.name.contains('deb')) {

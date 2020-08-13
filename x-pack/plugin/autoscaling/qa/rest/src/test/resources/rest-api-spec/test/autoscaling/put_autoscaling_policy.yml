@@ -10,6 +10,11 @@
 
   - match: { "acknowledged": true }
 
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
 ---
 "Test put autoscaling policy with non-existent decider":
   - do:

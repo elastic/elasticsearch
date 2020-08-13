@@ -184,16 +184,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                progressOnStart = in.readList(PhaseProgress::new);
-            } else {
-                progressOnStart = Collections.emptyList();
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                allowLazyStart = in.readBoolean();
-            } else {
-                allowLazyStart = false;
-            }
+            progressOnStart = in.readList(PhaseProgress::new);
+            allowLazyStart = in.readBoolean();
         }
 
         public String getId() {
@@ -222,12 +214,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeList(progressOnStart);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeBoolean(allowLazyStart);
-            }
+            out.writeList(progressOnStart);
+            out.writeBoolean(allowLazyStart);
         }
 
         @Override

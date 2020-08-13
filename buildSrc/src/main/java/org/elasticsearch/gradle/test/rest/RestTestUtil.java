@@ -23,7 +23,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
@@ -53,19 +52,18 @@ public class RestTestUtil {
     /**
      * Creates the runner task and configures the test clusters
      */
-    static RestTestRunnerTask setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
-        RestTestRunnerTask runner = testTask.getRunner();
-        runner.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
-        runner.setClasspath(sourceSet.getRuntimeClasspath());
+    static void setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
+        testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+        testTask.setClasspath(sourceSet.getRuntimeClasspath());
 
         // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
             testTask.dependsOn(bundle);
             if (project.getPath().startsWith(":modules:")) {
-                runner.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
+                testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
             } else {
-                runner.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
+                testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
             }
         });
 
@@ -78,12 +76,11 @@ public class RestTestUtil {
                     if (extensionProject != null) { // extension plugin may be defined, but not required to be a module
                         Zip extensionBundle = (Zip) extensionProject.getTasks().getByName("bundlePlugin");
                         testTask.dependsOn(extensionBundle);
-                        runner.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
+                        testTask.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
                     }
                 });
             }
         });
-        return runner;
     }
 
     /**

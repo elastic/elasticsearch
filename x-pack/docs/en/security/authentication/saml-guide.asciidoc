@@ -146,8 +146,8 @@ xpack.security.authc.realms.saml.saml1::
 
 order::
     You should define a unique order on each realm in your authentication chain.
-    It is recommended that the SAML realm be at the bottom of your authentication
-    chain (that is, that it has the _highest_ order).
+    Realms with a lower order are consulted first. Although not required, use of this setting is strongly recommended when you configure multiple realms. Defaults to Integer.MAX_VALUE.
+
 
 idp.metadata.path::
     This is the path to the metadata file that you saved for your Identity Provider.

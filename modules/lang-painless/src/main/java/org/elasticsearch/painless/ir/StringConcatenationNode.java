@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -24,46 +24,58 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class DupNode extends UnaryNode {
+public class StringConcatenationNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
-    private int size;
-    private int depth;
+    private boolean cat;
 
-    public void setSize(int size) {
-        this.size = size;
+    public void setCat(boolean cat) {
+        this.cat = cat;
     }
 
-    public int getSize() {
-        return size;
-    }
-
-    public void setDepth(int depth) {
-        this.depth = depth;
-    }
-
-    public int getDepth() {
-        return depth;
+    public boolean getCat() {
+        return cat;
     }
 
     /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        irTreeVisitor.visitDup(this, scope);
+        irTreeVisitor.visitStringConcatenation(this, scope);
     }
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getChildNode().visit(irTreeVisitor, scope);
+
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
-        methodWriter.writeDup(size, depth);
+        methodWriter.writeDebugInfo(location);
+
+        if (cat == false) {
+            methodWriter.writeNewStrings();
+        }
+
+        ExpressionNode leftNode = getArgumentNodes().get(0);
+        leftNode.write(classWriter, methodWriter, writeScope);
+
+        if (leftNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)leftNode).getCat() == false) {
+            methodWriter.writeAppendStrings(leftNode.getExpressionType());
+        }
+
+        ExpressionNode rightNode = getArgumentNodes().get(1);
+        rightNode.write(classWriter, methodWriter, writeScope);
+
+        if (rightNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)rightNode).getCat() == false) {
+            methodWriter.writeAppendStrings(rightNode.getExpressionType());
+        }
+
+        if (cat == false) {
+            methodWriter.writeToStrings();
+        }
     }
 }

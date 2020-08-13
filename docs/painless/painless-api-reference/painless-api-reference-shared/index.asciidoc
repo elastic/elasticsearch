@@ -421,6 +421,8 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-shared-Debug, Debug>>
 
+* <<painless-api-reference-shared-Hash, Hash>>
+
 ==== org.elasticsearch.script
 <<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.elasticsearch.script>>
 

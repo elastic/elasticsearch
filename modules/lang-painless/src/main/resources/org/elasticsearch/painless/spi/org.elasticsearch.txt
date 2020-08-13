@@ -57,6 +57,12 @@ class org.elasticsearch.painless.api.Debug {
   void explain(Object)
 }
 
+#### Painless Hash API
+
+class org.elasticsearch.painless.api.Hash {
+  String hash(String, String)
+}
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {

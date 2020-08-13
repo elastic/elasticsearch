@@ -8509,6 +8509,12 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 === Shared API for package org.elasticsearch.script
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
+[[painless-api-reference-shared-Hash]]
+==== Hash
+*  static def md5(String)
+*  static def sha1(String)
+*  static def sha2(String)
+
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime
 * int {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#compareTo(java.time.chrono.ChronoZonedDateTime)[compareTo](ChronoZonedDateTime)

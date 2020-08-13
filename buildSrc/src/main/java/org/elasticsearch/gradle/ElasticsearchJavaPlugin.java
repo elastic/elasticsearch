@@ -25,7 +25,6 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
-import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -38,8 +37,10 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
+import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
@@ -48,11 +49,9 @@ import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.gradle.util.Util.toStringable;
 
@@ -140,14 +139,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
-        Function<File, String> canonicalPath = file -> {
-            try {
-                return file.getCanonicalPath();
-            } catch (IOException e) {
-                throw new GradleException("Failed to get canonical path for " + file, e);
-            }
-        };
-
         project.afterEvaluate(p -> {
             project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
                 CompileOptions compileOptions = compileTask.getOptions();
@@ -172,16 +163,23 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
                 compileOptions.setEncoding("UTF-8");
                 compileOptions.setIncremental(true);
-
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-                compileOptions.getRelease().set(Integer.parseInt(targetCompatibilityVersion.getMajorVersion()));
+                compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
+                compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
+                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
             // also apply release flag to groovy, which is used in build-tools
             project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
                 // TODO: this probably shouldn't apply to groovy at all?
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-                compileTask.getOptions().getRelease().set(Integer.parseInt(targetCompatibilityVersion.getMajorVersion()));
+                compileTask.setSourceCompatibility(compileTask.getSourceCompatibility());
+                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
+        });
+    }
+
+    private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {
+        return project.provider(() -> {
+            JavaVersion javaVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
+            return Integer.parseInt(javaVersion.getMajorVersion());
         });
     }
 

@@ -36,6 +36,6 @@ public abstract class ArgumentsNode extends ExpressionNode {
         return argumentNodes;
     }
 
-    /* ---- end tree structure, visitor ---- */
+    /* ---- end tree structure ---- */
 
 }

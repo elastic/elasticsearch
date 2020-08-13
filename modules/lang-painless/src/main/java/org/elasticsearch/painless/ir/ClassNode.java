@@ -173,4 +173,9 @@ public class ClassNode extends IRNode {
         classVisitor.visitEnd();
         return classWriter.getClassBytes();
     }
+
+    @Override
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        throw new UnsupportedOperationException("use write() instead");
+    }
 }

@@ -14,22 +14,22 @@ if (BuildParams.inFipsJvm) {
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.1')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
 
-    project.afterEvaluate {
-      def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-      // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
-      // set the class path to help maintain pure black box testing, and here we are adding to that classpath
-      tasks.withType(Test).configureEach { Test test ->
-        test.setClasspath(test.getClasspath().plus(extraFipsJars))
-      }
-    }
-
-    pluginManager.withPlugin('elasticsearch.java') {
+    pluginManager.withPlugin('java') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {
         outputDir = fipsResourcesDir
         copy 'fips_java.security'
         copy 'fips_java.policy'
         copy 'cacerts.bcfks'
+      }
+
+      project.afterEvaluate {
+        def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
+        // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
+        // set the class path to help maintain pure black box testing, and here we are adding to that classpath
+        tasks.withType(Test).configureEach { Test test ->
+          test.setClasspath(test.getClasspath().plus(extraFipsJars))
+        }
       }
 
       pluginManager.withPlugin("elasticsearch.testclusters") {

@@ -52,7 +52,7 @@ public class HashTests extends ScriptTestCase {
         assertEquals("1d8e2db6723d79d7cb2d2d9df903c206c6381120263ef0bec9db076b4204f73ff931658276ae7e19f245963815ae7eed", output);
     }
 
-    public void test512() {
+    public void testSHA512() {
         String input = "test input";
         Object output = exec("Hash.hash(params.data, 'SHA-512')", singletonMap("data", input), true);
         assertEquals("40aa1b203c9d8ee150b21c3c7cda8261492e5420c5f2b9f7380700e094c303b48e62f319c1da0e32eb40d113c5f1749cc61aeb499167890ab82f2cc9bb706971", output);

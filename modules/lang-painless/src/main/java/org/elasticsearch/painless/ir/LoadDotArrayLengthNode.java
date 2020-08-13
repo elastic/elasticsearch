@@ -24,42 +24,20 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class BraceSubNode extends IndexNode {
+public class LoadDotArrayLengthNode extends ExpressionNode {
 
     /* ---- begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBraceSub(this, input);
+        return irTreeVisitor.visitLoadDotArrayLengthNode(this, input);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        setup(classWriter, methodWriter, writeScope);
-        load(classWriter, methodWriter, writeScope);
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return 2;
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
-        methodWriter.arrayLoad(MethodWriter.getType(getExpressionType()));
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.arrayStore(MethodWriter.getType(getExpressionType()));
+        methodWriter.arrayLength();
     }
 }

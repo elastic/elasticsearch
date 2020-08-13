@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
@@ -40,8 +38,8 @@ public class BinaryMathNode extends BinaryNode {
     private Operation operation;
     private Class<?> binaryType;
     private Class<?> shiftType;
-    private boolean cat; // set to true for a String concatenation
-    private boolean originallyExplicit; // record whether there was originally an explicit cast
+    private boolean cat;
+    private int flags;
 
     public void setOperation(Operation operation) {
         this.operation = operation;
@@ -83,17 +81,12 @@ public class BinaryMathNode extends BinaryNode {
         return cat;
     }
 
-    public void setOriginallyExplicit(boolean originallyExplicit) {
-        this.originallyExplicit = originallyExplicit;
+    public void setFlags(int flags) {
+        this.flags = flags;
     }
 
-    public boolean getOriginallyExplicit() {
-        return originallyExplicit;
-    }
-
-    @Override
-    public void setLocation(Location location) {
-        super.setLocation(location);
+    public int getFlags() {
+        return flags;
     }
 
     /* ---- end node data, begin visitor ---- */
@@ -147,12 +140,6 @@ public class BinaryMathNode extends BinaryNode {
             getRightNode().write(classWriter, methodWriter, writeScope);
 
             if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                // def calls adopt the wanted return value. if there was a narrowing cast,
-                // we need to flag that so that its done at runtime.
-                int flags = 0;
-                if (originallyExplicit) {
-                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
-                }
                 methodWriter.writeDynamicBinaryInstruction(location,
                         getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
             } else {

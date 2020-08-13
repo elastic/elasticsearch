@@ -21,36 +21,37 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
+import org.objectweb.asm.Opcodes;
 
-public class BinaryNode extends ExpressionNode {
+public class LoadVariableNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
+    private String name;
 
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
+    public String getName() {
+        return name;
     }
 
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitLoadVariable(this, input);
     }
 
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        Variable variable = writeScope.getVariable(name);
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 }

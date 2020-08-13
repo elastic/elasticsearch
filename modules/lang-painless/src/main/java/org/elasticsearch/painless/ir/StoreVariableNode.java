@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,35 +22,30 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
+import org.objectweb.asm.Opcodes;
 
-public class BinaryNode extends ExpressionNode {
+public class StoreVariableNode extends StoreNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
+    private String name;
 
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
+    public String getName() {
+        return name;
     }
 
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
-    }
-
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end node data ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
+        Variable variable = writeScope.getVariable(name);
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

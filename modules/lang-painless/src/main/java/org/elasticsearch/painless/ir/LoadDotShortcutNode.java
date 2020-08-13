@@ -21,36 +21,40 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class BinaryNode extends ExpressionNode {
+public class LoadDotShortcutNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
+    private PainlessMethod getter;
 
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    public void setGetter(PainlessMethod getter) {
+        this.getter = getter;
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
+    public PainlessMethod getGetter() {
+        return getter;
     }
 
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitLoadDotShortcut(this, input);
     }
 
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
+
+        if (!getter.returnType.equals(getter.javaMethod.getReturnType())) {
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
+        }
     }
 }

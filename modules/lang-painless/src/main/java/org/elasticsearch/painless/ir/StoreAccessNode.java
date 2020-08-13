@@ -19,20 +19,20 @@
 
 package org.elasticsearch.painless.ir;
 
-public abstract class IndexNode extends ExpressionNode {
+public abstract class StoreAccessNode extends StoreNode {
 
     /* ---- begin tree structure ---- */
 
-    private ExpressionNode indexNode;
+    private ExpressionNode accessNode;
 
-    public void setIndexNode(ExpressionNode indexNode) {
-        this.indexNode = indexNode;
+    public void setAccessNode(ExpressionNode accessNode) {
+        this.accessNode = accessNode;
     }
 
-    public ExpressionNode getIndexNode() {
-        return indexNode;
+    public ExpressionNode getAccessNode() {
+        return accessNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure --- */
 
 }

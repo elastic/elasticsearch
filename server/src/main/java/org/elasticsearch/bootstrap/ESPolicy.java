@@ -104,9 +104,12 @@ final class ESPolicy extends Policy {
             }
         }
 
+        if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
+            return true;
+        }
+
         // otherwise defer to template + dynamic file permissions
-        return dataPathPermission.implies(permission) || template.implies(domain, permission) || dynamic.implies(permission)
-            || system.implies(domain, permission);
+        return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
     }
 
     /**

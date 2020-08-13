@@ -8511,9 +8511,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [[painless-api-reference-shared-Hash]]
 ==== Hash
-*  static def md5(String)
-*  static def sha1(String)
-*  static def sha2(String)
+The method parameter can take any of the algorithms defined in the https://docs.oracle.com/javase/specs/jls/se8/html/index.html[Java Security Standard Algorithm Names spec].
+*  static def hash(String inputString, String method)
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime

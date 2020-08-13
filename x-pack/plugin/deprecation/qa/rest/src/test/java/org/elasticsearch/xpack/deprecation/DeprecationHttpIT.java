@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
@@ -87,8 +86,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
         for (final String deprecatedWarning : deprecatedWarnings) {
-            assertThat("Header does not conform to expected pattern",
-                deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
+            assertThat(
+                "Header does not conform to expected pattern",
+                deprecatedWarning,
+                matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())
+            );
         }
 
         final List<String> actualWarningValues = deprecatedWarnings.stream()
@@ -221,8 +223,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 Response response;
                 try {
                     response = client().performRequest(new Request("GET", "logs-deprecation-elasticsearch/_search"));
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
                     // continue trying.
@@ -250,10 +251,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 logger.warn(documents);
                 assertThat(documents, hasSize(2));
 
-                assertThat(documents, hasItems(
-                    hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
-                    hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
-                ));
+                assertThat(
+                    documents,
+                    hasItems(
+                        hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
+                        hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                    )
+                );
             });
         } finally {
             configureWriteDeprecationLogsToIndex(null);

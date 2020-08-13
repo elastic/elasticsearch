@@ -377,36 +377,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shardTarget, e);
         final ShardRouting nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
+        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
+            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
             onShardGroupFailure(shardIndex, shardTarget, e);
         }
-
-        if (totalOps.incrementAndGet() == expectedTotalOps) {
-            if (logger.isDebugEnabled()) {
-                if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                    logger.debug(new ParameterizedMessage(
-                        "{}: Failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
-                } else if (logger.isTraceEnabled()) {
-                    logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
-                }
-            }
+        final int totalOps = this.totalOps.incrementAndGet();
+        if (totalOps == expectedTotalOps) {
             onPhaseDone();
+        } else if (totalOps > expectedTotalOps) {
+            throw new AssertionError("unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures()));
         } else {
-            // trace log this exception
-            logger.trace(() -> new ParameterizedMessage(
-                "{}: Failed to execute [{}] lastShard [{}]",
-                shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
             if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
-            } else {
-                // no more shards active, add a failure
-                if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
-                    if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                        logger.debug(new ParameterizedMessage(
-                            "{}: Failed to execute [{}] lastShard [{}]",
-                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-                    }
-                }
             }
         }
     }
@@ -505,8 +489,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (xTotalOps == expectedTotalOps) {
             onPhaseDone();
         } else if (xTotalOps > expectedTotalOps) {
-            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
-                + expectedTotalOps + "]");
+            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures()));
         }
     }
 

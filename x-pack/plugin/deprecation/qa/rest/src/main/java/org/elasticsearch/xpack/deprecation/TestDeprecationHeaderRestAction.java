@@ -18,8 +18,10 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -90,12 +92,19 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             }
         }
 
+        // Pull out the settings values here in order to guarantee that any deprecation messages are triggered
+        // in the same thread context.
+        final Map<String, Object> settingsMap = new HashMap<>();
+        for (String setting : settings) {
+            settingsMap.put(setting, SETTINGS_MAP.get(setting).get(this.settings));
+        }
+
         return channel -> {
             final XContentBuilder builder = channel.newBuilder();
 
             builder.startObject().startArray("settings");
-            for (String setting : settings) {
-                builder.startObject().field(setting, SETTINGS_MAP.get(setting).get(this.settings)).endObject();
+            for (Map.Entry<String, Object> entry : settingsMap.entrySet()) {
+                builder.startObject().field(entry.getKey(), entry.getValue()).endObject();
             }
             builder.endArray().endObject();
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));

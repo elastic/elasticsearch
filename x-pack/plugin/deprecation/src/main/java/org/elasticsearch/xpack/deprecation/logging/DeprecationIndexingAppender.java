@@ -68,10 +68,18 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     }
 
     /**
-     * Sets whether this appender is enabled or disabled.
+     * Sets whether this appender is enabled or disabled. When disabled, the appender will
+     * not perform indexing operations.
      * @param isEnabled the enabled status of the appender.
      */
     public void setEnabled(boolean isEnabled) {
         this.isEnabled = isEnabled;
+    }
+
+    /**
+     * Returns whether the appender is enabled i.e. performing indexing operations.
+     */
+    public boolean isEnabled() {
+        return isEnabled;
     }
 }

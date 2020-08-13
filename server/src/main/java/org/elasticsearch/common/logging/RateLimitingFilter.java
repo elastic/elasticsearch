@@ -56,6 +56,13 @@ public class RateLimitingFilter extends AbstractFilter {
         super(onMatch, onMismatch);
     }
 
+    /**
+     * Clears the cache of previously-seen keys.
+     */
+    public void reset() {
+        this.lruKeyCache.clear();
+    }
+
     public Result filter(Message message) {
         if (message instanceof ESLogMessage) {
             final ESLogMessage esLogMessage = (ESLogMessage) message;

@@ -47,6 +47,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
+    private final RateLimitingFilter filter;
 
     public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN));
@@ -57,7 +58,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
         final EcsLayout ecsLayout = ECSJsonLayout.newBuilder().setType("deprecation").setConfiguration(configuration).build();
 
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", new RateLimitingFilter(), ecsLayout, consumer);
+        this.filter = new RateLimitingFilter();
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
     }
 
     @Override
@@ -87,7 +89,15 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
-        appender.setEnabled(WRITE_DEPRECATION_LOGS_TO_INDEX.get(state.getMetadata().settings()));
+        final boolean newEnabled = WRITE_DEPRECATION_LOGS_TO_INDEX.get(state.getMetadata().settings());
+        if (appender.isEnabled() != newEnabled) {
+            // We've flipped from disabled to enabled. Make sure we start with a clean cache of
+            // previously-seen keys, otherwise we won't index anything.
+            if (newEnabled) {
+                this.filter.reset();
+            }
+            appender.setEnabled(newEnabled);
+        }
     }
 
     /**

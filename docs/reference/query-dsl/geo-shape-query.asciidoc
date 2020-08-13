@@ -272,6 +272,7 @@ supported:
 * `MULTIPOINT`
 * `MULTILINE`
 
+[[geo-shape-query-notes]]
 ==== Notes
 
 * Geo-shape queries on geo-shapes implemented with 

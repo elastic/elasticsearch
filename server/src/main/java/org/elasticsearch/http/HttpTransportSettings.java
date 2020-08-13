@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -72,15 +71,6 @@ public final class HttpTransportSettings {
         intSetting("http.publish_port", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
-        new Setting<>("http.content_type.required", (s) -> Boolean.toString(true), (s) -> {
-            final boolean value = Booleans.parseBoolean(s);
-            if (value == false) {
-                throw new IllegalArgumentException("http.content_type.required cannot be set to false. It exists only to make a rolling" +
-                    " upgrade easier");
-            }
-            return true;
-        }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
         Setting.byteSizeSetting(
                 "http.max_content_length",

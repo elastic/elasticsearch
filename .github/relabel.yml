@@ -1,0 +1,10 @@
+issues:
+  - missingLabel: needs:type
+    regex: ^>.*
+pulls:
+  - missingLabel: needs:team
+    regex: ^:.*
+  - missingLabel: needs:type
+    regex: ^>.*
+  - missingLabel: needs:version
+    regex: ^v[0-9]+\..*

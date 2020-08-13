@@ -1,0 +1,14 @@
+issues:
+  - label: needs:type
+    comment: |
+      Please add a change type label if possible (these start with ">")
+pulls:
+  - label: needs:team
+    comment: |
+      Please add a team label, if possible (these start with ":")
+  - label: needs:type
+    comment: |
+      Please add a change type label (these start with ">")
+  - label: needs:version
+    comment: |
+      Please add any applicable version labels. This is usually the next major release and the latest minor release of the current major release.

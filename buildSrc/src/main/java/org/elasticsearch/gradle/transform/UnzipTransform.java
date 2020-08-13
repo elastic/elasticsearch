@@ -20,15 +20,18 @@
 package org.elasticsearch.gradle.transform;
 
 import org.apache.commons.io.IOUtils;
+import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logging;
+import org.gradle.internal.nativeintegration.filesystem.jdk7.PosixFilePermissionConverter;
+import shadow.org.apache.tools.zip.ZipEntry;
+import shadow.org.apache.tools.zip.ZipFile;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.util.Enumeration;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
@@ -36,25 +39,38 @@ public abstract class UnzipTransform implements UnpackTransform {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
 
-        try (ZipInputStream inputStream = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))) {
-            ZipEntry entry;
-            while ((entry = inputStream.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
+        ZipFile zip = new ZipFile(zipFile);
+        try {
+            Enumeration<ZipEntry> entries = zip.getEntries();
+            while (entries.hasMoreElements()) {
+                ZipEntry zipEntry = entries.nextElement();
+                String child = maybeTrim(zipEntry);
+                File outFile = new File(targetDir, child);
+                if (zipEntry.isDirectory()) {
+                    outFile.mkdirs();
+                    chmod(outFile, zipEntry.getUnixMode());
                     continue;
                 }
-                System.out.println("entry = " + entry);
-                String child = maybeTrim(entry);
-                File outFile = new File(targetDir, child);
-                outFile.getParentFile().mkdirs();
                 try (FileOutputStream outputStream = new FileOutputStream(outFile)) {
-                    IOUtils.copyLarge(inputStream, outputStream);
+                    IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
+                chmod(outFile, zipEntry.getUnixMode());
             }
+        } finally {
+            zip.close();
+        }
+    }
+
+    private void chmod(File f, int mode) {
+        try {
+            PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class);
+            fileAttributeView.setPermissions(PosixFilePermissionConverter.convertToPermissionsSet(0777 & mode));
+        } catch (IOException ioException) {
+            throw new GradleException("Cannot set file permissions", ioException);
         }
     }
 
     protected String maybeTrim(ZipEntry entry) {
-        System.out.println("UnzipTransform.maybeTrim");
         return entry.getName();
     }
 

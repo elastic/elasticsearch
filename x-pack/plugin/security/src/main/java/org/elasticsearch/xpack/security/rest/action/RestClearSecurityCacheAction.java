@@ -11,8 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,7 +41,7 @@ public class RestClearSecurityCacheAction extends SecurityBaseRestHandler {
         final String cacheName = request.param("cache_name");
         String[] keys = request.paramAsStringArrayOrEmptyIfAll("key");
         final ClearSecurityCacheRequest req = new ClearSecurityCacheRequest().cacheName(cacheName).keys(keys);
-        return channel -> client.execute(ClearPrivilegesCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
+        return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }
 
 }

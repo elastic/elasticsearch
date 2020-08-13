@@ -394,26 +394,31 @@ public class ApiKeyService {
                 }
             }));
 
-        CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
-        if (existing != null) {
-            final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.roleDescriptorsHash);
-            final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.limitedByRoleDescriptorsHash);
-            if (roleDescriptorsBytes != null && limitedByRoleDescriptorsBytes != null) {
-                validator.accept(existing.toApiKeyDoc(roleDescriptorsBytes, limitedByRoleDescriptorsBytes));
-                return;
+        final BiConsumer<String, ApiKeyDoc> cacheItemConsumer;
+        if (apiKeyDocCache != null) {
+            CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
+            if (existing != null) {
+                final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.roleDescriptorsHash);
+                final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.limitedByRoleDescriptorsHash);
+                if (roleDescriptorsBytes != null && limitedByRoleDescriptorsBytes != null) {
+                    validator.accept(existing.toApiKeyDoc(roleDescriptorsBytes, limitedByRoleDescriptorsBytes));
+                    return;
+                }
             }
+            // API key doc not found in cache
+            cacheItemConsumer = apiKeyDocCache.prepareCacheItemConsumer((id, doc) -> {
+                final CachedApiKeyDoc cdoc = doc.toCachedApiKeyDoc();
+                try {
+                    roleDescriptorsBytesCache.computeIfAbsent(cdoc.roleDescriptorsHash, k -> doc.roleDescriptorsBytes);
+                    roleDescriptorsBytesCache.computeIfAbsent(cdoc.limitedByRoleDescriptorsHash, k -> doc.limitedByRoleDescriptorsBytes);
+                } catch (ExecutionException e) {
+                    logger.error("Failed to cache API key role descriptor bytes", e);
+                }
+            });
+        } else {
+            cacheItemConsumer = null;
         }
 
-        // API key doc not found in cache
-        final BiConsumer<String, ApiKeyDoc> cacheItemConsumer = apiKeyDocCache.prepareCacheItemConsumer((id, doc) -> {
-            final CachedApiKeyDoc cdoc = doc.toCachedApiKeyDoc();
-            try {
-                roleDescriptorsBytesCache.computeIfAbsent(cdoc.roleDescriptorsHash, k -> doc.roleDescriptorsBytes);
-                roleDescriptorsBytesCache.computeIfAbsent(cdoc.limitedByRoleDescriptorsHash, k -> doc.limitedByRoleDescriptorsBytes);
-            } catch (ExecutionException e) {
-                logger.error(e);
-            }
-        });
         final GetRequest getRequest = client
             .prepareGet(SECURITY_MAIN_ALIAS, docId)
             .setFetchSource(true)
@@ -426,7 +431,9 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
-                    cacheItemConsumer.accept(docId, apiKeyDoc);
+                    if (cacheItemConsumer != null) {
+                        cacheItemConsumer.accept(docId, apiKeyDoc);
+                    }
                     validator.accept(apiKeyDoc);
                 } else {
                     listener.onResponse(

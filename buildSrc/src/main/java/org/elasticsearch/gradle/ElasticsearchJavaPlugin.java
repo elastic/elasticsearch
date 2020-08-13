@@ -170,10 +170,14 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
             // also apply release flag to groovy, which is used in build-tools
-            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                // TODO: this probably shouldn't apply to groovy at all?
-                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
+            project.getTasks()
+                .withType(GroovyCompile.class)
+                .configureEach(
+                    compileTask -> {
+                        // TODO: this probably shouldn't apply to groovy at all?
+                        compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+                    }
+                );
         });
     }
 

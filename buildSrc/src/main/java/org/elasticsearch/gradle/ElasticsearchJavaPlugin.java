@@ -173,21 +173,14 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compileOptions.setEncoding("UTF-8");
                 compileOptions.setIncremental(true);
 
-                // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-                compilerArgs.add("--release");
-                compilerArgs.add(targetCompatibilityVersion.getMajorVersion());
-
+                compileOptions.getRelease().set(Integer.parseInt(targetCompatibilityVersion.getMajorVersion()));
             });
             // also apply release flag to groovy, which is used in build-tools
             project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-
                 // TODO: this probably shouldn't apply to groovy at all?
-                // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-                final List<String> compilerArgs = compileTask.getOptions().getCompilerArgs();
-                compilerArgs.add("--release");
-                compilerArgs.add(targetCompatibilityVersion.getMajorVersion());
+                compileTask.getOptions().getRelease().set(Integer.parseInt(targetCompatibilityVersion.getMajorVersion()));
             });
         });
     }

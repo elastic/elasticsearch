@@ -116,7 +116,7 @@ Alternatively, use the
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
 
-.. Add `ssl` related setting. By default ssl is disabled when the ssl section is missing. If Elastic security features are enabled, you must explicitly add {metricbeat-ref}/configuration-ssl.html[ssl section] to allow metricbeat to communicate to the host. 
+.. If TLS is enabled on the HTTP layer of your {es} cluster, you must either use https as the URL scheme in the `hosts` setting or add the `ssl.enabled: true` setting. Depending on the TLS configuration of your {es} cluster, you might also need to specify {metricbeat-ref}/configuration-ssl.html[additional ssl.*] settings.
 // end::remote-monitoring-user[]
 --
 

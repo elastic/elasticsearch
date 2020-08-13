@@ -328,11 +328,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected IpFieldMapper clone() {
         return (IpFieldMapper) super.clone();
     }

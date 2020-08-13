@@ -1037,11 +1037,6 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Number nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;

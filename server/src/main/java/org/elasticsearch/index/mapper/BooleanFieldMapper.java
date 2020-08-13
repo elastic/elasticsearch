@@ -278,8 +278,4 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected Object nullValue() {
-        return nullValue;
-    }
 }

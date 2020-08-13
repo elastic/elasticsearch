@@ -229,13 +229,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * A value to use in place of a {@code null} value in the document source.
-     */
-    protected Object nullValue() {
-        return null;
-    }
-
-    /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
      * whole array to the mapper. If false, the array is split into individual values

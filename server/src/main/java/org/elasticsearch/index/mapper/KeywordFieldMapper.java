@@ -421,11 +421,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String nullValue() {
-        return nullValue;
-    }
-
-    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
     }

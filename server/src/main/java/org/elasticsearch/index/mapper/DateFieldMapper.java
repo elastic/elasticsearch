@@ -519,11 +519,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String nullValue() {
-        return nullValueAsString;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {

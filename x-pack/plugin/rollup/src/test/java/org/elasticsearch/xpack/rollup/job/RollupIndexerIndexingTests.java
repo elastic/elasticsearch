@@ -536,7 +536,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG)
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
                         .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -554,7 +554,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG)
+                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
                         .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);

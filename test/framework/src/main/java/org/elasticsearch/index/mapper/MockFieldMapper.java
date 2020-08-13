@@ -90,7 +90,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(String format) {
         throw new UnsupportedOperationException();
     }
 

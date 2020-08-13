@@ -1091,16 +1091,20 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Number parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value.equals("")) {
-            return nullValue;
-        }
-
-        return fieldType().type.parse(value, coerce.value());
+        return new SourceValueFetcher(name(), parsesArrayValue(), nullValue) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                if (value.equals("")) {
+                    return nullValue;
+                }
+                return fieldType().type.parse(value, coerce.value());
+            }
+        };
     }
 
     @Override

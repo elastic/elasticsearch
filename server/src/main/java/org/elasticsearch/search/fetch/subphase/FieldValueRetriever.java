@@ -21,9 +21,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ import java.util.Set;
  */
 public class FieldValueRetriever {
     private final MappingLookup fieldMappers;
-    private final List<FieldContext> fieldContexts;
+    private final List<FieldContext> fields;
 
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<FieldAndFormat> fieldAndFormats) {
@@ -62,17 +63,17 @@ public class FieldValueRetriever {
         return new FieldValueRetriever(fieldMappers, fields);
     }
 
-
     private FieldValueRetriever(MappingLookup fieldMappers,
-                                List<FieldContext> fieldContexts) {
+                                List<FieldContext> fields) {
         this.fieldMappers = fieldMappers;
-        this.fieldContexts = fieldContexts;
+        this.fields = fields;
     }
 
     public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext context : fieldContexts) {
+        for (FieldContext context : fields) {
             String field = context.fieldName;
+            String format = context.format;
             if (ignoredFields.contains(field)) {
                 continue;
             }
@@ -80,7 +81,8 @@ public class FieldValueRetriever {
             List<Object> parsedValues = new ArrayList<>();
             for (String path : context.sourcePath) {
                 FieldMapper fieldMapper = (FieldMapper) fieldMappers.getMapper(path);
-                List<?> values = fieldMapper.lookupValues(sourceLookup, context.format);
+                ValueFetcher fetcher = fieldMapper.valueFetcher(format);
+                List<?> values = fetcher.fetchValues(sourceLookup);
                 parsedValues.addAll(values);
             }
 
@@ -98,7 +100,7 @@ public class FieldValueRetriever {
 
         FieldContext(String fieldName,
                      Set<String> sourcePath,
-                     @Nullable String format) {
+                     String format) {
             this.fieldName = fieldName;
             this.sourcePath = sourcePath;
             this.format = format;

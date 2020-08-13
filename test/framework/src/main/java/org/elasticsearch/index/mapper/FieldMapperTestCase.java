@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -250,6 +251,18 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         builder.toXContent(x, params);
         x.endObject().endObject();
         return Strings.toString(x);
+    }
+
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+        return fetchSourceValue(mapper, sourceValue, null);
+    }
+
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+        String field = mapper.name();
+        ValueFetcher fetcher = mapper.valueFetcher(format);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(lookup);
     }
 
 }

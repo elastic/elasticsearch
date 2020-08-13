@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -136,8 +137,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
-        throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
+    public ValueFetcher valueFetcher(String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
     }
 
     @Override

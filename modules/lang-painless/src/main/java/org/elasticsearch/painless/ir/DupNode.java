@@ -21,23 +21,44 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
-public class FlipArrayIndex extends IndexNode {
+public class DupNode extends UnaryNode {
+
+    /* ---- begin node data ---- */
+
+    private int size;
+    private int depth;
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public void setDepth(int depth) {
+        this.depth = depth;
+    }
+
+    public int getDepth() {
+        return depth;
+    }
+
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitDup(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getIndexNode().write(classWriter, methodWriter, writeScope);
-
-        Label noFlip = new Label();
-        methodWriter.dup();
-        methodWriter.ifZCmp(Opcodes.IFGE, noFlip);
-        methodWriter.swap();
-        methodWriter.dupX1();
-        methodWriter.arrayLength();
-        methodWriter.visitInsn(Opcodes.IADD);
-        methodWriter.mark(noFlip);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+        methodWriter.writeDup(size, depth);
     }
 }

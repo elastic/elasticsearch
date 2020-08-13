@@ -21,16 +21,30 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.objectweb.asm.Type;
 
-public class DotSubArrayLengthNode extends ExpressionNode {
+public class LoadDotNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private PainlessField field;
+
+    public void setField(PainlessField field) {
+        this.field = field;
+    }
+
+    public PainlessField getField() {
+        return field;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubArrayLength(this, input);
+        return irTreeVisitor.visitLoadDot(this, input);
     }
 
     /* ---- end visitor ---- */
@@ -38,6 +52,13 @@ public class DotSubArrayLengthNode extends ExpressionNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
-        methodWriter.arrayLength();
+
+        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
+            methodWriter.getStatic(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+        } else {
+            methodWriter.getField(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
+        }
     }
 }

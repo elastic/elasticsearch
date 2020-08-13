@@ -163,15 +163,17 @@ The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 [discrete]
-=== Transport and HTTP protocols
+=== HTTP and transport network communication
 
-An Elasticsearch node exposes two network protocols which inherit the above
-settings, but may be further configured independently:
+Each {es} node uses the network for two different methods of communication:
 
-TCP Transport::
-Used for communication between nodes in the cluster.
-See <<modules-transport>>.
+* it exposes an <<modules-http,HTTP interface>> for use by clients.
 
-HTTP::
-Exposes the JSON-over-HTTP interface used by all clients.
-See <<modules-http>>.
+* it exposes a <<modules-transport,transport interface>> for communication
+between nodes within a cluster and for communication with a
+<<modules-remote-clusters,remote cluster>>.
+
+The network settings described above apply to both methods of communication,
+and you can also configure each interface separately if needed. See the
+<<modules-http,HTTP>> and <<modules-transport,transport>> pages for more
+details on their respective configurations.

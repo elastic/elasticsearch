@@ -53,20 +53,4 @@ public abstract class IRNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();
     }
-
-    protected int accessElementCount() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -85,7 +85,7 @@ sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`
 if set, or the system default otherwise. Only applicable on Linux and macOS, and
 requires Java 11 or newer.
 
-transport.tcp.reuse_address::
+`transport.tcp.reuse_address`::
 Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
 
 `transport.tcp.send_buffer_size`::

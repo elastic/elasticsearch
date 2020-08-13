@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.logstash.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -16,7 +19,9 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.TransportService;
 
@@ -30,18 +35,64 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetPipelineActionTests extends ESTestCase {
 
-    public void testGetPipeline() {
-
+    public void testGetPipelineMultipleIDs() throws Exception {
         GetResponse mockResponse = mock(GetResponse.class);
         when(mockResponse.getId()).thenReturn("1");
         when(mockResponse.getSourceAsBytesRef()).thenReturn(mock(BytesReference.class));
         when(mockResponse.isExists()).thenReturn(true);
         MultiGetResponse.Failure failure = mock(MultiGetResponse.Failure.class);
-
-        MultiGetResponse mgr = new MultiGetResponse(
+        when(failure.getId()).thenReturn("2");
+        MultiGetResponse multiGetResponse = new MultiGetResponse(
             new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
         );
-        Client client = new NoOpClient(getTestName()) {
+
+        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2"));
+
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "message",
+                "org.elasticsearch.xpack.logstash.action.TransportGetPipelineAction",
+                Level.INFO,
+                "Could not retrieve logstash pipelines with ids: [2]"
+            )
+        );
+        mockLogAppender.start();
+        final Logger logger = LogManager.getLogger(TransportGetPipelineAction.class);
+
+        ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(GetPipelineResponse getPipelineResponse) {
+                // check successful pipeline get
+                assertThat(getPipelineResponse, is(notNullValue()));
+                assertThat(getPipelineResponse.pipelines().size(), equalTo(1));
+
+                // check that failed pipeline get is logged
+                mockLogAppender.assertAllExpectationsMatched();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // do nothing
+            }
+        };
+
+        try (Client client = getMockClient(multiGetResponse)) {
+            Loggers.addAppender(logger, mockLogAppender);
+            TransportGetPipelineAction action = new TransportGetPipelineAction(
+                mock(TransportService.class),
+                mock(ActionFilters.class),
+                client
+            );
+            action.doExecute(null, request, testActionListener);
+        } finally {
+            Loggers.removeAppender(logger, mockLogAppender);
+            mockLogAppender.stop();
+        }
+    }
+
+    private Client getMockClient(ActionResponse response) {
+        return new NoOpClient(getTestName()) {
             @Override
             @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -49,31 +100,8 @@ public class TransportGetPipelineActionTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                listener.onResponse((Response) mgr);
+                listener.onResponse((Response) response);
             }
         };
-        TransportGetPipelineAction action = new TransportGetPipelineAction(mock(TransportService.class), mock(ActionFilters.class), client);
-        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2"));
-
-        ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(GetPipelineResponse getPipelineResponse) {
-                assertThat(getPipelineResponse, is(notNullValue()));
-                assertThat(getPipelineResponse.pipelines().size(), equalTo(1));
-
-                // todo - the multiget response has a contrived failure, but it has been swallowed
-                // silently. We need to either attach failures to GetPipelineResponse or log a warning
-                // and test for it here
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-
-            }
-        };
-
-        action.doExecute(null, request, testActionListener);
-
-        client.close();
     }
 }

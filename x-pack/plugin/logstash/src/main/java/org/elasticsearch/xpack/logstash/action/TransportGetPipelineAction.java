@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.logstash.Logstash;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -90,20 +92,18 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         } else {
             client.prepareMultiGet()
                 .addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids())
-                .execute(
-                    ActionListener.wrap(
-                        mGetResponse -> listener.onResponse(
-                            new GetPipelineResponse(
-                                Arrays.stream(mGetResponse.getResponses())
-                                    .filter(itemResponse -> itemResponse.isFailed() == false)
-                                    .filter(itemResponse -> itemResponse.getResponse().isExists())
-                                    .map(MultiGetItemResponse::getResponse)
-                                    .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
-                            )
-                        ),
-                        listener::onFailure
-                    )
-                );
+                .execute(ActionListener.wrap(mGetResponse -> {
+                    logFailures(mGetResponse);
+                    listener.onResponse(
+                        new GetPipelineResponse(
+                            Arrays.stream(mGetResponse.getResponses())
+                                .filter(itemResponse -> itemResponse.isFailed() == false)
+                                .filter(itemResponse -> itemResponse.getResponse().isExists())
+                                .map(MultiGetItemResponse::getResponse)
+                                .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
+                        )
+                    );
+                }, listener::onFailure));
         }
     }
 
@@ -141,6 +141,17 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                         listener::onFailure
                     )
                 );
+        }
+    }
+
+    private void logFailures(MultiGetResponse multiGetResponse) {
+        List<String> ids = Arrays.stream(multiGetResponse.getResponses())
+            .filter(MultiGetItemResponse::isFailed)
+            .filter(itemResponse -> itemResponse.getFailure() != null)
+            .map(itemResponse -> itemResponse.getFailure().getId())
+            .collect(Collectors.toList());
+        if (ids.isEmpty() == false) {
+            logger.info("Could not retrieve logstash pipelines with ids: {}", ids);
         }
     }
 }

@@ -1207,7 +1207,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             assertThat(ex.getMessage(),
                 containsString(
                     "feature_processors output fields must not include non-processed analysis fields; duplicate fields [field_21]"));
-        }
+    }
 
     private static class MockFieldCapsResponseBuilder {
 

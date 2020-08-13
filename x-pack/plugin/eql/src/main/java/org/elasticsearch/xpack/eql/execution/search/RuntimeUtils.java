@@ -117,7 +117,7 @@ public final class RuntimeUtils {
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
-            return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(), false);
+            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
         }
 
         if (ref instanceof ComputedRef) {
@@ -150,11 +150,11 @@ public final class RuntimeUtils {
                                                boolean includeFrozen,
                                                String... indices) {
         return client.prepareSearch(indices)
-                .setSource(source)
-                .setAllowPartialSearchResults(false)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
+            .setSource(source)
+            .setAllowPartialSearchResults(false)
+            .setIndicesOptions(
+                    includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+            .request();
     }
 
     public static List<SearchHit> searchHits(SearchResponse response) {

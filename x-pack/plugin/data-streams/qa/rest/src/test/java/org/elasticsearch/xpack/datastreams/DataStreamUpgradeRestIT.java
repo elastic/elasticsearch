@@ -27,29 +27,31 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
     public void testCompatibleMappingUpgrade() throws Exception {
-        //  Create pipeline
+        // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
         assertOK(client().performRequest(putPipelineRequest));
 
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity("{" +
-            "\"index_patterns\":[\"logs-mysql-*\"]," +
-            "\"priority\":200," +
-            "\"composed_of\":[\"logs-mappings\",\"logs-settings\"]," +
-            "\"data_stream\":{}," +
-            "\"template\":{" +
-                "\"mappings\":{" +
-                    "\"properties\":{" +
-                        "\"thread_id\":{\"type\":\"long\"}" +
-                    "}" +
-                "}," +
-                "\"settings\":{" +
-                    "\"index.default_pipeline\":\"mysql-error\"" +
-                "}" +
-            "}" +
-        "}");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{"
+                + "\"index_patterns\":[\"logs-mysql-*\"],"
+                + "\"priority\":200,"
+                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
+                + "\"data_stream\":{},"
+                + "\"template\":{"
+                + "\"mappings\":{"
+                + "\"properties\":{"
+                + "\"thread_id\":{\"type\":\"long\"}"
+                + "}"
+                + "},"
+                + "\"settings\":{"
+                + "\"index.default_pipeline\":\"mysql-error\""
+                + "}"
+                + "}"
+                + "}"
+        );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Create a data stream and index first doc
@@ -59,26 +61,28 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity("{" +
-            "\"index_patterns\":[\"logs-mysql-*\"]," +
-            "\"priority\":200," +
-            "\"composed_of\":[\"logs-mappings\",\"logs-settings\"]," +
-            "\"data_stream\":{}," +
-            "\"template\":{" +
-                "\"mappings\":{" +
-                    "\"properties\":{" +
-                        "\"thread\":{" +
-                            "\"properties\":{" +
-                                "\"id\":{\"type\":\"long\"}" +
-                            "}" +
-                        "}" +
-                    "}" +
-                "}," +
-                "\"settings\":{" +
-                    "\"index.default_pipeline\":\"mysql-error\"" +
-                "}" +
-            "}" +
-        "}");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{"
+                + "\"index_patterns\":[\"logs-mysql-*\"],"
+                + "\"priority\":200,"
+                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
+                + "\"data_stream\":{},"
+                + "\"template\":{"
+                + "\"mappings\":{"
+                + "\"properties\":{"
+                + "\"thread\":{"
+                + "\"properties\":{"
+                + "\"id\":{\"type\":\"long\"}"
+                + "}"
+                + "}"
+                + "}"
+                + "},"
+                + "\"settings\":{"
+                + "\"index.default_pipeline\":\"mysql-error\""
+                + "}"
+                + "}"
+                + "}"
+        );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Update mapping
@@ -87,10 +91,11 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         putMappingRequest.setJsonEntity("{\"properties\":{\"thread\":{\"properties\":{\"id\":{\"type\":\"long\"}}}}}");
         assertOK(client().performRequest(putMappingRequest));
 
-        //  Update pipeline
+        // Update pipeline
         putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
-        putPipelineRequest.setJsonEntity("{\"processors\":[{\"rename\":{\"field\":\"thread_id\",\"target_field\":\"thread.id\"," +
-            "\"ignore_failure\":true}}]}");
+        putPipelineRequest.setJsonEntity(
+            "{\"processors\":[{\"rename\":{\"field\":\"thread_id\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
+        );
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index more docs
@@ -108,29 +113,31 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
     }
 
     public void testConflictingMappingUpgrade() throws Exception {
-        //  Create pipeline
+        // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
         assertOK(client().performRequest(putPipelineRequest));
 
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity("{" +
-            "\"index_patterns\":[\"logs-mysql-*\"]," +
-            "\"priority\":200," +
-            "\"composed_of\":[\"logs-mappings\",\"logs-settings\"]," +
-            "\"data_stream\":{}," +
-            "\"template\":{" +
-                "\"mappings\":{" +
-                    "\"properties\":{" +
-                        "\"thread\":{\"type\":\"long\"}" +
-                    "}" +
-                "}," +
-                "\"settings\":{" +
-                    "\"index.default_pipeline\":\"mysql-error\"" +
-                "}" +
-            "}" +
-        "}");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{"
+                + "\"index_patterns\":[\"logs-mysql-*\"],"
+                + "\"priority\":200,"
+                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
+                + "\"data_stream\":{},"
+                + "\"template\":{"
+                + "\"mappings\":{"
+                + "\"properties\":{"
+                + "\"thread\":{\"type\":\"long\"}"
+                + "}"
+                + "},"
+                + "\"settings\":{"
+                + "\"index.default_pipeline\":\"mysql-error\""
+                + "}"
+                + "}"
+                + "}"
+        );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Create a data stream and index first doc
@@ -140,26 +147,28 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity("{" +
-            "\"index_patterns\":[\"logs-mysql-*\"]," +
-            "\"priority\":200," +
-            "\"composed_of\":[\"logs-mappings\",\"logs-settings\"]," +
-            "\"data_stream\":{}," +
-            "\"template\":{" +
-                "\"mappings\":{" +
-                    "\"properties\":{" +
-                        "\"thread\":{" +
-                            "\"properties\":{" +
-                                "\"id\":{\"type\":\"long\"}" +
-                            "}" +
-                        "}" +
-                    "}" +
-                "}," +
-                "\"settings\":{" +
-                    "\"index.default_pipeline\":\"mysql-error\"" +
-                "}" +
-            "}" +
-        "}");
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{"
+                + "\"index_patterns\":[\"logs-mysql-*\"],"
+                + "\"priority\":200,"
+                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
+                + "\"data_stream\":{},"
+                + "\"template\":{"
+                + "\"mappings\":{"
+                + "\"properties\":{"
+                + "\"thread\":{"
+                + "\"properties\":{"
+                + "\"id\":{\"type\":\"long\"}"
+                + "}"
+                + "}"
+                + "}"
+                + "},"
+                + "\"settings\":{"
+                + "\"index.default_pipeline\":\"mysql-error\""
+                + "}"
+                + "}"
+                + "}"
+        );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Update mapping
@@ -173,10 +182,11 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         Request rolloverRequest = new Request("POST", "/logs-mysql-error/_rollover");
         assertOK(client().performRequest(rolloverRequest));
 
-        //  Update pipeline
+        // Update pipeline
         putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
-        putPipelineRequest.setJsonEntity("{\"processors\":[{\"rename\":{\"field\":\"thread\",\"target_field\":\"thread.id\"," +
-            "\"ignore_failure\":true}}]}");
+        putPipelineRequest.setJsonEntity(
+            "{\"processors\":[{\"rename\":{\"field\":\"thread\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
+        );
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index more docs
@@ -192,6 +202,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         verifyTotalHitCount("logs-mysql-error", "{\"query\":{\"match\":{\"thread.id\": 24}}}", 2, "thread.id");
     }
+
     static void verifyTotalHitCount(String index, String requestBody, int expectedTotalHits, String requiredField) throws IOException {
         Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");

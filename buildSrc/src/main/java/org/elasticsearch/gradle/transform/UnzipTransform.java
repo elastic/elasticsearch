@@ -65,9 +65,14 @@ public abstract class UnzipTransform implements UnpackTransform {
     }
 
     private void chmod(File f, int mode) {
+        if (mode == 0) {
+            return;
+        }
         try {
             PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class);
-            fileAttributeView.setPermissions(PosixFilePermissionConverter.convertToPermissionsSet(0777 & mode));
+            if (fileAttributeView != null) {
+                fileAttributeView.setPermissions(PosixFilePermissionConverter.convertToPermissionsSet(0777 & mode));
+            }
         } catch (IOException ioException) {
             throw new GradleException("Cannot set file permissions", ioException);
         }

@@ -87,7 +87,7 @@ public abstract class BaseRestHandler implements RestHandler {
             final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_KEY);
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
-                && Booleans.parseBoolean(allowSystemIndexParameter, false)) {
+                && Booleans.parseBoolean(allowSystemIndexParameter, false) == false) {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, Boolean.FALSE.toString());
             }
         }

@@ -17,7 +17,7 @@ include::mapping-roles.asciidoc[]
 
 include::field-and-document-access-control.asciidoc[]
 
-include::run-as-privilege.asciidoc[]
+include::run-as-privilege.asciidoc[leveloffset=+2]
 
 include::configuring-authorization-delegation.asciidoc[]
 

@@ -278,6 +278,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
                 failure.compareAndSet(null, exc);
                 MergeTask task = runningTask.get();
                 runningTask.compareAndSet(task, null);
+                onPartialMergeFailure.accept(exc);
                 List<MergeTask> toCancel = new ArrayList<>();
                 if (task != null) {
                     toCancel.add(task);
@@ -287,7 +288,6 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
                 mergeResult = null;
                 toCancel.stream().forEach(MergeTask::cancel);
             }
-            onPartialMergeFailure.accept(exc);
         }
 
         private void onAfterMerge(MergeTask task, MergeResult newResult) {

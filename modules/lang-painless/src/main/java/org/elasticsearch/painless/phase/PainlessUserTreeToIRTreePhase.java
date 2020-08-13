@@ -386,7 +386,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode();
             irInvokeCallMemberNode.setLocation(internalLocation);
             irInvokeCallMemberNode.setExpressionType(ScriptException.class);
-            irInvokeCallMemberNode.setLocalFunction(new LocalFunction(
+            irInvokeCallMemberNode.setLocalFunction(
+                    new LocalFunction(
                             "convertToScriptException",
                             ScriptException.class,
                             Arrays.asList(Throwable.class, Map.class),
@@ -421,7 +422,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallNode.setLocation(internalLocation);
             irInvokeCallNode.setExpressionType(Map.class);
             irInvokeCallNode.setBox(PainlessExplainError.class);
-            irInvokeCallNode.setMethod(new PainlessMethod(
+            irInvokeCallNode.setMethod(
+                    new PainlessMethod(
                             PainlessExplainError.class.getMethod(
                                     "getHeaders",
                                     PainlessLookup.class),
@@ -472,7 +474,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallMemberNode = new InvokeCallMemberNode();
                 irInvokeCallMemberNode.setLocation(internalLocation);
                 irInvokeCallMemberNode.setExpressionType(ScriptException.class);
-                irInvokeCallMemberNode.setLocalFunction(new LocalFunction(
+                irInvokeCallMemberNode.setLocalFunction(
+                        new LocalFunction(
                                 "convertToScriptException",
                                 ScriptException.class,
                                 Arrays.asList(Throwable.class, Map.class),
@@ -506,7 +509,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.setLocation(internalLocation);
                 irInvokeCallNode.setExpressionType(Map.class);
                 irInvokeCallNode.setBox(Collections.class);
-                irInvokeCallNode.setMethod(new PainlessMethod(
+                irInvokeCallNode.setMethod(
+                        new PainlessMethod(
                                 Collections.class.getMethod("emptyMap"),
                                 Collections.class,
                                 null,

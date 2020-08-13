@@ -340,8 +340,9 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("Unused mapping attributes [{foo=bar}]"));
+        assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
+        assertThat(e.getRootCause().getMessage(),
+            equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]"));
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -369,7 +370,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
         assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] not found for field [__dummy__]"));
+        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] not found for field [__dynamic__my_template]"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
@@ -433,7 +434,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
             assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
-            assertThat(e.getRootCause().getMessage(), equalTo("unknown parameter [foo] on mapper [__dummy__] of type [null]"));
+            assertThat(e.getRootCause().getMessage(),
+                equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]"));
         }
     }
 

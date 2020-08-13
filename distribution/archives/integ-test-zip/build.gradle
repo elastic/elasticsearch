@@ -17,7 +17,7 @@
  * under the License.
  */
 
-integTest.runner {
+integTest {
   /*
    * There are two unique things going on here:
    * 1. These tests can be run against an external cluster with

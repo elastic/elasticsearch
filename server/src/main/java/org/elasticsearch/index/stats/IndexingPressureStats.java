@@ -61,8 +61,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         primaryRejections = in.readVLong();
         replicaRejections = in.readVLong();
 
-        // TODO: Change to 7.10 after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             memoryLimit = in.readVLong();
         } else {
             memoryLimit = -1L;
@@ -103,8 +102,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(primaryRejections);
         out.writeVLong(replicaRejections);
 
-        // TODO: Change to 7.10 after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeVLong(memoryLimit);
         }
     }

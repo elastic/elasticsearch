@@ -190,11 +190,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions = IndicesOptions.readIndicesOptions(in);
-            } else {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-            }
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         DatafeedParams() {
@@ -280,9 +276,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override

@@ -347,6 +347,52 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"predicted_value\":\"en\""));
     }
 
+    public void testSimulateLangIdentForeach() throws IOException {
+        String source = "{" +
+            "  \"pipeline\": {\n" +
+            "    \"description\": \"detect text lang\",\n" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"foreach\": {\n" +
+            "          \"field\": \"greetings\",\n" +
+            "          \"processor\": {\n" +
+            "            \"inference\": {\n" +
+            "              \"model_id\": \"lang_ident_model_1\",\n" +
+            "              \"inference_config\": {\n" +
+            "                \"classification\": {\n" +
+            "                  \"num_top_classes\": 5\n" +
+            "                }\n" +
+            "              },\n" +
+            "              \"field_map\": {\n" +
+            "                \"_ingest._value.text\": \"text\"\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    ]\n" +
+            "  },\n" +
+            "  \"docs\": [\n" +
+            "    {\n" +
+            "      \"_source\": {\n" +
+            "        \"greetings\": [\n" +
+            "          {\n" +
+            "            \"text\": \" a backup credit card by visiting your billing preferences page or visit the adwords help\"\n" +
+            "          },\n" +
+            "          {\n" +
+            "            \"text\": \" 개별적으로 리포트 액세스 권한을 부여할 수 있습니다 액세스 권한 부여사용자에게 프로필 리포트에 \"\n" +
+            "          }\n" +
+            "        ]\n" +
+            "      }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+        Response response = client().performRequest(simulateRequest(source));
+        String stringResponse = EntityUtils.toString(response.getEntity());
+        assertThat(stringResponse, containsString("\"predicted_value\":\"en\""));
+        assertThat(stringResponse, containsString("\"predicted_value\":\"ko\""));
+    }
+
     private static Request simulateRequest(String jsonEntity) {
         Request request = new Request("POST", "_ingest/pipeline/_simulate");
         request.setJsonEntity(jsonEntity);

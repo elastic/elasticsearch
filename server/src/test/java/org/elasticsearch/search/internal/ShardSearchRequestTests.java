@@ -24,7 +24,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -43,6 +42,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -175,12 +175,12 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
-        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes)
-                    .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes)) {
+        return ShardSearchRequest.parseAliasFilter(bytes -> {
+            try (InputStream inputStream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                         .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
-        };
-        return ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliasNames);
+        }, indexMetadata, aliasNames);
     }
 }

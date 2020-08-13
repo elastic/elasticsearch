@@ -101,7 +101,7 @@ Filtering near-duplicate text is a difficult task at index-time but we can clean
 `filter_duplicate_text` setting.
 
 
-First let's look at an unfiltered real-world example using the  http://research.signalmedia.co/newsir16/signal-dataset.html[Signal media dataset] of
+First let's look at an unfiltered real-world example using the https://research.signalmedia.co/newsir16/signal-dataset.html[Signal media dataset] of
 a million news articles covering a wide variety of news. Here are the raw significant text results for a search for the articles 
 mentioning "elasticsearch":
 

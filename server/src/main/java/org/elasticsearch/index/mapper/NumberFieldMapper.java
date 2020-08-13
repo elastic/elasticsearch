@@ -133,23 +133,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-
-        final NumberType type;
-
-        public TypeParser(NumberType type) {
-            this.type = type;
-        }
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
-                                         ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name, type, parserContext.getSettings());
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
-
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
@@ -791,10 +774,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final String name;
         private final NumericType numericType;
+        private final TypeParser parser;
 
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
+            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
         }
 
         /** Get the associated type name. */
@@ -804,6 +789,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         /** Get the associated numeric type */
         public final NumericType numericType() {
             return numericType;
+        }
+        public final TypeParser parser() {
+            return parser;
         }
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, List<Object> values);

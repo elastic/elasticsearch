@@ -20,37 +20,42 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.objectweb.asm.Type;
 
-public class BinaryNode extends ExpressionNode {
+public class LoadDotDefNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
+    private String value;
 
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    public void setValue(String value) {
+        this.value = value;
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
+    public String getValue() {
+        return value;
     }
 
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitLoadDotDef(this, input);
     }
 
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        methodWriter.writeDebugInfo(location);
+        Type methodType = Type.getMethodType(
+                MethodWriter.getType(getExpressionType()),
+                MethodWriter.getType(def.class));
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 }

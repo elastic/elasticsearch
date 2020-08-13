@@ -21,36 +21,23 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class BinaryNode extends ExpressionNode {
+public class LoadBraceNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin visitor ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
-
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitLoadBrace(this, input);
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
-    }
-
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
-    }
-
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayLoad(MethodWriter.getType(getExpressionType()));
     }
 }

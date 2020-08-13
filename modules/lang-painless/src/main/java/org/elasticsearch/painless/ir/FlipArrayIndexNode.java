@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -21,36 +21,33 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
-public class BinaryNode extends ExpressionNode {
+public class FlipArrayIndexNode extends UnaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin visitor ---- */
 
-    private ExpressionNode leftNode;
-    private ExpressionNode rightNode;
-
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitFlipArrayIndex(this, input);
     }
 
-    public ExpressionNode getLeftNode() {
-        return leftNode;
-    }
-
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
-    }
-
-    public ExpressionNode getRightNode() {
-        return rightNode;
-    }
-
-    /* ---- end tree structure ---- */
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
+        Label noFlip = new Label();
+        methodWriter.dup();
+        methodWriter.ifZCmp(Opcodes.IFGE, noFlip);
+        methodWriter.swap();
+        methodWriter.dupX1();
+        methodWriter.arrayLength();
+        methodWriter.visitInsn(Opcodes.IADD);
+        methodWriter.mark(noFlip);
     }
 }

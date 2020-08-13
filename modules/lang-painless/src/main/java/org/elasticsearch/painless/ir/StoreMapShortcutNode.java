@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -25,12 +25,11 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class DotSubShortcutNode extends ExpressionNode {
+public class StoreMapShortcutNode extends StoreAccessNode {
 
     /* ---- begin node data ---- */
 
     private PainlessMethod setter;
-    private PainlessMethod getter;
 
     public void setSetter(PainlessMethod setter) {
         this.setter = setter;
@@ -40,61 +39,22 @@ public class DotSubShortcutNode extends ExpressionNode {
         return setter;
     }
 
-    public void setGetter(PainlessMethod getter) {
-        this.getter = getter;
-    }
-
-    public PainlessMethod getGetter() {
-        return getter;
-    }
-
     /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubShortcut(this, input);
+        return irTreeVisitor.visitStoreMapShortcut(this, input);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getAccessNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
+
         methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(getter);
-
-        if (!getter.returnType.equals(getter.javaMethod.getReturnType())) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return 1;
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        // do nothing
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(getter);
-
-        if (getter.returnType != getter.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
         methodWriter.invokeMethodCall(setter);
-
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 }

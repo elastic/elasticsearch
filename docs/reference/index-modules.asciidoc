@@ -300,9 +300,9 @@ Other index settings are available in index modules:
 
     Control over the retention of a history of operations in the index.
 
-<<index-modules-indexing-pressure,Indexing pressure>>::
+<<index-modules-indexing-pressure,Indexing pressure and resiliency>>::
 
-    Configure indexing back pressure limits.
+    Configure indexing back pressure limits and resiliency.
 
 [discrete]
 [[x-pack-index-settings]]

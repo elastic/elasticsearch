@@ -1,5 +1,5 @@
 [[index-modules-indexing-pressure]]
-== Indexing pressure
+== Indexing pressure and resiliency
 
 Indexing documents into {es} introduces system load in the form of memory and
 CPU load. Each indexing operation includes coordinating, primary, and replica
@@ -55,6 +55,20 @@ components of {es} also require memory. Setting this limit too high can deny
 operating memory to other operations and components.
 
 [discrete]
+[[replica-resilience]]
+=== Replica resilience
+
+When a replica is unable to process a new indexing request, the replica is marked
+as failed by Elasticsearch. In order to minimize unnecessary replica failures in
+the face of transient failures (memory limits, circuit breaking, network
+disconnects, etc) the primary will retry replica requests. The retries will be
+attempted with exponential backoff until a configurable timeout is hit. Once the
+retries timeout, the replica will be failed.
+
+If the master chooses to fail the replica for other reasons during the retries, the
+retry attempts will be cancelled.
+
+[discrete]
 [[indexing-pressure-monitoring]]
 === Monitoring
 
@@ -71,3 +85,14 @@ retrieve indexing pressure metrics.
   this limit is reached or exceeded, the node will reject new coordinating and
   primary operations. When replica operations consume 1.5x this limit, the node
   will reject new replica operations. Defaults to 10% of the heap.
+
+[discrete]
+[[replica-resiliency-settings]]
+=== Replica resiliency settings
+
+`indices.replication.initial_retry_backoff_bound`::
+  The initial backoff bound for a replica retry. The first retry will be a
+  randomly generated period bound by this value. Defaults to 50ms.
+
+`indices.replication.retry_timeout`::
+  The timeout period for a replica retries. Defaults to 60s.

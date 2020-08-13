@@ -87,7 +87,7 @@ PUT _index_template/template_1
       "mydata": { }
     }
   },
-  "priority": 10,
+  "priority": 200,
   "composed_of": ["component_template1", "other_component_template"],
   "version": 3,
   "_meta": {

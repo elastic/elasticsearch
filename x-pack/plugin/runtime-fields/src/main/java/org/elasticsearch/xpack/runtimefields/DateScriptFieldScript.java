@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -29,15 +30,18 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
     }
 
     public interface LeafFactory {
         DateScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    private final DateFormatter formatter;
+
+    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
+        this.formatter = formatter;
     }
 
     public static class Millis {
@@ -67,4 +71,15 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         }
     }
 
+    public static class Parse {
+        private final DateScriptFieldScript script;
+
+        public Parse(DateScriptFieldScript script) {
+            this.script = script;
+        }
+
+        public long parse(Object str) {
+            return script.formatter.parseMillis(str.toString());
+        }
+    }
 }

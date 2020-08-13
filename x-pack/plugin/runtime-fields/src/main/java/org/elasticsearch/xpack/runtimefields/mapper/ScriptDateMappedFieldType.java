@@ -83,7 +83,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     private DateScriptFieldScript.LeafFactory leafFactory(SearchLookup lookup) {
-        return scriptFactory.newFactory(script.getParams(), lookup);
+        return scriptFactory.newFactory(script.getParams(), lookup, dateTimeFormatter);
     }
 
     @Override

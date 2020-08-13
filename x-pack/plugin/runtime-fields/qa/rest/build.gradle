@@ -32,6 +32,7 @@ yamlRestTest {
       'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit', // Broken. Gotta fix.
       'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
       'search.aggregation/10_histogram/*', // runtime_script doesn't support sub-fields. Maybe it should?
+      'search/250_distance_feature/test distance_feature query on date type', // This needs #60851
       /////// TO FIX ///////
 
       /////// NOT SUPPORTED ///////

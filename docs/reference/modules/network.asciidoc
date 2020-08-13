@@ -165,7 +165,7 @@ By default not explicitly set.
 [discrete]
 === HTTP and transport network communication
 
-Each {es} node uses the network for two different kinds of communication:
+Each {es} node uses the network for two different methods of communication:
 
 * it exposes an <<modules-http,HTTP interface>> for use by clients.
 
@@ -175,7 +175,7 @@ between nodes within a cluster, for communication with a
 {javaclient}/transport-client.html[Java Transport client] to communicate with a
 cluster.
 
-The network settings described above apply to both kinds of communication, and
-you can also configure each interface separately if needed. See the
+The network settings described above apply to both methods of communication,
+and you can also configure each interface separately if needed. See the
 <<modules-http,HTTP>> and <<modules-transport,transport>> pages for more
 details on their respective configurations.

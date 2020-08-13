@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
-import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 
 import java.io.IOException;
 import java.util.Collections;

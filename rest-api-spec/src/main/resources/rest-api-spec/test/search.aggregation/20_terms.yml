@@ -753,6 +753,10 @@ setup:
 ---
 "Global ordinals are loaded with the global_ordinals execution hint":
 
+  - skip:
+      version: " - 6.99.99"
+      reason:  bug fixed in 7.0
+
   - do:
       index:
         refresh: true

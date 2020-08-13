@@ -45,6 +45,9 @@ public abstract class UnzipTransform implements UnpackTransform {
             while (entries.hasMoreElements()) {
                 ZipEntry zipEntry = entries.nextElement();
                 String child = maybeTrim(zipEntry);
+                if (child == null) {
+                    continue;
+                }
                 File outFile = new File(targetDir, child);
                 if (zipEntry.isDirectory()) {
                     outFile.mkdirs();

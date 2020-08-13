@@ -122,7 +122,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
         @Override
         public float getMaxScore(int upTo) throws IOException {
-            return boost;
+            return weight;
         }
 
         @Override
@@ -174,7 +174,10 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         if (false == fieldName().equals(field)) {
             b.append(fieldName()).append(":");
         }
-        b.append(getClass().getSimpleName()).append("(origin=").append(origin).append(",pivot=").append(pivot).append(")");
+        b.append(getClass().getSimpleName());
+        b.append("(origin=").append(origin);
+        b.append(",pivot=").append(pivot);
+        b.append(",boost=").append(boost).append(")");
         return b.toString();
 
     }
@@ -207,5 +210,9 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
     long pivot() {
         return pivot;
+    }
+
+    float boost() {
+        return boost;
     }
 }

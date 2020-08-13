@@ -38,7 +38,7 @@ final class MapUtils {
         classImportancePropertiesMapping.put("importance",
             Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
         Map<String, Object> featureImportancePropertiesMapping = new HashMap<>();
-        featureImportancePropertiesMapping.put("properties", Collections.singletonMap("classes", classImportancePropertiesMapping));
+        featureImportancePropertiesMapping.put("classes", Collections.singletonMap("properties", classImportancePropertiesMapping));
         CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING =
             Collections.unmodifiableMap(createFeatureImportanceMapping(featureImportancePropertiesMapping));
     }

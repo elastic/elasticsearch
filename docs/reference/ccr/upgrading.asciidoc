@@ -31,9 +31,10 @@ first and the cluster with leader indices should be upgraded last.
 Upgrading the clusters in this order ensures that index following can continue
 during the upgrade without downtime.
 
-You can also upgrade a chain index by following this strategy. Start by
-upgrading clusters at the end of the chain and working your way back to the
-cluster that contains the leader indices.
+You can also use this strategy to upgrade a
+<<ccr-chained-replication,replication chain>>. Start by upgrading clusters at
+the end of the chain and working your way back to the cluster that contains the
+leader indices.
 
 For example, consider a configuration where Cluster A contains all leader
 indices. Cluster B follows indices in Cluster A, and Cluster C follows indices

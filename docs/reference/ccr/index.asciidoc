@@ -2,9 +2,12 @@
 [testenv="platinum"]
 [[xpack-ccr]]
 == {ccr-cap}
+With {ccr}, you can enable several <<ccr-use-cases,use cases>> within the
+Elastic Stack.
+
 You can replicate indices across clusters to:
 
-* Continue handling search requests in the event of a data center outage
+* Continue handling search requests in the event of a datacenter outage
 * Prevent search volume from impacting indexing throughput
 * Reduce search latency by processing search requests in geo-proximity to the
 user
@@ -34,13 +37,6 @@ If newer, the versions must also be compatible as outlined in the following matr
 ====
 include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
-
-Use {ccr} to enable several use cases within the Elastic Stack:
-
-* *Disaster recovery* in case a primary cluster fails, with a secondary
-cluster serving as a hot backup
-* *Data locality* to serve reads locally and reduce costly latency
-* *Centralized reporting* for preventing search load from interfering with indexing by offloading search to a secondary cluster
 
 [discrete]
 [[ccr-replication-mechanics]]
@@ -164,11 +160,13 @@ enabled.
 This following sections provide more information about how to configure
 and use {ccr}:
 
+* <<ccr-use-cases,Use cases for {ccr}>>
 * <<ccr-getting-started>>
 * <<ccr-managing>>
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
 
+include::use-cases.asciidoc[]
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]

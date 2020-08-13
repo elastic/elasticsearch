@@ -2044,7 +2044,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String indexName = "test-idx";
         assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
         ensureGreen(indexName);
-        indexRandomDocs(indexName, 100);
+        // Use a large number of documents so the relocation below takes long enough for the snapshot to run concurrently
+        indexRandomDocs(indexName, 25000);
 
         logger.info("--> start relocations");
         allowNodes(indexName, 1);

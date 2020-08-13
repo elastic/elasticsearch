@@ -479,7 +479,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             containsInAnyOrder("field_keyword", "field_text", "field_boolean"));
     }
 
-    public void testWithProcessedFeatures_FieldInfo() {
+    public void testGetFieldNames_GivenProcessesFeatures() {
         // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
             (ExtractedField) new DocValueField("field_boolean", Collections.singleton("boolean")),
@@ -647,7 +647,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         }
     }
 
-    static class CategoricalPreProcessor implements PreProcessor {
+    private static class CategoricalPreProcessor implements PreProcessor {
 
         private final List<String> inputFields;
         private final List<String> outputFields;

@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,7 +48,7 @@ public class ProcessedFieldTests extends ESTestCase {
         String inputField = "foo";
         ExtractedField extractedField = makeExtractedField(new Object[0]);
         ProcessedField processedField = new ProcessedField(makePreProcessor(inputField, "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> extractedField), is(emptyArray()));
+        assertThat(processedField.value(makeHit(), (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
     }
 
     public void testProcessedField() {

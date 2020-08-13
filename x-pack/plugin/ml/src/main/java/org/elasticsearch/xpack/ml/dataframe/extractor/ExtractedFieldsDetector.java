@@ -540,7 +540,7 @@ public class ExtractedFieldsDetector {
         Set<String> duplicatedFields = new HashSet<>();
         for (ProcessedField processedField : processedFields) {
             for (String output : processedField.getOutputFieldNames()) {
-                if(processedFeatures.add(output) == false) {
+                if (processedFeatures.add(output) == false) {
                     duplicatedFields.add(output);
                 }
             }

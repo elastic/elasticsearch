@@ -140,4 +140,22 @@ public class RateLimitingFilterTests extends ESTestCase {
         Message message = new SimpleMessage("a message");
         assertThat(filter.filter(message), equalTo(Result.NEUTRAL));
     }
+
+    /**
+     * Check that the filter can be reset, so that previously-seen keys are treated as new keys.
+     */
+    public void testFilterCanBeReset() {
+        final Message message = DeprecatedMessage.of("key", "", "msg");
+
+        // First time, the message is a allowed
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        // Second time, it is filtered out
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        filter.reset();
+
+        // Third time, it is allowed again
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
 }

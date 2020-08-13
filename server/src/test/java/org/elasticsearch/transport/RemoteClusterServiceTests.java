@@ -227,7 +227,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         try (RemoteClusterService service = new RemoteClusterService(settings, null)) {
             assertFalse(service.isEnabled());
             assertFalse(service.isCrossClusterSearchEnabled());
-            final IllegalStateException error = expectThrows(IllegalStateException.class,
+            final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
                 () -> service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN, new String[]{"cluster_1:bar", "cluster_2:foo*"}));
             assertThat(error.getMessage(), equalTo("node [node-1] does not have the remote cluster client role enabled"));
         }

@@ -24,12 +24,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -54,30 +52,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
-
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public IgnoredFieldMapper build(BuilderContext context) {
-            return new IgnoredFieldMapper();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                ParserContext parserContext) throws MapperParsingException {
-            return new Builder();
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new IgnoredFieldMapper();
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
 
     public static final class IgnoredFieldType extends StringFieldType {
 
@@ -104,7 +79,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     private IgnoredFieldMapper() {
-        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE);
+        super(IgnoredFieldType.INSTANCE);
     }
 
     @Override
@@ -124,18 +99,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, fieldType));
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

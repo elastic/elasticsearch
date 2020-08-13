@@ -148,8 +148,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
-    private Supplier<Sort> indexSortSupplier;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final Supplier<Sort> indexSortSupplier;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -192,7 +192,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled);
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, scriptService);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.

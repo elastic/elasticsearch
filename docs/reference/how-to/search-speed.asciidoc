@@ -36,6 +36,7 @@ queries hundreds of times slower. So if the same questions can be answered witho
 joins by denormalizing documents, significant speedups can be expected.
 
 [discrete]
+[[search-as-few-fields-as-possible]]
 === Search as few fields as possible
 
 The more fields a <<query-dsl-query-string-query,`query_string`>> or

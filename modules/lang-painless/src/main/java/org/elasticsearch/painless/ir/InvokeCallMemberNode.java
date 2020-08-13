@@ -33,7 +33,7 @@ import org.objectweb.asm.commons.Method;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
-public class MemberCallNode extends ArgumentsNode {
+public class InvokeCallMemberNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
@@ -96,7 +96,7 @@ public class MemberCallNode extends ArgumentsNode {
 
     @Override
     public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitMemberCall(this, input);
+        return irTreeVisitor.visitInvokeCallMember(this, input);
     }
 
     /* ---- end visitor ---- */

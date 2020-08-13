@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -79,8 +80,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
-        private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<Boolean> coerce;
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> coerce;
 
         private final Parameter<Number> nullValue;
 
@@ -92,13 +93,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
         }
 
+        public static Builder docValuesOnly(String name, NumberType type) {
+            Builder builder = new Builder(name, type, false, false);
+            builder.indexed.setValue(false);
+            return builder;
+        }
+
         public Builder(String name, NumberType type, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
             this.ignoreMalformed
-                = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+                = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.coerce
-                = Parameter.boolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+                = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> type.parse(o, false), m -> toType(m).nullValue);
         }
@@ -968,8 +975,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
-    private final boolean ignoreMalformed;
-    private final boolean coerce;
+    private final Explicit<Boolean> ignoreMalformed;
+    private final Explicit<Boolean> coerce;
     private final Number nullValue;
 
     private final boolean ignoreMalformedByDefault;
@@ -989,8 +996,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
         this.nullValue = builder.nullValue.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue();
+        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
     @Override
@@ -1022,15 +1029,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             value = context.externalValue();
         } else if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
-        } else if (coerce
+        } else if (coerce.value()
                 && parser.currentToken() == Token.VALUE_STRING
                 && parser.textLength() == 0) {
             value = null;
         } else {
             try {
-                numericValue = fieldType().type.parse(parser, coerce);
+                numericValue = fieldType().type.parse(parser, coerce.value());
             } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed && parser.currentToken().isValue()) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;
                 } else {
@@ -1049,7 +1056,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce);
+            numericValue = fieldType().type.parse(value, coerce.value());
         }
 
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
@@ -1070,7 +1077,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return nullValue;
         }
 
-        return fieldType().type.parse(value, coerce);
+        return fieldType().type.parse(value, coerce.value());
     }
 
     @Override

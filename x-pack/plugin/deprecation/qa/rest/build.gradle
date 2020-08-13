@@ -30,3 +30,8 @@ testClusters.integTest {
 test.enabled = false
 
 check.dependsOn integTest
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+

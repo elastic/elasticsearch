@@ -230,7 +230,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(settings));
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();

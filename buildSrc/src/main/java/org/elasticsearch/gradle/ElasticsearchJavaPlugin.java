@@ -47,7 +47,6 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-import org.gradle.process.CommandLineArgumentProvider;
 
 import java.io.File;
 import java.util.List;

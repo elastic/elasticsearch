@@ -15,7 +15,7 @@ data is replicated to one or more read-only _follower_ indices. Before you can a
 When the leader index receives writes, the follower indices pull changes from
 the leader index on the remote cluster. You can manually create follower
 indices, or configure auto-follow patterns to automatically create follower
-indices for new time series.
+indices for new time series indices.
 
 You configure {ccr} clusters in a uni-directional or bi-directional setup:
 
@@ -180,7 +180,7 @@ are no new operations. The follower shard updates shard statistics and
 immediately sends another read request to the leader shard. This
 communication model ensures that network connections between the remote
 cluster and the local cluster are continually in use, avoiding forceful
-termination from an external sources such as a firewall.
+termination by an external source such as a firewall.
 
 If a read request fails, the cause of the failure is inspected. If the
 cause of the failure is deemed to be recoverable (such as a network
@@ -213,7 +213,7 @@ h| Update type h| Automatic  h| As needed
 For example, changing the number of replicas on the leader index is not
 replicated by the follower index, so that setting might not be retrieved.
 
-NOTE: You cannot manually modify the mapping or alias of a follower index.
+NOTE: You cannot manually modify a follower index's mappings or aliases.
 
 If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index closes itself, applies the

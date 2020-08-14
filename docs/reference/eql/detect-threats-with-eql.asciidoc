@@ -113,7 +113,7 @@ query.
 === Check for command line artifacts
 
 Based on your previous query, you know `regsvr32` processes were associated with
-143 events. But how was first `regsvr32.exe` called? And who called it?
+143 events. But how was `regsvr32.exe` first called? And who called it?
 
 `regsvr32` is a command-line utility so narrowing your results to processes where
 the command line was used may help.

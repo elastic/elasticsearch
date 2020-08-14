@@ -94,7 +94,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Provider<DockerSupportService> dockerSupport;
     // pkg private so plugin can configure
     final Configuration configuration;
-//    private final Extracted extracted;
 
     private final Property<Architecture> architecture;
     private final Property<String> version;

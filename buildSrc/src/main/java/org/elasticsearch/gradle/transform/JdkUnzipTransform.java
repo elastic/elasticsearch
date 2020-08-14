@@ -19,7 +19,8 @@
 
 package org.elasticsearch.gradle.transform;
 
-import shadow.org.apache.tools.zip.ZipEntry;
+import org.apache.tools.zip.ZipEntry;
+import org.elasticsearch.gradle.util.ArchiveUtils;
 
 import java.nio.file.Path;
 
@@ -27,7 +28,7 @@ public abstract class JdkUnzipTransform extends UnzipTransform {
 
     @Override
     protected String maybeTrim(ZipEntry entry) {
-        Path path = UnpackTransform.trimJdkArchiveExtractPath(entry.getName());
+        Path path = ArchiveUtils.trimJdkArchiveExtractPath(entry.getName());
         return path == null ? null : path.toString();
     }
 }

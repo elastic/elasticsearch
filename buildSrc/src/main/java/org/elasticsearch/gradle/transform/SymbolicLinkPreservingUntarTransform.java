@@ -31,10 +31,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Set;
+
+import static org.elasticsearch.gradle.util.ArchiveUtils.chmod;
 
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
@@ -71,15 +69,7 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             }
             if (entry.isSymbolicLink() == false) {
                 // check if the underlying file system supports POSIX permissions
-                final PosixFileAttributeView view = Files.getFileAttributeView(destination, PosixFileAttributeView.class);
-                if (view != null) {
-                    final Set<PosixFilePermission> permissions = PosixFilePermissions.fromString(
-                        permissions((entry.getMode() >> 6) & 07) + permissions((entry.getMode() >> 3) & 07) + permissions(
-                            (entry.getMode() >> 0) & 07
-                        )
-                    );
-                    Files.setPosixFilePermissions(destination, permissions);
-                }
+                chmod(destination, entry.getMode());
             }
             entry = tar.getNextTarEntry();
         }
@@ -90,26 +80,4 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
         return Paths.get(path);
     }
 
-    private static String permissions(final int permissions) {
-        if (permissions < 0 || permissions > 7) {
-            throw new IllegalArgumentException("permissions [" + permissions + "] out of range");
-        }
-        final StringBuilder sb = new StringBuilder(3);
-        if ((permissions & 4) == 4) {
-            sb.append('r');
-        } else {
-            sb.append('-');
-        }
-        if ((permissions & 2) == 2) {
-            sb.append('w');
-        } else {
-            sb.append('-');
-        }
-        if ((permissions & 1) == 1) {
-            sb.append('x');
-        } else {
-            sb.append('-');
-        }
-        return sb.toString();
-    }
 }

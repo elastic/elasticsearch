@@ -24,9 +24,9 @@ import java.util.Objects;
 public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
     private static final String NAME = "total_feature_importance";
-    public static final ParseField FIELD_NAME = new ParseField("field_name");
+    public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField IMPORTANCE = new ParseField("importance");
-    public static final ParseField CLASS_IMPORTANCE = new ParseField("class_importance");
+    public static final ParseField CLASSES = new ParseField("classes");
     public static final ParseField MEAN_MAGNITUDE = new ParseField("mean_magnitude");
     public static final ParseField MIN = new ParseField("min");
     public static final ParseField MAX = new ParseField("max");
@@ -40,13 +40,13 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         ConstructingObjectParser<TotalFeatureImportance, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
             a -> new TotalFeatureImportance((String)a[0], (Importance)a[1], (List<ClassImportance>)a[2]));
-        parser.declareString(ConstructingObjectParser.constructorArg(), FIELD_NAME);
+        parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
             IMPORTANCE);
         parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? ClassImportance.LENIENT_PARSER : ClassImportance.STRICT_PARSER,
-            CLASS_IMPORTANCE);
+            CLASSES);
         return parser;
     }
 
@@ -54,25 +54,25 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
     }
 
-    public final String fieldName;
+    public final String featureName;
     public final Importance importance;
     public final List<ClassImportance> classImportances;
 
     public TotalFeatureImportance(StreamInput in) throws IOException {
-        this.fieldName = in.readString();
+        this.featureName = in.readString();
         this.importance = in.readOptionalWriteable(Importance::new);
         this.classImportances = in.readList(ClassImportance::new);
     }
 
-    TotalFeatureImportance(String fieldName, @Nullable Importance importance, @Nullable List<ClassImportance> classImportances) {
-        this.fieldName = fieldName;
+    TotalFeatureImportance(String featureName, @Nullable Importance importance, @Nullable List<ClassImportance> classImportances) {
+        this.featureName = featureName;
         this.importance = importance;
         this.classImportances = classImportances == null ? Collections.emptyList() : classImportances;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
+        out.writeString(featureName);
         out.writeOptionalWriteable(importance);
         out.writeList(classImportances);
     }
@@ -80,12 +80,12 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_NAME.getPreferredName(), fieldName);
+        builder.field(FEATURE_NAME.getPreferredName(), featureName);
         if (importance != null) {
             builder.field(IMPORTANCE.getPreferredName(), importance);
         }
         if (classImportances.isEmpty() == false) {
-            builder.field(CLASS_IMPORTANCE.getPreferredName(), classImportances);
+            builder.field(CLASSES.getPreferredName(), classImportances);
         }
         builder.endObject();
         return builder;
@@ -97,13 +97,13 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         TotalFeatureImportance that = (TotalFeatureImportance) o;
         return Objects.equals(that.importance, importance)
-            && Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(featureName, that.featureName)
             && Objects.equals(classImportances, that.classImportances);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, importance, classImportances);
+        return Objects.hash(featureName, importance, classImportances);
     }
 
     public static class Importance implements ToXContentObject, Writeable {

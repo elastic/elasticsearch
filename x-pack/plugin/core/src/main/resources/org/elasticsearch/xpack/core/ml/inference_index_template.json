@@ -88,10 +88,10 @@
                 }
               }
             },
-            "field_name": {
+            "feature_name": {
               "type": "keyword"
             },
-            "class_importance": {
+            "classes": {
               "type": "nested",
               "dynamic": "false",
               "properties": {

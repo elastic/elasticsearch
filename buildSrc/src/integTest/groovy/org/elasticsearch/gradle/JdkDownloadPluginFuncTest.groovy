@@ -95,7 +95,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
-        10.times {
+        3.times {
             settingsFile << """
                 include ':sub-$it'
             """
@@ -132,7 +132,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.tasks.size() == 10
+        result.tasks.size() == 3
         result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
 
         where:

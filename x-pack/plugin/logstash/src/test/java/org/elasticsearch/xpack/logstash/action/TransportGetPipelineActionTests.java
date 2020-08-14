@@ -35,19 +35,13 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetPipelineActionTests extends ESTestCase {
 
-    public void testGetPipelineMultipleIDs() throws Exception {
-        GetResponse mockResponse = mock(GetResponse.class);
-        when(mockResponse.getId()).thenReturn("1");
-        when(mockResponse.getSourceAsBytesRef()).thenReturn(mock(BytesReference.class));
-        when(mockResponse.isExists()).thenReturn(true);
-        MultiGetResponse.Failure failure = mock(MultiGetResponse.Failure.class);
-        when(failure.getId()).thenReturn("2");
-        MultiGetResponse multiGetResponse = new MultiGetResponse(
-            new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
-        );
-
-        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2"));
-
+    /**
+     * Test that an error message is logged on a partial failure of
+     * a TransportGetPipelineAction.
+     * @throws Exception
+     */
+    public void testGetPipelineMultipleIDsPartialFailure() throws Exception {
+        // Set up a log appender for detecting log messages
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
@@ -60,6 +54,20 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         mockLogAppender.start();
         final Logger logger = LogManager.getLogger(TransportGetPipelineAction.class);
 
+        // Set up a MultiGetResponse
+        GetResponse mockResponse = mock(GetResponse.class);
+        when(mockResponse.getId()).thenReturn("1");
+        when(mockResponse.getSourceAsBytesRef()).thenReturn(mock(BytesReference.class));
+        when(mockResponse.isExists()).thenReturn(true);
+        MultiGetResponse.Failure failure = mock(MultiGetResponse.Failure.class);
+        when(failure.getId()).thenReturn("2");
+        MultiGetResponse multiGetResponse = new MultiGetResponse(
+            new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
+        );
+
+        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2"));
+
+        // Set up an ActionListener for the actual test conditions
         ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
             @Override
             public void onResponse(GetPipelineResponse getPipelineResponse) {

@@ -22,11 +22,12 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class DotSubDefNode extends ExpressionNode {
+public class LoadDotDefNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
@@ -43,8 +44,13 @@ public class DotSubDefNode extends ExpressionNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSubDef(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitLoadDotDef(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
@@ -52,35 +58,9 @@ public class DotSubDefNode extends ExpressionNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), Type.getType(Object.class));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return 1;
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        // do nothing
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), Type.getType(Object.class));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
         Type methodType = Type.getMethodType(
-                Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(getExpressionType()));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
+                MethodWriter.getType(getExpressionType()),
+                MethodWriter.getType(def.class));
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 }

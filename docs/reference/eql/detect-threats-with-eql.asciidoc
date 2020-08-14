@@ -19,9 +19,9 @@ https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
 
 This tutorial uses a test dataset for `regsvr32` misuse from
 https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
-been normalized and mapped to use fields from the {ecs-ref}[Elastic Common Schema
-(ECS)], including the `@timestamp` and `event.category` fields. The dataset
-includes events that imitate behaviors related to `regsvr32` misuse, as
+been normalized and mapped to use some fields from the {ecs-ref}[Elastic Common
+Schema (ECS)], including the `@timestamp` and `event.category` fields. The
+dataset includes events that imitate behaviors related to `regsvr32` misuse, as
 documented by MITRE ATT&CK®.
 
 To get started, download and index the dataset:
@@ -112,10 +112,10 @@ query.
 [[eql-ex-check-for-command-line-artifacts]]
 === Check for command line artifacts
 
-Based on your previous query, you know `regsv32` processes were associated with
+Based on your previous query, you know `regsvr32` processes were associated with
 143 events. But how was first `regsvr32.exe` called? And who called it?
 
-`regsv32` is a command-line utility so narrowing your results to processes where
+`regsvr32` is a command-line utility so narrowing your results to processes where
 the command line was used may help.
 
 First, in the previous EQL query, change the `any` keyword to `process`. This

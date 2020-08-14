@@ -35,7 +35,7 @@ public class DefaultStringConcatenationOptimizationPhase extends IRTreeBaseVisit
                 irStringConcatenationNode.getArgumentNodes().remove(i);
                 irStringConcatenationNode.getArgumentNodes().addAll(i, ((StringConcatenationNode)irArgumentNode).getArgumentNodes());
             } else {
-                ++i;
+                i++;
             }
         }
 

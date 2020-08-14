@@ -67,9 +67,9 @@ public class RecyclingBytesStreamOutput extends BytesStream {
         assert position >= buffer.length
                 : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "] at position [" + position + "]";
         if (overflow == null) {
-            overflow = bigArrays.newByteArray(size - buffer.length);
+            overflow = bigArrays.newByteArray(overflowSize);
         } else if (overflowSize > overflow.size()) {
-            overflow = bigArrays.resize(overflow, size - buffer.length);
+            overflow = bigArrays.resize(overflow, overflowSize);
         }
         assert overflow.size() >= overflowSize;
     }

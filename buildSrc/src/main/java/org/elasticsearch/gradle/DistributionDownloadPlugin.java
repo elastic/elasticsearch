@@ -120,12 +120,13 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             distribution.finalizeValues();
             DependencyHandler dependencies = project.getDependencies();
             // for the distribution as a file, just depend on the artifact directly
-            dependencies.add(distribution.configuration.getName(), resolveDependencyNotation(project, distribution));
+            Object resolvedDependency = resolveDependencyNotation(project, distribution);
+            dependencies.add(distribution.configuration.getName(), resolvedDependency);
             // no extraction allowed for rpm, deb or docker
             if (distribution.getType().shouldExtract()) {
-                // for the distribution extracted, add a root level task that does the extraction, and depend on that
-                // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(distribution.getExtracted().getName(), resolveDependencyNotation(project, distribution));
+                // The extracted configuration depends on the artifact directly but has
+                // an artifact transform registered to resolve it as an unpacked folder.
+                dependencies.add(distribution.getExtracted().getName(), resolvedDependency);
             }
         }
     }

@@ -147,9 +147,9 @@ register a script, `RegSvr32.sct`. This fits the behavior of a
 https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
 variant of `regsvr32` misuse.
 
-The query also retrieved other valuable information about how the `regsvr32.exe`
-process started, such as the `@timestamp`, the associated `user.id`, and the
-`process.parent.name`.
+The response also includes other valuable information about how the
+`regsvr32.exe` process started, such as the `@timestamp`, the associated
+`user.id`, and the `process.parent.name`.
 
 [source,console-result]
 ----

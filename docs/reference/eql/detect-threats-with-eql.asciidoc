@@ -134,16 +134,15 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe" and process.command_line != null
-  """,
-  "size": 150
+  """
 }
 ----
 // TEST[setup:atomic_red_regsvr32]
 
 The query matches one process. The event has an `event.type` of `creation`,
 indicating the start of a `regsvr32.exe` process. Based on the
-`process.command_line` value, `regsvr32.exe` was used to register a script as
-`scrobj.dll`. This fits the behavior of a
+`process.command_line` value, `regsvr32.exe` used `scrobj.dll` to register a
+script. This fits the behavior of a
 https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
 variant of `regsvr32` misuse.
 
@@ -207,7 +206,7 @@ process started, such as the `@timestamp`, the associated `user.id`, and the
 === Check for malicious script loads
 
 You now know that a `regsvr32.exe` process was used to register a potentially
-malicious script as `scrob.dll`. Next, see if `regsvr32.exe` later loads the
+malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
 `scrob.dll` library.
 
 Modify the previous EQL query as follows:
@@ -221,8 +220,7 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     library where process.name == "regsvr32.exe" and dll.name == "scrobj.dll"
-  """,
-  "size": 150
+  """
 }
 ----
 // TEST[setup:atomic_red_regsvr32]
@@ -283,11 +281,17 @@ events, in order:
 
 . A `regsvr32.exe` process, which could have been used to register malicious
 scripts as `scrobj.dll`
-. A load of the `scrobj.dll` library
-. Any network event, which could indicate the download of a remote file
+. A load of the `scrobj.dll` library by the same process
+. Any network event by the same process, which could indicate the download of a
+remote file
 
 To match, each event in the sequence must share the same process ID, recorded in
-the `process.pid` field.
+the `process.pid` field. 
+
+Based on the command line value seen in the previous result, you can expect to
+find a match. However, the sequence query isn't overfit to the specific command.
+Instead, it looks for a pattern of suspicious behavior while still being generic
+enough to detect similar threats in the future.
 
 [source,console]
 ----
@@ -298,8 +302,7 @@ GET /my-index-000001/_eql/search
       [process where process.name == 'regsvr32.exe']
       [library where dll.name == 'scrobj.dll']
       [network where true]
-  """,
-  "size": 150
+  """
 }
 ----
 // TEST[setup:atomic_red_regsvr32]

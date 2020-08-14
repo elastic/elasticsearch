@@ -19,7 +19,7 @@ https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
 
 This tutorial uses a test dataset for `regsvr32` misuse from
 https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
-been normalized and mapped to use some fields from the {ecs-ref}[Elastic Common
+been normalized and mapped to use fields from the {ecs-ref}[Elastic Common
 Schema (ECS)], including the `@timestamp` and `event.category` fields. The
 dataset includes events that imitate behaviors related to `regsvr32` misuse, as
 documented by MITRE ATT&CK®.
@@ -28,8 +28,8 @@ To get started, download and index the dataset:
 
 . Download the https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
 
-. Index the data into the `my-index-000001` index with the following
-<<docs-bulk,bulk API>> request:
+. Index the data into `my-index-000001` with the following <<docs-bulk,bulk
+API>> request:
 +
 [source,sh]
 ----
@@ -37,8 +37,8 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/
 ----
 // NOTCONSOLE
 
-. Use the <<cat-indices,cat indices API>> to verify the dataset was indexed
-successfully.
+. Use the <<cat-indices,cat indices API>> to verify the data was successfully
+indexed.
 +
 [source,console]
 ----
@@ -46,7 +46,7 @@ GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
 ----
 // TEST[setup:atomic_red_regsvr32]
 +
-The API returns the following response. The `docs.count` value should show `150`
+The API response should show a `docs.count` value of `150`, indicating 150
 documents were indexed.
 +
 [source,txt]
@@ -58,7 +58,7 @@ yellow open   my-index-000001         150
 
 [discrete]
 [[eql-ex-get-a-count-of-regsvr32-events]]
-=== Get a count of `regsvr32.exe` events
+=== Get a count of `regsvr32` events
 
 Since you're looking for `regsvr32` misuse, start by getting a count of any
 events associated with a `regsvr32.exe` process.
@@ -115,15 +115,15 @@ query.
 Based on your previous query, you know `regsvr32` processes were associated with
 143 events. But how was `regsvr32.exe` first called? And who called it?
 
-`regsvr32` is a command-line utility so narrowing your results to processes where
-the command line was used may help.
+`regsvr32` is a command-line utility so it may help to narrow your results to
+processes where the command line was used.
 
-First, in the previous EQL query, change the `any` keyword to `process`. This
-means the query will only match processes, which have an `event.category` of
-`process`.
+Update the previous EQL query as follows:
 
-Next, append `and process.command_line != null` to the query. Now the query will
-only match processes with a command line value.
+* Change the `any` keyword to `process`. This limits matches to events with an
+`event.category` of `process`.
+* Add the `and process.command_line != null` condition to match only
+events with a command line value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
 lets you retrieve the document source for any matching events.
@@ -139,10 +139,11 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-The query matches one process. The event has an `event.type` of `creation`,
-indicating the start of a `regsvr32.exe` process. Based on the
-`process.command_line` value, `regsvr32.exe` used `scrobj.dll` to register a
-script. This fits the behavior of a
+The query matches one process event. The event has an `event.type` of
+`creation`, indicating the start of a `regsvr32.exe` process.
+
+Based on the `process.command_line` value, `regsvr32.exe` used `scrobj.dll` to
+register a script, `RegSvr32.sct`. This fits the behavior of a
 https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
 variant of `regsvr32` misuse.
 
@@ -213,7 +214,8 @@ malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
 Modify the previous EQL query as follows:
 
 * Change the `process` keyword to `library`.
-* Add the `dll.name == "scrobj.dll` condition.
+* Replace the `process.command_line != null` condition with
+`dll.name == "scrobj.dll`.
 
 [source,console]
 ----
@@ -288,7 +290,7 @@ scripts as `scrobj.dll`
 remote file
 
 To match, each event in the sequence must share the same process ID, recorded in
-the `process.pid` field. 
+the `process.pid` field.
 
 Based on the command line value seen in the previous result, you can expect to
 find a match. However, the sequence query isn't designed for that specific

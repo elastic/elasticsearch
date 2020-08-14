@@ -60,8 +60,8 @@ yellow open   my-index-000001         150
 [[eql-ex-get-a-count-of-regsvr32-events]]
 === Get a count of `regsvr32.exe` events
 
-Since you're looking for `regsvr32` misuse, start by looking at any events
-associated with a `regsvr32.exe` process.
+Since you're looking for `regsvr32` misuse, start by getting a count of any
+events associated with a `regsvr32.exe` process.
 
 The following <<eql-search-api,EQL search API>> request uses an EQL query to
 retrieve a count of events with a `process.name` of `regsvr32.exe`. The query

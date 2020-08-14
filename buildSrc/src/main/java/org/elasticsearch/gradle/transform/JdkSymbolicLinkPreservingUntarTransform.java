@@ -19,12 +19,14 @@
 
 package org.elasticsearch.gradle.transform;
 
+import org.elasticsearch.gradle.util.ArchiveUtils;
+
 import java.nio.file.Path;
 
 public abstract class JdkSymbolicLinkPreservingUntarTransform extends SymbolicLinkPreservingUntarTransform {
 
     @Override
     protected Path calculatePath(String path) {
-        return UnpackTransform.trimJdkArchiveExtractPath(path);
+        return ArchiveUtils.trimJdkArchiveExtractPath(path);
     }
 }

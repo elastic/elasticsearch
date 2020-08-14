@@ -20,18 +20,16 @@
 package org.elasticsearch.gradle.transform;
 
 import org.apache.commons.io.IOUtils;
-import org.gradle.api.GradleException;
+import org.apache.tools.zip.ZipEntry;
+import org.apache.tools.zip.ZipFile;
 import org.gradle.api.logging.Logging;
-import org.gradle.internal.nativeintegration.filesystem.jdk7.PosixFilePermissionConverter;
-import shadow.org.apache.tools.zip.ZipEntry;
-import shadow.org.apache.tools.zip.ZipFile;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.attribute.PosixFileAttributeView;
 import java.util.Enumeration;
+
+import static org.elasticsearch.gradle.util.ArchiveUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
@@ -51,30 +49,16 @@ public abstract class UnzipTransform implements UnpackTransform {
                 File outFile = new File(targetDir, child);
                 if (zipEntry.isDirectory()) {
                     outFile.mkdirs();
-                    chmod(outFile, zipEntry.getUnixMode());
+                    chmod(outFile.toPath(), zipEntry.getUnixMode());
                     continue;
                 }
                 try (FileOutputStream outputStream = new FileOutputStream(outFile)) {
                     IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
-                chmod(outFile, zipEntry.getUnixMode());
+                chmod(outFile.toPath(), zipEntry.getUnixMode());
             }
         } finally {
             zip.close();
-        }
-    }
-
-    private void chmod(File f, int mode) {
-        if (mode == 0) {
-            return;
-        }
-        try {
-            PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class);
-            if (fileAttributeView != null) {
-                fileAttributeView.setPermissions(PosixFilePermissionConverter.convertToPermissionsSet(0777 & mode));
-            }
-        } catch (IOException ioException) {
-            throw new GradleException("Cannot set file permissions", ioException);
         }
     }
 

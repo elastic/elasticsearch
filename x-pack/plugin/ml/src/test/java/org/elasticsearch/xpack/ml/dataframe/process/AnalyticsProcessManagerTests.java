@@ -105,7 +105,9 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             OutlierDetectionTests.createRandom()).build();
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
-        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(), Collections.emptyMap()));
+        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyMap()));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));

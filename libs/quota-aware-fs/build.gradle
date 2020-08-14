@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  testImplementation(project(":test:framework"))
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

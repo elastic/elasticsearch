@@ -255,6 +255,8 @@ for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
     for (final boolean oss : [false, true]) {
       if (oss && base != DockerBase.CENTOS) {
+        // We only create Docker images for the OSS distribution on CentOS.
+        // Other bases only use the default distribution.
         continue
       }
       addCopyDockerContextTask(architecture, oss, base)

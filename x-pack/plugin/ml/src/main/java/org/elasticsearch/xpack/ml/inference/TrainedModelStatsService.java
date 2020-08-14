@@ -156,6 +156,7 @@ public class TrainedModelStatsService {
 
         boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
         if (isInUpgradeMode) {
+            logger.debug("Model stats not persisted as ml upgrade mode is enabled");
             return;
         }
 

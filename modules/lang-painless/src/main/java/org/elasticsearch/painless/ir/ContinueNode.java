@@ -29,8 +29,13 @@ public class ContinueNode extends StatementNode {
     /* ---- begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitContinue(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitContinue(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */

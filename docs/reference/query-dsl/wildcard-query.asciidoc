@@ -69,6 +69,7 @@ increases the relevance score.
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+[[wildcard-query-notes]]
 ==== Notes
 ===== Allow expensive queries
 Wildcard queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>

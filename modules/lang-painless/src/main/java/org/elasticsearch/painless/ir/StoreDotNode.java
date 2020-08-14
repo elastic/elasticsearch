@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,7 +26,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class DotSubNode extends ExpressionNode {
+public class StoreDotNode extends StoreAccessNode {
 
     /* ---- begin node data ---- */
 
@@ -43,50 +43,22 @@ public class DotSubNode extends ExpressionNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDotSub(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitStoreDot(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getAccessNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        getAccessNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(classWriter, methodWriter, writeScope);
 
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return 1;
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        // Do nothing.
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.getStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.getField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {

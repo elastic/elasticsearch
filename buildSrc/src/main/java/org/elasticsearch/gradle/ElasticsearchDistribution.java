@@ -289,10 +289,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [" + getType() + "]"
                 );
             }
-            if (isDocker() && bundledJdk.isPresent()) {
-                throw new IllegalArgumentException(
-                    "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [docker]"
-                );
+            if (isDocker()) {
+                if (bundledJdk.isPresent()) {
+                    throw new IllegalArgumentException("bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type "
+                        + "[docker]");
+                }
+                if (flavor.get() == Flavor.OSS && type.get() == Type.DOCKER_UBI) {
+                    throw new IllegalArgumentException("Cannot build a UBI docker image for the OSS distribution");
+                }
             }
         }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
@@ -68,6 +69,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging(reason = "debugging", value = "org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput:TRACE,"
+    + "org.elasticsearch.blobstore.cache.BlobStoreCacheService:TRACE") // TODO remove this before merge
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -81,6 +84,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     @Override
     protected int numberOfReplicas() {
         return 0;
+    }
+
+    @Override
+    protected int numberOfShards() {
+        return 1; // TODO remove this before merge
     }
 
     @Override

@@ -152,8 +152,15 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             FeatureImportance importance = importanceList.get(i);
             assertThat(objectMap.get("feature_name"), equalTo(importance.getFeatureName()));
             assertThat(objectMap.get("importance"), equalTo(importance.getImportance()));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> classImportances = (List<Map<String, Object>>)objectMap.get("classes");
             if (importance.getClassImportance() != null) {
-                importance.getClassImportance().forEach((k, v) -> assertThat(objectMap.get(k), equalTo(v)));
+                for (int j = 0; j < importance.getClassImportance().size(); j++) {
+                    Map<String, Object> classMap = classImportances.get(j);
+                    FeatureImportance.ClassImportance classImportance = importance.getClassImportance().get(j);
+                    assertThat(classMap.get("class_name"), equalTo(classImportance.getClassName()));
+                    assertThat(classMap.get("importance"), equalTo(classImportance.getImportance()));
+                }
             }
         }
     }
@@ -205,7 +212,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
-        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
+        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyList());
         TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
             Collections.singletonList(fi), config,

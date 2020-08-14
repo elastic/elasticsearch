@@ -20,10 +20,20 @@
 package org.elasticsearch.gradle;
 
 /**
- * Models the different varieties of Docker image that the build can create.
+ * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
-public enum Variant {
-    DEFAULT,
-    OSS,
-    UBI
+public enum DockerBase {
+    CENTOS("centos:8"),
+    // "latest" here is intentional, since the image name specifies "8"
+    UBI("registry.access.redhat.com/ubi8/ubi-minimal:latest");
+
+    private final String image;
+
+    DockerBase(String image) {
+        this.image = image;
+    }
+
+    public String getImage() {
+        return image;
+    }
 }

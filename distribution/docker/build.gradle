@@ -1,13 +1,11 @@
 import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.DockerBase
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
-import org.elasticsearch.gradle.Variant
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
-
-import java.nio.file.Path
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -31,7 +29,7 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-ext.expansions = { Architecture architecture, Variant variant, boolean local ->
+ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
   String classifier
   if (local) {
     if (architecture == Architecture.AARCH64) {
@@ -48,7 +46,7 @@ ext.expansions = { Architecture architecture, Variant variant, boolean local ->
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-${variant == Variant.OSS ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
@@ -66,31 +64,35 @@ RUN curl --retry 8 -S -L \\
   }
 
   return [
-    'base_image'          : variant == Variant.UBI ? 'registry.access.redhat.com/ubi8/ubi-minimal:8.2' : 'centos:8',
+    'base_image'          : base.getImage(),
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
-    'license'             : variant == Variant.OSS ? 'Apache-2.0' : 'Elastic-License',
-    'package_manager'     : variant == Variant.UBI ? 'microdnf' : 'yum',
+    'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
+    'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
-    'variant'             : variant.name().toLowerCase(),
+    'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch
   ]
 }
 
-private static String buildPath(Architecture architecture, Variant variant) {
-  String archString = architecture == Architecture.AARCH64 ? 'aarch64-' : ''
-  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase()
-  return 'build/' + archString + variantString + 'docker'
+private static String buildPath(Architecture architecture, boolean oss, DockerBase base) {
+  return 'build/' +
+    (architecture == Architecture.AARCH64 ? 'aarch64-' : '') +
+    (oss ? 'oss-' : '') +
+    (base == DockerBase.UBI ? 'ubi-' : '') +
+    'docker'
 }
 
-private static String taskName(String prefix, Architecture architecture, Variant variant, String suffix) {
-  String archString = architecture == Architecture.AARCH64 ? 'Aarch64' : ''
-  String variantString = variant == Variant.DEFAULT ? '' : variant.name().toLowerCase().capitalize()
-  return prefix + archString + variantString + suffix
+private static String taskName(String prefix, Architecture architecture, boolean oss, DockerBase base, String suffix) {
+  return prefix +
+    (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
+    (oss ? 'Oss' : '') +
+    (base == DockerBase.UBI ? 'Ubi' : '') +
+    suffix
 }
 
 project.ext {
-  dockerBuildContext = { Architecture architecture, Variant variant, boolean local ->
+  dockerBuildContext = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
     copySpec {
       into('bin') {
         from project.projectDir.toPath().resolve("src/docker/bin")
@@ -98,40 +100,47 @@ project.ext {
 
       into('config') {
         /*
-         * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
-         * by creating config files in oss or default build-context sub-modules.
+         * The OSS and default distributions have different configurations, therefore we want to allow overriding the default configuration
+         * from files in the 'oss' sub-directory. We don't want the 'oss' sub-directory to appear in the final build context, however.
          */
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
-        from project.projectDir.toPath().resolve("src/docker/config")
-        if (variant == Variant.OSS) {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from(project.projectDir.toPath().resolve("src/docker/config")) {
+          exclude 'oss'
+        }
+        if (oss) {
+          // Overlay the config file
           from project.projectDir.toPath().resolve("src/docker/config/oss")
         }
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(expansions(architecture, variant, local))
+        expand(expansions(architecture, oss, base, local))
       }
     }
   }
 }
 
-void addCopyDockerContextTask(Architecture architecture, Variant variant) {
-  tasks.register(taskName("copy", architecture, variant, "DockerContext"), Sync) {
-    expansions(architecture, variant, true).findAll { it.key != 'build_date' }.each { k, v ->
+void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase base) {
+  if (oss && base != DockerBase.CENTOS) {
+    throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
+  }
+
+  tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
+    expansions(architecture, oss, base, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into buildPath(architecture, variant)
+    into buildPath(architecture, oss, base)
 
-    with dockerBuildContext(architecture, variant, true)
+    with dockerBuildContext(architecture, oss, base, true)
 
     if (architecture == Architecture.AARCH64) {
-      if (variant == Variant.OSS) {
+      if (oss) {
         from configurations.aarch64OssDockerSource
       } else {
         from configurations.aarch64DockerSource
       }
     } else {
-      if (variant == Variant.OSS) {
+      if (oss) {
         from configurations.ossDockerSource
       } else {
         from configurations.dockerSource
@@ -209,22 +218,26 @@ tasks.named("check").configure {
   dependsOn "integTest"
 }
 
-void addBuildDockerImage(Architecture architecture, Variant variant) {
+void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base) {
+  if (oss && base != DockerBase.CENTOS) {
+    throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
+  }
+
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-          tasks.register(taskName("build", architecture, variant, "DockerImage"), DockerBuildTask) {
+          tasks.register(taskName("build", architecture, oss, base, "DockerImage"), DockerBuildTask) {
     onlyIf { Architecture.current() == architecture }
-    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, variant, "DockerContext"))
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, base, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
     String version = VersionProperties.elasticsearch
-    if (variant == Variant.OSS) {
+    if (oss) {
       tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
         "elasticsearch-oss:test"
       ]
     } else {
-      String suffix = variant == Variant.UBI ? '-ubi8' : ''
+      String suffix = base == DockerBase.UBI ? '-ubi8' : ''
       tags = [
         "elasticsearch${suffix}:${version}",
         "docker.elastic.co/elasticsearch/elasticsearch${suffix}:${version}",
@@ -239,9 +252,14 @@ void addBuildDockerImage(Architecture architecture, Variant variant) {
 }
 
 for (final Architecture architecture : Architecture.values()) {
-  for (Variant variant : Variant.values()) {
-    addCopyDockerContextTask(architecture, variant)
-    addBuildDockerImage(architecture, variant)
+  for (final DockerBase base : DockerBase.values()) {
+    for (final boolean oss : [false, true]) {
+      if (oss && base != DockerBase.CENTOS) {
+        continue
+      }
+      addCopyDockerContextTask(architecture, oss, base)
+      addBuildDockerImage(architecture, oss, base)
+    }
   }
 }
 
@@ -261,17 +279,16 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    final boolean isOss = subProject.name.contains('oss-')
-    final boolean isUbi = subProject.name.contains('ubi-')
-    final Variant variant = isOss ? Variant.OSS : isUbi ? Variant.UBI : Variant.DEFAULT
+    final boolean oss = subProject.name.contains('oss-')
+    final DockerBase base = subProject.name.contains('ubi-') ? DockerBase.UBI : DockerBase.CENTOS
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String suffix = isOss ? '-oss' : isUbi ? '-ubi8' : ''
-    final String extension = isUbi ? 'ubi.tar' : 'docker.tar'
+    final String suffix = oss ? '-oss' : base == DockerBase.UBI ? '-ubi8' : ''
+    final String extension = base == DockerBase.UBI ? 'ubi.tar' : 'docker.tar'
     final String artifactName = "elasticsearch${arch}${suffix}_test"
 
-    final String exportTaskName = taskName("export", architecture, variant, "DockerImage")
-    final String buildTaskName = taskName("build", architecture, variant, "DockerImage")
+    final String exportTaskName = taskName("export", architecture, oss, base, "DockerImage")
+    final String buildTaskName = taskName("build", architecture, oss, base, "DockerImage")
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {

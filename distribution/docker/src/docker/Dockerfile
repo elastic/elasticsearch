@@ -20,7 +20,7 @@
 ################################################################################
 
 FROM ${base_image} AS builder
-<% if (variant == 'ubi') { %>
+<% if (docker_base == 'ubi') { %>
 # Install required packages to extract the Elasticsearch distribution
 RUN ${package_manager} install -y tar gzip
 <% } %>
@@ -70,7 +70,7 @@ ENV ELASTIC_CONTAINER true
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip <%= variant == 'ubi' ? 'findutils procps-ng' : '' %> && \\
+        nc shadow-utils zip unzip <%= docker_base == 'ubi' ? 'findutils procps-ng' : '' %> && \\
       ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
       sleep 10; \\
     done; \\
@@ -121,7 +121,7 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% if (variant == 'ubi') { %>
+<% if (docker_base == 'ubi') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\

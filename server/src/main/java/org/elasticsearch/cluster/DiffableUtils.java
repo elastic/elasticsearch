@@ -533,12 +533,19 @@ public final class DiffableUtils {
             if (key < 0) {
                 throw new IllegalArgumentException("Map key [" + key + "] must be positive");
             }
-            out.writeVInt(key);
+            if (out.getVersion().after(Version.V_7_8_1)) {
+                out.writeVInt(key);
+            } else {
+                out.writeInt(key);
+            }
         }
 
         @Override
         public Integer readKey(StreamInput in) throws IOException {
-            return in.readVInt();
+            if (in.getVersion().after(Version.V_7_8_1)) {
+                return in.readVInt();
+            }
+            return in.readInt();
         }
     }
 

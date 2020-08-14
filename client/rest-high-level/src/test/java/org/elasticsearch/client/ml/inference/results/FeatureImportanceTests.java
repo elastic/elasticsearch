@@ -33,10 +33,11 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
         return new FeatureImportance(
             randomAlphaOfLength(10),
             randomDoubleBetween(-10.0, 10.0, false),
-            Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomLongBetween(2, 10))
-                .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
-                .collect(Collectors.toList()));
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomLongBetween(2, 10))
+                    .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
+                    .collect(Collectors.toList()));
 
     }
 

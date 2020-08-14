@@ -47,7 +47,7 @@ import java.util.function.LongConsumer;
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
     @FunctionalInterface
-    public interface HistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface HistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             double interval,
@@ -76,7 +76,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     public static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
@@ -109,7 +109,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                         );
                     }
                 );
-            });
+            }, false);
     }
 
     private double interval = 0;
@@ -178,7 +178,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+            .getAggregator(REGISTRY_KEY, config)
             .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

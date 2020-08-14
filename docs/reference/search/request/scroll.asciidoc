@@ -202,7 +202,7 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 
 [discrete]
 [[slice-scroll]]
-==== Sliced Scroll
+==== Sliced scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
 can be consumed independently:

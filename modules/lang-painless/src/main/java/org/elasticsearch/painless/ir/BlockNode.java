@@ -65,8 +65,15 @@ public class BlockNode extends StatementNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBlock(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitBlock(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (StatementNode statementNode : statementNodes) {
+            statementNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

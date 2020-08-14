@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -561,7 +562,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     if (processor instanceof Map<?, ?>) {
                         Object processorConfig = ((Map<?, ?>) processor).get(InferenceProcessor.TYPE);
                         if (processorConfig instanceof Map<?, ?>) {
-                            Object modelId = ((Map<?, ?>) processorConfig).get(InferenceProcessor.MODEL_ID);
+                            Object modelId = ((Map<?, ?>) processorConfig).get(InferenceResults.MODEL_ID_RESULTS_FIELD);
                             if (modelId != null) {
                                 assert modelId instanceof String;
                                 allReferencedModelKeys.add(modelId.toString());

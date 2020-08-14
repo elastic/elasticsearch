@@ -11,7 +11,7 @@ remote cluster connections: <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>.
 
 Communication with a remote cluster uses the <<modules-transport,transport
-layer>> to establishe a number of <<long-lived-connections,long-lived>> TCP
+layer>> to establish a number of <<long-lived-connections,long-lived>> TCP
 connections from the coordinating nodes of the local cluster to the chosen
 nodes in the remote cluster.
 

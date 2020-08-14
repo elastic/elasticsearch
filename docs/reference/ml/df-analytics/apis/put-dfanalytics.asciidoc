@@ -119,7 +119,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shard.asciidoc[tag=dfas-feature-processors]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
 
 `gamma`::::
 (Optional, double)
@@ -223,7 +223,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `feature_processors`::::
 (Optional, list)
-include::{es-repo-dir}/ml/ml-shard.asciidoc[tag=dfas-feature-processors]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
 
 `gamma`::::
 (Optional, double)

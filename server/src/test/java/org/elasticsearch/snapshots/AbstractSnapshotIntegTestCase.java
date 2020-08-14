@@ -19,8 +19,11 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,6 +32,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -262,5 +266,34 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository(repoName)
                 .setType(type)
                 .setSettings(Settings.builder().put("location", location)));
+    }
+
+    protected void createRepository(String repoName, String type) {
+        createRepository(repoName, type, randomRepoPath());
+    }
+
+    protected static Settings.Builder indexSettingsNoReplicas(int shards) {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+    }
+
+    protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
+        logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index, "_doc").setId(Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh(index);
+        assertDocCount(index, numdocs);
+    }
+
+    protected long getCountForIndex(String indexName) {
+        return client().search(new SearchRequest(new SearchRequest(indexName).source(
+                new SearchSourceBuilder().size(0).trackTotalHits(true)))).actionGet().getHits().getTotalHits().value;
+    }
+
+    protected void assertDocCount(String index, long count) {
+        assertEquals(getCountForIndex(index), count);
     }
 }

@@ -47,6 +47,7 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.process.CommandLineArgumentProvider;
 
 import java.io.File;
 import java.util.List;
@@ -155,7 +156,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
                 compilerArgs.add("-Xdoclint:all");
                 compilerArgs.add("-Xdoclint:-missing");
-
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
                 // defined
                 if (compilerArgs.contains("-processor") == false) {
@@ -164,7 +164,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
                 compileOptions.setEncoding("UTF-8");
                 compileOptions.setIncremental(true);
-                // TODO Discuss this required workaround with the Gradle team
+                // workaround for https://github.com/gradle/gradle/issues/14141
                 compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
                 compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
                 compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));

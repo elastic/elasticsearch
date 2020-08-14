@@ -23,8 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,10 +33,10 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
         return new FeatureImportance(
             randomAlphaOfLength(10),
             randomDoubleBetween(-10.0, 10.0, false),
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
-                    .limit(randomLongBetween(2, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomDoubleBetween(-10, 10, false))));
+            Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(randomLongBetween(2, 10))
+                .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
+                .collect(Collectors.toList()));
 
     }
 
@@ -52,8 +50,4 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
         return true;
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.equals(FeatureImportance.CLASS_IMPORTANCE);
-    }
 }

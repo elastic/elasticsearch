@@ -65,7 +65,7 @@ public class ForEachSubIterableNode extends LoopNode {
     public String getVariableName() {
         return variableName;
     }
-    
+
     public void setCast(PainlessCast cast) {
         this.cast = cast;
     }
@@ -101,8 +101,14 @@ public class ForEachSubIterableNode extends LoopNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitForEachSubIterableLoop(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForEachSubIterableLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getConditionNode().visit(irTreeVisitor, scope);
+        getBlockNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BinaryNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -90,6 +91,7 @@ import org.elasticsearch.painless.ir.StoreListShortcutNode;
 import org.elasticsearch.painless.ir.StoreMapShortcutNode;
 import org.elasticsearch.painless.ir.StoreNode;
 import org.elasticsearch.painless.ir.StoreVariableNode;
+import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -158,7 +160,6 @@ import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.Compound;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
-import org.elasticsearch.painless.symbol.Decorations.Concatenate;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
@@ -485,7 +486,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 }
             // this is a compound assignment
             } else {
-                // this store has a prefix node that we much dup for a load
+                // this store has a prefix node that we must dup for a load
                 if (irAccessNode != null) {
                     DupNode dupNode = new DupNode();
                     dupNode.setLocation(location);
@@ -497,12 +498,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     ((StoreAccessNode)irStoreNode).setAccessNode(dupNode);
                 }
 
-                // this adds a stub node to do the operation
-                BinaryMathNode binaryMathNode = new BinaryMathNode();
-                binaryMathNode.setLocation(location);
-                binaryMathNode.setLeftNode(irLoadNode);
-
-                irStoreNode.setChildNode(binaryMathNode);
+                irStoreNode.setChildNode(irLoadNode);
             }
 
             irExpressionNode = irStoreNode;
@@ -845,41 +841,61 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         // handles a compound assignment using the stub generated from buildLoadStore
         if (compoundType != null) {
+            boolean concatenate = userAssignmentNode.getOperation() == Operation.ADD && compoundType == String.class;
             scriptScope.setCondition(userAssignmentNode.getLeftNode(), Compound.class);
             irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
-            BinaryMathNode irBinaryMathNode = (BinaryMathNode)irStoreNode.getChildNode();
+            ExpressionNode irLoadNode = irStoreNode.getChildNode();
+            ExpressionNode irCompoundNode;
+
+            // handles when the operation is a string concatenation
+            if (concatenate) {
+                StringConcatenationNode stringConcatenationNode = new StringConcatenationNode();
+                stringConcatenationNode.setLocation(irStoreNode.getLocation());
+                stringConcatenationNode.setExpressionType(String.class);
+                irCompoundNode = stringConcatenationNode;
+            // handles when the operation is mathematical
+            } else {
+                BinaryMathNode irBinaryMathNode = new BinaryMathNode();
+                irBinaryMathNode.setLocation(irStoreNode.getLocation());
+                irBinaryMathNode.setLeftNode(irLoadNode);
+                irBinaryMathNode.setExpressionType(compoundType);
+                irBinaryMathNode.setBinaryType(compoundType);
+                irBinaryMathNode.setOperation(userAssignmentNode.getOperation());
+                // add a compound assignment flag to the binary math node
+                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                irCompoundNode = irBinaryMathNode;
+            }
 
             PainlessCast downcast = scriptScope.hasDecoration(userAssignmentNode, DowncastPainlessCast.class) ?
                     scriptScope.getDecoration(userAssignmentNode, DowncastPainlessCast.class).getDowncastPainlessCast() : null;
 
             // no need to downcast so the binary math node is the value for the store node
             if (downcast == null) {
-                irBinaryMathNode.setExpressionType(irStoreNode.getStoreType());
+                irCompoundNode.setExpressionType(irStoreNode.getStoreType());
+                irStoreNode.setChildNode(irCompoundNode);
             // add a cast node to do a downcast as the value for the store node
             } else {
                 CastNode irCastNode = new CastNode();
-                irCastNode.setLocation(irBinaryMathNode.getLocation());
+                irCastNode.setLocation(irCompoundNode.getLocation());
                 irCastNode.setExpressionType(downcast.targetType);
                 irCastNode.setCast(downcast);
-                irCastNode.setChildNode(irBinaryMathNode);
+                irCastNode.setChildNode(irCompoundNode);
                 irStoreNode.setChildNode(irCastNode);
             }
 
             // the value is also read from this assignment
             if (read) {
                 int accessDepth = scriptScope.getDecoration(userAssignmentNode.getLeftNode(), AccessDepth.class).getAccessDepth();
-
                 DupNode irDupNode = new DupNode();
 
                 // the value is read from prior to assignment (post-increment)
                 if (userAssignmentNode.postIfRead()) {
-                    ExpressionNode irLoadNode = irBinaryMathNode.getLeftNode();
                     irDupNode.setLocation(irLoadNode.getLocation());
                     irDupNode.setExpressionType(irLoadNode.getExpressionType());
                     irDupNode.setSize(MethodWriter.getType(irLoadNode.getExpressionType()).getSize());
                     irDupNode.setDepth(accessDepth);
                     irDupNode.setChildNode(irLoadNode);
-                    irBinaryMathNode.setLeftNode(irDupNode);
+                    irLoadNode = irDupNode;
                 // the value is read from after the assignment (pre-increment/compound)
                 } else {
                     irDupNode.setLocation(irStoreNode.getLocation());
@@ -896,21 +912,23 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             // upcast the stored value if necessary
             if (upcast != null) {
-                ExpressionNode irLoadNode = irBinaryMathNode.getLeftNode();
                 CastNode irCastNode = new CastNode();
                 irCastNode.setLocation(irLoadNode.getLocation());
                 irCastNode.setExpressionType(upcast.targetType);
                 irCastNode.setCast(upcast);
                 irCastNode.setChildNode(irLoadNode);
-                irBinaryMathNode.setLeftNode(irCastNode);
+                irLoadNode = irCastNode;
             }
 
-            // add a compound assignment flag to the binary math node
-            irBinaryMathNode.setExpressionType(compoundType);
-            irBinaryMathNode.setBinaryType(compoundType);
-            irBinaryMathNode.setOperation(userAssignmentNode.getOperation());
-            irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
-            irBinaryMathNode.setRightNode(irValueNode);
+            if (concatenate) {
+                StringConcatenationNode irStringConcatenationNode = (StringConcatenationNode)irCompoundNode;
+                irStringConcatenationNode.addArgumentNode(irLoadNode);
+                irStringConcatenationNode.addArgumentNode(irValueNode);
+            } else {
+                BinaryMathNode irBinaryMathNode = (BinaryMathNode)irCompoundNode;
+                irBinaryMathNode.setLeftNode(irLoadNode);
+                irBinaryMathNode.setRightNode(irValueNode);
+            }
         // handles a standard assignment
         } else {
             irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
@@ -960,25 +978,38 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     @Override
     public void visitBinary(EBinary userBinaryNode, ScriptScope scriptScope) {
-        Class<?> shiftType = scriptScope.hasDecoration(userBinaryNode, ShiftType.class) ?
-                scriptScope.getDecoration(userBinaryNode, ShiftType.class).getShiftType() : null;
+        ExpressionNode irExpressionNode;
 
-        BinaryMathNode irBinaryMathNode = new BinaryMathNode();
-        irBinaryMathNode.setLocation(userBinaryNode.getLocation());
-        irBinaryMathNode.setExpressionType(scriptScope.getDecoration(userBinaryNode, ValueType.class).getValueType());
-        irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
-        irBinaryMathNode.setShiftType(shiftType);
-        irBinaryMathNode.setOperation(userBinaryNode.getOperation());
-        irBinaryMathNode.setCat(scriptScope.getCondition(userBinaryNode, Concatenate.class));
+        Operation operation = userBinaryNode.getOperation();
+        Class<?> valueType = scriptScope.getDecoration(userBinaryNode, ValueType.class).getValueType();
 
-        if (scriptScope.getCondition(userBinaryNode, Explicit.class)) {
-            irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST);
+        if (operation == Operation.ADD && valueType == String.class) {
+            StringConcatenationNode stringConcatenationNode = new StringConcatenationNode();
+            stringConcatenationNode.addArgumentNode((ExpressionNode)visit(userBinaryNode.getLeftNode(), scriptScope));
+            stringConcatenationNode.addArgumentNode((ExpressionNode)visit(userBinaryNode.getRightNode(), scriptScope));
+            irExpressionNode = stringConcatenationNode;
+        } else {
+            Class<?> shiftType = scriptScope.hasDecoration(userBinaryNode, ShiftType.class) ?
+                    scriptScope.getDecoration(userBinaryNode, ShiftType.class).getShiftType() : null;
+
+            BinaryMathNode irBinaryMathNode = new BinaryMathNode();
+
+            irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
+            irBinaryMathNode.setShiftType(shiftType);
+            irBinaryMathNode.setOperation(operation);
+
+            if (scriptScope.getCondition(userBinaryNode, Explicit.class)) {
+                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST);
+            }
+
+            irBinaryMathNode.setLeftNode(injectCast(userBinaryNode.getLeftNode(), scriptScope));
+            irBinaryMathNode.setRightNode(injectCast(userBinaryNode.getRightNode(), scriptScope));
+            irExpressionNode = irBinaryMathNode;
         }
 
-        irBinaryMathNode.setLeftNode(injectCast(userBinaryNode.getLeftNode(), scriptScope));
-        irBinaryMathNode.setRightNode(injectCast(userBinaryNode.getRightNode(), scriptScope));
-
-        scriptScope.putDecoration(userBinaryNode, new IRNodeDecoration(irBinaryMathNode));
+        irExpressionNode.setLocation(userBinaryNode.getLocation());
+        irExpressionNode.setExpressionType(valueType);
+        scriptScope.putDecoration(userBinaryNode, new IRNodeDecoration(irExpressionNode));
     }
 
     @Override

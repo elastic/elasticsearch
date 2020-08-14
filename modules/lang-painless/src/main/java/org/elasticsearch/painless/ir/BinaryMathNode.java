@@ -38,7 +38,6 @@ public class BinaryMathNode extends BinaryNode {
     private Operation operation;
     private Class<?> binaryType;
     private Class<?> shiftType;
-    private boolean cat;
     private int flags;
 
     public void setOperation(Operation operation) {
@@ -73,14 +72,6 @@ public class BinaryMathNode extends BinaryNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(shiftType);
     }
 
-    public void setCat(boolean cat) {
-        this.cat = cat;
-    }
-
-    public boolean getCat() {
-        return cat;
-    }
-
     public void setFlags(int flags) {
         this.flags = flags;
     }
@@ -92,8 +83,14 @@ public class BinaryMathNode extends BinaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBinaryMath(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitBinaryMath(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
@@ -102,27 +99,7 @@ public class BinaryMathNode extends BinaryNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
-        if (getBinaryType() == String.class && operation == Operation.ADD) {
-            if (cat == false) {
-                methodWriter.writeNewStrings();
-            }
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-
-            if (getLeftNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getLeftNode()).getCat() == false) {
-                methodWriter.writeAppendStrings(getLeftNode().getExpressionType());
-            }
-
-            getRightNode().write(classWriter, methodWriter, writeScope);
-
-            if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
-                methodWriter.writeAppendStrings(getRightNode().getExpressionType());
-            }
-
-            if (cat == false) {
-                methodWriter.writeToStrings();
-            }
-        } else if (operation == Operation.FIND || operation == Operation.MATCH) {
+        if (operation == Operation.FIND || operation == Operation.MATCH) {
             getRightNode().write(classWriter, methodWriter, writeScope);
             getLeftNode().write(classWriter, methodWriter, writeScope);
             methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);

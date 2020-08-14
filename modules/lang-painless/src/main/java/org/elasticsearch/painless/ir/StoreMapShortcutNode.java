@@ -42,8 +42,13 @@ public class StoreMapShortcutNode extends StoreAccessNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitStoreMapShortcut(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitStoreMapShortcut(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getAccessNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

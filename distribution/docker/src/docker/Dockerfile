@@ -55,7 +55,7 @@ WORKDIR /usr/share/elasticsearch
 
 ${source_elasticsearch}
 
-RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs

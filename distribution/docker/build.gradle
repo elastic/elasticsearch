@@ -58,13 +58,12 @@ ext.expansions = { Architecture architecture, Variant variant, boolean local ->
 ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
 ARG BASE_IMAGE=redhat/ubi/ubi8
 ARG BASE_TAG=8.2
-ARG TARBALL=${elasticsearch}
 """
   }
 
   String baseImage = 'centos:8'
   if (variant == Variant.UBI) {
-    baseImage = '${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG} AS builder'
+    baseImage = '${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}'
   } else if (variant == Variant.UBI_MINIMAL) {
     baseImage = 'registry.access.redhat.com/ubi8/ubi-minimal:8.2'
   }
@@ -74,10 +73,8 @@ ARG TARBALL=${elasticsearch}
    * follow in the Dockerfile don't have to know about the runtime
    * architecture. */
   String sourceElasticsearch
-  if (local) {
+  if (local || variant == Variant.UBI) {
     sourceElasticsearch = "COPY ${elasticsearch} /opt/elasticsearch.tar.gz"
-  } else if (variant == Variant.UBI) {
-    sourceElasticsearch = 'COPY ${TARBALL} /opt/elasticsearch.tar.gz'
   } else {
     sourceElasticsearch = """
 RUN curl --retry 8 -S -L \\

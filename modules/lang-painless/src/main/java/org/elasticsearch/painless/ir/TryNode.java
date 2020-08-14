@@ -54,8 +54,17 @@ public class TryNode extends StatementNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitTry(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitTry(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        blockNode.visit(irTreeVisitor, scope);
+
+        for (CatchNode catchNode : catchNodes) {
+            catchNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -191,8 +194,21 @@ public class ChunkedTrainedModelPersister {
         return latch;
     }
 
+    private long customProcessorSize() {
+        List<PreProcessor> preProcessors = new ArrayList<>();
+        if (analytics.getAnalysis() instanceof Classification) {
+            preProcessors = ((Classification) analytics.getAnalysis()).getFeatureProcessors();
+        } else if (analytics.getAnalysis() instanceof Regression) {
+            preProcessors = ((Regression) analytics.getAnalysis()).getFeatureProcessors();
+        }
+        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum()
+            + RamUsageEstimator.NUM_BYTES_OBJECT_REF * preProcessors.size();
+    }
+
     private TrainedModelConfig createTrainedModelConfig(ModelSizeInfo modelSize) {
         Instant createTime = Instant.now();
+        // The native process does not provide estimates for the custom feature_processor objects
+        long customProcessorSize = customProcessorSize();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         currentModelId.set(modelId);
         List<ExtractedField> fieldNames = extractedFields.getAllFields();
@@ -214,7 +230,7 @@ public class ChunkedTrainedModelPersister {
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setEstimatedHeapMemory(modelSize.ramBytesUsed())
+            .setEstimatedHeapMemory(modelSize.ramBytesUsed() + customProcessorSize)
             .setEstimatedOperations(modelSize.numOperations())
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())

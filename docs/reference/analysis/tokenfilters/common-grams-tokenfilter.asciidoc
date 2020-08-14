@@ -4,7 +4,7 @@
 <titleabbrev>Common grams</titleabbrev>
 ++++
 
-Generates https://en.wikipedia.org/wiki/Bigram[bigrams] for a specified set of
+Generates {wikipedia}/Bigram[bigrams] for a specified set of
 common words.
 
 For example, you can specify `is` and `the` as common words. This filter then

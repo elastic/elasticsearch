@@ -7,6 +7,10 @@ each new index in the series is replicated automatically. Whenever the name of
 a new index on the remote cluster matches the auto-follow pattern, a
 corresponding follower index is added to the local cluster.
 
+Auto-follow patterns are especially useful with
+<<index-lifecycle-management,{ilm-cap}>>, which might continually create
+new indices on the cluster containing the leader index.
+
 [[ccr-auto-follow-create]]
 ==== Create auto-follow patterns
 When you create an auto-follow pattern, you are configuring a collection of

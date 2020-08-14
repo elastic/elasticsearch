@@ -59,9 +59,7 @@ public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase 
         final int demoDocs = indexDocs(client(LOCAL_CLUSTER), "demo");
         final int prodDocs = indexDocs(client("cluster_a"), "prod");
         final InternalTestCluster localCluster = cluster(LOCAL_CLUSTER);
-        if (randomBoolean()) {
-            localCluster.startDataOnlyNode();
-        }
+        final String pureDataNode = randomBoolean() ? localCluster.startDataOnlyNode() : null;
         final String nodeWithoutRemoteClusterClientRole = localCluster.startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_ROLE));
         ElasticsearchAssertions.assertFutureThrows(
             localCluster.client(nodeWithoutRemoteClusterClientRole)
@@ -79,6 +77,7 @@ public class CCSRemoteClusterClientRoleIT extends AbstractMultiClustersTestCase 
             StreamSupport.stream(localCluster.clusterService().state().nodes().spliterator(), false)
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
+                .filter(nodeName -> nodeName.equals(pureDataNode) == false)
                 .collect(Collectors.toList()));
 
         final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)

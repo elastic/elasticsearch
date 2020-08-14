@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -448,8 +449,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
-        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler),
+            e -> {
+                // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
+                // and it would cause more harm than good to block jobs from opening in subsequent releases
+                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            }
+        );
+
+        // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
+        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,

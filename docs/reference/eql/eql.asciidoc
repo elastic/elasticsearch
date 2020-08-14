@@ -716,3 +716,4 @@ You can also manually delete saved synchronous searches using the
 include::syntax.asciidoc[]
 include::functions.asciidoc[]
 include::pipes.asciidoc[]
+include::detect-threats-with-eql.asciidoc[]

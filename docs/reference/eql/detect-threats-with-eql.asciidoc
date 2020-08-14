@@ -289,9 +289,9 @@ To match, each event in the sequence must share the same process ID, recorded in
 the `process.pid` field. 
 
 Based on the command line value seen in the previous result, you can expect to
-find a match. However, the sequence query isn't overfit to the specific command.
-Instead, it looks for a pattern of suspicious behavior while still being generic
-enough to detect similar threats in the future.
+find a match. However, the sequence query isn't designed for that specific
+command. Instead, it looks for a pattern of suspicious behavior while still
+being generic enough to detect similar threats in the future.
 
 [source,console]
 ----

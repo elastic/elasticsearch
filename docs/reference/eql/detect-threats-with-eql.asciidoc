@@ -9,19 +9,19 @@ This example tutorial shows you how you can use EQL to detect security threats
 and other suspicious behavior.
 
 In the scenario, you're tasked with detecting
-https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] in Windows event
-logs ingested using {winlogbeat-ref}/index.html[Winlogbeat]. Regsvr32 misuse is
-a known adversary technique documented in the https://attack.mitre.org[MITRE
-ATT&CK®] knowledge base.
+https://attack.mitre.org/techniques/T1218/010/[`regsvr32` misuse] in Windows event
+logs. `regsvr32` misuse is a known adversary technique documented in the
+https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
 
 [discrete]
 [[eql-ex-threat-detection-setup]]
 === Setup
 
-This tutorial uses a test dataset for regsvr32 misuse from
+This tutorial uses a test dataset for `regsvr32` misuse from
 https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
-been normalized and mapped to the {ecs-ref}[Elastic Common Schema (ECS)]. The
-dataset includes events that imitate behaviors related to regsvr32 misuse, as
+been normalized and mapped to use fields from the {ecs-ref}[Elastic Common Schema
+(ECS)], including the `@timestamp` and `event.category` fields. The dataset
+includes events that imitate behaviors related to `regsvr32` misuse, as
 documented by MITRE ATT&CK®.
 
 To get started, download and index the dataset:
@@ -60,8 +60,8 @@ yellow open   my-index-000001         150
 [[eql-ex-get-a-count-of-regsvr32-events]]
 === Get a count of `regsvr32.exe` events
 
-Since you're looking for `regsvr32` misuse, start by getting a count of events
-using `regsvr32.exe`.
+Since you're looking for `regsvr32` misuse, start by looking at any events
+associated with a `regsvr32.exe` process.
 
 The following <<eql-search-api,EQL search API>> request uses an EQL query to
 retrieve a count of events with a `process.name` of `regsvr32.exe`. The query
@@ -71,12 +71,12 @@ category>>.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search?filter_path=-hits.events  <1>
+GET /my-index-000001/_eql/search?filter_path=-hits.events   <1>
 {
   "query": """
-    any where process.name == "regsvr32.exe"        <2>
+    any where process.name == "regsvr32.exe"                <2>
   """,
-  "size": 150                                       <3>
+  "size": 200                                               <3>
 }
 ----
 // TEST[setup:atomic_red_regsvr32]
@@ -86,7 +86,7 @@ GET /my-index-000001/_eql/search?filter_path=-hits.events  <1>
 the document source for any matching events. This request is intended to
 retrieve a count of events only.
 <2> Uses an EQL query to match events with a `process.name` of `regsvr32.exe`.
-<3> Returns up to 150 events or sequences matching the EQL query.
+<3> Returns up to 200 events or sequences matching the EQL query.
 
 The request returns the following response, indicating that 143 events match the
 query.
@@ -112,13 +112,18 @@ query.
 [[eql-ex-check-for-command-line-artifacts]]
 === Check for command line artifacts
 
-Your previous query matched 143 events. Many of these events are likely to be
-false positives.
+Based on your previous query, you know `regsv32` processes were associated with
+143 events. But how was first `regsvr32.exe` called? And who called it?
 
-To narrow down the results, check if the command line was used during any of
-these events. Append `and process.command_line > 0` to the previous EQL query.
-This limits matching results to events that contain a `process.command_line`
-value.
+`regsv32` is a command-line utility so narrowing your results to processes where
+the command line was used may help.
+
+First, in the previous EQL query, change the `any` keyword to `process`. This
+means the query will only match processes, which have an `event.category` of
+`process`.
+
+Next, append `and process.command_line != null` to the query. Now the query will
+only match processes with a command line value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
 lets you retrieve the document source for any matching events.
@@ -128,16 +133,23 @@ lets you retrieve the document source for any matching events.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    any where process.name == "regsvr32.exe" and process.command_line > 0
+    process where process.name == "regsvr32.exe" and process.command_line != null
   """,
   "size": 150
 }
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-The query matches one event. Based on the event's `process.command_line` value,
-`regsvr32.exe` was used to register a script as `scrobj.dll`. This fits known
-regsvr32 misuse behavior.
+The query matches one process. The event has an `event.type` of `creation`,
+indicating the start of a `regsvr32.exe` process. Based on the
+`process.command_line` value, `regsvr32.exe` was used to register a script as
+`scrobj.dll`. This fits the behavior of a
+https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
+variant of `regsvr32` misuse.
+
+The query also retrieved other valuable information about how the `regsvr32.exe`
+process started, such as the `@timestamp`, the associated `user.id`, and the
+`process.parent.name`.
 
 [source,console-result]
 ----
@@ -194,30 +206,28 @@ regsvr32 misuse behavior.
 [[eql-ex-check-for-malicious-script-loads]]
 === Check for malicious script loads
 
-You now know that `regsvr32.exe` was used to register
-a potentially malicious script as `scrob.dll`. Next, find any processes that
-later load the `scrob.dll` file.
+You now know that a `regsvr32.exe` process was used to register a potentially
+malicious script as `scrob.dll`. Next, see if `regsvr32.exe` later loads the
+`scrob.dll` library.
 
 Modify the previous EQL query as follows:
 
-* Change the `any` keyword to `file`. This means the query only matches
-events with an `event.category` of `file`.
-* Add the `file.name == "scrobj.dll` condition to check for loads of
-the `scrobj.dll` file.
+* Change the `process` keyword to `library`.
+* Add the `dll.name == "scrobj.dll` condition.
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
   "query": """
-    file where process.name == "regsvr32.exe" and file.name == "scrobj.dll"
+    library where process.name == "regsvr32.exe" and dll.name == "scrobj.dll"
   """,
   "size": 150
 }
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-The query matches an event, confirming that `scrobj.dll` was later loaded by
+The query matches an event, confirming `scrobj.dll` was later loaded by
 `regsvr32.exe`.
 
 [source,console-result]
@@ -244,13 +254,13 @@ The query matches an event, confirming that `scrobj.dll` was later loaded by
             "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
             "executable": "C:\\Windows\\System32\\regsvr32.exe"
           },
-          "file": {
+          "@timestamp": 131883573237450016,
+          "dll": {
             "path": "C:\\Windows\\System32\\scrobj.dll",
             "name": "scrobj.dll"
           },
-          "@timestamp": 131883573237450016,
           "event": {
-            "category": "file"
+            "category": "library"
           }
         }
       }
@@ -265,19 +275,19 @@ The query matches an event, confirming that `scrobj.dll` was later loaded by
 [[eql-ex-detemine-likelihood-of-sucess]]
 === Determine likelihood of success
 
-In many cases, malicious scripts are used to download other remote files. If
-this occurred, the attack progressed and might have succeeded.
+In many cases, malicious scripts are used to connect to remote servers or
+download other files. If this occurred, the attack might have succeeded.
 
 Use an <<eql-sequences,EQL sequence query>> to check for the following series of
 events, in order:
 
 . A `regsvr32.exe` process, which could have been used to register malicious
 scripts as `scrobj.dll`
-. A load of the `scrobj.dll` file
+. A load of the `scrobj.dll` library
 . Any network event, which could indicate the download of a remote file
 
-To match, each event in the sequence must share the same `process.pid` (process
-ID) field value.
+To match, each event in the sequence must share the same process ID, recorded in
+the `process.pid` field.
 
 [source,console]
 ----
@@ -286,7 +296,7 @@ GET /my-index-000001/_eql/search
   "query": """
     sequence by process.pid
       [process where process.name == 'regsvr32.exe']
-      [file where file.name == 'scrobj.dll']
+      [library where dll.name == 'scrobj.dll']
       [network where true]
   """,
   "size": 150
@@ -318,7 +328,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_index": "my-index-000001",
             "_id": "gl5MJXMBMk1dGnErnBW8",
             "_version": 1,
-            "_seq_no": 1,
+            "_seq_no": 3,
             "_primary_term": 1,
             "_score": null,
             "_source": {
@@ -352,7 +362,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_index": "my-index-000001",
             "_id": "ol5MJXMBMk1dGnErnBW8",
             "_version": 1,
-            "_seq_no": 7,
+            "_seq_no": 5,
             "_primary_term": 1,
             "_score": null,
             "_source": {
@@ -362,13 +372,13 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
                 "executable": "C:\\Windows\\System32\\regsvr32.exe"
               },
-              "file": {
+              "@timestamp": 131883573237450016,
+              "dll": {
                 "path": "C:\\Windows\\System32\\scrobj.dll",
                 "name": "scrobj.dll"
               },
-              "@timestamp": 131883573237450016,
               "event": {
-                "category": "file"
+                "category": "library"
               }
             }
           },
@@ -376,7 +386,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_index": "my-index-000001",
             "_id": "EF5MJXMBMk1dGnErnBa9",
             "_version": 1,
-            "_seq_no": 29,
+            "_seq_no": 24,
             "_primary_term": 1,
             "_score": null,
             "_source": {
@@ -386,6 +396,7 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
                 "executable": "C:\\Windows\\System32\\regsvr32.exe"
               },
+              "@timestamp": 131883573238680000,
               "destination": {
                 "address": "151.101.48.133",
                 "port": "443"
@@ -394,11 +405,6 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "address": "192.168.162.134",
                 "port": "50505"
               },
-              "network": {
-                "direction": "outbound",
-                "protocol": "tcp"
-              },
-              "@timestamp": 131883573238680000,
               "event": {
                 "category": "network"
               },
@@ -406,6 +412,10 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "full_name": "bob",
                 "domain": "ART-DESKTOP",
                 "id": "ART-DESKTOP\\bob"
+              },
+              "network": {
+                "protocol": "tcp",
+                "direction": "outbound"
               }
             }
           }
@@ -417,8 +427,8 @@ The query matches a sequence, indicating the attack likely succeeded.
 ----
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_seq_no": 1/"_seq_no": $body.hits.sequences.0.events.0._seq_no/]
+// TESTRESPONSE[s/"_seq_no": 3/"_seq_no": $body.hits.sequences.0.events.0._seq_no/]
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]
-// TESTRESPONSE[s/"_seq_no": 7/"_seq_no": $body.hits.sequences.0.events.1._seq_no/]
+// TESTRESPONSE[s/"_seq_no": 5/"_seq_no": $body.hits.sequences.0.events.1._seq_no/]
 // TESTRESPONSE[s/"_id": "EF5MJXMBMk1dGnErnBa9"/"_id": $body.hits.sequences.0.events.2._id/]
-// TESTRESPONSE[s/"_seq_no": 29/"_seq_no": $body.hits.sequences.0.events.2._seq_no/]
+// TESTRESPONSE[s/"_seq_no": 24/"_seq_no": $body.hits.sequences.0.events.2._seq_no/]

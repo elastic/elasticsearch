@@ -1228,7 +1228,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Path getExtractedDistributionDir() {
-        return distributions.get(currentDistro).getExtracted().getConfiguration().getSingleFile().toPath();
+        return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {

@@ -125,7 +125,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getType().shouldExtract()) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(distribution.getExtracted().configuration.getName(), resolveDependencyNotation(project, distribution));
+                dependencies.add(distribution.getExtracted().getName(), resolveDependencyNotation(project, distribution));
             }
         }
     }

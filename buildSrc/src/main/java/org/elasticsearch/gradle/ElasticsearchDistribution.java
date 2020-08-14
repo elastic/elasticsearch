@@ -90,36 +90,11 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         .onMac(() -> Platform.DARWIN)
         .supply();
 
-    public static final class Extracted implements Buildable, Iterable<File> {
-
-        // pkg private so plugin can configure
-        final Configuration configuration;
-
-        private Extracted(Configuration configuration) {
-            this.configuration = configuration;
-        }
-
-        @Override
-        public Iterator<File> iterator() {
-            return configuration.iterator();
-        }
-
-        @Override
-        public TaskDependency getBuildDependencies() {
-            TaskDependency buildDependencies = configuration.getBuildDependencies();
-            return configuration.getBuildDependencies();
-        }
-
-        public Configuration getConfiguration() {
-            return configuration;
-        }
-    }
-
     private final String name;
     private final Provider<DockerSupportService> dockerSupport;
     // pkg private so plugin can configure
     final Configuration configuration;
-    private final Extracted extracted;
+//    private final Extracted extracted;
 
     private final Property<Architecture> architecture;
     private final Property<String> version;
@@ -128,6 +103,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
+    private final Configuration extracted;
 
     ElasticsearchDistribution(
         String name,
@@ -147,7 +123,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.flavor = objectFactory.property(Flavor.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
-        this.extracted = new Extracted(extractedConfiguration);
+        this.extracted = extractedConfiguration;
     }
 
     public String getName() {
@@ -221,7 +197,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return configuration.getSingleFile().toString();
     }
 
-    public Extracted getExtracted() {
+    public Configuration getExtracted() {
         switch (getType()) {
             case DEB:
             case DOCKER:

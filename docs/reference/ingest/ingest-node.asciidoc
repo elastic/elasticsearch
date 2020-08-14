@@ -707,7 +707,7 @@ Elasticsearch.
         "on_failure" : [
           {
             "set" : {
-              "field" : "error",
+              "field" : "error.message",
               "value" : "field \"foo\" does not exist, cannot rename to \"bar\""
             }
           }
@@ -790,7 +790,7 @@ metadata field to provide the error message.
         "on_failure" : [
           {
             "set" : {
-              "field" : "error",
+              "field" : "error.message",
               "value" : "{{ _ingest.on_failure_message }}"
             }
           }

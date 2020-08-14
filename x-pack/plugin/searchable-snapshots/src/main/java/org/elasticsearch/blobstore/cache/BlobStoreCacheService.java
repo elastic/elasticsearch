@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -305,11 +306,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                     client.index(request, new ActionListener<>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
-                            if (indexResponse.status() == RestStatus.CREATED) {
-                                logger.trace("cache fill: [{}]", request.id());
-                            } else {
-                                logger.trace("not created: [{}] returned [{}]", request.id(), indexResponse.status());
-                            }
+                            logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
                             listener.onResponse(null);
                         }
 

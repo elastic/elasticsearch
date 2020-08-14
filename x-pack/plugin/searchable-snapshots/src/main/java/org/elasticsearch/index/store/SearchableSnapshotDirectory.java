@@ -622,8 +622,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return cachedBlob;
     }
 
-    public void putCachedBlob(String name, long offset, BytesReference content) {
-        blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, ActionListener.wrap(() -> {}));
+    public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
+        blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
     }
 
     /**

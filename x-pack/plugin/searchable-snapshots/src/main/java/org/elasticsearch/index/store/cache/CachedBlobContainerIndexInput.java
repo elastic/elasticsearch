@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.Nullable;
@@ -281,6 +282,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
 
                 if (indexCacheMiss != null) {
+                    final Releasable onCacheFillComplete = stats.addIndexCacheFill();
                     cacheFile.populateAndRead(indexCacheMiss, indexCacheMiss, channel -> {
                         final int indexCacheMissLength = Math.toIntExact(indexCacheMiss.v2() - indexCacheMiss.v1());
 
@@ -295,7 +297,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
                         byteBuffer.flip();
                         final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content);
+                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content, new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void response) {
+                                onCacheFillComplete.close();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e1) {
+                                onCacheFillComplete.close();
+                            }
+                        });
                         return indexCacheMissLength;
                     }, (channel, from, to, progressUpdater) -> {
                         // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically

@@ -158,6 +158,18 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredIndex);
         ensureExecutorsAreIdle();
 
+        // wait for all async cache fills to complete
+        assertBusy(() -> {
+            for (final SearchableSnapshotShardStats shardStats : client().execute(
+                    SearchableSnapshotsStatsAction.INSTANCE,
+                    new SearchableSnapshotsStatsRequest()
+            ).actionGet().getStats()) {
+                for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
+                    assertThat(Strings.toString(indexInputStats), indexInputStats.getCurrentIndexCacheFills(), equalTo(0L));
+                }
+            }
+        });
+
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
@@ -170,7 +182,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
 
-        refreshSystemIndex();
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).get().getHits().getTotalHits().value;
         final long numberOfCacheWrites = systemClient().admin()
             .indices()

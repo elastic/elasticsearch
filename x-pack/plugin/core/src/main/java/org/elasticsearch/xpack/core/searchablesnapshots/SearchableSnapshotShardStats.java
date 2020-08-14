@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,6 +139,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final TimedCounter directBytesRead;
         private final TimedCounter optimizedBytesRead;
         private final Counter blobStoreBytesRequested;
+        private final long currentIndexCacheFills;
 
         public CacheIndexInputStats(String fileName, long fileLength, long openCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
@@ -145,7 +147,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                                     Counter contiguousReads, Counter nonContiguousReads,
                                     Counter cachedBytesRead, TimedCounter cachedBytesWritten,
                                     TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
-                                    Counter blobStoreBytesRequested) {
+                                    Counter blobStoreBytesRequested, long currentIndexCacheFills) {
             this.fileName = fileName;
             this.fileLength = fileLength;
             this.openCount = openCount;
@@ -161,6 +163,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = directBytesRead;
             this.optimizedBytesRead = optimizedBytesRead;
             this.blobStoreBytesRequested = blobStoreBytesRequested;
+            this.currentIndexCacheFills = currentIndexCacheFills;
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
@@ -178,7 +181,14 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
-            this.blobStoreBytesRequested = new Counter(in);
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.blobStoreBytesRequested = new Counter(in);
+                this.currentIndexCacheFills = in.readVLong();
+            } else {
+                this.blobStoreBytesRequested = new Counter(0, 0, 0, 0);
+                this.currentIndexCacheFills = 0;
+
+            }
         }
 
         @Override
@@ -198,7 +208,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             cachedBytesWritten.writeTo(out);
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
-            blobStoreBytesRequested.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                blobStoreBytesRequested.writeTo(out);
+                out.writeVLong(currentIndexCacheFills);
+            }
         }
 
         public String getFileName() {
@@ -261,6 +274,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return blobStoreBytesRequested;
         }
 
+        public long getCurrentIndexCacheFills() {
+            return currentIndexCacheFills;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -288,6 +305,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                     builder.endObject();
                 }
                 builder.field("blob_store_bytes_requested", getBlobStoreBytesRequested());
+                builder.field("current_index_cache_fills", getCurrentIndexCacheFills());
             }
             return builder.endObject();
         }
@@ -315,7 +333,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && Objects.equals(cachedBytesWritten, stats.cachedBytesWritten)
                 && Objects.equals(directBytesRead, stats.directBytesRead)
                 && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead)
-                && Objects.equals(blobStoreBytesRequested, stats.blobStoreBytesRequested);
+                && Objects.equals(blobStoreBytesRequested, stats.blobStoreBytesRequested)
+                && currentIndexCacheFills == stats.currentIndexCacheFills;
         }
 
         @Override
@@ -326,7 +345,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 contiguousReads, nonContiguousReads,
                 cachedBytesRead, cachedBytesWritten,
                 directBytesRead, optimizedBytesRead,
-                blobStoreBytesRequested);
+                blobStoreBytesRequested, currentIndexCacheFills);
         }
     }
 

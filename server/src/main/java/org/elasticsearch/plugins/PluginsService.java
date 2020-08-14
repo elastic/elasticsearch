@@ -50,6 +50,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -90,6 +91,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
     }
 
+    private boolean isBootstrapPlugin(Class<? extends Plugin> aClass) {
+        return Arrays.asList(aClass.getInterfaces()).contains(BootstrapPlugin.class);
+    }
+
     /**
      * Constructs a new PluginService
      * @param settings The settings of the system
@@ -111,8 +116,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
+
+        // Filter out BootstrapPlugins
+        final List<Class<? extends Plugin>> nonBootstrapPlugins = classpathPlugins.stream()
+            .filter(aClass -> isBootstrapPlugin(aClass) == false)
+            .collect(Collectors.toList());
+
         // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
+        for (Class<? extends Plugin> pluginClass : nonBootstrapPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
                                                    pluginClass.getName(), Collections.emptyList(), false);

@@ -59,7 +59,7 @@ public class JoinHelperTests extends ESTestCase {
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode, null, Collections.emptySet());
-        JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
+        JoinHelper joinHelper = new JoinHelper(null, null, transportService, () -> 0L, () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(), (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"));
@@ -156,7 +156,7 @@ public class JoinHelperTests extends ESTestCase {
         TransportService transportService = mockTransport.createTransportService(Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode, null, Collections.emptySet());
-        new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState,
+        new JoinHelper(null, null, transportService, () -> 0L, () -> localClusterState,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(), (s, p, r) -> {}, null); // registers request handler
         transportService.start();
@@ -189,9 +189,9 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode, null, Collections.emptySet());
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>
             (new StatusInfo(UNHEALTHY, "unhealthy-info"));
-        JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
+        JoinHelper joinHelper = new JoinHelper(null, null, transportService, () -> 0L, () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(), (s, p, r) -> {}, () -> nodeHealthServiceStatus.get());
+            Collections.emptyList(), (s, p, r) -> {}, nodeHealthServiceStatus::get);
         transportService.start();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);

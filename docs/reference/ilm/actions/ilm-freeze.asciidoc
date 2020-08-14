@@ -2,7 +2,7 @@
 [[ilm-freeze]]
 === Freeze
 
-Phases allowed: cold.
+Phases allowed: cold, frozen.
 
 <<frozen-indices, Freezes>> an index to minimize its memory footprint.
 

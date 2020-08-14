@@ -19,15 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 /**
  * This meta field only exists because rank feature fields index everything into a
@@ -40,42 +35,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_feature";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
-
-        public Builder() {
-            super(NAME, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public RankFeatureMetaFieldMapper build(BuilderContext context) {
-            return new RankFeatureMetaFieldMapper();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name,
-                Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder();
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new RankFeatureMetaFieldMapper();
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new RankFeatureMetaFieldMapper());
 
     public static final class RankFeatureMetaFieldType extends MappedFieldType {
 
@@ -102,27 +62,23 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     }
 
     private RankFeatureMetaFieldMapper() {
-        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE);
+        super(RankFeatureMetaFieldType.INSTANCE);
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
+    public void preParse(ParseContext context) {}
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("Should never be called");
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {}
+    public void postParse(ParseContext context) {}
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
 }

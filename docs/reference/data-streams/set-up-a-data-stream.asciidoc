@@ -108,12 +108,18 @@ template for a data stream must specify:
 
 * A priority for the template.
 
-IMPORTANT: {es} comes with built-in index templates for the `metrics-*-*` and
-`logs-*-*` index patterns.
-{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
-create data streams. To avoid accidentally applying these templates, use a
-non-overlapping index pattern, or assign your templates a `priority` greater
-or lower than `100`.
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
+patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
+templates to create data streams. If you use {agent}, assign your index
+templates a priority lower than `100` to avoid an override of the built-in
+templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern, or assign your templates a `priority` higher or
+lower than `100`.
+====
 
 Every document indexed to a data stream must have a `@timestamp` field. This
 field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field

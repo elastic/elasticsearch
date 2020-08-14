@@ -128,4 +128,11 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         return responseHolder.get();
     }
 
+    public static void assertNoException(AtomicReference<Exception> error) throws Exception {
+        if (error.get() == null) {
+            return;
+        }
+        throw error.get();
+    }
+
 }

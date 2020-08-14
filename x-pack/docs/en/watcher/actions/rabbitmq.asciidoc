@@ -1,0 +1,73 @@
+[role="xpack"]
+[[actions-rabbitmq]]
+=== RabbitMQ action
+
+Use the `rabbitmq` action to send messages to a https://www.rabbitmq.com/[RabbitMQ message broker] instance.
+To create issues you need to <<configuring-rabbitmq, configure at least one RabbitMQ account>> in `elasticsearch.yml`.
+
+[[configuring-rabbitmq-actions]]
+==== Configuring RabbitMQ actions
+
+You configure RabbitMQ actions in the `actions` array. Action-specific attributes
+are specified using the `rabbitmq` keyword.
+
+The following snippet shows a simple rabbitmq action definition:
+
+[source,js]
+--------------------------------------------------
+"actions" : {
+  "create-rabbitmq-message" : {
+    "rabbitmq" : {
+      "account" : "rabbitmq-account", <1>
+      "vhost" : "test", <2>
+      "exchange" : "test", <3>      
+      "routingKey" : "test_key", <4> 
+      "headers" : { <5> 
+         "test_header" : "test_header_value"
+      },
+      "message" : "Found {{ctx.payload.hits.total}} logs" <6>
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The name of a RabbitMQ account configured in `elasticsearch.yml`.
+<2> The virtual host to use (optional, default virtual host used if not specified) 
+<3> The exchange name for the notifications (optional, default exchange used if not specified)
+<4> The message routing key (optional) 
+<5> Message headers (optional) 
+<6> The message to send
+
+[[configuring-rabbitmq]]
+==== Configuring RabbitMQ accounts
+
+You configure the accounts {watcher} can use to communicate with RabbitMQ in the
+`xpack.notification.rabbitmq` namespace in `elasticsearch.yml`.
+
+To configure a RabbitMQ account you need to specify (see {ref}/secure-settings.html[secure settings]):
+
+[source,yaml]
+--------------------------------------------------
+bin/elasticsearch-keystore add xpack.notification.rabbitmq.account.monitoring.secure_url
+bin/elasticsearch-keystore add xpack.notification.rabbitmq.account.monitoring.secure_user
+bin/elasticsearch-keystore add xpack.notification.rabbitmq.account.monitoring.secure_password
+--------------------------------------------------
+
+[WARNING]
+======
+Storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is insecure and has been deprecated. Please use {es}'s secure {ref}/secure-settings.html[keystore] method instead.
+======
+
+To avoid credentials that transit in clear text over the network, {watcher} will
+reject `url` settings like `http://internal-rabbitmq.elastic.co` that are based on
+plain text HTTP protocol. This default behavior can be disabled with the explicit
+ `allow_http` setting:
+
+[source,yaml]
+--------------------------------------------------
+xpack.notification.rabbitmq:
+  account:
+    monitoring:
+      allow_http: true
+--------------------------------------------------
+

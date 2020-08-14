@@ -251,7 +251,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            return convertToOriginal(((Number) value).longValue());
+            return value;
         }
 
         @Override
@@ -261,11 +261,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
                 );
             }
-            if (format == null) {
-                return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
-            }
+            return DocValueFormat.UNSIGNED_LONG_SHIFTED;
         }
 
         @Override
@@ -426,7 +422,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = null;
         } else {
             try {
-                numericValue = parser.unsignedLongValue();
+                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    numericValue = parseUnsignedLong(parser.numberValue());
+                } else {
+                    numericValue = parseUnsignedLong(parser.text());
+                }
             } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
@@ -479,18 +479,29 @@ public class UnsignedLongFieldMapper extends FieldMapper {
      * @param value must represent an unsigned long in rage [0;18446744073709551615] or an exception will be thrown
      */
     private static long parseUnsignedLong(Object value) {
-        if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
-            long lv = ((Number) value).longValue();
-            if (lv < 0) {
-                throw new IllegalArgumentException("Value [" + lv + "] is out of range for unsigned long.");
+        if (value instanceof Number) {
+            if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
+                long lv = ((Number) value).longValue();
+                if (lv < 0) {
+                    throw new IllegalArgumentException("Value [" + lv + "] is out of range for unsigned long.");
+                }
+                return lv;
+            } else if (value instanceof BigInteger) {
+                BigInteger bigIntegerValue = (BigInteger) value;
+                if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
+                    throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
+                }
+                return bigIntegerValue.longValue();
             }
-            return lv;
-        }
-        String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-        try {
-            return Long.parseUnsignedLong(stringValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+            // throw exception for all other numeric types with decimal parts
+            throw new IllegalArgumentException("For input string: [" + value.toString() + "].");
+        } else {
+            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            try {
+                return Long.parseUnsignedLong(stringValue);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+            }
         }
     }
 

@@ -257,7 +257,6 @@ public class UnsignedLongFieldMapperTests extends FieldMapperTestCase<UnsignedLo
                 .endObject()
         );
         ThrowingRunnable runnable = () -> parser.parse("_doc", new CompressedXContent(mapping));
-        ;
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertEquals(e.getMessage(), "Mapping definition for [my_unsigned_long] has unsupported parameters:  [coerce : false]");
     }
@@ -366,8 +365,7 @@ public class UnsignedLongFieldMapperTests extends FieldMapperTestCase<UnsignedLo
                 )
             );
             e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("Current token"));
-            assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+            assertThat(e.getCause().getMessage(), containsString("For input string: \"false\""));
         }
 
         // test ignore_malformed when set to true ignored malformed documents

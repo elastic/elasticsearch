@@ -29,7 +29,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public SortedNumericDocValues getLongValues() {
-        return FieldData.castToLong(getDoubleValues());
+        return signedLongFD.getLongValues();
     }
 
     @Override
@@ -71,7 +71,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        return new ScriptDocValues.Doubles(getDoubleValues());
+        return new UnsignedLongScriptDocValues(getLongValues());
     }
 
     @Override

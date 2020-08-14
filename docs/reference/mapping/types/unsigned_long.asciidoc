@@ -9,12 +9,7 @@
 
 Unsigned long is a numeric field type that represents an unsigned 64-bit
 integer with a minimum value of 0 and a maximum value of +2^64^-1+
-(from 0 to 18446744073709551615).
-
-At index-time, an indexed value is converted to the singed long range:
-[- 9223372036854775808, 9223372036854775807] by subtracting +2^63^+ from it
-and stored as a singed long taking 8 bytes.
-At query-time, the same conversion is done on query terms.
+(from 0 to 18446744073709551615 inclusive).
 
 [source,console]
 --------------------------------------------------
@@ -63,7 +58,11 @@ GET /my_index/_search
 --------------------------------
 //TEST[continued]
 
-Range queries can contain ranges with decimal parts.
+Range query terms can contain values with decimal parts.
+In this case {es} converts them to integer values:
+`gte` and `gt` terms are converted to the nearest integer up inclusive,
+and `lt` and `lte` ranges are converted to the nearest integer down inclusive.
+
 It is recommended to pass ranges as strings to ensure they are parsed
 without any loss of precision.
 
@@ -83,13 +82,13 @@ GET /my_index/_search
 --------------------------------
 //TEST[continued]
 
-WARNING: Unlike term and range queries, sorting and aggregations on
-unsigned_long data may return imprecise results. For sorting and aggregations
-double representation of unsigned longs is used, which means that long values
-are first converted to double values. During this conversion,
-for long values greater than +2^53^+ there could be some loss of
-precision for the least significant digits. Long values less than +2^53^+
-are converted accurately.
+
+For queries with sort on an `unsigned_long` field,
+for a particular document {es} returns a sort value of the type `Long`
+if the value of this document is within the range of long values,
+or of the type `BigIntger` if the value exceeds this range.
+
+WARNING: Not all {es} clients can properly handle big integer values.
 
 [source,console]
 --------------------------------
@@ -98,15 +97,25 @@ GET /my_index/_search
     "query": {
         "match_all" : {}
     },
-    "sort" : {"my_counter" : "desc"}  <1>
+    "sort" : {"my_counter" : "desc"}
 }
 --------------------------------
 //TEST[continued]
-<1> As both document values: "18446744073709551614" and "18446744073709551615"
-are converted to the same double value: "1.8446744073709552E19", this
-descending sort may return imprecise results, as the document with a lower
-value of "18446744073709551614" may come before the document
-with a higher value of "18446744073709551615".
+
+Similarly to sort values, script values of an `unsigned_long` field
+produce `BigInteger` or `Long` values. The same values: `BigInteger` or
+`Long` are returned as keys for `terms` aggregation.
+
+==== Queries with mixed numeric types
+
+Search queries across several numeric types one of which `unsigned_long` are supported,
+except queries with sort. Thus, a sort query across two indexes where the same field
+is `unsigned_long` in one index, and `long` in another, doesn't produce correct results
+and must be avoided. If there is a need for a such kind of sorting, script based
+sorting can be used instead.
+Aggregations across several numeric types one of which `unsigned_long` are supported,
+except a terms aggregation.
+
 
 [[unsigned-long-params]]
 ==== Parameters for unsigned long fields

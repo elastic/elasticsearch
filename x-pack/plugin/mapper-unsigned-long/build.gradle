@@ -12,11 +12,12 @@ esplugin {
   name 'unsigned-long'
   description 'Module for the unsigned long field type'
   classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 archivesBaseName = 'x-pack-unsigned-long'
 
 dependencies {
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }

@@ -147,15 +147,46 @@ setup:
 
   - match: { "hits.total.value": 5 }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [0.0] }
-  # as sort is based on double representation, there is some loss of precision during converting longs to doubles
-  # thus both 9223372036854775807 and 9223372036854775808 are converted to 9.223372036854776E18
-  # both 18446744073709551614 and 18446744073709551615 are converted to 1.8446744073709552E19
-  # hence, we can't assert ids for the following sort results:
-  - match: {hits.hits.1.sort: [9.223372036854776E18] } # could be docs with _id 2 or 3
-  - match: {hits.hits.2.sort: [9.223372036854776E18] } # could be docs with _id 2 or 3
-  - match: {hits.hits.3.sort: [1.8446744073709552E19] } # could be docs with _id 4 or 5
-  - match: {hits.hits.4.sort: [1.8446744073709552E19] } # could be docs with _id 4 or 5
+  - match: {hits.hits.0.sort: [0] }
+  - match: {hits.hits.1._id: "2" }
+  - match: {hits.hits.1.sort: [9223372036854775807] }
+  - match: {hits.hits.2._id: "3" }
+  - match: {hits.hits.2.sort: [9223372036854775808] }
+  - match: {hits.hits.3._id: "4" }
+  - match: {hits.hits.3.sort: [18446744073709551614] }
+  - match: {hits.hits.4._id: "5" }
+  - match: {hits.hits.4.sort: [18446744073709551615] }
+
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: asc } ]
+          search_after: [9223372036854775808]
+
+  - length: { hits.hits: 2 }
+  - match: {hits.hits.0._id: "4" }
+  - match: {hits.hits.0.sort: [18446744073709551614] }
+  - match: {hits.hits.1._id: "5" }
+  - match: {hits.hits.1.sort: [18446744073709551615] }
+
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+
+  - match: { "hits.total.value": 5 }
+  - match: {hits.hits.0._id: "5" }
+  - match: {hits.hits.0.sort: [18446744073709551615] }
+  - match: {hits.hits.1._id: "4" }
+  - match: {hits.hits.1.sort: [18446744073709551614] }
+  - match: {hits.hits.2._id: "3" }
+  - match: {hits.hits.2.sort: [9223372036854775808] }
+  - match: {hits.hits.3._id: "2" }
+  - match: {hits.hits.3.sort: [9223372036854775807] }
+  - match: {hits.hits.4._id: "1" }
+  - match: {hits.hits.4.sort: [0] }
 
 ---
 "Aggs":
@@ -169,10 +200,12 @@ setup:
             ul_terms:
               terms:
                 field: ul
-  - length: { aggregations.ul_terms.buckets: 3 }
-  - match: { aggregations.ul_terms.buckets.0.key: 9.223372036854776E18 }
-  - match: { aggregations.ul_terms.buckets.1.key: 1.8446744073709552E19 }
-  - match: { aggregations.ul_terms.buckets.2.key: 0.0 }
+  - length: { aggregations.ul_terms.buckets: 5 }
+  - match: { aggregations.ul_terms.buckets.0.key: 0 }
+  - match: { aggregations.ul_terms.buckets.1.key: 9223372036854775807 }
+  - match: { aggregations.ul_terms.buckets.2.key: 9223372036854775808 }
+  - match: { aggregations.ul_terms.buckets.3.key: 18446744073709551614 }
+  - match: { aggregations.ul_terms.buckets.4.key: 18446744073709551615 }
 
   - do:
       search:
@@ -183,11 +216,14 @@ setup:
             ul_histogram:
               histogram:
                 field: ul
-                interval: 9223372036854775808
+                interval: 9223372036854775807
   - length: { aggregations.ul_histogram.buckets: 3 }
   - match: { aggregations.ul_histogram.buckets.0.key: 0.0 }
+  - match: { aggregations.ul_histogram.buckets.0.doc_count: 1 }
   - match: { aggregations.ul_histogram.buckets.1.key: 9.223372036854776E18 }
+  - match: { aggregations.ul_histogram.buckets.1.doc_count: 2 }
   - match: { aggregations.ul_histogram.buckets.2.key: 1.8446744073709552E19 }
+  - match: { aggregations.ul_histogram.buckets.2.doc_count: 2 }
 
   - do:
       search:
@@ -199,9 +235,11 @@ setup:
               range:
                 field: ul
                 ranges: [
-                { "to": 9223372036854775807 },
-                { "from": 9223372036854775807}
+                  { "from": null, "to": 9223372036854775807 },
+                  { "from": 9223372036854775807, "to" : 18446744073709551614},
+                  { "from": 18446744073709551614}
                 ]
-  - length: { aggregations.ul_range.buckets: 2 }
+  - length: { aggregations.ul_range.buckets: 3 }
   - match: { aggregations.ul_range.buckets.0.doc_count: 1 }
-  - match: { aggregations.ul_range.buckets.1.doc_count: 4 }
+  - match: { aggregations.ul_range.buckets.1.doc_count: 2 }
+  - match: { aggregations.ul_range.buckets.2.doc_count: 2 }

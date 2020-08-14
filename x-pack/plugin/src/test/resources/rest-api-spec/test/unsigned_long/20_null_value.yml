@@ -21,13 +21,13 @@
         body: |
           { "index": {"_id" : "1"} }
           { "ul": 0 }
-          { "index": {"_id" : "2"} }
+          { "index": {"_id" : "2_null"} }
           { "ul": null }
-          { "index": {"_id" : "3"} }
+          { "index": {"_id" : "3_null"} }
           { "ul": ""}
           { "index": {"_id" : "4"} }
-          { "ul": 18446744073709551615 }
-          { "index": {"_id" : "5"} }
+          { "ul": 18446744073709551614 }
+          { "index": {"_id" : "5_missing"} }
           {}
 
   # term query
@@ -39,8 +39,8 @@
             term:
               ul: 17446744073709551615
   - match: { "hits.total.value": 2 }
-  - match: {hits.hits.0._id: "2" }
-  - match: {hits.hits.1._id: "3" }
+  - match: {hits.hits.0._id: "2_null" }
+  - match: {hits.hits.1._id: "3_null" }
 
 
   # asc sort
@@ -51,14 +51,15 @@
           sort: { ul : { order: asc, missing : "_last" } }
   - match: { "hits.total.value": 5 }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [0.0] }
-  - match: {hits.hits.1._id: "2" }
-  - match: {hits.hits.1.sort: [1.7446744073709552E19] }
-  - match: {hits.hits.2._id: "3" }
-  - match: {hits.hits.2.sort: [1.7446744073709552E19] }
+  - match: {hits.hits.0.sort: [0] }
+  - match: {hits.hits.1._id: "2_null" }
+  - match: {hits.hits.1.sort: [17446744073709551615] }
+  - match: {hits.hits.2._id: "3_null" }
+  - match: {hits.hits.2.sort: [17446744073709551615] }
   - match: {hits.hits.3._id: "4" }
-  - match: {hits.hits.3.sort: [1.8446744073709552E19] }
-  - match: {hits.hits.4._id: "5" }
+  - match: {hits.hits.3.sort: [18446744073709551614] }
+  - match: {hits.hits.4._id: "5_missing" }
+  - match: {hits.hits.4.sort: [18446744073709551615] }
 
   # desc sort
   - do:
@@ -67,13 +68,13 @@
         body:
           sort: { ul: { order: desc, missing: "_first" } }
   - match: { "hits.total.value": 5 }
-  - match: {hits.hits.0._id: "5" }
+  - match: {hits.hits.0._id: "5_missing" }
+  - match: {hits.hits.0.sort: [18446744073709551615] }
   - match: {hits.hits.1._id: "4" }
-  - match: {hits.hits.1.sort: [1.8446744073709552E19] }
-  - match: {hits.hits.2._id: "2" }
-  - match: {hits.hits.2.sort: [1.7446744073709552E19] }
-  - match: {hits.hits.3._id: "3" }
-  - match: {hits.hits.3.sort: [1.7446744073709552E19] }
+  - match: {hits.hits.1.sort: [18446744073709551614] }
+  - match: {hits.hits.2._id: "2_null" }
+  - match: {hits.hits.2.sort: [17446744073709551615] }
+  - match: {hits.hits.3._id: "3_null" }
+  - match: {hits.hits.3.sort: [17446744073709551615] }
   - match: {hits.hits.4._id: "1" }
-  - match: {hits.hits.4.sort: [0.0] }
-
+  - match: {hits.hits.4.sort: [0] }

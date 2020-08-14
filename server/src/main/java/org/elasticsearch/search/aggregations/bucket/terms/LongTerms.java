@@ -67,12 +67,20 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         public Object getKey() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
         public Number getKeyAsNumber() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return (Number) format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
@@ -82,8 +90,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY.getPreferredName(), term);
-            if (format != DocValueFormat.RAW) {
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                builder.field(CommonFields.KEY.getPreferredName(), format.format(term));
+            } else {
+                builder.field(CommonFields.KEY.getPreferredName(), term);
+            }
+            if (format != DocValueFormat.RAW && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             return builder;

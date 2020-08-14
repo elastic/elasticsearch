@@ -116,7 +116,7 @@ The following parameters are accepted by numeric types:
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.
-    Accepts `true` (default) and `false`. Not applicable for unsigned_long.
+    Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
 
 <<doc-values,`doc_values`>>::
 

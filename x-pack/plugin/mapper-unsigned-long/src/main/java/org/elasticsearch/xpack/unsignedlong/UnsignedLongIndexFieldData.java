@@ -12,30 +12,30 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
-    private final IndexNumericFieldData signedLongFieldData;
+    private final IndexNumericFieldData signedLongIFD;
 
     UnsignedLongIndexFieldData(IndexNumericFieldData signedLongFieldData) {
-        this.signedLongFieldData = signedLongFieldData;
+        this.signedLongIFD = signedLongFieldData;
     }
 
     @Override
     public String getFieldName() {
-        return signedLongFieldData.getFieldName();
+        return signedLongIFD.getFieldName();
     }
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return signedLongFieldData.getValuesSourceType();
+        return signedLongIFD.getValuesSourceType();
     }
 
     @Override
     public LeafNumericFieldData load(LeafReaderContext context) {
-        return new UnsignedLongLeafFieldData(signedLongFieldData.load(context));
+        return new UnsignedLongLeafFieldData(signedLongIFD.load(context));
     }
 
     @Override
     public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new UnsignedLongLeafFieldData(signedLongFieldData.loadDirect(context));
+        return new UnsignedLongLeafFieldData(signedLongIFD.loadDirect(context));
     }
 
     @Override
@@ -45,12 +45,12 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
 
     @Override
     public void clear() {
-        signedLongFieldData.clear();
+        signedLongIFD.clear();
     }
 
     @Override
     public NumericType getNumericType() {
-        return NumericType.DOUBLE;
+        return NumericType.LONG;
     }
 
 }

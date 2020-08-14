@@ -206,8 +206,6 @@ public interface XContentParser extends Closeable {
 
     long longValue() throws IOException;
 
-    long unsignedLongValue() throws IOException;
-
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;

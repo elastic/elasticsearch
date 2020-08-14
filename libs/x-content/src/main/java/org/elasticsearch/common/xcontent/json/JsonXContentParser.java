@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.CharBuffer;
 
 public class JsonXContentParser extends AbstractXContentParser {
@@ -165,26 +164,6 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public long doLongValue() throws IOException {
         return parser.getLongValue();
-    }
-
-    @Override
-    protected long doUnsignedLongValue() throws IOException {
-        JsonParser.NumberType numberType = parser.getNumberType();
-        if ((numberType == JsonParser.NumberType.INT) || (numberType == JsonParser.NumberType.LONG)) {
-            long longValue = parser.getLongValue();
-            if (longValue < 0) {
-                throw new IllegalArgumentException("Value [" + longValue + "] is out of range for unsigned long.");
-            }
-            return longValue;
-        } else if (numberType == JsonParser.NumberType.BIG_INTEGER) {
-            BigInteger bigIntegerValue = parser.getBigIntegerValue();
-            if (bigIntegerValue.compareTo(BIGINTEGER_MAX_UNSIGNED_LONG_VALUE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
-                throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
-            }
-            return bigIntegerValue.longValue();
-        } else { // for all other value types including numbers with decimal parts
-            throw new IllegalArgumentException("For input string: [" + parser.getValueAsString() + "].");
-        }
     }
 
     @Override

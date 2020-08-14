@@ -87,7 +87,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
      * match the field's <code>numericType</code>.
      */
-    public SortField sortField(
+    public final SortField sortField(
         NumericType targetNumericType,
         Object missingValue,
         MultiValueMode sortMode,

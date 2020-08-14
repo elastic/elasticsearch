@@ -46,8 +46,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
-    public static BigInteger BIGINTEGER_MAX_UNSIGNED_LONG_VALUE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
-
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (!coerce) {
@@ -210,25 +208,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return result;
     }
 
-    @Override
-    public long unsignedLongValue() throws IOException {
-        Token token = currentToken();
-        if (token == Token.VALUE_STRING) {
-            return Long.parseUnsignedLong(text());
-        }
-        long result = doUnsignedLongValue();
-        return result;
-    }
-
     protected abstract long doLongValue() throws IOException;
-
-    /**
-     * Returns an unsigned long value of the current numeric token.
-     * The method must check for proper boundaries: [0; 2^64-1], and also check that it doesn't have a decimal part.
-     * An exception is raised if any of the conditions is violated.
-     * Numeric tokens greater than Long.MAX_VALUE must be returned as negative values.
-     */
-    protected abstract long doUnsignedLongValue() throws IOException;
 
     @Override
     public float floatValue() throws IOException {

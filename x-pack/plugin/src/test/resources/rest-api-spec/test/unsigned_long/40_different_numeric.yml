@@ -1,21 +1,11 @@
----
-"Different numeric types":
+setup:
   - skip:
       version: " - 7.99.99"
       reason: "unsigned_long was added in 8.0"
 
   - do:
       indices.create:
-        index:  test1
-        body:
-          mappings:
-            properties:
-              my_counter:
-                type: double
-
-  - do:
-      indices.create:
-        index:  test2
+        index: test_longs
         body:
           mappings:
             properties:
@@ -24,7 +14,7 @@
 
   - do:
       indices.create:
-        index:  test3
+        index: test_unsigned_longs
         body:
           mappings:
             properties:
@@ -33,18 +23,7 @@
 
   - do:
       bulk:
-        index: test1
-        refresh: true
-        body: |
-          { "index": {"_id" : "1"} }
-          { "my_counter": 0 }
-          { "index": {"_id" : "2"} }
-          { "my_counter": 1000000 }
-          { "index": {"_id" : "3"} }
-          { "my_counter": 9223372036854775807 }
-  - do:
-      bulk:
-        index: test2
+        index: test_longs
         refresh: true
         body: |
           { "index": {"_id" : "1"} }
@@ -56,7 +35,7 @@
 
   - do:
       bulk:
-        index: test3
+        index: test_unsigned_longs
         refresh: true
         body: |
           { "index": {"_id" : "1"} }
@@ -64,9 +43,13 @@
           { "index": {"_id" : "2"} }
           { "my_counter": 1000000 }
           { "index": {"_id" : "3"} }
+          { "my_counter": 9223372036854775807 }
+          { "index": {"_id" : "4"} }
           { "my_counter": 18446744073709551615 }
 
 
+---
+"Querying of different numeric types is supported":
   - do:
       search:
         index: test*
@@ -76,7 +59,7 @@
             range:
               my_counter:
                 gte: 0
-  - match: { "hits.total.value": 9 }
+  - match: { "hits.total.value": 7 }
 
   - do:
       search:
@@ -88,7 +71,7 @@
               my_counter:
                 gt: 0
                 lt: 9223372036854775807
-  - match: { "hits.total.value": 3 }
+  - match: { "hits.total.value": 2 }
 
   - do:
       search:
@@ -100,3 +83,35 @@
               my_counter:
                 gte: 9223372036854775807
   - match: { "hits.total.value": 3 }
+
+
+---
+"Aggregation of different numeric types is supported":
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          aggs:
+            my_counter_sum:
+              sum:
+                field: my_counter
+  - match: { aggregations.my_counter_sum.value: 3.68934881474211E19 }
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          aggs:
+            my_counter_histo:
+              histogram:
+                field: my_counter
+                interval: 9223372036854775807
+  - length: { aggregations.my_counter_histo.buckets: 3 }
+  - match: { aggregations.my_counter_histo.buckets.0.key: 0.0 }
+  - match: { aggregations.my_counter_histo.buckets.0.doc_count: 4 }
+  - match: { aggregations.my_counter_histo.buckets.1.key: 9.223372036854776E18 }
+  - match: { aggregations.my_counter_histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.my_counter_histo.buckets.2.key: 1.8446744073709552E19 }
+  - match: { aggregations.my_counter_histo.buckets.2.doc_count: 1 }

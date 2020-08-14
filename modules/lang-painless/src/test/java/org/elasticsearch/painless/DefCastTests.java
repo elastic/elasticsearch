@@ -166,6 +166,7 @@ public class DefCastTests extends ScriptTestCase {
         assertEquals((double)0, exec("def d = Long.valueOf(0); double b = d; b"));
         assertEquals((double)0, exec("def d = Float.valueOf(0); double b = d; b"));
         assertEquals((double)0, exec("def d = Double.valueOf(0); double b = d; b"));
+        assertEquals((double)0, exec("def d = BigInteger.valueOf(0); double b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); double b = d;"));
     }
 
@@ -485,7 +486,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Double.valueOf(0); Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Float b = d;"));
     }
-    
+
     public void testdefToDoubleImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Double b = d;"));

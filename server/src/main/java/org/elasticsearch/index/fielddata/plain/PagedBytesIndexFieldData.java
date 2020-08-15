@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -58,6 +59,9 @@ import java.io.IOException;
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
 
+    private final double minFrequency, maxFrequency;
+    private final int minSegmentSize;
+
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final double minFrequency, maxFrequency;
@@ -88,7 +92,10 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double maxFrequency,
         int minSegmentSize
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        this.minFrequency = minFrequency;
+        this.maxFrequency = maxFrequency;
+        this.minSegmentSize = minSegmentSize;
     }
 
     @Override
@@ -255,6 +262,28 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             }
         }
 
+        private TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {
+            if (iterator == null) {
+                return null;
+            }
+            int docCount = terms.getDocCount();
+            if (docCount == -1) {
+                docCount = reader.maxDoc();
+            }
+            if (docCount >= minSegmentSize) {
+                final int minFreq = minFrequency > 1.0
+                    ? (int) minFrequency
+                    : (int)(docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0
+                    ? (int) maxFrequency
+                    : (int)(docCount * maxFrequency);
+                if (minFreq > 1 || maxFreq < docCount) {
+                    iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
+                }
+            }
+            return iterator;
+        }
+
         /**
          * Adjust the circuit breaker now that terms have been loaded, getting
          * the actual used either from the parameter (if estimation worked for
@@ -271,6 +300,25 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             }
             breaker.addWithoutBreaking(-(estimatedBytes - actualUsed));
         }
+    }
 
+    private static final class FrequencyFilter extends FilteredTermsEnum {
+        private final int minFreq;
+        private final int maxFreq;
+
+        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
+            super(delegate, false);
+            this.minFreq = minFreq;
+            this.maxFreq = maxFreq;
+        }
+
+        @Override
+        protected AcceptStatus accept(BytesRef arg0) throws IOException {
+            int docFreq = docFreq();
+            if (docFreq >= minFreq && docFreq <= maxFreq) {
+                return AcceptStatus.YES;
+            }
+            return AcceptStatus.NO;
+        }
     }
 }

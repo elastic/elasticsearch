@@ -705,7 +705,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client,
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
+            settings,
+            client,
             threadPool,
             analyticsProcessFactory,
             dataFrameAnalyticsAuditor,
@@ -716,7 +718,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
-        DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client, xContentRegistry);
+        DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client, xContentRegistry,
+            dataFrameAnalyticsAuditor);
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
             dataFrameAnalyticsConfigProvider, analyticsProcessManager, dataFrameAnalyticsAuditor, indexNameExpressionResolver);

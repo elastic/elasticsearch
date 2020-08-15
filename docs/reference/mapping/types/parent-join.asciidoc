@@ -12,7 +12,7 @@ A parent/child relation can be defined as follows:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -39,7 +39,7 @@ For instance the following example creates two `parent` documents in the `questi
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "my_id": "1",
   "text": "This is a question",
@@ -48,7 +48,7 @@ PUT my_index/_doc/1?refresh
   }
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "my_id": "2",
   "text": "This is another question",
@@ -66,14 +66,14 @@ as a shortcut instead of encapsulating it in the normal object notation:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "my_id": "1",
   "text": "This is a question",
   "my_join_field": "question" <1>
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "my_id": "2",
   "text": "This is another question",
@@ -94,7 +94,7 @@ For instance the following example shows how to index two `child` documents:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/3?routing=1&refresh <1>
+PUT my-index-000001/_doc/3?routing=1&refresh <1>
 {
   "my_id": "3",
   "text": "This is an answer",
@@ -104,7 +104,7 @@ PUT my_index/_doc/3?routing=1&refresh <1>
   }
 }
 
-PUT my_index/_doc/4?routing=1&refresh
+PUT my-index-000001/_doc/4?routing=1&refresh
 {
   "my_id": "4",
   "text": "This is another answer",
@@ -163,7 +163,7 @@ returned in the search response:
 
 [source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_all": {}
@@ -187,7 +187,7 @@ Will return:
     "max_score": null,
     "hits": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": null,
         "_source": {
@@ -200,7 +200,7 @@ Will return:
         ]
       },
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "2",
         "_score": null,
         "_source": {
@@ -213,7 +213,7 @@ Will return:
         ]
       },
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "3",
         "_score": null,
         "_routing": "1",
@@ -230,7 +230,7 @@ Will return:
         ]
       },
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "4",
         "_score": null,
         "_routing": "1",
@@ -270,7 +270,7 @@ and scripts, and may be queried with the
 
 [source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "parent_id": { <1>
@@ -323,7 +323,7 @@ make sense to disable eager loading:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -358,7 +358,7 @@ It is also possible to define multiple children for a single parent:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -385,7 +385,7 @@ Multiple levels of parent/child:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -420,7 +420,7 @@ to the grand-parent (the greater parent of the lineage):
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/3?routing=1&refresh <1>
+PUT my-index-000001/_doc/3?routing=1&refresh <1>
 {
   "text": "This is a vote",
   "my_join_field": {

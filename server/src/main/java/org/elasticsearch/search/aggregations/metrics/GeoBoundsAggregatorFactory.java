@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -58,23 +56,18 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config, GeoBoundsAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof GeoBoundsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected "
-                + GeoBoundsAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
-        }
-
-        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, config, wrapLongitude, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(GeoBoundsAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, searchContext, parent, config, wrapLongitude, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoBoundsAggregatorSupplier) GeoBoundsAggregator::new);
+        builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoBoundsAggregator::new, true);
     }
 }

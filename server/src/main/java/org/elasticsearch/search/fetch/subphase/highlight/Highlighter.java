@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  */
 public interface Highlighter {
 
-    HighlightField highlight(HighlighterContext highlighterContext);
+    HighlightField highlight(FieldHighlightContext fieldContext);
 
     boolean canHighlight(MappedFieldType fieldType);
 }

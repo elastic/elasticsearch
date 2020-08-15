@@ -105,6 +105,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
                 case "cold":
                     return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "frozen":
+                    return TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
                 case "delete":
                     return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
                 default:
@@ -161,6 +163,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
                 case "cold":
                     return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "frozen":
+                    return TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
                 case "delete":
                     return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
                 default:

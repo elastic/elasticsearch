@@ -25,6 +25,17 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 --------------------------------------------------
 // TESTSETUP
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+// TEARDOWN
+
+//////////////////////////
+
 [source,console]
 --------------------------------------------------
 GET /_autoscaling/policy/<name>

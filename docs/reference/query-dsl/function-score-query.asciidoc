@@ -29,7 +29,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> See <<score-functions>> for a list of supported functions.
 
@@ -64,7 +64,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> Boost for the whole query.
 <2> See <<score-functions>> for a list of supported functions.
@@ -144,14 +144,14 @@ GET /_search
       },
       "script_score": {
         "script": {
-          "source": "Math.log(2 + doc['likes'].value)"
+          "source": "Math.log(2 + doc['my-int'].value)"
         }
       }
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [IMPORTANT]
 ====
@@ -186,14 +186,14 @@ GET /_search
             "a": 5,
             "b": 1.2
           },
-          "source": "params.a / Math.pow(params.b, doc['likes'].value)"
+          "source": "params.a / Math.pow(params.b, doc['my-int'].value)"
         }
       }
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
@@ -251,7 +251,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[function-field-value-factor]]
 ==== Field Value factor
@@ -261,7 +261,7 @@ influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
-As an example, imagine you have a document indexed with a numeric `likes`
+As an example, imagine you have a document indexed with a numeric `my-int`
 field and wish to influence the score of a document with this field, an example
 doing so would look like:
 
@@ -272,7 +272,7 @@ GET /_search
   "query": {
     "function_score": {
       "field_value_factor": {
-        "field": "likes",
+        "field": "my-int",
         "factor": 1.2,
         "modifier": "sqrt",
         "missing": 1
@@ -281,11 +281,11 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Which will translate into the following formula for scoring:
 
-`sqrt(1.2 * doc['likes'].value)`
+`sqrt(1.2 * doc['my-int'].value)`
 
 There are a number of options for the `field_value_factor` function:
 
@@ -383,7 +383,7 @@ GET /_search
   "query": {
     "function_score": {
       "gauss": {
-        "date": {
+        "@timestamp": {
           "origin": "2013-09-17", <1>
           "scale": "10d",
           "offset": "5d",         <2>
@@ -394,7 +394,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
     your mapping. If you do not define the origin, the current time is used.

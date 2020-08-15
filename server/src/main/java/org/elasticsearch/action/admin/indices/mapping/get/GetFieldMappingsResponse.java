@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -61,23 +60,18 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        Map<String, Map<String, FieldMappingMetadata>> indexMapBuilder = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                int typesSize = in.readVInt();
+        mappings = unmodifiableMap(in.readMap(StreamInput::readString, mapIn -> {
+            if (mapIn.getVersion().before(Version.V_8_0_0)) {
+                int typesSize = mapIn.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
                 if (typesSize == 0) {
-                    indexMapBuilder.put(index, Collections.emptyMap());
-                    continue;
+                    return Collections.emptyMap();
                 }
-                in.readString(); // type
+                mapIn.readString(); // type
             }
-            indexMapBuilder.put(index, unmodifiableMap(
-                    in.readMap(StreamInput::readString, inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))));
-        }
-        mappings = unmodifiableMap(indexMapBuilder);
+            return unmodifiableMap(mapIn.readMap(StreamInput::readString,
+                    inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference())));
+        }));
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */

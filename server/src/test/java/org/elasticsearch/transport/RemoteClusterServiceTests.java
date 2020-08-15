@@ -30,7 +30,9 @@ import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -52,6 +54,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -215,6 +218,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testGroupIndicesWithoutRemoteClusterClientRole() throws Exception {
+        final Settings settings = onlyRoles(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "node-1").build(),
+            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
+        try (RemoteClusterService service = new RemoteClusterService(settings, null)) {
+            assertFalse(service.isEnabled());
+            assertFalse(service.isCrossClusterSearchEnabled());
+            final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN, new String[]{"cluster_1:bar", "cluster_2:foo*"}));
+            assertThat(error.getMessage(), equalTo("node [node-1] does not have the remote cluster client role enabled"));
         }
     }
 

@@ -27,43 +27,41 @@ import org.gradle.api.logging.Logging;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Enumeration;
+import java.util.function.Function;
 
-import static org.elasticsearch.gradle.util.ArchiveUtils.chmod;
+import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
     public void unpack(File zipFile, File targetDir) throws IOException {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
-
+        Function<String, Path> pathModifier = pathResolver();
         ZipFile zip = new ZipFile(zipFile);
         try {
             Enumeration<ZipEntry> entries = zip.getEntries();
             while (entries.hasMoreElements()) {
                 ZipEntry zipEntry = entries.nextElement();
-                String child = maybeTrim(zipEntry);
+                Path child = pathModifier.apply(zipEntry.getName());
                 if (child == null) {
                     continue;
                 }
-                File outFile = new File(targetDir, child);
+                Path outputPath = targetDir.toPath().resolve(child);
                 if (zipEntry.isDirectory()) {
-                    outFile.mkdirs();
-                    chmod(outFile.toPath(), zipEntry.getUnixMode());
+                    outputPath.toFile().mkdirs();
+                    chmod(outputPath, zipEntry.getUnixMode());
                     continue;
                 }
-                try (FileOutputStream outputStream = new FileOutputStream(outFile)) {
+                try (FileOutputStream outputStream = new FileOutputStream(outputPath.toFile())) {
                     IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
-                chmod(outFile.toPath(), zipEntry.getUnixMode());
+                chmod(outputPath, zipEntry.getUnixMode());
             }
         } finally {
             zip.close();
         }
-    }
-
-    protected String maybeTrim(ZipEntry entry) {
-        return entry.getName();
     }
 
 }

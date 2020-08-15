@@ -22,8 +22,8 @@ package org.elasticsearch.gradle
 import com.github.tomakehurst.wiremock.WireMockServer
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.WiremockFixture
-import org.elasticsearch.gradle.transform.JdkSymbolicLinkPreservingUntarTransform
-import org.elasticsearch.gradle.transform.JdkUnzipTransform
+import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
+import org.elasticsearch.gradle.transform.UnzipTransform
 import spock.lang.Unroll
 
 import java.nio.file.Files
@@ -133,7 +133,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
+        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}.") == 1
 
         where:
         platform | jdkVendor           | jdkVersion        | expectedJavaBin
@@ -149,7 +149,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
-            
+            apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 
             jdks {
@@ -175,9 +175,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            gradleRunner('getJdk', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-g', commonGradleUserHome).build()
             // run against up-to-date transformations
-            gradleRunner('getJdk', '-i', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '-g', commonGradleUserHome).build()
         }
 
         then:
@@ -185,8 +185,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform  | transformType
-        "linux"   | JdkSymbolicLinkPreservingUntarTransform.class.simpleName
-        "windows" | JdkUnzipTransform.class.simpleName
+        "linux"   | SymbolicLinkPreservingUntarTransform.class.simpleName
+        "windows" | UnzipTransform.class.simpleName
     }
 
     static boolean assertExtraction(String output, String javaBin) {

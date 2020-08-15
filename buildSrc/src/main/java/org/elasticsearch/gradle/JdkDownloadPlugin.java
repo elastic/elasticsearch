@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.transform.JdkSymbolicLinkPreservingUntarTransform;
-import org.elasticsearch.gradle.transform.JdkUnzipTransform;
+import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -31,7 +31,6 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 
@@ -40,30 +39,32 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
+    public static final String JDK_TRIMMED_PREFIX = "jdk-?\\d.*";
 
     @Override
     public void apply(Project project) {
         Attribute<Boolean> jdkAttribute = Attribute.of("jdk", Boolean.class);
         project.getDependencies().getAttributesSchema().attribute(jdkAttribute);
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-        project.getDependencies().registerTransform(JdkUnzipTransform.class, transformSpec -> {
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
                 .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
                 .attribute(jdkAttribute, true);
             transformSpec.getTo()
                 .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(jdkAttribute, true);
-            ;
+            transformSpec.parameters(parameters -> parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX));
         });
 
         ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
-        project.getDependencies().registerTransform(JdkSymbolicLinkPreservingUntarTransform.class, transformSpec -> {
+        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, transformSpec -> {
             transformSpec.getFrom()
                 .attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName())
                 .attribute(jdkAttribute, true);
             transformSpec.getTo()
                 .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(jdkAttribute, true);
+            transformSpec.parameters(parameters -> parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX));
         });
 
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {

@@ -53,7 +53,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }

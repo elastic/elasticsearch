@@ -32,7 +32,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
+  compile "com.rabbitmq:amqp-client:${versions.rabbitmq}"
   
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

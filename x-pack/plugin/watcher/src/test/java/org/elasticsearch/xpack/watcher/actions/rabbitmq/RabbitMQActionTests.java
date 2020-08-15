@@ -136,6 +136,11 @@ public class RabbitMQActionTests extends ESTestCase {
             account = randomAlphaOfLength(randomIntBetween(5, 10));
         }
         
+        String vhost = null;
+        if (randomBoolean()) {
+            vhost = randomFrom("/", "test_vhost1", "test_vhost2");
+        }
+        
         String exchange = null;
         if (randomBoolean()) {
             exchange = randomFrom("first_exchange", "second_exchange", "third_exchange");
@@ -158,7 +163,7 @@ public class RabbitMQActionTests extends ESTestCase {
             message = randomFrom("first_message", "second_message", "third_message");
         }
 
-        return new RabbitMQAction(account, exchange, routingKey, headers, message);
+        return new RabbitMQAction(account, vhost, exchange, routingKey, headers, message);
     }
     
     /**

@@ -34,7 +34,7 @@ dependencies {
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
+  compile "com.rabbitmq:amqp-client:${versions.rabbitmq}"
 
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

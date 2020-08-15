@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.notification.rabbitmq;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -25,6 +26,8 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 
 public class RabbitMQAccount {
+
+    private static final String TLS_PROTOCOL_VERSION = "TLSv1.2";
 
     private static final String DEFAULT_EXCHANGE = "";
 
@@ -75,32 +78,41 @@ public class RabbitMQAccount {
         return name;
     }
 
-    public void sendMessage(String exchange, String routingKey, final Map<String, Object> headers, 
-            byte[] body) throws IOException, TimeoutException {
+    public void sendMessage(String vhost, String exchange, String routingKey, final Map<String, Object> headers, 
+            byte[] body) throws Exception {
         
         connectionFactory.setUsername(user);
         connectionFactory.setPassword(password);
+        connectionFactory.setVirtualHost(vhost);
         connectionFactory.setHost(url.getHost());
         connectionFactory.setPort(url.getPort());
+        connectionFactory.useSslProtocol(TLS_PROTOCOL_VERSION);
         
-        Connection connection = null;
-        Channel channel = null;
-        try {
-            connection = connectionFactory.newConnection();
-            channel = connection.createChannel();
-            if(!DEFAULT_EXCHANGE.equals(exchange)) {
-                channel.exchangeDeclare(exchange, "direct", false);
-            }
-            
-            channel.basicPublish(exchange, routingKey, new AMQP.BasicProperties.Builder()
-                    .headers(headers).build(), body);
-        } finally {
-            if(channel != null)  {
-                channel.close();
-            }
-            if(connection != null) {
-                connection.close();
-            }
+        try {    
+            AccessController.doPrivileged(((PrivilegedExceptionAction<Void>) (() -> {
+                Connection connection = null;
+                Channel channel = null;
+                try {
+                    connection = connectionFactory.newConnection();
+                    channel = connection.createChannel();
+                    if (!DEFAULT_EXCHANGE.equals(exchange)) {
+                        channel.exchangeDeclare(exchange, "direct", false);
+                    }
+
+                    channel.basicPublish(exchange, routingKey,
+                            new AMQP.BasicProperties.Builder().headers(headers).build(), body);
+                } finally {
+                    if (channel != null) {
+                        channel.close();
+                    }
+                    if (connection != null) {
+                        connection.close();
+                    }
+                }
+                return null;
+            })));
+        } catch (PrivilegedActionException e) {
+            throw e.getException();
         }
     }
     

@@ -31,7 +31,7 @@ public class RabbitMQActionFactoryTests extends ESTestCase {
         RabbitMQAccount account = mock(RabbitMQAccount.class);
         when(service.getAccount("_account1")).thenReturn(account);
 
-        RabbitMQAction action = rabbitmqAction("_account1","test_exchange", "test_queue", 
+        RabbitMQAction action = rabbitmqAction("_account1", "test_vhost", "test_exchange", "test_queue", 
                 null, "test message").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = createParser(jsonBuilder);

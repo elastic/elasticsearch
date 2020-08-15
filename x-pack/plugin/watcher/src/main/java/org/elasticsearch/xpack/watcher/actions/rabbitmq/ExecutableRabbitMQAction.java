@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.watcher.notification.rabbitmq.RabbitMQMessage;
 import org.elasticsearch.xpack.watcher.notification.rabbitmq.RabbitMQService;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
+import com.rabbitmq.client.ConnectionFactory;
+
 public class ExecutableRabbitMQAction extends ExecutableAction<RabbitMQAction> {
     
     private RabbitMQService rabbitMQService;
@@ -29,7 +31,7 @@ public class ExecutableRabbitMQAction extends ExecutableAction<RabbitMQAction> {
     
     public ExecutableRabbitMQAction(RabbitMQAction action, 
             RabbitMQService rabbitMQService, 
-            Logger logger, 
+            Logger logger,
             TextTemplateEngine templateEngine) {
         super(action, logger);
         this.templateEngine = templateEngine;
@@ -45,6 +47,11 @@ public class ExecutableRabbitMQAction extends ExecutableAction<RabbitMQAction> {
         }
 
         Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
+        
+        String vhost = ConnectionFactory.DEFAULT_VHOST;
+        if(action.vhost != null) {
+            vhost = templateEngine.render(new TextTemplate(action.vhost), model);
+        }
         
         String exchange = "";
         if(action.exchange != null) {
@@ -66,9 +73,9 @@ public class ExecutableRabbitMQAction extends ExecutableAction<RabbitMQAction> {
         
         String message = templateEngine.render(new TextTemplate(action.message), model);
         
-        account.sendMessage(exchange, routingKey, headers, message.getBytes(StandardCharsets.UTF_8));
+        account.sendMessage(vhost, exchange, routingKey, headers, message.getBytes(StandardCharsets.UTF_8));
         
-        RabbitMQMessage response = new RabbitMQMessage(action.account, exchange, routingKey, headers, message);
+        RabbitMQMessage response = new RabbitMQMessage(action.account, vhost, exchange, routingKey, headers, message);
 
         if (ctx.simulateAction(actionId)) {
             return new RabbitMQAction.Result.Simulated(response);

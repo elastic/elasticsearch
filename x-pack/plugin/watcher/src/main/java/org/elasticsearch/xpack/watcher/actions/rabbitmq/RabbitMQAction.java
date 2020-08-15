@@ -17,23 +17,28 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.notification.rabbitmq.RabbitMQMessage;
 
+import com.rabbitmq.client.ConnectionFactory;
+
 public class RabbitMQAction implements Action {
 
     public static final String TYPE = "rabbitmq";
     
     final String account;
+    @Nullable final String vhost;
     @Nullable final String exchange;
     @Nullable final String routingKey;
     @Nullable final Map<String, String> headers;
     final String message;
 
     public RabbitMQAction(String account,
+            @Nullable String vhost, 
             @Nullable String exchange, 
             @Nullable String routingKey, 
             @Nullable Map<String, String> headers,
             String message) {
         this.account = account;
         this.exchange = exchange != null ? exchange : "";
+        this.vhost = vhost != null ? vhost : ConnectionFactory.DEFAULT_VHOST;
         this.routingKey = routingKey;
         this.headers = headers;
         this.message = message;
@@ -52,6 +57,7 @@ public class RabbitMQAction implements Action {
         RabbitMQAction action = (RabbitMQAction) o;
 
         return Objects.equals(account, action.account) &&
+                Objects.equals(vhost, action.vhost) &&
                 Objects.equals(exchange, action.exchange) &&
                 Objects.equals(routingKey, action.routingKey) &&
                 Objects.equals(headers, action.headers) && 
@@ -60,7 +66,7 @@ public class RabbitMQAction implements Action {
 
     @Override
     public int hashCode() {
-        return Objects.hash(account, exchange, routingKey, headers, message);
+        return Objects.hash(account, vhost, exchange, routingKey, headers, message);
     }
     
     @Override
@@ -69,6 +75,9 @@ public class RabbitMQAction implements Action {
         
         if (account != null) {
             builder.field(Field.ACCOUNT.getPreferredName(), account);
+        }
+        if (vhost != null) {
+            builder.field(Field.VHOST.getPreferredName(), exchange);
         }
         if (exchange != null) {
             builder.field(Field.EXCHANGE.getPreferredName(), exchange);
@@ -88,6 +97,7 @@ public class RabbitMQAction implements Action {
 
     public static RabbitMQAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String account = null;
+        String vhost = null;
         String exchange = null;
         String routingKey = null;
         Map<String, String> headers = null;
@@ -105,14 +115,24 @@ public class RabbitMQAction implements Action {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
                             "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
+            } else if (Field.VHOST.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    vhost = parser.text();
+                } else {
+                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
+                            "found [{}] instead", TYPE, watchId, actionId, Field.VHOST.getPreferredName(), token);
+                }
             } else if (Field.EXCHANGE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     exchange = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
-                            "found [{}] instead", TYPE, watchId, actionId, Field.EXCHANGE.getPreferredName(), token);
+                    throw new ElasticsearchParseException(
+                            "failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but "
+                                    + "found [{}] instead",
+                            TYPE, watchId, actionId, Field.EXCHANGE.getPreferredName(), token);
                 }
-            } else if (Field.ROUTING_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
+            }
+            else if (Field.ROUTING_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     routingKey = parser.text();
                 } else {
@@ -138,7 +158,7 @@ public class RabbitMQAction implements Action {
                         actionId, token, currentFieldName);
             }
         }
-        return new RabbitMQAction(account, exchange, routingKey, headers, message);
+        return new RabbitMQAction(account, vhost, exchange, routingKey, headers, message);
     }
 
     public static class Builder implements Action.Builder<RabbitMQAction> {
@@ -156,11 +176,12 @@ public class RabbitMQAction implements Action {
     }
 
     public static Builder builder(String account,
+            String vhost,
             String exchange, 
             String routingKey, 
             Map<String, String> headers,
             String message) {
-        return new Builder(new RabbitMQAction(account, exchange, routingKey, headers, message));
+        return new Builder(new RabbitMQAction(account, vhost, exchange, routingKey, headers, message));
     }
     
     public interface Result {
@@ -211,6 +232,7 @@ public class RabbitMQAction implements Action {
     
     public interface Field {
         ParseField ACCOUNT = new ParseField("account");
+        ParseField VHOST = new ParseField("vhost");
         ParseField EXCHANGE = new ParseField("exchange");
         ParseField ROUTING_KEY = new ParseField("routingKey");
         ParseField HEADERS = new ParseField("headers");

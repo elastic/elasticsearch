@@ -17,17 +17,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 public class RabbitMQMessage implements ToXContentObject {
     
     final String account;
+    @Nullable final String vhost;
     @Nullable final String exchange;
     @Nullable final String routingKey;
     @Nullable final Map<String, Object> headers;
     String message;
     
     public RabbitMQMessage(String account, 
+            String vhost, 
             String exchange, 
             String routingKey, 
             Map<String, Object> headers,
             String message) {
         this.account = account;
+        this.vhost = vhost;
         this.exchange = exchange;
         this.routingKey = routingKey;
         this.headers = headers;
@@ -36,6 +39,10 @@ public class RabbitMQMessage implements ToXContentObject {
     
     public String getAccount() {
         return account;
+    }
+
+    public String getVhost() {
+        return vhost;
     }
 
     public String getExchange() {
@@ -61,6 +68,7 @@ public class RabbitMQMessage implements ToXContentObject {
 
         RabbitMQMessage issue = (RabbitMQMessage) o;
         return Objects.equals(account, issue.account) &&
+                Objects.equals(vhost, issue.vhost) &&
                 Objects.equals(exchange, issue.exchange) &&
                 Objects.equals(routingKey, issue.routingKey) &&
                 Objects.equals(headers, issue.headers) && 
@@ -69,13 +77,16 @@ public class RabbitMQMessage implements ToXContentObject {
     
     @Override
     public int hashCode() {
-        return Objects.hash(account, exchange, routingKey, headers, message);
+        return Objects.hash(account, vhost, exchange, routingKey, headers, message);
     }
     
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.ACCOUNT.getPreferredName(), account);
+        if (vhost != null) {
+            builder.field(Field.VHOST.getPreferredName(), vhost);
+        }
         if (exchange != null) {
             builder.field(Field.EXCHANGE.getPreferredName(), exchange);
         }
@@ -94,9 +105,10 @@ public class RabbitMQMessage implements ToXContentObject {
     
     private interface Field {
         ParseField ACCOUNT = new ParseField("account");
+        ParseField VHOST = new ParseField("vhost");
         ParseField EXCHANGE = new ParseField("exchange");
         ParseField ROUTING_KEY = new ParseField("routingKey");
         ParseField HEADERS = new ParseField("headers");
-        ParseField MESSAGE = new ParseField("headers");
+        ParseField MESSAGE = new ParseField("message");
     }
 }

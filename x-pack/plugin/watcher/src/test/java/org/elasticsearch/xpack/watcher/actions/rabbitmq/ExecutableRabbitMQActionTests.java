@@ -44,6 +44,8 @@ import com.rabbitmq.client.ConnectionFactory;
 
 public class ExecutableRabbitMQActionTests extends ESTestCase {
 
+    private final String TEST_VHOST = "test_vhost";
+    
     private final String TEST_EXCHANGE = "test_exchange";
     
     private final String TEST_ROUTING_KEY = "test_routing_key";
@@ -54,7 +56,7 @@ public class ExecutableRabbitMQActionTests extends ESTestCase {
         
         ConnectionFactory connectionFactory = createMockFactory();
         
-        RabbitMQAction action = new RabbitMQAction("account1", TEST_EXCHANGE, TEST_ROUTING_KEY, null, TEST_MESSAGE);
+        RabbitMQAction action = new RabbitMQAction("account1", TEST_VHOST, TEST_EXCHANGE, TEST_ROUTING_KEY, null, TEST_MESSAGE);
 
         final String host = randomFrom("localhost", "internal-rabbitmq.elastic.co");
         final int port = randomFrom(5672, 5673);
@@ -94,7 +96,8 @@ public class ExecutableRabbitMQActionTests extends ESTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put("test_header", "value");
         
-        RabbitMQAction.Result.Simulated result = simulateExecution(TEST_EXCHANGE, TEST_ROUTING_KEY,
+        RabbitMQAction.Result.Simulated result = simulateExecution(TEST_VHOST, TEST_EXCHANGE, 
+                TEST_ROUTING_KEY,
                 headers, TEST_MESSAGE, emptyMap());
         assertEquals(result.status(), Status.SIMULATED);
         RabbitMQMessage message = result.getMessage();
@@ -105,7 +108,7 @@ public class ExecutableRabbitMQActionTests extends ESTestCase {
         assertEquals(message.getHeaders().get("test_header"), "VALUE");
     }
     
-    private RabbitMQAction.Result.Simulated simulateExecution(String exchange, String routingKey, 
+    private RabbitMQAction.Result.Simulated simulateExecution(String vhost, String exchange, String routingKey, 
             Map<String, String> headers, String message, Map<String, String> accountFields
             ) throws Exception {
         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -122,7 +125,7 @@ public class ExecutableRabbitMQActionTests extends ESTestCase {
         RabbitMQService service = mock(RabbitMQService.class);
         when(service.getAccount(eq("account"))).thenReturn(account);
 
-        RabbitMQAction action = new RabbitMQAction("account", exchange, routingKey, headers, message);
+        RabbitMQAction action = new RabbitMQAction("account", vhost, exchange, routingKey, headers, message);
         ExecutableRabbitMQAction executable = new ExecutableRabbitMQAction(action, service, null, new UpperCaseTextTemplateEngine());
 
         WatchExecutionContext context = createWatchExecutionContext();

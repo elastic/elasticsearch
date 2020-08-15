@@ -41,26 +41,8 @@ GET _search
 }
 --------------------------------------------------
 
-==== Doc values
 
-By default doc_values is disabled for the _ignored field.
-It's possible to enable doc_values for the field in order to perform aggregation and
-use stored fields.
-
-To enable doc_values, add the property to the mappings
-[source,console]
---------------------------------------------------
-POST my_index
-{
-  "mappings": {
-    "_ignored": {
-      "doc_values": true
-    }
-  }
-}
---------------------------------------------------
-
-Then the field can be used in aggregations
+The field can be used in aggregations
 [source,console]
 --------------------------------------------------
 GET my_index/_search

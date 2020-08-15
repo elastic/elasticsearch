@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -35,10 +34,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -46,13 +42,13 @@ import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_ignored";
+
     public static final String CONTENT_TYPE = "_ignored";
 
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
-        public static final boolean DOC_VALUES = false;
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -65,53 +61,35 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        private boolean docValues = IgnoredFieldMapper.Defaults.DOC_VALUES;
-
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
-        public IgnoredFieldMapper.Builder docValues(boolean docValues) {
-            this.docValues = docValues;
-            return builder;
-        }
-
         @Override
         public IgnoredFieldMapper build(BuilderContext context) {
-            MappedFieldType fieldType = new IgnoredFieldType(docValues);
-            return new IgnoredFieldMapper(fieldType);
+            return new IgnoredFieldMapper();
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                    ParserContext parserContext) throws MapperParsingException {
-            IgnoredFieldMapper.Builder builder = new IgnoredFieldMapper.Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                checkNull(propName, propNode);
-                if (propName.equals("doc_values")) {
-                    builder.docValues(XContentMapValues.nodeBooleanValue(propNode, "doc_values"));
-                    iterator.remove();
-                }
-            }
-            return builder;
+                ParserContext parserContext) throws MapperParsingException {
+            return new Builder();
         }
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            MappedFieldType fieldType = new IgnoredFieldType(false);
-            return new IgnoredFieldMapper(fieldType);
+            return new IgnoredFieldMapper();
         }
     }
 
     public static final class IgnoredFieldType extends StringFieldType {
 
-        private IgnoredFieldType(boolean docValues) {
-            super(NAME, true, docValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
+
+        private IgnoredFieldType() {
+            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -136,11 +114,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private final boolean docValues;
-
-    private IgnoredFieldMapper(MappedFieldType fieldType) {
-        super(Defaults.FIELD_TYPE, fieldType);
-        this.docValues=fieldType.hasDocValues();
+    private IgnoredFieldMapper() {
+        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE);
     }
 
     @Override
@@ -161,8 +136,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, fieldType));
+            final BytesRef binaryValue = new BytesRef(field);
             if (fieldType().hasDocValues()) {
-                final BytesRef binaryValue = new BytesRef(field);
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }
         }
@@ -175,11 +150,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (docValues != Defaults.DOC_VALUES ){
-            builder.startObject(CONTENT_TYPE);
-            builder.field("doc_values", docValues);
-            builder.endObject();
-        }
         return builder;
     }
 

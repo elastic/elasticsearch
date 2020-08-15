@@ -31,21 +31,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.function.Function;
 
-import static org.elasticsearch.gradle.util.ArchiveUtils.chmod;
+import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
     public void unpack(File tarFile, File targetDir) throws IOException {
         Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
             .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
+        Function<String, Path> pathModifier = pathResolver();
 
         TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));
         final Path destinationPath = targetDir.toPath();
         TarArchiveEntry entry = tar.getNextTarEntry();
         while (entry != null) {
-            final Path relativePath = calculatePath(entry.getName());
-            // final Path relativePath = UnpackTransform.trimJdkArchiveExtractPath(entry.getName());
+            final Path relativePath = pathModifier.apply(entry.getName());
             if (relativePath == null) {
                 entry = tar.getNextTarEntry();
                 continue;
@@ -75,9 +76,4 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
         }
 
     }
-
-    protected Path calculatePath(String path) {
-        return Paths.get(path);
-    }
-
 }

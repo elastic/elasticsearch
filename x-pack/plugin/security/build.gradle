@@ -46,15 +46,14 @@ dependencies {
   api( "org.cryptacular:cryptacular:1.2.4") {
     exclude group: 'org.bouncycastle'
   }
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  compile "com.rabbitmq:amqp-client:${versions.rabbitmq}"
   runtimeOnly 'com.google.guava:guava:19.0'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:7.0.2"

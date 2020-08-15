@@ -33,6 +33,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.elasticsearch:securemock:${versions.securemock}"
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'

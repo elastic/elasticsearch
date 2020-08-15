@@ -28,7 +28,7 @@ dependencies {
 
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "com.rabbitmq:amqp-client:${versions.rabbitmq}"
+  api "com.rabbitmq:amqp-client:${versions.rabbitmq}"
   api "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"

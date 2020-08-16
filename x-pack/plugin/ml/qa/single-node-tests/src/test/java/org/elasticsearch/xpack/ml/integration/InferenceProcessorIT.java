@@ -16,7 +16,6 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceProcessorIT extends ESRestTestCase {
@@ -136,12 +135,10 @@ public class InferenceProcessorIT extends ESRestTestCase {
                 Map<String, Object> hits = (Map<String, Object>)responseAsMap.get("hits");
                 assertThat(responseAsMap.toString(), hits.get("total"), equalTo(1));
             } catch (ResponseException e) {
-                logger.info("GOT RESPONSE EX");
-                // the search may fail because the index is not ready yet
+                // the search may fail because the index is not ready yet in which case retry
                 if (e.getMessage().contains("search_phase_execution_exception") == false) {
                     throw e;
                 }
-//                assertThat(e.getMessage(), containsString("search_phase_execution_exception"));
             }
         });
     }

@@ -12,15 +12,26 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
+
 public class InferenceProcessorIT extends ESRestTestCase {
 
     private static final String MODEL_ID = "a-perfect-regression-model";
+
+    @Before
+    public void enableLogging() throws IOException {
+        Request setTrace = new Request("PUT", "_cluster/settings");
+        setTrace.setJsonEntity(
+            "{\"transient\": {\"logger.org.elasticsearch.xpack.ml.inference\": \"TRACE\"}}"
+        );
+        assertThat(client().performRequest(setTrace).getStatusLine().getStatusCode(), equalTo(200));
+    }
 
     private void putRegressionModel() throws IOException {
 

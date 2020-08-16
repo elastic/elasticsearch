@@ -81,6 +81,9 @@ public class InferenceProcessorIT extends ESRestTestCase {
 
         assertThat(client().performRequest(putPipeline).getStatusLine().getStatusCode(), equalTo(200));
 
+        // using the model will ensure it is loaded and stats will be written before it is deleted
+        infer("regression-model-pipeline");
+
         Request deletePipeline = new Request("DELETE", "_ingest/pipeline/regression-model-pipeline");
         assertThat(client().performRequest(deletePipeline).getStatusLine().getStatusCode(), equalTo(200));
     }
@@ -108,9 +111,20 @@ public class InferenceProcessorIT extends ESRestTestCase {
         Response putResponse = client().performRequest(putPipeline);
         assertThat(putResponse.getStatusLine().getStatusCode(), equalTo(200));
 
+        // using the model will ensure it is loaded and stats will be written before it is deleted
+        infer("regression-model-deprecated-pipeline");
+
         Request deletePipeline = new Request("DELETE", "_ingest/pipeline/regression-model-deprecated-pipeline");
         Response deleteResponse = client().performRequest(deletePipeline);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    public void infer(String pipelineId) throws IOException {
+        Request putDoc = new Request("POST", "any_index/_doc?pipeline=" + pipelineId);
+        putDoc.setJsonEntity("{\"field1\": 1, \"field2\": 2}");
+
+        Response response = client().performRequest(putDoc);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
     }
 
     @After

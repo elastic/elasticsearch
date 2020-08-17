@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("date_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "date_whitelist.txt"));

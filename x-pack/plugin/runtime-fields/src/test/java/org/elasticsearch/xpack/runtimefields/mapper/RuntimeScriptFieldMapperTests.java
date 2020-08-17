@@ -25,11 +25,13 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DateScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.TestScriptEngine;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -314,28 +316,9 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
+            return new TestScriptEngine() {
                 @Override
-                public String getType() {
-                    return "test";
-                }
-
-                @Override
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> paramsMap
-                ) {
-                    if ("dummy_source".equals(code)) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType castFactory = (FactoryType) dummyScriptFactory(context);
-                        return castFactory;
-                    }
-                    throw new IllegalArgumentException("No test script for [" + code + "]");
-                }
-
-                private Object dummyScriptFactory(ScriptContext<?> context) {
+                protected Object buildScriptFactory(ScriptContext<?> context) {
                     if (context == BooleanScriptFieldScript.CONTEXT) {
                         return (BooleanScriptFieldScript.Factory) (params, lookup) -> ctx -> new BooleanScriptFieldScript(
                             params,
@@ -349,17 +332,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                         };
                     }
                     if (context == DateScriptFieldScript.CONTEXT) {
-                        return (DateScriptFieldScript.Factory) (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
-                            params,
-                            lookup,
-                            formatter,
-                            ctx
-                        ) {
-                            @Override
-                            public void execute() {
-                                new DateScriptFieldScript.Millis(this).millis(1595431354874L);
-                            }
-                        };
+                        return DateScriptFieldScriptTests.DUMMY;
                     }
                     if (context == DoubleScriptFieldScript.CONTEXT) {
                         return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(

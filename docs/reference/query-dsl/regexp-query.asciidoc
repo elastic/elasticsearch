@@ -28,7 +28,7 @@ GET /_search
       "user.id": {
         "value": "k.*y",
         "flags": "ALL",
-        "case_sensitive": false,
+        "case_insensitive": true,
         "max_determinized_states": 10000,
         "rewrite": "constant_score"
       }

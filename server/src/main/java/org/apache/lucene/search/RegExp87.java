@@ -34,6 +34,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.AutomatonProvider;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 import java.io.IOException;
@@ -345,7 +346,8 @@ public class RegExp87 {
       return toAutomatonInternal(automata, automaton_provider,
         maxDeterminizedStates);
     } catch (TooComplexToDeterminizeException e) {
-      throw new TooComplexToDeterminizeException(null, e);
+      // This is a little ugly. Have to pass an instance of core Lucene RegExp just to get error message.
+      throw new TooComplexToDeterminizeException(new RegExp(this.originalString), e);
     }
   }
 

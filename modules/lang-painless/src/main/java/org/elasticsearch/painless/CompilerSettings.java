@@ -31,6 +31,7 @@ public final class CompilerSettings {
      * overflows and we can't analyze the regex to be sure it won't.
      */
     public static final Setting<Boolean> REGEX_ENABLED = Setting.boolSetting("script.painless.regex.enabled", false, Property.NodeScope);
+    public static final Setting<Integer> REGEX_MAX_CHARS = Setting.intSetting("script.painless.regex.max-chars", 1024, Property.NodeScope);
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -71,6 +72,8 @@ public final class CompilerSettings {
      * <strong>looking</strong> regexes can cause stack overflows.
      */
     private boolean regexesEnabled = false;
+
+    private int regexMaxChars = 0;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -136,5 +139,9 @@ public final class CompilerSettings {
      */
     public void setRegexesEnabled(boolean regexesEnabled) {
         this.regexesEnabled = regexesEnabled;
+    }
+
+    public void setRegexMaxChars(int regexMaxChars) {
+        this.regexMaxChars = regexMaxChars;
     }
 }

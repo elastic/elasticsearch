@@ -2049,6 +2049,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
+        // TODO(stu): change to max chars
         if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
             throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "

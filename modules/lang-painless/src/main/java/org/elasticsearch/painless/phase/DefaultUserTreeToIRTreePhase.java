@@ -1296,6 +1296,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             invokeCallNode.setLocation(userRegexNode.getLocation());
             invokeCallNode.setExpressionType(Pattern.class);
             invokeCallNode.setBox(Pattern.class);
+            // scriptScope.getCompilerSettings()
             invokeCallNode.setMethod(new PainlessMethod(
                             Pattern.class.getMethod("compile", String.class, int.class),
                             Pattern.class,

@@ -230,13 +230,14 @@ primary operations until the replication work load has dropped.
 [discrete]
 === {infer-cap} in pipeline aggregations
 
-In 7.6, we introduced inference that enables you to make predictions on new data 
-with your {regression} or {classification} models via a processor in an ingest 
-pipeline. Now, in 7.9, {infer} is even more flexible! You can reference a 
-pre-trained {dfanalytics} model in an aggregation to infer on the result 
-field of the parent bucket aggregation. The aggregation uses the model on the 
-results to provide a prediction. This addition enables you to run 
-{classification} or {regression} analysis at search time. If you want to perform 
-analysis on a small set of data, you can generate predictions without the need 
-to set up a processor in the ingest pipeline.
+In 7.6, we introduced {ml-docs}/ml-inference.html[inference] that enables you to 
+make predictions on new data with your {regression} or {classification} models 
+via a processor in an ingest pipeline. Now, in 7.9, {infer} is even more 
+flexible! You can reference a pre-trained {dfanalytics} model in an 
+{ref}/search-aggregations-pipeline-inference-bucket-aggregation.html[aggregation] 
+to infer on the result field of the parent bucket aggregation. The aggregation 
+uses the model on the results to provide a prediction. This addition enables you 
+to run {classification} or {regression} analysis at search time. If you want to 
+perform analysis on a small set of data, you can generate predictions without 
+the need to set up a processor in the ingest pipeline.
 // end::notable-highlights[]

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResult> {
 
@@ -38,7 +41,6 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
 
     protected AnalyticsResult createTestInstance() {
         AnalyticsResult.Builder builder = AnalyticsResult.builder();
-
         if (randomBoolean()) {
             builder.setRowResults(RowResultsTests.createRandom());
         }
@@ -63,6 +65,11 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             String def = randomAlphaOfLengthBetween(100, 1000);
             builder.setTrainedModelDefinitionChunk(new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean()));
+        }
+        if (randomBoolean()) {
+            builder.setModelMetadata(new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList())));
         }
         return builder.build();
     }

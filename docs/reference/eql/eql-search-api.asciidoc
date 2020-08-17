@@ -241,7 +241,7 @@ Field used to sort events with the same
 Schema (ECS)].
 +
 By default, matching events in the search response are sorted by timestamp,
-converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
+converted to milliseconds since the {wikipedia}/Unix_time[Unix
 epoch], in ascending order. If two or more events share the same timestamp, this
 field is used to sort the events in ascending, lexicographic order.
 
@@ -257,7 +257,7 @@ Defaults to `@timestamp`, as defined in the
 does not contain the `@timestamp` field, this value is required.
 
 Events in the API response are sorted by this field's value, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
 The timestamp field is typically mapped as a <<date,`date`>> or
@@ -509,7 +509,7 @@ GET /my-index-000001/_eql/search
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
-to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
+to milliseconds since the {wikipedia}/Unix_time[Unix epoch],
 in ascending order.
 
 If two or more events share the same timestamp, the

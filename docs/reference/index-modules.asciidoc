@@ -82,7 +82,7 @@ indices.
 
     The +default+ value compresses stored data with LZ4
     compression, but this can be set to +best_compression+
-    which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
+    which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using

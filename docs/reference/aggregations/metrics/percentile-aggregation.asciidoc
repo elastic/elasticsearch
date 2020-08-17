@@ -254,7 +254,7 @@ it. It would not be the case on more skewed distributions.
 [WARNING]
 ====
 Percentile aggregations are also
-https://en.wikipedia.org/wiki/Nondeterministic_algorithm[non-deterministic].
+{wikipedia}/Nondeterministic_algorithm[non-deterministic].
 This means you can get slightly different results using the same data.
 ====
 

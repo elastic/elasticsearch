@@ -4,8 +4,9 @@
 A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
 to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
 
-TIP: `top_hits` is designed for use in nested aggregations. If you want to group
-search hits, use the <<collapse-search-results,`collapse`>> parameter instead.
+TIP: We do not recommend using `top_hits` as a top-level aggregation. If you
+want to group search hits, use the <<collapse-search-results,`collapse`>>
+parameter instead.
 
 The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
 One or more bucket aggregators determines by which properties a result set get sliced into.

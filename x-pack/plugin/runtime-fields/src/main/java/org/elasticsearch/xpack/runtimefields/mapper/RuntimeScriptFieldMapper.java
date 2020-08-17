@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
@@ -83,6 +85,20 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+            BooleanFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
+                BooleanScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    BooleanScriptFieldScript.CONTEXT
+                );
+                return new ScriptBooleanMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
             DateFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 DateScriptFieldScript.Factory factory = builder.scriptCompiler.compile(

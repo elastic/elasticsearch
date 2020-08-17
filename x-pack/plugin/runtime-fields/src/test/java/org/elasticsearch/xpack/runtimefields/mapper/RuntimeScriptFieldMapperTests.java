@@ -23,6 +23,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
@@ -159,6 +160,13 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
             "Failed to parse mapping: runtime_type [unsupported] not supported for runtime_script field [field]",
             exc.getMessage()
         );
+    }
+
+    public void testBoolean() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("boolean")).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping("boolean")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testDouble() throws IOException {
@@ -328,6 +336,18 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                 }
 
                 private Object dummyScriptFactory(ScriptContext<?> context) {
+                    if (context == BooleanScriptFieldScript.CONTEXT) {
+                        return (BooleanScriptFieldScript.Factory) (params, lookup) -> ctx -> new BooleanScriptFieldScript(
+                            params,
+                            lookup,
+                            ctx
+                        ) {
+                            @Override
+                            public void execute() {
+                                new BooleanScriptFieldScript.Value(this).value(true);
+                            }
+                        };
+                    }
                     if (context == DateScriptFieldScript.CONTEXT) {
                         return (DateScriptFieldScript.Factory) (params, lookup) -> ctx -> new DateScriptFieldScript(params, lookup, ctx) {
                             @Override
@@ -382,6 +402,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
                     return Set.of(
+                        BooleanScriptFieldScript.CONTEXT,
                         DateScriptFieldScript.CONTEXT,
                         DoubleScriptFieldScript.CONTEXT,
                         StringScriptFieldScript.CONTEXT,

@@ -178,6 +178,13 @@ public abstract class TransportReplicationAction<
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
     }
 
+    /**
+     * Executor to run retries of {@link ReroutePhase} on.
+     */
+    protected String retryExecutor() {
+         return executor;
+    }
+
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert request.shardId() != null : "request shardId must be set";
@@ -861,10 +868,14 @@ public abstract class TransportReplicationAction<
             });
         }
 
-        // Reruns this action on the generic pool to avoid running it on the transport or CS update threads because it may be long
-        // running and we want to respect forced executions for actions while not blocking these threads ever.
+        @Override
+        public boolean isForceExecution() {
+            return forceExecutionOnPrimary;
+        }
+
+        // Reruns this action on the thread pool on a new thread to not do work on the CS or transport thread.
         private void reRun() {
-            threadPool.generic().execute(this);
+            threadPool.executor(retryExecutor()).execute(this);
         }
 
         void finishAsFailed(Exception failure) {

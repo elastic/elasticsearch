@@ -77,6 +77,12 @@ public abstract class TransportWriteAction<
     }
 
     @Override
+    protected String retryExecutor() {
+        // override since we register the parent on SAME but want to dispatch retries on the actual executor
+        return executor;
+    }
+
+    @Override
     protected Releasable checkOperationLimits(Request request) {
         return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
     }

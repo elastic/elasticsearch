@@ -35,7 +35,7 @@ setup:
         index: "test*"
 
 ---
-"point in time":
+"basic":
   - skip:
       version: " - 7.99.99"
       reason: "point in time is introduced in 8.0"
@@ -55,7 +55,7 @@ setup:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
           pit:
-            id: "point_in_time_id"
+            id: "$point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 3 }
@@ -137,7 +137,7 @@ setup:
           id: "$point_in_time_id"
 
 ---
-"Point in time with wildcard":
+"wildcard":
   - skip:
       version: " - 7.99.99"
       reason: "point in time is introduced in 8.0"

@@ -1869,6 +1869,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .collect(Collectors.toList());
             assertThat(indexNames, containsInAnyOrder(".watches"));
         }
+
+        // Full wildcard
+        {
+            SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
+        }
     }
 
     public void testSystemIndexResolutionBlocked() {
@@ -1914,6 +1925,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .map(i -> i.getName())
                 .collect(Collectors.toList());
             assertThat(indexNames, empty());
+        }
+
+        // Full wildcard
+        {
+            SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, containsInAnyOrder("some-other-index"));
         }
     }
 

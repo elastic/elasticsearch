@@ -17,7 +17,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;

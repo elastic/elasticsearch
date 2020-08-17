@@ -10,13 +10,13 @@
 // tag::ml-settings-description-tag[]
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
-IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines whose
-CPUs https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs[support] SSE4.2. If you
-run {es} on older hardware you must disable {ml} (by setting `xpack.ml.enabled`
-to `false`).
+IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines 
+whose CPUs https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs[support] SSE4.2. 
+If you run {es} on older hardware you must disable {ml} (by setting 
+`xpack.ml.enabled` to `false`).
 
-All of these settings can be added to the `elasticsearch.yml` configuration file.
-The dynamic settings can also be updated across a cluster with the
+All of these settings can be added to the `elasticsearch.yml` configuration 
+file. The dynamic settings can also be updated across a cluster with the
 <<cluster-update-settings,cluster update settings API>>. Dynamic settings take 
 precedence over settings in the `elasticsearch.yml` file.
 
@@ -28,14 +28,10 @@ precedence over settings in the `elasticsearch.yml` file.
 
 `node.roles: [ ml ]`::
 Set `node.roles` to contain `ml` to identify the node as a _{ml} node_ that is 
-capable of running jobs. +
+capable of running jobs. Every node is a {ml} node by default.+
 +
-If you want to run jobs, there must be at least one {ml} node in your cluster. +
-+
-If you use the `node.roles` setting, then all required roles must be explicitly 
-set. The absence of `node.roles` means {ml} enabled by default. However, setting 
-`node.roles:[]` configures a dedicated coordinating node. Consult 
-<<modules-node>> to learn more.
+If you use the `node.roles` setting, then all required roles must be explicitly  
+set. Consult <<modules-node>> to learn more.
 +
 IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.

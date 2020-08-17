@@ -1182,7 +1182,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Path getExtractedDistributionDir() {
-        return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
+        return Paths.get(distributions.get(currentDistro).getExtracted().toString());
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {

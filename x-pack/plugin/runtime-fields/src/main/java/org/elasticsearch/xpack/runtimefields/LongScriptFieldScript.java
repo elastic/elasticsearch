@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -36,6 +37,10 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
 
     public LongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
+    }
+
+    public static long parse(Object o) {
+        return NumberType.objectToLong(o, false);
     }
 
     public static class Value {

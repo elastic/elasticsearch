@@ -185,17 +185,11 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
         Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(parse(value));"),
-        Map.entry(DateFieldMapper.CONTENT_TYPE, "millis(parse(value.toString()));"),
-        Map.entry(
-            NumberType.DOUBLE.typeName(),
-            "value(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
-        ),
+        Map.entry(DateFieldMapper.CONTENT_TYPE, "millis(parse(value));"),
+        Map.entry(NumberType.DOUBLE.typeName(), "value(parse(value));"),
         Map.entry(KeywordFieldMapper.CONTENT_TYPE, "value(value.toString());"),
         Map.entry(IpFieldMapper.CONTENT_TYPE, "stringValue(value.toString());"),
-        Map.entry(
-            NumberType.LONG.typeName(),
-            "value(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
-        )
+        Map.entry(NumberType.LONG.typeName(), "value(parse(value));")
     );
 
     private static final ExecutableSection ADD_TEMPLATE = new ExecutableSection() {

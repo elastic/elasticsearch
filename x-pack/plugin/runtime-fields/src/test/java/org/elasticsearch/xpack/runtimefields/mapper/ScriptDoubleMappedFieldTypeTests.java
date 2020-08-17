@@ -58,7 +58,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [3.14, 1.4]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"3.14\", 1.4]}"))));
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -272,7 +272,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new DoubleScriptFieldScript.Value(this).value(((Number) foo).doubleValue());
+                                            new DoubleScriptFieldScript.Value(this).value(parse(foo));
                                         }
                                     }
                                 };
@@ -282,7 +282,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
                                             new DoubleScriptFieldScript.Value(this).value(
-                                                ((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue()
+                                                parse(foo) + ((Number) getParams().get("param")).doubleValue()
                                             );
                                         }
                                     }

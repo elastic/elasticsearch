@@ -78,8 +78,8 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
             this.script = script;
         }
 
-        public long parse(Object str) {
-            return script.formatter.parseMillis(str.toString());
+        public long parse(Object o) {
+            return script.formatter.parseMillis(o.toString());
         }
     }
 }

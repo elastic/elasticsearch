@@ -74,8 +74,8 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         }
     }
 
-    public static boolean parse(Object str) {
-        return Booleans.parseBoolean(str.toString());
+    public static boolean parse(Object o) {
+        return Booleans.parseBoolean(o.toString());
     }
 
     public static class Value {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -66,6 +67,10 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
      */
     public final int count() {
         return count;
+    }
+
+    public static double parse(Object o) {
+        return NumberType.objectToDouble(o);
     }
 
     private void collectValue(double v) {

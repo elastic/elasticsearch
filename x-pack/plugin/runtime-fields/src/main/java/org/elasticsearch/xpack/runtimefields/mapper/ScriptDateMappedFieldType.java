@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
+import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermQuery;
@@ -84,6 +86,30 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
 
     private DateScriptFieldScript.LeafFactory leafFactory(SearchLookup lookup) {
         return scriptFactory.newFactory(script.getParams(), lookup);
+    }
+
+    @Override
+    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
+        return DateFieldType.handleNow(context, now -> {
+            long originLong = DateFieldType.parseToLong(
+                origin,
+                true,
+                null,
+                dateTimeFormatter.toDateMathParser(),
+                now,
+                DateFieldMapper.Resolution.MILLISECONDS
+            );
+            TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
+            return new LongScriptFieldDistanceFeatureQuery(
+                script,
+                leafFactory(context.lookup())::newInstance,
+                name(),
+                originLong,
+                pivotTime.getMillis(),
+                boost
+            );
+        });
     }
 
     @Override

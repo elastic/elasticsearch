@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -49,11 +50,10 @@ import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builder> {
+public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -62,14 +62,6 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-        addModifier("null_value", false, (a, b) -> {
-            a.nullValue(InetAddresses.forString("::1"));
-        });
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -307,12 +299,12 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        IpFieldMapper mapper = new IpFieldMapper.Builder("field").build(context);
+        IpFieldMapper mapper = new IpFieldMapper.Builder("field", true).build(context);
         assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8::2:1", null));
         assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1", null));
         assertEquals("::1", mapper.parseSourceValue("0:0:0:0:0:0:0:1", null));
 
-        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field")
+        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field", true)
             .nullValue(InetAddresses.forString("2001:db8:0:0:0:0:2:7"))
             .build(context);
         SourceLookup sourceLookup = new SourceLookup();
@@ -320,8 +312,4 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
         assertEquals(List.of("2001:db8::2:7"), nullValueMapper.lookupValues(sourceLookup, null));
     }
 
-    @Override
-    protected IpFieldMapper.Builder newBuilder() {
-        return new IpFieldMapper.Builder("ip");
-    }
 }

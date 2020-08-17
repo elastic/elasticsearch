@@ -18,14 +18,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.TreeMap;
 
 public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAction<
     GetAutoscalingDecisionAction.Request,
     GetAutoscalingDecisionAction.Response> {
+
+    private final AutoscalingDecisionService decisionService;
 
     @Inject
     public TransportGetAutoscalingDecisionAction(
@@ -33,7 +34,8 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final AutoscalingDecisionService.Holder decisionServiceHolder
     ) {
         super(
             GetAutoscalingDecisionAction.NAME,
@@ -44,6 +46,8 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
             GetAutoscalingDecisionAction.Request::new,
             indexNameExpressionResolver
         );
+        this.decisionService = decisionServiceHolder.get();
+        assert this.decisionService != null;
     }
 
     @Override
@@ -63,7 +67,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterState state,
         final ActionListener<GetAutoscalingDecisionAction.Response> listener
     ) {
-        listener.onResponse(new GetAutoscalingDecisionAction.Response(Collections.unmodifiableSortedMap(new TreeMap<>())));
+        listener.onResponse(new GetAutoscalingDecisionAction.Response(decisionService.decide(state)));
     }
 
     @Override

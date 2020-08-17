@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class SearchableSnapshotRecoveryState extends RecoveryState {
-    private boolean preWarmFinished;
+    private boolean preWarmComplete;
 
     public SearchableSnapshotRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         super(shardRouting, targetNode, sourceNode, new Index());
@@ -29,7 +29,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         // Pre-warm is still running, hold the state transition
         // until the pre-warm process finishes
-        if (preWarmFinished == false && stage == Stage.DONE) {
+        if (preWarmComplete == false && stage == Stage.DONE) {
             validateCurrentStage(Stage.FINALIZE);
             return this;
         }
@@ -37,7 +37,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         return super.setStage(stage);
     }
 
-    public synchronized void preWarmFinished() {
+    public synchronized void setPreWarmComplete() {
         // For small shards it's possible that the
         // cache is pre-warmed before the stage has transitioned
         // to FINALIZE, so the transition to the final state is delayed until
@@ -48,7 +48,11 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         SearchableSnapshotRecoveryState.Index index = (Index) getIndex();
         index.stopTimer();
-        preWarmFinished = true;
+        preWarmComplete = true;
+    }
+
+    public synchronized boolean isPreWarmComplete() {
+        return preWarmComplete;
     }
 
     public synchronized void ignoreFile(String name) {

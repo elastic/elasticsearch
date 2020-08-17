@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -123,5 +124,9 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
                     + "]"
             )
         );
+    }
+
+    protected String readSource(IndexReader reader, int docId) throws IOException {
+        return reader.document(docId).getBinaryValue("_source").utf8ToString();
     }
 }

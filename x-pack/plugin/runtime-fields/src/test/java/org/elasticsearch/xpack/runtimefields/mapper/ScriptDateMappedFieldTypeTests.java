@@ -12,13 +12,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -59,6 +62,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -146,18 +151,9 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 ScriptDateFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(
-                    reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
-                    equalTo("{\"timestamp\": [1595432181351]}")
-                );
-                assertThat(
-                    reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(),
-                    equalTo("{\"timestamp\": [1595432181354]}")
-                );
-                assertThat(
-                    reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(),
-                    equalTo("{\"timestamp\": [1595432181356]}")
-                );
+                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181351]}"));
+                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181354]}"));
+                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181356]}"));
             }
         }
     }
@@ -190,6 +186,42 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 }, 354.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
+    }
+
+    public void testDistanceFeatureQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", 1, mockContext());
+                TopDocs docs = searcher.search(query, 4);
+                assertThat(docs.scoreDocs, arrayWithSize(3));
+                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
+                assertThat(docs.scoreDocs[0].score, equalTo(1.0F));
+                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181356, 1]}"));
+                assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
+                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
+                assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
+                Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
+                    .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
+                assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
+                assertThat(explanation.toString(), containsString("1.0 = weight"));
+                assertThat(explanation.toString(), containsString("1 = pivot"));
+                assertThat(explanation.toString(), containsString("1595432181354 = origin"));
+                assertThat(explanation.toString(), containsString("1595432181354 = current value"));
+            }
+        }
+    }
+
+    public void testDistanceFeatureQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.distanceFeatureQuery(randomLong(), randomAlphaOfLength(5), randomFloat(), ctx));
     }
 
     @Override
@@ -409,7 +441,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            new DateScriptFieldScript.Millis(this).millis((Long) timestamp);
+                                            new DateScriptFieldScript.Millis(this).millis(((Number) timestamp).longValue());
                                         }
                                     }
                                 };

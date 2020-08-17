@@ -119,7 +119,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         } catch (IOException ex) {
             throw new AssertionError("wont happen", ex);
         }
-        return hash = result;
+        return result;
     }
 
 

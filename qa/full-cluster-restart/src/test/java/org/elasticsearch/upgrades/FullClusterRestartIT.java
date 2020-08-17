@@ -98,6 +98,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57245")
     public void testSearch() throws Exception {
         int count;
         if (isRunningAgainstOldCluster()) {
@@ -1496,7 +1497,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // make sure .tasks index exists
         assertBusy(() -> {
             Request getTasksIndex = new Request("GET", "/.tasks");
-            if (isRunningAgainstAncientCluster()) {
+            if (getOldClusterVersion().onOrAfter(Version.V_6_7_0) && getOldClusterVersion().before(Version.V_7_0_0)) {
                 getTasksIndex.addParameter("include_type_name", "false");
             }
             assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));

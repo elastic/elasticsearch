@@ -71,7 +71,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), "test-node"),
             (ex) -> { throw new ElasticsearchException(ex); },
-            new ExtractedFields(extractedFieldList, Collections.emptyMap())
+            new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
         //Accuracy for size is not tested here

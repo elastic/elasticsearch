@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60986")
 public class MappingIT extends AbstractRollingTestCase {
     /**
      * Create a mapping that explicitly disables the _all field (possible in 6x, see #37429)

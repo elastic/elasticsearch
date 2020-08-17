@@ -144,7 +144,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             analyticsConfig,
             auditor,
             (unused)->{},
-            new ExtractedFields(fieldNames, Collections.emptyMap()));
+            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap()));
     }
 
 }

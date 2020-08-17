@@ -77,7 +77,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new AllFieldMapper(new Explicit<>(true, false)),
+        c -> new AllFieldMapper(new Explicit<>(false, false)),
         c -> new Builder()
     );
 
@@ -128,4 +128,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder().init(this);
+    }
 }

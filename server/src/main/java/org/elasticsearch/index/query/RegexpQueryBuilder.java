@@ -161,6 +161,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
     
     public RegexpQueryBuilder caseInsensitive(boolean caseInsensitive) {
+        if (caseInsensitive == false) {
+            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
+        }
         this.caseInsensitive = caseInsensitive;
         return this;
     }    
@@ -263,13 +266,16 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
 
-        return new RegexpQueryBuilder(fieldName, value)
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)
-                .caseInsensitive(caseInsensitive)
                 .maxDeterminizedStates(maxDeterminizedStates)
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
+        if (caseInsensitive) {
+            result.caseInsensitive(caseInsensitive);
+        }
+        return result;
     }
 
     @Override

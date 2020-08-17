@@ -9,8 +9,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -52,13 +50,6 @@ public class WarningInferenceResults implements InferenceResults {
     @Override
     public int hashCode() {
         return Objects.hash(warning);
-    }
-
-    @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(parentResultField, "resultField");
-        document.setFieldValue(parentResultField, asMap());
     }
 
     @Override

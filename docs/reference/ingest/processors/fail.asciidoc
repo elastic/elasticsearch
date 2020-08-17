@@ -1,5 +1,9 @@
 [[fail-processor]]
-=== Fail Processor
+=== Fail processor
+++++
+<titleabbrev>Fail</titleabbrev>
+++++
+
 Raises an exception. This is useful for when
 you expect a pipeline to fail and want to relay a specific message
 to the requester.

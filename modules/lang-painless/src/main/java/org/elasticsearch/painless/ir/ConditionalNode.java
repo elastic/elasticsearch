@@ -43,8 +43,15 @@ public class ConditionalNode extends BinaryNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitConditional(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitConditional(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        conditionNode.visit(irTreeVisitor, scope);
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

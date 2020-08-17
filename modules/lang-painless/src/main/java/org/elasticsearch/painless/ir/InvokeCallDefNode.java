@@ -48,8 +48,15 @@ public class InvokeCallDefNode extends ArgumentsNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitInvokeCallDef(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitInvokeCallDef(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

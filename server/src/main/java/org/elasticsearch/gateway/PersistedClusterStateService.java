@@ -649,7 +649,8 @@ public class PersistedClusterStateService {
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
                 for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
                     final IndexMetadata indexMetadata = cursor.value;
-                    final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
+                    final Long previousValue
+                            = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                     assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
                 }
 

@@ -118,7 +118,7 @@ expect that if either node fails then {es} can elect the remaining node as the
 master, but it is impossible to tell the difference between the failure of a
 remote node and a mere loss of connectivity between the nodes. If both nodes
 were capable of running independent elections, a loss of connectivity would
-lead to a https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain
+lead to a {wikipedia}/Split-brain_(computing)[split-brain
 problem] and therefore data loss. {es} avoids this and
 protects your data by electing neither node as master until that node can be
 sure that it has the latest cluster state and that there is no other master in
@@ -291,7 +291,7 @@ zone as the master but it is impossible to tell the difference between the
 failure of a remote zone and a mere loss of connectivity between the zones. If
 both zones were capable of running independent elections then a loss of
 connectivity would lead to a
-https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain problem] and
+{wikipedia}/Split-brain_(computing)[split-brain problem] and
 therefore data loss. {es} avoids this and protects your data by not electing
 a node from either zone as master until that node can be sure that it has the
 latest cluster state and that there is no other master in the cluster. This may

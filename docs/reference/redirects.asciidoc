@@ -981,6 +981,11 @@ See <<eql-syntax-limitations>>.
 
 See <<eql-required-fields>>.
 
+[role="exclude",id="sql-client-apps-tableau"]
+=== Tableau Desktop
+
+See <<sql-client-apps-tableau-desktop>> and <<sql-client-apps-tableau-server>>.
+
 [role="exclude",id="search-request-body"]
 === Request body search
 
@@ -1102,3 +1107,13 @@ See <<stored-fields>>.
 ==== Track total hits
 
 See <<track-total-hits>>.
+
+[role="exclude",id="_notes_3"]
+=== Joining queries notes
+
+See <<joining-queries-notes>>.
+
+[role="exclude",id="_notes_4"]
+=== Percolate query notes
+
+See <<percolate-query-notes>>.

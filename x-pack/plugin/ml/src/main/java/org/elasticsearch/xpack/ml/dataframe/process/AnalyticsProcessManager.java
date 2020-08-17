@@ -178,7 +178,7 @@ public class AnalyticsProcessManager {
         AnalyticsProcess<AnalyticsResult> process = processContext.process.get();
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
-            writeHeaderRecord(dataExtractor, process);
+            writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
             process.flushStream();
@@ -268,8 +268,11 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeHeaderRecord(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process) throws IOException {
+    private void writeHeaderRecord(DataFrameDataExtractor dataExtractor,
+                                   AnalyticsProcess<AnalyticsResult> process,
+                                   DataFrameAnalyticsTask task) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         //   - the document hash

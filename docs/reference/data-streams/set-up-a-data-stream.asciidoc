@@ -100,11 +100,26 @@ PUT /_ilm/policy/my-data-stream-policy
 A data stream uses an index template to configure its backing indices. A
 template for a data stream must specify:
 
-* One or more wildcard (`*`) patterns that match the name of the stream.
+* One or more index patterns that match the name of the stream.
 
 * The mappings and settings for the stream's backing indices.
 
 * That the template is used exclusively for data streams.
+
+* A priority for the template.
+
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
+patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
+templates to create data streams. If you use {agent}, assign your index
+templates a priority lower than `100` to avoid an override of the built-in
+templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern, or assign your templates a `priority` higher or
+lower than `100`.
+====
 
 Every document indexed to a data stream must have a `@timestamp` field. This
 field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
@@ -146,6 +161,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "index.lifecycle.name": "my-data-stream-policy"
@@ -163,6 +179,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -198,7 +215,7 @@ You can create a data stream using one of two methods:
 
 You can automatically create a data stream using an indexing request. Submit 
 an <<add-documents-to-a-data-stream,indexing request>> to a target
-matching the name or wildcard pattern defined in the template's `index_patterns`
+matching the index pattern defined in the template's `index_patterns`
 property.
 
 If the indexing request's target doesn't exist, {es} creates the data stream and
@@ -208,7 +225,7 @@ NOTE: Data streams support only specific types of indexing requests. See
 <<add-documents-to-a-data-stream>>.
 
 The following <<docs-index_,index API>> request targets `my-data-stream`, which
-matches the wildcard pattern for `my-data-stream-template`. Because
+matches the index pattern for `my-data-stream-template`. Because
 no existing index or data stream uses this name, this request creates the
 `my-data-stream` data stream and indexes the document to it.
 
@@ -252,11 +269,11 @@ index of the new data stream.
 ====  Manually create a data stream
 
 You can use the <<indices-create-data-stream,create data stream API>> to
-manually create a data stream. The name of the data stream must match the name
-or wildcard pattern defined in the template's `index_patterns` property.
+manually create a data stream. The name of the data stream must match the index
+pattern defined in the template's `index_patterns` property.
 
 The following create data stream request targets `my-data-stream-alt`, which
-matches the wildcard pattern for `my-data-stream-template`. Because
+matches the index pattern for `my-data-stream-template`. Because
 no existing index or data stream uses this name, this request creates the
 `my-data-stream-alt` data stream.
 

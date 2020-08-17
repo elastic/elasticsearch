@@ -1,7 +1,7 @@
 [[search-aggregations-metrics-median-absolute-deviation-aggregation]]
 === Median Absolute Deviation Aggregation
 
-This `single-value` aggregation approximates the https://en.wikipedia.org/wiki/Median_absolute_deviation[median absolute deviation]
+This `single-value` aggregation approximates the {wikipedia}/Median_absolute_deviation[median absolute deviation]
 of its search results.
 
 Median absolute deviation is a measure of variability. It is a robust

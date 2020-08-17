@@ -16,8 +16,10 @@ public final class InferenceIndexConstants {
      * version: 7.8.0:
      *  - adds inference_config definition to trained model config
      *
+     * version: 7.10.0: 000003
+     *  - adds trained_model_metadata object
      */
-    public static final String INDEX_VERSION = "000002";
+    public static final String INDEX_VERSION = "000003";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;

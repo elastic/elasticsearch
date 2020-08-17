@@ -358,7 +358,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(0, count.get());
     }
 
-    public void testNotStartedPrimary() {
+    public void testNotStartedPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         // no replicas in oder to skip the replication part
@@ -389,12 +389,14 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
         final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-        final List<CapturingTransport.CapturedRequest> capturedRequests =
-            transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
-        assertThat(capturedRequests, notNullValue());
-        assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
-        assertIndexShardCounter(0);
+        assertBusy(() -> {
+            final List<CapturingTransport.CapturedRequest> capturedRequests =
+                    transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
+            assertThat(capturedRequests, notNullValue());
+            assertThat(capturedRequests.size(), equalTo(1));
+            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+            assertIndexShardCounter(0);
+        });
     }
 
     public void testShardNotInPrimaryMode() {
@@ -444,7 +446,7 @@ public class TransportReplicationActionTests extends ESTestCase {
      * This test checks that replication request is not routed back from relocation target to relocation source in case of
      * stale index routing table on relocation target.
      */
-    public void testNoRerouteOnStaleClusterState() {
+    public void testNoRerouteOnStaleClusterState() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
@@ -478,12 +480,14 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
         final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-        final List<CapturingTransport.CapturedRequest> capturedRequests =
-            transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
-        assertThat(capturedRequests, notNullValue());
-        assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
-        assertIndexShardCounter(0);
+        assertBusy(() -> {
+            final List<CapturingTransport.CapturedRequest> capturedRequests =
+                    transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
+            assertThat(capturedRequests, notNullValue());
+            assertThat(capturedRequests.size(), equalTo(1));
+            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+            assertIndexShardCounter(0);
+        });
     }
 
     public void testUnknownIndexOrShardOnReroute() {
@@ -547,7 +551,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertFalse(request.isRetrySet.get());
     }
 
-    public void testStalePrimaryShardOnReroute() {
+    public void testStalePrimaryShardOnReroute() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         // no replicas in order to skip the replication part
@@ -565,32 +569,32 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
         reroutePhase.run();
-        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests, arrayWithSize(1));
-        assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+        CapturingTransport.CapturedRequest[] capturedRequestsReroutePhase = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequestsReroutePhase, arrayWithSize(1));
+        assertThat(capturedRequestsReroutePhase[0].action, equalTo("internal:testAction[p]"));
         assertPhase(task, "waiting_on_primary");
         assertFalse(request.isRetrySet.get());
-        transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+        transport.handleRemoteError(capturedRequestsReroutePhase[0].requestId, randomRetryPrimaryException(shardId));
+        assertThat(listener.isDone(), equalTo(false));
 
-
-        if (timeout) {
-            // we always try at least one more time on timeout
-            assertThat(listener.isDone(), equalTo(false));
-            capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
-            assertPhase(task, "waiting_on_primary");
-            transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
-            assertListenerThrows("must throw index not found exception", listener, ElasticsearchException.class);
-            assertPhase(task, "failed");
-        } else {
-            assertThat(listener.isDone(), equalTo(false));
-            // generate a CS change
-            setState(clusterService, clusterService.state());
-            capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
-        }
+        assertBusy(() -> {
+            if (timeout) {
+                // we always try at least one more time on timeout
+                CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+                assertThat(capturedRequests, arrayWithSize(1));
+                assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+                assertPhase(task, "waiting_on_primary");
+                transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+                assertListenerThrows("must throw index not found exception", listener, ElasticsearchException.class);
+                assertPhase(task, "failed");
+            } else {
+                // generate a CS change
+                setState(clusterService, clusterService.state());
+                CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+                assertThat(capturedRequests, arrayWithSize(1));
+                assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+            }
+        });
     }
 
     private Exception randomRetryPrimaryException(ShardId shardId) {

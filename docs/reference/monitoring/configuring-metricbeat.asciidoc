@@ -35,7 +35,7 @@ PUT _cluster/settings
     "xpack.monitoring.collection.enabled": true
   }
 }
----------------------------------- 
+----------------------------------
 
 If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
@@ -91,8 +91,8 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
     #password: "secret"
     #ssl.enabled: true
     #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
-    #ssl.certificate: "/etc/pki/client/cert.pem". 
-    #ssl.key: "/etc/pki/client/cert.key".         
+    #ssl.certificate: "/etc/pki/client/cert.pem"
+    #ssl.key: "/etc/pki/client/cert.key" 
     #ssl.verification_mode: "full"            
     xpack.enabled: true
 ----------------------------------

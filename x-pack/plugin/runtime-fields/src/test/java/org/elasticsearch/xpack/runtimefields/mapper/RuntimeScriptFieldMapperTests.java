@@ -6,23 +6,33 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
@@ -33,26 +43,22 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
+public class RuntimeScriptFieldMapperTests extends ESTestCase {
 
     private final String[] runtimeTypes;
 
     public RuntimeScriptFieldMapperTests() {
         this.runtimeTypes = RuntimeScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
         Arrays.sort(runtimeTypes);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, RuntimeFields.class, TestScriptPlugin.class);
     }
 
     public void testRuntimeTypeIsRequired() throws Exception {
@@ -163,42 +169,42 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testBoolean() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("boolean")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("boolean"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("boolean")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testDouble() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("double")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("double"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("double")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testIp() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("ip")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("ip"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("ip")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testKeyword() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("keyword")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("keyword"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("keyword")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testLong() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("long")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("long"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testDate() throws IOException {
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("date")).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("date"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("date")), Strings.toString(mapperService.documentMapper()));
@@ -206,7 +212,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDateWithFormat() throws IOException {
         CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("format", "yyyy-MM-dd"));
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
@@ -214,7 +220,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDateWithLocale() throws IOException {
         CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("locale", "en_GB"));
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
@@ -225,7 +231,7 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
             "date",
             b -> b.field("format", "yyyy-MM-dd").field("locale", "en_GB")
         );
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
@@ -253,7 +259,8 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         for (String runtimeType : runtimeTypes) {
             String scriptIndex = "test_" + runtimeType + "_script";
             String concreteIndex = "test_" + runtimeType + "_concrete";
-            createIndex(scriptIndex, Settings.EMPTY, mapping(runtimeType));
+            MapperService scriptIndexMapping = createIndex(scriptIndex, Settings.EMPTY, mapping(runtimeType));
+            MapperService concreteIndexMapping;
             {
                 XContentBuilder mapping = XContentFactory.jsonBuilder()
                     .startObject()
@@ -265,19 +272,13 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
-                createIndex(concreteIndex, Settings.EMPTY, mapping);
+                concreteIndexMapping = createIndex(concreteIndex, Settings.EMPTY, mapping);
             }
-            FieldCapabilitiesResponse response = client().prepareFieldCaps("test_" + runtimeType + "_*").setFields("field").get();
-            assertThat(response.getIndices(), arrayContainingInAnyOrder(scriptIndex, concreteIndex));
-            Map<String, FieldCapabilities> field = response.getField("field");
-            assertEquals(1, field.size());
-            FieldCapabilities fieldCapabilities = field.get(runtimeType);
-            assertTrue(fieldCapabilities.isSearchable());
-            assertTrue(fieldCapabilities.isAggregatable());
-            assertEquals(runtimeType, fieldCapabilities.getType());
-            assertNull(fieldCapabilities.nonAggregatableIndices());
-            assertNull(fieldCapabilities.nonSearchableIndices());
-            assertEquals("field", fieldCapabilities.getName());
+            MappedFieldType scriptFieldType = scriptIndexMapping.fieldType("field");
+            MappedFieldType concreteIndexType = concreteIndexMapping.fieldType("field");
+            assertEquals(concreteIndexType.familyTypeName(), scriptFieldType.familyTypeName());
+            assertEquals(concreteIndexType.isSearchable(), scriptFieldType.isSearchable());
+            assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
         }
     }
 
@@ -311,110 +312,127 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
         return mapping.endObject();
     }
 
-    public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
+    private static final ScriptEngine TEST_ENGINE = new ScriptEngine() {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "test";
-                }
-
-                @Override
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> paramsMap
-                ) {
-                    if ("dummy_source".equals(code)) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType castFactory = (FactoryType) dummyScriptFactory(context);
-                        return castFactory;
-                    }
-                    throw new IllegalArgumentException("No test script for [" + code + "]");
-                }
-
-                private Object dummyScriptFactory(ScriptContext<?> context) {
-                    if (context == BooleanScriptFieldScript.CONTEXT) {
-                        return (BooleanScriptFieldScript.Factory) (params, lookup) -> ctx -> new BooleanScriptFieldScript(
-                            params,
-                            lookup,
-                            ctx
-                        ) {
-                            @Override
-                            public void execute() {
-                                new BooleanScriptFieldScript.Value(this).value(true);
-                            }
-                        };
-                    }
-                    if (context == DateScriptFieldScript.CONTEXT) {
-                        return (DateScriptFieldScript.Factory) (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
-                            params,
-                            lookup,
-                            formatter,
-                            ctx
-                        ) {
-                            @Override
-                            public void execute() {
-                                new DateScriptFieldScript.Millis(this).millis(1595431354874L);
-                            }
-                        };
-                    }
-                    if (context == DoubleScriptFieldScript.CONTEXT) {
-                        return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(
-                            params,
-                            lookup,
-                            ctx
-                        ) {
-                            @Override
-                            public void execute() {
-                                new DoubleScriptFieldScript.Value(this).value(1.0);
-                            }
-                        };
-                    }
-                    if (context == IpScriptFieldScript.CONTEXT) {
-                        return (IpScriptFieldScript.Factory) (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
-                            @Override
-                            public void execute() {
-                                new IpScriptFieldScript.StringValue(this).stringValue("192.168.0.1");
-                            }
-                        };
-                    }
-                    if (context == StringScriptFieldScript.CONTEXT) {
-                        return (StringScriptFieldScript.Factory) (params, lookup) -> ctx -> new StringScriptFieldScript(
-                            params,
-                            lookup,
-                            ctx
-                        ) {
-                            @Override
-                            public void execute() {
-                                new StringScriptFieldScript.Value(this).value("test");
-                            }
-                        };
-                    }
-                    if (context == LongScriptFieldScript.CONTEXT) {
-                        return (LongScriptFieldScript.Factory) (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
-                            @Override
-                            public void execute() {
-                                new LongScriptFieldScript.Value(this).value(1);
-                            }
-                        };
-                    }
-                    throw new IllegalArgumentException("No test script for [" + context + "]");
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(
-                        BooleanScriptFieldScript.CONTEXT,
-                        DateScriptFieldScript.CONTEXT,
-                        DoubleScriptFieldScript.CONTEXT,
-                        StringScriptFieldScript.CONTEXT,
-                        LongScriptFieldScript.CONTEXT
-                    );
-                }
-            };
+        public String getType() {
+            return "test";
         }
+
+        @Override
+        public <FactoryType> FactoryType compile(
+            String name,
+            String code,
+            ScriptContext<FactoryType> context,
+            Map<String, String> paramsMap
+        ) {
+            if ("dummy_source".equals(code)) {
+                @SuppressWarnings("unchecked")
+                FactoryType castFactory = (FactoryType) dummyScriptFactory(context);
+                return castFactory;
+            }
+            throw new IllegalArgumentException("No test script for [" + code + "]");
+        }
+
+        private Object dummyScriptFactory(ScriptContext<?> context) {
+            if (context == BooleanScriptFieldScript.CONTEXT) {
+                return (BooleanScriptFieldScript.Factory) (params, lookup) -> ctx -> new BooleanScriptFieldScript(params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        new BooleanScriptFieldScript.Value(this).value(true);
+                    }
+                };
+            }
+            if (context == DateScriptFieldScript.CONTEXT) {
+                return (DateScriptFieldScript.Factory) (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                    params,
+                    lookup,
+                    formatter,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        new DateScriptFieldScript.Millis(this).millis(1595431354874L);
+                    }
+                };
+            }
+            if (context == DoubleScriptFieldScript.CONTEXT) {
+                return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        new DoubleScriptFieldScript.Value(this).value(1.0);
+                    }
+                };
+            }
+            if (context == IpScriptFieldScript.CONTEXT) {
+                return (IpScriptFieldScript.Factory) (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        new IpScriptFieldScript.StringValue(this).stringValue("192.168.0.1");
+                    }
+                };
+            }
+            if (context == StringScriptFieldScript.CONTEXT) {
+                return (StringScriptFieldScript.Factory) (params, lookup) -> ctx -> new StringScriptFieldScript(params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        new StringScriptFieldScript.Value(this).value("test");
+                    }
+                };
+            }
+            if (context == LongScriptFieldScript.CONTEXT) {
+                return (LongScriptFieldScript.Factory) (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        new LongScriptFieldScript.Value(this).value(1);
+                    }
+                };
+            }
+            throw new IllegalArgumentException("No test script for [" + context + "]");
+        };
+
+        @Override
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(
+                BooleanScriptFieldScript.CONTEXT,
+                DateScriptFieldScript.CONTEXT,
+                DoubleScriptFieldScript.CONTEXT,
+                IpScriptFieldScript.CONTEXT,
+                StringScriptFieldScript.CONTEXT,
+                LongScriptFieldScript.CONTEXT
+            );
+        }
+    };
+    private static final ScriptService SCRIPT_SERVICE = new ScriptService(
+        Settings.EMPTY,
+        Map.of(TEST_ENGINE.getType(), TEST_ENGINE),
+        TEST_ENGINE.getSupportedContexts().stream().collect(toMap(ctx -> ctx.name, Function.identity()))
+    );
+    private static final MapperRegistry MAPPER_REGISTRY = new IndicesModule(List.of(new RuntimeFields())).getMapperRegistry();
+
+    private MapperService createIndex(String index, Settings settings, XContentBuilder mappings) throws IOException {
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .numberOfReplicas(0)
+            .numberOfShards(1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of(),
+            Map.of()
+        );
+        SimilarityService similarityService = new SimilarityService(indexSettings, SCRIPT_SERVICE, Map.of());
+        MapperService mapperService = new MapperService(
+            indexSettings,
+            indexAnalyzers,
+            xContentRegistry(),
+            similarityService,
+            MAPPER_REGISTRY,
+            () -> { throw new UnsupportedOperationException(); },
+            () -> true,
+            SCRIPT_SERVICE
+        );
+        mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mappings)), MergeReason.MAPPING_UPDATE);
+        return mapperService;
     }
 }

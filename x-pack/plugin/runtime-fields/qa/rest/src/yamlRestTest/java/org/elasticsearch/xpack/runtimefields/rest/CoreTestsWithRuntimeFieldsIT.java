@@ -9,19 +9,28 @@ package org.elasticsearch.xpack.runtimefields.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.test.rest.yaml.section.SetupSection;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     public CoreTestsWithRuntimeFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -37,34 +46,49 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        /*
-         * Map of "setup"s that we've seen - from path to whether or
-         * not we the setup was modified to include a runtime_script
-         */
-        Map<String, Boolean> seenSetups = new HashMap<>();
+        Map<String, ClientYamlTestSuite> suites = new HashMap<>();
         List<Object[]> result = new ArrayList<>();
         for (Object[] orig : ESClientYamlSuiteTestCase.createParameters()) {
             assert orig.length == 1;
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) orig[0];
-            boolean modifiedSetup = seenSetups.computeIfAbsent(
-                candidate.getName(),
-                k -> modifySection(candidate.getSuitePath() + "/setup", candidate.getSetupSection().getExecutableSections())
+            ClientYamlTestSuite suite = suites.computeIfAbsent(candidate.getTestPath(), k -> modifiedSuite(candidate));
+            modifySection(candidate.getTestPath(), candidate.getTestSection().getExecutableSections());
+            ClientYamlTestSection modified = new ClientYamlTestSection(
+                candidate.getTestSection().getLocation(),
+                candidate.getTestSection().getName(),
+                candidate.getTestSection().getSkipSection(),
+                candidate.getTestSection().getExecutableSections()
             );
-            boolean modifiedTest = modifySection(candidate.getTestPath(), candidate.getTestSection().getExecutableSections());
-            if (modifiedSetup || modifiedTest) {
-                result.add(new Object[] { candidate });
-            }
+            result.add(new Object[] { new ClientYamlTestCandidate(suite, modified) });
         }
         return result;
     }
 
     /**
-     * Replace property configuration in {@code indices.create} with scripts
-     * that load from the source.
-     * @return {@code true} if any fields were rewritten into runtime_scripts, {@code false} otherwise.
+     * Modify the setup section to setup a dynamic template that replaces
+     * field configurations with scripts that load from source
+     * <strong>and</strong> replaces field configurations in {@code incides.create}
+     * with scripts that load from source.
      */
-    private static boolean modifySection(String sectionName, List<ExecutableSection> executables) {
-        boolean include = false;
+    private static ClientYamlTestSuite modifiedSuite(ClientYamlTestCandidate candidate) {
+        modifySection(candidate.getSuitePath() + "/setup", candidate.getSetupSection().getExecutableSections());
+        List<ExecutableSection> setup = new ArrayList<>(candidate.getSetupSection().getExecutableSections().size() + 1);
+        setup.add(ADD_TEMPLATE);
+        setup.addAll(candidate.getSetupSection().getExecutableSections());
+        return new ClientYamlTestSuite(
+            candidate.getApi(),
+            candidate.getName(),
+            new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
+            candidate.getTeardownSection(),
+            List.of()
+        );
+    }
+
+    /**
+     * Replace field configuration in {@code indices.create} with scripts
+     * that load from the source.
+     */
+    private static void modifySection(String sectionName, List<ExecutableSection> executables) {
         for (ExecutableSection section : executables) {
             if (false == (section instanceof DoSection)) {
                 continue;
@@ -129,11 +153,9 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     propertyMap.remove("store");
                     propertyMap.remove("index");
                     propertyMap.remove("doc_values");
-                    include = true;
                 }
             }
         }
-        return include;
     }
 
     private static String painlessToLoadFromSource(String name, String type) {
@@ -173,4 +195,54 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         )
     );
 
+    private static final ExecutableSection ADD_TEMPLATE = new ExecutableSection() {
+        @Override
+        public XContentLocation getLocation() {
+            return new XContentLocation(-1, -1);
+        }
+
+        @Override
+        public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
+            Map<String, String> params = Map.of("name", "convert_to_source_only", "create", "true");
+            List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
+            for (String type : PAINLESS_TO_EMIT.keySet()) {
+                if (type.equals("ip")) {
+                    // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                    continue;
+                }
+                Map<String, Object> mapping = Map.ofEntries(
+                    Map.entry("type", "runtime_script"),
+                    Map.entry("runtime_type", type),
+                    Map.entry("script", painlessToLoadFromSource("{name}", type))
+                );
+                Map<String, Object> body = Map.ofEntries(
+                    Map.entry("match_mapping_type", type.equals("keyword") ? "string" : type),
+                    Map.entry("mapping", mapping)
+                );
+                if (type.contentEquals("keyword")) {
+                    /*
+                     * For "string"-type dynamic mappings emulate our default
+                     * behavior with a top level text field and a `.keyword`
+                     * multi-field. But instead of the default, use a runtime
+                     * field for the multi-field.
+                     */
+                    mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
+                    dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
+                } else {
+                    dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
+                }
+                dynamicTemplates.add(Map.of(type, body));
+            }
+            List<Map<String, Object>> bodies = List.of(
+                Map.ofEntries(
+                    Map.entry("index_patterns", "*"),
+                    Map.entry("priority", Integer.MAX_VALUE),
+                    Map.entry("template", Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates)))
+                )
+            );
+            ClientYamlTestResponse response = executionContext.callApi("indices.put_index_template", params, bodies, Map.of());
+            assertThat(response.getStatusCode(), equalTo(200));
+            // There are probably some warning about overlapping templates. Ignore them.
+        }
+    };
 }

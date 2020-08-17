@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.time.Instant;
@@ -143,9 +144,8 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         addToRoutingTable(concreteIndex, routingTableBuilder);
         RoutingTable routingTable = routingTableBuilder.build();
 
-        // cannot mock OriginSettingClient as it is final so mock the client
-        Client client = mock(Client.class);
-        OriginSettingClient originSettingClient = new OriginSettingClient(client, "modelstatsservicetests");
+        OriginSettingClient originSettingClient =
+            MockOriginSettingClient.mockOriginSettingClient(mock(Client.class), "modelstatsservicetests");
         ClusterService clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ResultsPersisterService persisterService = mock(ResultsPersisterService.class);

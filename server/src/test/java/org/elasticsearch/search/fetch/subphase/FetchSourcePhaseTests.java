@@ -144,7 +144,8 @@ public class FetchSourcePhaseTests extends ESTestCase {
             exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude}, nestedIdentity);
     }
 
-    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) throws IOException {
+    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes)
+        throws IOException {
         return hitExecuteMultiple(source, fetchSource, includes, excludes, null);
     }
 

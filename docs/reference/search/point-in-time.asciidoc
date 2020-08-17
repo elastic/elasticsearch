@@ -1,28 +1,28 @@
 [role="xpack"]
 [testenv="basic"]
-[[search-context]]
-==== Search Context
+[[point-in-time]]
+==== Point in time
 
-A search request by default executes against the most recent point in time view
-of the target indices, which is called a search context. Elasticsearch search context
-is a lightweight, point in time, view into the state of the data as it existed when
-initiated. In some cases, it's preferred to perform multiple search requests using
-the same search context. For example, if <<indices-refresh,refreshes>> happen between
+A search request by default executes against the most recent visible data of
+the target indices, which is called point in time. Elasticsearch pit (point in time)
+is a lightweight view into the state of the data as it existed when initiated.
+In some cases, it's preferred to perform multiple search requests using
+the same point in time. For example, if <<indices-refresh,refreshes>> happen between
 search_after requests, then the results of those requests might not be consistent as
-changes happening between searches are only visible to the more recent search context.
+changes happening between searches are only visible to the more recent point in time.
 
-A search context must be opened explicitly before being used in search requests. The
-keep_alive parameter tells Elasticsearch how long it should keep the seach context alive,
+A point in time must be opened explicitly before being used in search requests. The
+keep_alive parameter tells Elasticsearch how long it should keep a point in time alive,
 e.g. `?keep_alive=5m`.
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_search_context?keep_alive=1m
+POST /my-index-000001/_pit?keep_alive=1m
 --------------------------------------------------
 // TEST[setup:my_index]
 
 The result from the above request includes a `id`, which should
-be passed to the `id` of the `search_context` parameter of a search request.
+be passed to the `id` of the `pit` parameter of a search request.
 
 [source,console]
 --------------------------------------------------
@@ -34,7 +34,7 @@ POST /_search <1>
             "title" : "elasticsearch"
         }
     },
-    "search_context": {
+    "pit": {
 	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <2>
 	    "keep_alive": "1m"  <3>
     }
@@ -42,41 +42,41 @@ POST /_search <1>
 --------------------------------------------------
 // TEST[catch:missing]
 
-<1> A search request with `search_context` must not specify `index`, `routing`,
+<1> A search request with the `pit` parameter must not specify `index`, `routing`,
 and {ref}/search-request-body.html#request-body-search-preference[`preference`]
-as these parameters are copied from the `search_context`.
-<2> The `id` parameter tells Elasticsearch to execute the request using
-the point-in-time readers from this search context id.
+as these parameters are copied from the point in time.
+<2> The `id` parameter tells Elasticsearch to execute the request using contexts
+from this point int time.
 <3> The `keep_alive` parameter tells Elasticsearch how long it should extend
-the time to live of the search context
+the time to live of the point in time.
 
-IMPORTANT: The open search context request and each subsequent search request can
+IMPORTANT: The open point in time request and each subsequent search request can
 return different `id`; thus always use the most recently received `id` for the
 next search request.
 
-[[search-context-keep-alive]]
-===== Keeping the search context alive
-The `keep_alive` parameter, which is passed to a open search context request and
-search request, extends the time to live of the search context. The value
-(e.g. `1m`, see <<time-units>>) does not need to be long enough to
+[[point-in-time-keep-alive]]
+===== Keeping point in time alive
+The `keep_alive` parameter, which is passed to a open point in time request and
+search request, extends the time to live of the corresponding point in time.
+The value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough for the next request.
 
 Normally, the background merge process optimizes the index by merging together
 smaller segments to create new, bigger segments. Once the smaller segments are
-no longer needed they are deleted. However, open search contexts prevent the
+no longer needed they are deleted. However, open point-in-times prevent the
 old segments from being deleted since they are still in use.
 
 TIP: Keeping older segments alive means that more disk space and file handles
 are needed. Ensure that you have configured your nodes to have ample free file
 handles. See <<file-descriptors>>.
 
-Additionally, if a segment contains deleted or updated documents then the search
-context must keep track of whether each document in the segment was live at the
-time of the initial search request. Ensure that your nodes have sufficient heap
-space if you have many open search contexts on an index that is subject to ongoing
+Additionally, if a segment contains deleted or updated documents then the
+point in time must keep track of whether each document in the segment was live at
+the time of the initial search request. Ensure that your nodes have sufficient heap
+space if you have many open point-in-times on an index that is subject to ongoing
 deletes or updates.
 
-You can check how many search contexts are open with the
+You can check how many point-in-times (i.e, search contexts) are open with the
 <<cluster-nodes-stats,nodes stats API>>:
 
 [source,console]
@@ -84,16 +84,16 @@ You can check how many search contexts are open with the
 GET /_nodes/stats/indices/search
 ---------------------------------------
 
-===== Close search context API
+===== Close point in time API
 
-Search contexts are automatically closed when the `keep_alive` has
-been elapsed. However keeping search contexts has a cost, as discussed in the
-<<search-context-keep-alive,previous section>>. Search contexts should be closed
+Point-in-time is automatically closed when its `keep_alive` has
+been elapsed. However keeping point-in-times has a cost, as discussed in the
+<<point-in-time-keep-alive,previous section>>. Point-in-times should be closed
 as soon as they are no longer used in search requests.
 
 [source,console]
 ---------------------------------------
-DELETE /_search_context
+DELETE /_pit
 {
     "id" : "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWIBBXV1aWQyAAA="
 }
@@ -112,5 +112,5 @@ The API returns the following response:
 // TESTRESPONSE[s/"succeeded": true/"succeeded": $body.succeeded/]
 // TESTRESPONSE[s/"num_freed": 3/"num_freed": $body.num_freed/]
 
-<1> If true, all search contexts associated with the given id are successfully closed
+<1> If true, all search contexts associated with the point-in-time id are successfully closed
 <2> The number of search contexts have been successfully closed

@@ -110,7 +110,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
-    public static final ParseField SEARCH_CONTEXT = new ParseField("search_context");
+    public static final ParseField POINT_IN_TIME = new ParseField("pit");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -190,7 +190,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private CollapseBuilder collapse = null;
 
-    private SearchContextBuilder searchContextBuilder = null;
+    private PointInTimeBuilder pointInTimeBuilder = null;
 
     /**
      * Constructs a new search source builder.
@@ -252,7 +252,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            searchContextBuilder = in.readOptionalWriteable(SearchContextBuilder::new);
+            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
     }
 
@@ -315,7 +315,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(searchContextBuilder);
+            out.writeOptionalWriteable(pointInTimeBuilder);
         }
     }
 
@@ -964,17 +964,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Returns the search context that is configured with this query
+     * Returns the point in time that is configured with this query
      */
-    public SearchContextBuilder searchContextBuilder() {
-        return searchContextBuilder;
+    public PointInTimeBuilder pointInTimeBuilder() {
+        return pointInTimeBuilder;
     }
 
     /**
-     * Specify a search context that this query should execute against.
+     * Specify a point in time that this query should execute against.
      */
-    public SearchSourceBuilder searchContextBuilder(SearchContextBuilder reader) {
-        this.searchContextBuilder = reader;
+    public SearchSourceBuilder pointInTimeBuilder(PointInTimeBuilder builder) {
+        this.pointInTimeBuilder = builder;
         return this;
     }
 
@@ -1062,7 +1062,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.version = version;
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
-        rewrittenBuilder.searchContextBuilder = searchContextBuilder;
+        rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         return rewrittenBuilder;
     }
 
@@ -1171,8 +1171,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sliceBuilder = SliceBuilder.fromXContent(parser);
                 } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
                     collapse = CollapseBuilder.fromXContent(parser);
-                } else if (SEARCH_CONTEXT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchContextBuilder = SearchContextBuilder.fromXContent(parser);
+                } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1377,8 +1377,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
-        if (searchContextBuilder != null) {
-            builder.field(SEARCH_CONTEXT.getPreferredName(), searchContextBuilder);
+        if (pointInTimeBuilder != null) {
+            builder.field(POINT_IN_TIME.getPreferredName(), pointInTimeBuilder);
         }
         return builder;
     }
@@ -1592,7 +1592,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, searchContextBuilder);
+                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder);
     }
 
     @Override
@@ -1632,7 +1632,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
-                && Objects.equals(searchContextBuilder, other.searchContextBuilder);
+                && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder);
     }
 
     @Override
@@ -1651,13 +1651,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Specify whether this search should use specific reader contexts instead of the latest ones.
      */
-    public static final class SearchContextBuilder implements Writeable, ToXContentObject {
+    public static final class PointInTimeBuilder implements Writeable, ToXContentObject {
         private static final ParseField ID_FIELD = new ParseField("id");
         private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");
         private static final ObjectParser<XContentParams, Void> PARSER;
 
         static {
-            PARSER = new ObjectParser<>(SEARCH_CONTEXT.getPreferredName(), XContentParams::new);
+            PARSER = new ObjectParser<>(POINT_IN_TIME.getPreferredName(), XContentParams::new);
             PARSER.declareString((params, id) -> params.id = id, ID_FIELD);
             PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
@@ -1672,12 +1672,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         private final String id;
         private final TimeValue keepAlive;
 
-        public SearchContextBuilder(String id, TimeValue keepAlive) {
+        public PointInTimeBuilder(String id, TimeValue keepAlive) {
             this.id = Objects.requireNonNull(id);
             this.keepAlive = Objects.requireNonNull(keepAlive);
         }
 
-        public SearchContextBuilder(StreamInput in) throws IOException {
+        public PointInTimeBuilder(StreamInput in) throws IOException {
             id = in.readString();
             keepAlive = in.readTimeValue();
         }
@@ -1695,12 +1695,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             return builder;
         }
 
-        public static SearchContextBuilder fromXContent(XContentParser parser) throws IOException {
+        public static PointInTimeBuilder fromXContent(XContentParser parser) throws IOException {
             final XContentParams params = PARSER.parse(parser, null);
             if (params.id == null || params.keepAlive == null) {
                 throw new IllegalArgumentException("id and keep_alive must be specified");
             }
-            return new SearchContextBuilder(params.id, params.keepAlive);
+            return new PointInTimeBuilder(params.id, params.keepAlive);
         }
 
         public TimeValue getKeepAlive() {
@@ -1715,7 +1715,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final SearchContextBuilder that = (SearchContextBuilder) o;
+            final PointInTimeBuilder that = (PointInTimeBuilder) o;
             return Objects.equals(id, that.id) && Objects.equals(keepAlive, that.keepAlive);
         }
 

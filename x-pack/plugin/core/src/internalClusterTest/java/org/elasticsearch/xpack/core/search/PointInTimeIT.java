@@ -10,8 +10,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextAction;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -29,9 +29,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextAction;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextRequest;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextResponse;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SearchWithReaderContextIT extends ESIntegTestCase {
+public class PointInTimeIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -70,9 +70,9 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
-        String readerId = openSearchContext(new String[] { "test" }, TimeValue.timeValueMinutes(2));
+        String readerId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
-        assertThat(resp1.searchContextId(), equalTo(readerId));
+        assertThat(resp1.pointInTimeId(), equalTo(readerId));
         assertHitCount(resp1, numDocs);
         int deletedDocs = 0;
         for (int i = 0; i < numDocs; i++) {
@@ -92,13 +92,13 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             SearchResponse resp3 = client().prepareSearch()
                 .setPreference(null)
                 .setQuery(new MatchAllQueryBuilder())
-                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(2))
+                .setSearchContext(resp1.pointInTimeId(), TimeValue.timeValueMinutes(2))
                 .get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
-            assertThat(resp3.searchContextId(), equalTo(readerId));
+            assertThat(resp3.pointInTimeId(), equalTo(readerId));
         } finally {
-            closeSearchContext(readerId);
+            closePointInTime(readerId);
         }
     }
 
@@ -114,7 +114,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openSearchContext(new String[] { "*" }, TimeValue.timeValueMinutes(2));
+        String readerId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, numDocs);
@@ -132,16 +132,16 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
 
             SearchResponse resp3 = client().prepareSearch()
                 .setPreference(null)
-                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1))
+                .setSearchContext(resp1.pointInTimeId(), TimeValue.timeValueMinutes(1))
                 .get();
             assertNoFailures(resp3);
             assertHitCount(resp3, numDocs);
         } finally {
-            closeSearchContext(resp1.searchContextId());
+            closePointInTime(resp1.pointInTimeId());
         }
     }
 
-    public void testReaderIdNotFound() throws Exception {
+    public void testPointInTimeNotFound() throws Exception {
         createIndex("index");
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
@@ -149,7 +149,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openSearchContext(new String[] { "index" }, TimeValue.timeValueSeconds(5));
+        String readerId = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
         SearchResponse resp1 = client().prepareSearch()
             .setPreference(null)
             .setSearchContext(readerId, TimeValue.timeValueMillis(randomIntBetween(0, 10)))
@@ -162,13 +162,13 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 assertThat(stats.search.getOpenContexts(), equalTo(0L));
             }, 60, TimeUnit.SECONDS);
         } else {
-            closeSearchContext(resp1.searchContextId());
+            closePointInTime(resp1.pointInTimeId());
         }
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch()
                 .setPreference(null)
-                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1))
+                .setSearchContext(resp1.pointInTimeId(), TimeValue.timeValueMinutes(1))
                 .get()
         );
         for (ShardSearchFailure failure : e.shardFailures()) {
@@ -192,7 +192,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             client().prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
-        String readerId = openSearchContext(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
+        String readerId = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
         SearchResponse resp1 = client().prepareSearch().setPreference(null).setSearchContext(readerId, TimeValue.timeValueMinutes(2)).get();
         assertNoFailures(resp1);
         assertHitCount(resp1, index1 + index2);
@@ -207,10 +207,10 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
             IndexNotFoundException.class,
             () -> client().prepareSearch()
                 .setPreference(null)
-                .setSearchContext(resp1.searchContextId(), TimeValue.timeValueMinutes(1))
+                .setSearchContext(resp1.pointInTimeId(), TimeValue.timeValueMinutes(1))
                 .get()
         );
-        closeSearchContext(resp1.searchContextId());
+        closePointInTime(resp1.pointInTimeId());
     }
 
     public void testCanMatch() throws Exception {
@@ -223,7 +223,7 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
         );
         ensureGreen("test");
-        String readerId = openSearchContext(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
+        String readerId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
         try {
             for (String node : internalCluster().nodesInclude("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
@@ -251,23 +251,23 @@ public class SearchWithReaderContextIT extends ESIntegTestCase {
                 }
             }
         } finally {
-            closeSearchContext(readerId);
+            closePointInTime(readerId);
         }
     }
 
-    private String openSearchContext(String[] indices, TimeValue keepAlive) {
-        OpenSearchContextRequest request = new OpenSearchContextRequest(
+    private String openPointInTime(String[] indices, TimeValue keepAlive) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
             indices,
-            OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS,
+            OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
             keepAlive,
             null,
             null
         );
-        final OpenSearchContextResponse response = client().execute(OpenSearchContextAction.INSTANCE, request).actionGet();
+        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
         return response.getSearchContextId();
     }
 
-    private void closeSearchContext(String readerId) {
-        client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(readerId)).actionGet();
+    private void closePointInTime(String readerId) {
+        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

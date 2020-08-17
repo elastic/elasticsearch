@@ -522,7 +522,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     boolean includeSearchContextInResponse() {
-        return request.searchContextBuilder() != null;
+        return request.pointInTimeBuilder() != null;
     }
 
     @Override
@@ -530,7 +530,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.searchContextBuilder() == null && allowPartialResults == false && failures.length > 0) {
+        if (request.pointInTimeBuilder() == null && allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class OpenSearchContextAction extends ActionType<OpenSearchContextResponse> {
-    public static final String NAME = "indices:data/read/open_search_context";
-    public static final OpenSearchContextAction INSTANCE = new OpenSearchContextAction();
+public class OpenPointInTimeAction extends ActionType<OpenPointInTimeResponse> {
+    public static final String NAME = "indices:data/read/open_point_in_time";
+    public static final OpenPointInTimeAction INSTANCE = new OpenPointInTimeAction();
 
-    private OpenSearchContextAction() {
-        super(NAME, OpenSearchContextResponse::new);
+    private OpenPointInTimeAction() {
+        super(NAME, OpenPointInTimeResponse::new);
     }
 }

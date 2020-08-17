@@ -549,7 +549,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param keepAlive       the extended time to live for the search context
      */
     public SearchRequestBuilder setSearchContext(String searchContextId, TimeValue keepAlive) {
-        sourceBuilder().searchContextBuilder(new SearchSourceBuilder.SearchContextBuilder(searchContextId, keepAlive));
+        sourceBuilder().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
         return this;
     }
 

@@ -34,7 +34,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportOpenSearchContextAction extends HandledTransportAction<OpenSearchContextRequest, OpenSearchContextResponse> {
+public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
 
     private final TransportSearchAction transportSearchAction;
@@ -42,13 +42,13 @@ public class TransportOpenSearchContextAction extends HandledTransportAction<Ope
     private final SearchService searchService;
 
     @Inject
-    public TransportOpenSearchContextAction(
+    public TransportOpenPointInTimeAction(
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction
     ) {
-        super(OpenSearchContextAction.NAME, transportService, actionFilters, OpenSearchContextRequest::new);
+        super(OpenPointInTimeAction.NAME, transportService, actionFilters, OpenPointInTimeRequest::new);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
@@ -61,12 +61,12 @@ public class TransportOpenSearchContextAction extends HandledTransportAction<Ope
         TransportActionProxy.registerProxyAction(
             transportService,
             OPEN_SHARD_READER_CONTEXT_NAME,
-            TransportOpenSearchContextAction.ShardOpenReaderResponse::new
+            TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
         );
     }
 
     @Override
-    protected void doExecute(Task task, OpenSearchContextRequest request, ActionListener<OpenSearchContextResponse> listener) {
+    protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
@@ -91,7 +91,7 @@ public class TransportOpenSearchContextAction extends HandledTransportAction<Ope
                     new ActionListenerResponseHandler<SearchPhaseResult>(phaseListener, ShardOpenReaderResponse::new)
                 );
             },
-            ActionListener.map(listener, r -> new OpenSearchContextResponse(r.searchContextId()))
+            ActionListener.map(listener, r -> new OpenPointInTimeResponse(r.pointInTimeId()))
         );
     }
 

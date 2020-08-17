@@ -11,12 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class CloseSearchContextResponse extends ClearScrollResponse {
-    public CloseSearchContextResponse(boolean succeeded, int numFreed) {
+public class ClosePointInTimeResponse extends ClearScrollResponse {
+    public ClosePointInTimeResponse(boolean succeeded, int numFreed) {
         super(succeeded, numFreed);
     }
 
-    public CloseSearchContextResponse(StreamInput in) throws IOException {
+    public ClosePointInTimeResponse(StreamInput in) throws IOException {
         super(in);
     }
 }

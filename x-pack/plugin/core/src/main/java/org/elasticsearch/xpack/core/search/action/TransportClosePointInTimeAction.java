@@ -21,35 +21,35 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 
-public class TransportCloseSearchContextAction extends HandledTransportAction<CloseSearchContextRequest, CloseSearchContextResponse> {
+public class TransportClosePointInTimeAction extends HandledTransportAction<ClosePointInTimeRequest, ClosePointInTimeResponse> {
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     @Inject
-    public TransportCloseSearchContextAction(
+    public TransportClosePointInTimeAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(CloseSearchContextAction.NAME, transportService, actionFilters, CloseSearchContextRequest::new);
+        super(ClosePointInTimeAction.NAME, transportService, actionFilters, ClosePointInTimeRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
-    protected void doExecute(Task task, CloseSearchContextRequest request, ActionListener<CloseSearchContextResponse> listener) {
+    protected void doExecute(Task task, ClosePointInTimeRequest request, ActionListener<ClosePointInTimeResponse> listener) {
         final SearchContextId searchContextId = SearchContextId.decode(namedWriteableRegistry, request.getId());
         final Collection<SearchContextIdForNode> contextIds = searchContextId.shards().values();
         ClearScrollController.closeContexts(
             clusterService.state().nodes(),
             searchTransportService,
             contextIds,
-            ActionListener.map(listener, freed -> new CloseSearchContextResponse(freed == contextIds.size(), freed))
+            ActionListener.map(listener, freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
         );
     }
 }

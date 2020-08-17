@@ -285,8 +285,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
-            if (searchRequest.searchContextBuilder() != null) {
-                searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.searchContextBuilder().getId());
+            if (searchRequest.pointInTimeBuilder() != null) {
+                searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.pointInTimeBuilder().getId());
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
             } else {
                 searchContext = null;
@@ -341,7 +341,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.scroll() != null) {
             return false;
         }
-        if (searchRequest.searchContextBuilder() != null) {
+        if (searchRequest.pointInTimeBuilder() != null) {
             return false;
         }
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
@@ -379,7 +379,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onResponse(new SearchResponse(internalSearchResponse, searchResponse.getScrollId(),
                         searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(), searchResponse.getShardFailures(), new SearchResponse.Clusters(1, 1, 0),
-                        searchResponse.searchContextId()));
+                        searchResponse.pointInTimeId()));
                 }
 
                 @Override
@@ -573,12 +573,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         boolean preFilterSearchShards;
         if (searchContext != null) {
-            assert searchRequest.searchContextBuilder() != null;
+            assert searchRequest.pointInTimeBuilder() != null;
             aliasFilter = searchContext.aliasFilter();
             indexRoutings = Map.of();
             asyncSearchExecutor = asyncSearchExecutor(localIndices.indices(), clusterState);
             localShardIterators = getSearchShardsFromSearchContexts(clusterState, localIndices, searchRequest.getLocalClusterAlias(),
-                searchContext, searchRequest.searchContextBuilder().getKeepAlive());
+                searchContext, searchRequest.pointInTimeBuilder().getKeepAlive());
             preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, localIndices.indices(),
                 localShardIterators.size() + remoteShardIterators.size());
         } else {

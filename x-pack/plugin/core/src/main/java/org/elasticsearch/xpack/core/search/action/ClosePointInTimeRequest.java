@@ -18,17 +18,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class CloseSearchContextRequest extends ActionRequest implements ToXContentObject {
+public class ClosePointInTimeRequest extends ActionRequest implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
     private final String id;
 
-    public CloseSearchContextRequest(StreamInput in) throws IOException {
+    public ClosePointInTimeRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
     }
 
-    public CloseSearchContextRequest(String id) {
+    public ClosePointInTimeRequest(String id) {
         this.id = id;
     }
 
@@ -58,7 +58,7 @@ public class CloseSearchContextRequest extends ActionRequest implements ToXConte
         return builder;
     }
 
-    public static CloseSearchContextRequest fromXContent(XContentParser parser) throws IOException {
+    public static ClosePointInTimeRequest fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -79,7 +79,7 @@ public class CloseSearchContextRequest extends ActionRequest implements ToXConte
             if (Strings.isNullOrEmpty(id)) {
                 throw new IllegalArgumentException("search context id is is not provided");
             }
-            return new CloseSearchContextRequest(id);
+            return new ClosePointInTimeRequest(id);
         }
     }
 }

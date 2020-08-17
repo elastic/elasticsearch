@@ -209,7 +209,7 @@ final class FetchSearchPhase extends SearchPhase {
         // we only release search context that we did not fetch from if we are not scrolling
         // and if it has at lease one hit that didn't make it to the global topDocs
         if (context.getRequest().scroll() == null &&
-            context.getRequest().searchContextBuilder() == null &&
+            context.getRequest().pointInTimeBuilder() == null &&
             queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();

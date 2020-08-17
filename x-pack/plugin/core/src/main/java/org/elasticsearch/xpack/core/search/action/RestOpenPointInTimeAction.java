@@ -19,26 +19,26 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestOpenSearchContextAction extends BaseRestHandler {
+public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "open_search_context";
+        return "open_point_in_time";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_search_context"));
+        return List.of(new Route(POST, "/{index}/_pit"));
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS);
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS);
         final String routing = request.param("routing");
         final String preference = request.param("preference");
         final TimeValue keepAlive = TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive");
-        final OpenSearchContextRequest openRequest = new OpenSearchContextRequest(indices, indicesOptions, keepAlive, routing, preference);
-        return channel -> client.execute(OpenSearchContextAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
+        final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices, indicesOptions, keepAlive, routing, preference);
+        return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -17,24 +17,24 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestCloseSearchContextAction extends BaseRestHandler {
+public class RestClosePointInTimeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_search_context"));
+        return List.of(new Route(DELETE, "/_pit"));
     }
 
     @Override
     public String getName() {
-        return "close_search_context";
+        return "close_point_in_time";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final CloseSearchContextRequest clearRequest;
+        final ClosePointInTimeRequest clearRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            clearRequest = CloseSearchContextRequest.fromXContent(parser);
+            clearRequest = ClosePointInTimeRequest.fromXContent(parser);
         }
-        return channel -> client.execute(CloseSearchContextAction.INSTANCE, clearRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(ClosePointInTimeAction.INSTANCE, clearRequest, new RestStatusToXContentListener<>(channel));
     }
 }

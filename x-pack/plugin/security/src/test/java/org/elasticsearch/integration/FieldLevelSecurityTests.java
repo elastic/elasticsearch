@@ -11,8 +11,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextAction;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -41,9 +41,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextAction;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextRequest;
-import org.elasticsearch.xpack.core.search.action.OpenSearchContextResponse;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import java.util.Arrays;
@@ -730,11 +730,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     static String openSearchContext(String userName, TimeValue keepAlive, String... indices) {
-        OpenSearchContextRequest request = new OpenSearchContextRequest(
-            indices, OpenSearchContextRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
-        final OpenSearchContextResponse response = client()
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
+            indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenPointInTimeResponse response = client()
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
-            .execute(OpenSearchContextAction.INSTANCE, request).actionGet();
+            .execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
         return response.getSearchContextId();
     }
 
@@ -771,7 +771,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(readerId)).actionGet();
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
         }
     }
 

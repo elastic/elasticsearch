@@ -35,15 +35,15 @@ setup:
         index: "test*"
 
 ---
-"search context":
+"point in time":
   - skip:
       version: " - 7.99.99"
-      reason: "search context is introduced in 8.0"
+      reason: "point in time is introduced in 8.0"
   - do:
-      open_search_context:
+      open_point_in_time:
         index: test
         keep_alive: 5m
-  - set: {id: search_context_id}
+  - set: {id: point_in_time_id}
 
   - do:
       search:
@@ -54,8 +54,8 @@ setup:
             match:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
-          search_context:
-            id: "$search_context_id"
+          pit:
+            id: "point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 3 }
@@ -73,7 +73,7 @@ setup:
       indices.refresh:
         index: test
 
-  # search with the retaining search context
+  # search with a point in time
   - do:
       search:
         rest_total_hits_as_int: true
@@ -84,8 +84,8 @@ setup:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
           search_after: [24, 172]
-          search_context:
-            id: "$search_context_id"
+          pit:
+            id: "$point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 3 }
@@ -104,8 +104,8 @@ setup:
               foo: bar
           sort: [ { age: desc }, { id: desc } ]
           search_after: [18, 42]
-          search_context:
-            id: "$search_context_id"
+          pit:
+            id: "$point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 3}
@@ -124,28 +124,28 @@ setup:
               foo: bar
           sort: [{ age: desc }, { id: desc } ]
           search_after: [18, 1]
-          search_context:
-            id: "$search_context_id"
+          pit:
+            id: "$point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 3}
   - length: {hits.hits: 0 }
 
   - do:
-      close_search_context:
+      close_point_in_time:
         body:
-          id: "$search_context_id"
+          id: "$point_in_time_id"
 
 ---
-"Search context with wildcard":
+"Point in time with wildcard":
   - skip:
       version: " - 7.99.99"
-      reason: "search context is introduced in 8.0"
+      reason: "point in time is introduced in 8.0"
   - do:
-      open_search_context:
+      open_point_in_time:
         index: "t*"
         keep_alive: 5m
-  - set: {id: search_context_id}
+  - set: {id: point_in_time_id}
 
   - do:
       search:
@@ -156,8 +156,8 @@ setup:
             match:
               foo: bar
           sort: [{ age: desc }, { id: desc }]
-          search_context:
-            id: "$search_context_id"
+          pit:
+            id: "$point_in_time_id"
             keep_alive: 1m
 
   - match: {hits.total: 4 }
@@ -168,6 +168,6 @@ setup:
   - match: {hits.hits.1._id: "45" }
 
   - do:
-      close_search_context:
+      close_point_in_time:
         body:
-          id: "$search_context_id"
+          id: "$point_in_time_id"

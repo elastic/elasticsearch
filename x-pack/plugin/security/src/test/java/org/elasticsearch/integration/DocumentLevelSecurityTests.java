@@ -12,8 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextAction;
-import org.elasticsearch.xpack.core.search.action.CloseSearchContextRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -798,7 +798,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(CloseSearchContextAction.INSTANCE, new CloseSearchContextRequest(response.searchContextId())).actionGet();
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(response.pointInTimeId())).actionGet();
         }
     }
 

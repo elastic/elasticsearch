@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenSearchContextRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private final IndicesOptions indicesOptions;
     private final TimeValue keepAlive;
@@ -36,8 +36,8 @@ public final class OpenSearchContextRequest extends ActionRequest implements Ind
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    public OpenSearchContextRequest(String[] indices, IndicesOptions indicesOptions,
-                                    TimeValue keepAlive, String routing, String preference) {
+    public OpenPointInTimeRequest(String[] indices, IndicesOptions indicesOptions,
+                                  TimeValue keepAlive, String routing, String preference) {
         this.indices = Objects.requireNonNull(indices);
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.keepAlive = keepAlive;
@@ -45,7 +45,7 @@ public final class OpenSearchContextRequest extends ActionRequest implements Ind
         this.preference = preference;
     }
 
-    public OpenSearchContextRequest(StreamInput in) throws IOException {
+    public OpenPointInTimeRequest(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -82,7 +82,7 @@ public final class OpenSearchContextRequest extends ActionRequest implements Ind
     }
 
     @Override
-    public OpenSearchContextRequest indices(String... indices) {
+    public OpenPointInTimeRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

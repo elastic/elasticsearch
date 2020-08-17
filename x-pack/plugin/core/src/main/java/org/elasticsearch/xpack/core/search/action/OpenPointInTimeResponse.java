@@ -15,16 +15,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public final class OpenSearchContextResponse extends ActionResponse implements ToXContentObject {
+public final class OpenPointInTimeResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
     private final String searchContextId;
 
-    public OpenSearchContextResponse(String searchContextId) {
+    public OpenPointInTimeResponse(String searchContextId) {
         this.searchContextId = searchContextId;
     }
 
-    public OpenSearchContextResponse(StreamInput in) throws IOException {
+    public OpenPointInTimeResponse(StreamInput in) throws IOException {
         super(in);
         searchContextId = in.readString();
     }

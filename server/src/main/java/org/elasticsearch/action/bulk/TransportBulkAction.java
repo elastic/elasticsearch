@@ -799,8 +799,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
+            logger.debug(String.format("failed to execute pipeline [%s] for document [%s/%s/%s]",
+                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
 
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed

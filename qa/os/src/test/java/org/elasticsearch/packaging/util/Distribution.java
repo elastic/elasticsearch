@@ -95,10 +95,6 @@ public class Distribution {
             this.extension = extension;
             this.compatible = compatible;
         }
-
-        public boolean isDocker() {
-            return this == DOCKER || this == DOCKER_UBI;
-        }
     }
 
     public enum Platform {

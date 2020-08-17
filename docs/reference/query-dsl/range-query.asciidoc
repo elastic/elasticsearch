@@ -66,7 +66,7 @@ For valid syntax, see <<mapping-date-format,`format`>>.
 ====
 If a `format` and `date` value are incomplete, {es} replaces any missing year,
 month, or date component with the start of
-https://en.wikipedia.org/wiki/Unix_time[Unix time], which is January 1st, 1970.
+{wikipedia}/Unix_time[Unix time], which is January 1st, 1970.
 
 For example, if the `format` value is `dd`, {es} converts a `gte` value of `10`
 to `1970-01-10T00:00:00.000Z`.
@@ -95,9 +95,9 @@ Matches documents with a range field value entirely within the query's range.
 +
 --
 (Optional, string)
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC) offset] or
-https://en.wikipedia.org/wiki/List_of_tz_database_time_zones[IANA time zone]
+{wikipedia}/List_of_tz_database_time_zones[IANA time zone]
 used to convert `date` values in the query to UTC.
 
 Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA

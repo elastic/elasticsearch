@@ -19,6 +19,8 @@ import java.util.Map;
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
 public abstract class AbstractScriptFieldScript {
+    public static final int MAX_VALUES = 1000;
+
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 

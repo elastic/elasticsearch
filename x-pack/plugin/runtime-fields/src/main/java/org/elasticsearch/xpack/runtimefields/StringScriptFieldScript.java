@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+    public static final long MAX_CHARS = 1024 * 1024;
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -36,6 +37,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     private final List<String> results = new ArrayList<>();
+    private long chars;
 
     public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
@@ -49,6 +51,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
      */
     public final List<String> resultsForDoc(int docId) {
         results.clear();
+        chars = 0;
         setDocument(docId);
         execute();
         return results;
@@ -62,6 +65,13 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         }
 
         public void value(String v) {
+            if (script.results.size() >= MAX_VALUES) {
+                throw new IllegalArgumentException("too many runtime values");
+            }
+            script.chars += v.length();
+            if (script.chars >= MAX_CHARS) {
+                throw new IllegalArgumentException("too many characters in runtime values [" + script.chars + "]");
+            }
             script.results.add(v);
         }
     }

@@ -39,11 +39,18 @@ public class PagedBytesReference extends AbstractBytesReference {
     private final int offset;
     private final int length;
 
-    public PagedBytesReference(ByteArray byteArray, int length) {
-        this(byteArray, 0, length);
+    public static BytesReference of(ByteArray byteArray, int length) {
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+        if (byteArray.hasArray()) {
+            return new BytesArray(byteArray.array(), 0, length);
+        }
+        return new PagedBytesReference(byteArray, 0, length);
     }
 
     private PagedBytesReference(ByteArray byteArray, int from, int length) {
+        assert byteArray.hasArray() == false;
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;

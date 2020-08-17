@@ -147,7 +147,10 @@ public class BytesStreamOutput extends BytesStream {
 
     @Override
     public BytesReference bytes() {
-        return new PagedBytesReference(bytes, count);
+        if (bytes == null) {
+            return BytesArray.EMPTY;
+        }
+        return PagedBytesReference.of(bytes, count);
     }
 
     /**

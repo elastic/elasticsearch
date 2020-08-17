@@ -101,23 +101,27 @@ public abstract class AbstractBytesReference implements BytesReference {
     @Override
     public int hashCode() {
         if (hash == null) {
-            final BytesRefIterator iterator = iterator();
-            BytesRef ref;
-            int result = 1;
-            try {
-                while ((ref = iterator.next()) != null) {
-                    for (int i = 0; i < ref.length; i++) {
-                        result = 31 * result + ref.bytes[ref.offset + i];
-                    }
-                }
-            } catch (IOException ex) {
-                throw new AssertionError("wont happen", ex);
-            }
-            return hash = result;
-        } else {
-            return hash.intValue();
+            hash = calculateHashCode();
         }
+        return hash;
     }
+
+    protected int calculateHashCode() {
+        final BytesRefIterator iterator = iterator();
+        BytesRef ref;
+        int result = 1;
+        try {
+            while ((ref = iterator.next()) != null) {
+                for (int i = 0; i < ref.length; i++) {
+                    result = 31 * result + ref.bytes[ref.offset + i];
+                }
+            }
+        } catch (IOException ex) {
+            throw new AssertionError("wont happen", ex);
+        }
+        return hash = result;
+    }
+
 
     @Override
     public int compareTo(final BytesReference other) {

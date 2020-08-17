@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -97,9 +98,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
 
     @Override
     public void close() throws IOException {
-        if (overflow != null) {
-            overflow.close();
-        }
+        IOUtils.close(overflow);
     }
 
     @Override

@@ -221,7 +221,22 @@ with an updated mapping and reindex your data to it.
 
 The following `my-index-000001` index contains a mapping for the `datetime` field, a
 `date` field with a custom joda-time date format.
-
+////
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+      }
+    }
+  }
+}
+--------------------------------------------------
+////
 
 [source,console]
 --------------------------------------------------

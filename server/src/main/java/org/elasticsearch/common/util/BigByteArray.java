@@ -134,6 +134,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
 
     @Override
     public byte[] array() {
+        assert false;
         throw new UnsupportedOperationException();
     }
 

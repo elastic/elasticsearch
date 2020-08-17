@@ -336,10 +336,6 @@ public class Decorations {
         }
     }
 
-    public interface Concatenate extends Condition {
-
-    }
-
     public static class StandardPainlessField implements Decoration {
 
         private final PainlessField standardPainlessField;

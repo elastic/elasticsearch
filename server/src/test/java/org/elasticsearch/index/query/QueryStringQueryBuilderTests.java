@@ -40,7 +40,6 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.RegexpQuery87;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;

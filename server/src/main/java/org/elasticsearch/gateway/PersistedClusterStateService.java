@@ -855,6 +855,9 @@ public class PersistedClusterStateService {
                     throw new AssertionError("impossible", e);
                 }
 
+                // we require that we have the whole page to ourselves
+                assert firstPage.offset == 0 : firstPage.offset;
+                assert firstPage.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES : firstPage.bytes.length;
                 buffer = firstPage.bytes;
                 releasable = byteArray;
             } else {

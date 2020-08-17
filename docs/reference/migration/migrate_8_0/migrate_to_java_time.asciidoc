@@ -242,6 +242,7 @@ PUT my-index-000001
 --------------------------------------------------
 GET my-index-000001/_mapping
 --------------------------------------------------
+// TEST[continued]
 
 [source,console-result]
 --------------------------------------------------
@@ -280,7 +281,7 @@ PUT my-index-000002
   }
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 Next, reindex data from the old index to the new index.
 
@@ -299,7 +300,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 If you use index aliases, update them to point to the new index.
 
@@ -313,6 +314,6 @@ POST /_aliases
   ]
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 

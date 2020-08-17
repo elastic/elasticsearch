@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -71,6 +72,10 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         } else {
             falses++;
         }
+    }
+
+    public static boolean parse(Object str) {
+        return Booleans.parseBoolean(str.toString());
     }
 
     public static class Value {

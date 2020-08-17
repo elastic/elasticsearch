@@ -61,7 +61,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"true\"]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
@@ -327,7 +327,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new BooleanScriptFieldScript.Value(this).value((Boolean) foo);
+                                            new BooleanScriptFieldScript.Value(this).value(parse(foo));
                                         }
                                     }
                                 };

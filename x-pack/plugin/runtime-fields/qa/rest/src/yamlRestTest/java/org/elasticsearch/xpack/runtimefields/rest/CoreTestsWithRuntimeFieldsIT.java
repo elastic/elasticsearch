@@ -184,7 +184,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
         // TODO implement dates against the parser
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(Booleans.parseBoolean(value.toString()));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(parse(value));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
             "value(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"

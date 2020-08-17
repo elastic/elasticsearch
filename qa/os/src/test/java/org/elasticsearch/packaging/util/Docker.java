@@ -104,7 +104,26 @@ public class Docker {
      * @param envVars environment variables to set when running the container, or null
      */
     public static Installation runContainer(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
-        executeDockerRun(distribution, volumes, envVars);
+        return runContainer(distribution, volumes, envVars, null, null);
+    }
+
+    /**
+     * Runs an Elasticsearch Docker container, with options for overriding the config directory
+     * through a bind mount, and passing additional environment variables.
+     * @param distribution details about the docker image being tested.
+     * @param volumes a map that declares any volume mappings to apply, or null
+     * @param envVars environment variables to set when running the container, or null
+     * @param uid optional UID to run the container under
+     * @param gid optional GID to run the container under
+     */
+    public static Installation runContainer(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String, String> envVars,
+        Integer uid,
+        Integer gid
+    ) {
+        executeDockerRun(distribution, volumes, envVars, uid, gid);
 
         waitForElasticsearchToStart();
 
@@ -125,14 +144,20 @@ public class Docker {
         Map<Path, Path> volumes,
         Map<String, String> envVars
     ) {
-        executeDockerRun(distribution, volumes, envVars);
+        executeDockerRun(distribution, volumes, envVars, null, null);
 
         waitForElasticsearchToExit();
 
         return getContainerLogs();
     }
 
-    private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
+    private static void executeDockerRun(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String, String> envVars,
+        Integer uid,
+        Integer gid
+    ) {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
@@ -165,6 +190,19 @@ public class Docker {
                 }
                 args.add("--volume \"" + localPath + ":" + containerPath + "\"");
             });
+        }
+
+        if (uid == null) {
+            if (gid != null) {
+                throw new IllegalArgumentException("Cannot override GID without also overriding UID");
+            }
+        } else {
+            args.add("--user");
+            if (gid != null) {
+                args.add(uid + ":" + gid);
+            } else {
+                args.add(uid.toString());
+            }
         }
 
         // Image name

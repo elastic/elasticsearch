@@ -212,6 +212,37 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that it is possible to run Elasticsearch under a different user and group to the default.
+     */
+    public void test072RunEsAsDifferentUserAndGroup() throws Exception {
+        assumeFalse(Platforms.WINDOWS);
+
+        final Path tempEsDataDir = tempDir.resolve("esDataDir");
+        final Path tempEsConfigDir = tempDir.resolve("esConfDir");
+        final Path tempEsLogsDir = tempDir.resolve("esLogsDir");
+
+        Files.createDirectory(tempEsConfigDir);
+        Files.createDirectory(tempEsConfigDir.resolve("jvm.options.d"));
+        Files.createDirectory(tempEsDataDir);
+        Files.createDirectory(tempEsLogsDir);
+
+        copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
+        copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
+        copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
+
+        // Define the bind mounts
+        final Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);
+        volumes.put(tempEsConfigDir.toAbsolutePath(), installation.config);
+        volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
+
+        // Restart the container
+        runContainer(distribution(), volumes, null, 1500, 1500);
+
+        waitForElasticsearch(installation);
+    }
+
+    /**
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
     public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {

@@ -31,7 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -86,14 +85,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     public void testFormatDuel() throws IOException {
-        DateFormatter formatter = DateFormatter.forPattern(randomFrom(FormatNames.values()).getSnakeCaseName())
-            .withLocale(randomLocale(random()));
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
         ScriptDateMappedFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
         DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
         for (int i = 0; i < 100; i++) {
             long date = randomLongBetween(0, 3000000000000L); // Maxes out in the year 2065
             assertThat(indexed.docValueFormat(null, null).format(date), equalTo(scripted.docValueFormat(null, null).format(date)));
-            String format = randomFrom(FormatNames.values()).getSnakeCaseName();
+            String format = randomDateFormatterPattern();
             assertThat(indexed.docValueFormat(format, null).format(date), equalTo(scripted.docValueFormat(format, null).format(date)));
             ZoneId zone = randomZone();
             assertThat(indexed.docValueFormat(null, zone).format(date), equalTo(scripted.docValueFormat(null, zone).format(date)));

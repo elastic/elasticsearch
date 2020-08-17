@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -146,8 +147,7 @@ public class TrainedModelProvider {
         storeTrainedModelAndDefinition(trainedModelConfig, listener);
     }
 
-    public void storeTrainedModelMetadata(TrainedModelConfig trainedModelConfig,
-                                          ActionListener<Boolean> listener) {
+    public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(new ResourceAlreadyExistsException(
                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
@@ -204,6 +204,68 @@ public class TrainedModelProvider {
                     }
                 }
             ));
+    }
+
+    public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelMetadata.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelMetadata.getModelId())));
+            return;
+        }
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelMetadata.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelMetadata),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(null),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_METADATA_EXISTS,
+                                trainedModelMetadata.getModelId())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelMetadata.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void getTrainedModelMetadata(String modelId, ActionListener<TrainedModelMetadata> listener) {
+        SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
+                .boolQuery()
+                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
+                    TrainedModelMetadata.NAME))))
+            .setSize(1)
+            // First find the latest index
+            .addSort("_index", SortOrder.DESC)
+            .request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelId)));
+                    return;
+                }
+                List<TrainedModelMetadata> metadataList = handleHits(searchResponse.getHits().getHits(),
+                    modelId,
+                    this::parseMetadataLenientlyFromSource);
+                listener.onResponse(metadataList.get(0));
+            },
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelId)));
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        ));
     }
 
     public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
@@ -923,6 +985,17 @@ public class TrainedModelProvider {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
+            throw e;
+        }
+    }
+
+    private TrainedModelMetadata parseMetadataLenientlyFromSource(BytesReference source, String modelId) throws IOException {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return TrainedModelMetadata.fromXContent(parser, true);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] failed to parse model metadata", modelId), e);
             throw e;
         }
     }

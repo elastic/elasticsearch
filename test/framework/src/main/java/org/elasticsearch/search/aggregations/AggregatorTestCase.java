@@ -421,9 +421,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-     * Divides the provided {@link IndexSearcher} in sub-searcher, one for each segment,
-     * builds an aggregator for each sub-searcher filtered by the provided {@link Query} and
+     * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
+     * <p>
+     * Half the time it aggregates each leaf individually and reduces all
+     * results together. The other half the time it aggregates across the entire
+     * index at once and runs a final reduction on the single resulting agg.
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
                                                                                       IndexSearcher searcher,

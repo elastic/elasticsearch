@@ -159,6 +159,46 @@ setup:
   - match: {hits.total.value: 1}
 
 ---
+"Query_string prefix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "hello*"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 1}
+---
+"Query_string wildcard query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "*orld"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 3}
+---
+"Query_string regex query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "/hello.*/"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 1}
+
+---
 "Term query on wildcard field":
   - do:
       search:

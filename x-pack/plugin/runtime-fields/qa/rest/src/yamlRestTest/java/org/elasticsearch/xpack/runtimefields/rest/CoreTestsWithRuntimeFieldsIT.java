@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -183,6 +184,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(parse(value));"),
         Map.entry(DateFieldMapper.CONTENT_TYPE, "millis(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),

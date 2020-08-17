@@ -5,7 +5,7 @@
 ++++
 
 Returns documents that contain terms similar to the search term, as measured by
-a https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
+a {wikipedia}/Levenshtein_distance[Levenshtein edit distance].
 
 An edit distance is the number of one-character changes needed to turn one term
 into another. These changes can include:
@@ -99,6 +99,7 @@ adjacent characters (ab → ba). Defaults to `true`.
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+[[fuzzy-query-notes]]
 ==== Notes
 Fuzzy queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.

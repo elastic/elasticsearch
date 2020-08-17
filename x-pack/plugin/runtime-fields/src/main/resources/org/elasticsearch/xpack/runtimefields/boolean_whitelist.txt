@@ -1,0 +1,20 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# The whitelist for boolean-valued runtime fields
+
+class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript @no_import {
+
+}
+
+static_import {
+    void value(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Value
+    boolean parse(def) from_class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript
+}
+
+# This import is required to make painless happy and it isn't 100% clear why
+class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Factory @no_import {
+}

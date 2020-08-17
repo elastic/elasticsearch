@@ -22,6 +22,7 @@ package org.elasticsearch.test.test;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -198,5 +200,10 @@ public class ESTestCaseTests extends ESTestCase {
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
         assertEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testRandomDateFormatterPattern() {
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
+        assertThat(formatter.parseMillis(formatter.formatMillis(0)), equalTo(0L));
     }
 }

@@ -46,6 +46,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,14 +54,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -630,58 +636,59 @@ public class PersistedClusterStateService {
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only",
                 metadata.coordinationMetadata().term());
 
-            final DocumentBuffer documentBuffer = allocateBuffer();
+            try (DocumentBuffer documentBuffer = allocateBuffer()) {
 
-            final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
-            if (updateGlobalMeta) {
-                final Document globalMetadataDocument = makeGlobalMetadataDocument(metadata, documentBuffer);
-                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
-                }
-            }
-
-            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-            for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
-                assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
-            }
-
-            int numIndicesUpdated = 0;
-            int numIndicesUnchanged = 0;
-            for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
-                if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
-                    logger.trace("updating metadata for [{}], changing version from [{}] to [{}]",
-                        indexMetadata.getIndex(), previousVersion, indexMetadata.getVersion());
-                    numIndicesUpdated++;
-                    final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
+                final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
+                if (updateGlobalMeta) {
+                    final Document globalMetadataDocument = makeGlobalMetadataDocument(metadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
+                        metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                     }
-                } else {
-                    numIndicesUnchanged++;
-                    logger.trace("no action required for [{}]", indexMetadata.getIndex());
                 }
-                indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
-            }
 
-            documentBufferUsed = documentBuffer.getMaxUsed();
+                final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
+                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
+                    final IndexMetadata indexMetadata = cursor.value;
+                    final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
+                    assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
+                }
 
-            for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+                int numIndicesUpdated = 0;
+                int numIndicesUnchanged = 0;
+                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+                    final IndexMetadata indexMetadata = cursor.value;
+                    final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
+                    if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
+                        logger.trace("updating metadata for [{}], changing version from [{}] to [{}]",
+                                indexMetadata.getIndex(), previousVersion, indexMetadata.getVersion());
+                        numIndicesUpdated++;
+                        final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
+                        for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                            metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
+                        }
+                    } else {
+                        numIndicesUnchanged++;
+                        logger.trace("no action required for [{}]", indexMetadata.getIndex());
+                    }
+                    indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
+                }
+
+                documentBufferUsed = documentBuffer.getMaxUsed();
+
+                for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        metadataIndexWriter.deleteIndexMetadata(removedIndexUUID);
+                    }
+                }
+
+                // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
+                // gracefully than one that occurs during the commit process.
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.deleteIndexMetadata(removedIndexUUID);
+                    metadataIndexWriter.flush();
                 }
-            }
 
-            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
-            // gracefully than one that occurs during the commit process.
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.flush();
+                return new WriterStats(updateGlobalMeta, numIndicesUpdated, numIndicesUnchanged);
             }
-
-            return new WriterStats(updateGlobalMeta, numIndicesUpdated, numIndicesUnchanged);
         }
 
         /**
@@ -698,34 +705,39 @@ public class PersistedClusterStateService {
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
         private WriterStats addMetadata(Metadata metadata) throws IOException {
-            final DocumentBuffer documentBuffer = allocateBuffer();
+            try (DocumentBuffer documentBuffer = allocateBuffer()) {
 
-            final Document globalMetadataDocument = makeGlobalMetadataDocument(metadata, documentBuffer);
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
-            }
-
-            for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
+                final Document globalMetadataDocument = makeGlobalMetadataDocument(metadata, documentBuffer);
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
+                    metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
+
+                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+                    final IndexMetadata indexMetadata = cursor.value;
+                    final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
+                    }
+                }
+
+                documentBufferUsed = documentBuffer.getMaxUsed();
+
+                // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
+                // gracefully than one that occurs during the commit process.
+                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                    metadataIndexWriter.flush();
+                }
+
+                return new WriterStats(true, metadata.indices().size(), 0);
             }
-
-            documentBufferUsed = documentBuffer.getMaxUsed();
-
-            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
-            // gracefully than one that occurs during the commit process.
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.flush();
-            }
-
-            return new WriterStats(true, metadata.indices().size(), 0);
         }
 
         private DocumentBuffer allocateBuffer() {
-            return new DocumentBuffer(documentBufferUsed + (documentBufferUsed >> 3), bigArrays);
+            // heuristics for picking the initial buffer size based on the buffer we needed last time: try and fit within a single page,
+            // but if we needed more than a single page last time then allow a bit more space to try and avoid needing to grow the buffer
+            // later on.
+            final int extraSpace = documentBufferUsed <= PageCacheRecycler.PAGE_SIZE_IN_BYTES ? 0 : PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+            return new DocumentBuffer(documentBufferUsed + extraSpace, bigArrays);
         }
 
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
@@ -823,13 +835,32 @@ public class PersistedClusterStateService {
     /**
      * Holds the current buffer, keeping track of new allocations as it grows.
      */
-    private static class DocumentBuffer {
+    private static class DocumentBuffer implements Releasable {
         private final BigArrays bigArrays;
+
+        @Nullable // if the initial page doesn't need releasing
+        private final Releasable releasable;
         private byte[] buffer;
         private int maxUsed;
 
         DocumentBuffer(int size, BigArrays bigArrays) {
-            buffer = new byte[size];
+            if (size <= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                final ByteArray byteArray = bigArrays.newByteArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
+                final BytesRefIterator iterator = new PagedBytesReference(byteArray, Math.toIntExact(byteArray.size())).iterator();
+                final BytesRef firstPage;
+                try {
+                    firstPage = iterator.next();
+                    assert iterator.next() == null : "should be one page";
+                } catch (IOException e) {
+                    throw new AssertionError("impossible", e);
+                }
+
+                buffer = firstPage.bytes;
+                releasable = byteArray;
+            } else {
+                buffer = new byte[size];
+                releasable = null;
+            }
             this.bigArrays = bigArrays;
             maxUsed = 0;
         }
@@ -853,6 +884,11 @@ public class PersistedClusterStateService {
 
         int getMaxUsed() {
             return maxUsed;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(releasable);
         }
     }
 }

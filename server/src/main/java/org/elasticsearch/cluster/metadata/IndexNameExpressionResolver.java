@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -64,6 +65,7 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_KEY = "_system_index_access_allowed";
+    public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();

@@ -219,9 +219,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            //G-> This is probably not the best way to tell if an alias is a system-index-alias
-            // this should probably be checked on the alias layer and added as a property in the AliasMetadata
-            return referenceIndexMetadatas.stream().anyMatch(IndexMetadata::isSystem);
+            return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
         /**
@@ -288,6 +286,29 @@ public interface IndexAbstraction {
                     Strings.collectionToCommaDelimitedString(hiddenOn) + "] but does not have is_hidden set to true on indices [" +
                     Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have the same is_hidden setting " +
                     "on all indices");
+            }
+
+            // Validate system status
+
+            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = referenceIndexMetadatas.stream()
+                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
+            // If the alias has either all system or all non-system, then no more validation is required
+            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
+                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true).stream()
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .map(i -> i.getIndex().getName())
+                    .sorted() // reliable error message for testing
+                    .collect(Collectors.toList());
+
+                if (newVersionSystemIndices.isEmpty() == false) {
+                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false).stream()
+                        .map(i -> i.getIndex().getName())
+                        .sorted() // reliable error message for testing
+                        .collect(Collectors.toList());
+                    throw new IllegalStateException("alias [" + aliasName + "] refers to both system indices " + newVersionSystemIndices +
+                        " and non-system indices: " + nonSystemIndices + ", but aliases must refer to either system or" +
+                        " non-system indices, not both");
+                }
             }
         }
 

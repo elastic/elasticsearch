@@ -24,7 +24,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  */
 public abstract class AbstractScriptFieldScript {
     public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
-        return new ScriptContext<F>(name + "_script_field", factoryClass,
+        return new ScriptContext<F>(
+            name + "_script_field",
+            factoryClass,
             /*
              * In an ideal world we wouldn't need the script cache at all
              * because we have a hard reference to the script. The trouble
@@ -32,13 +34,15 @@ public abstract class AbstractScriptFieldScript {
              * a mapping update. This is unfortunate, but we rely on the
              * cache to speed this up.
              */
-            100, timeValueMillis(0),
+            100,
+            timeValueMillis(0),
             /*
              * Disable compilation rate limits for scripted fields so we
              * don't prevent mapping updates because we've performed too
              * many recently. That'd just be lame.
              */
-            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
+            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()
+        );
     }
 
     private final Map<String, Object> params;

@@ -20,7 +20,7 @@ parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
 data streams, indices, or index aliases: `test1,test2,test3`. You can also use
-https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
+{wikipedia}/Glob_(programming)[glob-like] wildcard (`*`)
 expressions to target any
 resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
 

@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
@@ -87,7 +88,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory =
-                    ctx -> new DateScriptFieldScript(Map.of(), new SearchLookup(null, null), ctx) {
+                    ctx -> new DateScriptFieldScript(Map.of(), new SearchLookup(null, null), null, ctx) {
                         @Override
                         public void execute() {
                             for (Object timestamp : (List<?>) getSource().get("timestamp")) {

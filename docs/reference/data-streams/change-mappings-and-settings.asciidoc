@@ -102,6 +102,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -184,6 +185,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -288,6 +290,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "index.refresh_interval": "30s"             <1>
@@ -341,6 +344,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
@@ -442,6 +446,7 @@ PUT /_index_template/new-data-stream-template
 {
   "index_patterns": [ "new-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {

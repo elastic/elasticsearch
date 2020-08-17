@@ -297,6 +297,7 @@ setup:
   - do:
       indices.get_mapping:
         index: .transform-internal-005
+        allow_system_index_access: true
   - match: { \.transform-internal-005.mappings.dynamic: "false" }
   - match: { \.transform-internal-005.mappings.properties.id.type: "keyword" }
   - do:

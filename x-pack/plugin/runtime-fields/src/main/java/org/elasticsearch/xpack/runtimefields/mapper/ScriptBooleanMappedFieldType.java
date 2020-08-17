@@ -42,7 +42,17 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
 
     @Override
     public Object valueForDisplay(Object value) {
-        throw new UnsupportedOperationException();
+        if (value == null) {
+            return null;
+        }
+        switch (value.toString()) {
+            case "F":
+                return false;
+            case "T":
+                return true;
+            default:
+                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+        }
     }
 
     @Override
@@ -145,7 +155,7 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.newMatchNoDocsQuery("Empty terms query");
         }
         boolean trueAllowed = false;
         boolean falseAllowed = false;

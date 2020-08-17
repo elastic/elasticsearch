@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -25,10 +26,19 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -39,6 +49,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
@@ -56,6 +67,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
     @Override
@@ -276,7 +289,80 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
         checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(false), ctx));
         checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(false, true), ctx));
         // This is not an expensive query
-        assertThat(simpleMappedFieldType().termsQuery(List.of(), mockContext()), instanceOf(MatchAllDocsQuery.class));
+        assertThat(simpleMappedFieldType().termsQuery(List.of(), mockContext()), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testDualingQueries() throws IOException {
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo").build(new BuilderContext(Settings.EMPTY, new ContentPath()));
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
+            String source = "{\"foo\": " + values + "}";
+            ParseContext ctx = mock(ParseContext.class);
+            when(ctx.parser()).thenReturn(createParser(JsonXContent.jsonXContent, source));
+            ParseContext.Document doc = new ParseContext.Document();
+            when(ctx.doc()).thenReturn(doc);
+            when(ctx.sourceToParse()).thenReturn(new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON));
+            doc.add(new StoredField("_source", new BytesRef(source)));
+            ctx.parser().nextToken();
+            ctx.parser().nextToken();
+            ctx.parser().nextToken();
+            while (ctx.parser().nextToken() != Token.END_ARRAY) {
+                ootb.parse(ctx);
+            }
+            iw.addDocument(doc);
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertSameCount(
+                    searcher,
+                    source,
+                    "*",
+                    simpleMappedFieldType().existsQuery(mockContext()),
+                    ootb.fieldType().existsQuery(mockContext())
+                );
+                boolean term = randomBoolean();
+                assertSameCount(
+                    searcher,
+                    source,
+                    term,
+                    simpleMappedFieldType().termQuery(term, mockContext()),
+                    ootb.fieldType().termQuery(term, mockContext())
+                );
+                List<Boolean> terms = randomList(0, 3, ESTestCase::randomBoolean);
+                assertSameCount(
+                    searcher,
+                    source,
+                    terms,
+                    simpleMappedFieldType().termsQuery(terms, mockContext()),
+                    ootb.fieldType().termsQuery(terms, mockContext())
+                );
+                boolean low;
+                boolean high;
+                if (randomBoolean()) {
+                    low = high = randomBoolean();
+                } else {
+                    low = false;
+                    high = true;
+                }
+                boolean includeLow = randomBoolean();
+                boolean includeHigh = randomBoolean();
+                assertSameCount(
+                    searcher,
+                    source,
+                    (includeLow ? "[" : "(") + low + "," + high + (includeHigh ? "]" : ")"),
+                    simpleMappedFieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
+                    ootb.fieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
+                );
+            }
+        }
+    }
+
+    private void assertSameCount(IndexSearcher searcher, String source, Object queryDescription, Query scriptedQuery, Query ootbQuery)
+        throws IOException {
+        assertThat(
+            "source=" + source + ",query=" + queryDescription + ",scripted=" + scriptedQuery + ",ootb=" + ootbQuery,
+            searcher.count(scriptedQuery),
+            equalTo(searcher.count(ootbQuery))
+        );
     }
 
     @Override

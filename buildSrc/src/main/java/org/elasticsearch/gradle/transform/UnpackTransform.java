@@ -33,6 +33,7 @@ import org.gradle.internal.UncheckedException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.function.Function;
@@ -66,11 +67,9 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
 
     default Function<String, Path> pathResolver() {
         String trimmedPrefixPattern = getParameters().getTrimmedPrefixPattern();
-        return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(trimmedPrefixPattern, i) : (i) -> {
-            Path root = new File(i).toPath().getRoot();
-            System.out.println("root = " + root);
-            return root;
-        };
+        return trimmedPrefixPattern != null
+            ? (i) -> trimArchiveExtractPath(trimmedPrefixPattern, i)
+            : (i) -> FileSystems.getDefault().getPath(i);
     }
 
     /*

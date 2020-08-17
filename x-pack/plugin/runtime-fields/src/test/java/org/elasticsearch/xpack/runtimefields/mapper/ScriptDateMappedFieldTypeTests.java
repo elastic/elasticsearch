@@ -389,7 +389,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     private ScriptDateMappedFieldType coolFormattedFieldType() throws IOException {
-        return build(simpleMappedFieldType().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz"));
+        return build(simpleMappedFieldType().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
     }
 
     @Override
@@ -435,16 +435,17 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     private DateScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_timestamp":
-                                return (params, lookup) -> (ctx) -> new DateScriptFieldScript(params, lookup, ctx) {
+                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            new DateScriptFieldScript.Millis(this).millis(((Number) timestamp).longValue());
+                                            DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
+                                            new DateScriptFieldScript.Millis(this).millis(parse.parse(timestamp));
                                         }
                                     }
                                 };
                             case "add_days":
-                                return (params, lookup) -> (ctx) -> new DateScriptFieldScript(params, lookup, ctx) {
+                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {

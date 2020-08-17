@@ -349,7 +349,12 @@ public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
                         };
                     }
                     if (context == DateScriptFieldScript.CONTEXT) {
-                        return (DateScriptFieldScript.Factory) (params, lookup) -> ctx -> new DateScriptFieldScript(params, lookup, ctx) {
+                        return (DateScriptFieldScript.Factory) (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                            params,
+                            lookup,
+                            formatter,
+                            ctx
+                        ) {
                             @Override
                             public void execute() {
                                 new DateScriptFieldScript.Millis(this).millis(1595431354874L);

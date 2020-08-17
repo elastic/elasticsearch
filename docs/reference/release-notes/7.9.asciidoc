@@ -28,7 +28,7 @@ old {es} version _before_ upgrading to 7.9.0. You can also apply the mappings
 manually if you find out about the issue after upgrading but before opening
 an {anomaly-job}. If the incorrect mappings have already been applied then
 reindexing is required to recover. The details of both mitigations are in issue
-{issue}61157[#61157].
+{es-issue}61157[#61157].
 
 [[breaking-7.9.0]]
 [discrete]

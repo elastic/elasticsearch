@@ -16,7 +16,8 @@ as long as the app can use the {es-sql} driver, it can use {es-sql}.
 * <<sql-client-apps-qlik, Qlik Sense Desktop>>
 * <<sql-client-apps-squirrel, SQuirreL SQL>>
 * <<sql-client-apps-workbench, SQL Workbench>>
-* <<sql-client-apps-tableau, Tableau Desktop>>
+* <<sql-client-apps-tableau-desktop, Tableau Desktop>>
+* <<sql-client-apps-tableau-server, Tableau Server>>
 
 IMPORTANT: Elastic does not endorse, promote or provide support for any of the applications listed. For native Elasticsearch integration in these products, please reach out to their respective vendor.
 
@@ -34,4 +35,5 @@ include::microstrat.asciidoc[]
 include::qlik.asciidoc[]
 include::squirrel.asciidoc[]
 include::workbench.asciidoc[]
-include::tableau.asciidoc[]
+include::tableau-desktop.asciidoc[]
+include::tableau-server.asciidoc[]

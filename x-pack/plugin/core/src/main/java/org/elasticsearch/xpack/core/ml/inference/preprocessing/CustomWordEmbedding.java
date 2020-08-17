@@ -50,15 +50,15 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     public static final ParseField EMBEDDING_WEIGHTS = new ParseField("embedding_weights");
     public static final ParseField EMBEDDING_QUANT_SCALES = new ParseField("embedding_quant_scales");
 
-    public static final ConstructingObjectParser<CustomWordEmbedding, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<CustomWordEmbedding, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> LENIENT_PARSER = createParser(true);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<CustomWordEmbedding, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<CustomWordEmbedding, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> createParser(boolean lenient) {
+        ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
+            (a, c) -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
 
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> {
@@ -123,11 +123,11 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     }
 
     public static CustomWordEmbedding fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+        return STRICT_PARSER.apply(parser, PreProcessorParseContext.DEFAULT);
     }
 
     public static CustomWordEmbedding fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null);
+        return LENIENT_PARSER.apply(parser, PreProcessorParseContext.DEFAULT);
     }
 
     private static final int CONCAT_LAYER_SIZE = 80;
@@ -254,6 +254,11 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public boolean isCustom() {
         return false;
+    }
+
+    @Override
+    public String getOutputFieldType(String outputField) {
+        return "dense_vector";
     }
 
     @Override

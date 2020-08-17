@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -125,11 +127,13 @@ public class AliasValidator {
      * provided {@link org.elasticsearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext,
-            NamedXContentRegistry xContentRegistry) {
+    public void validateAliasFilter(String alias, BytesReference filter, QueryShardContext queryShardContext,
+                                    NamedXContentRegistry xContentRegistry) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
+
+        try (InputStream inputStream = filter.streamInput();
+             XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);

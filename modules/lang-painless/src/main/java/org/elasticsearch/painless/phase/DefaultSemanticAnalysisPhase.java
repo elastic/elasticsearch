@@ -89,7 +89,6 @@ import org.elasticsearch.painless.symbol.Decorations.BinaryType;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
-import org.elasticsearch.painless.symbol.Decorations.Concatenate;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
@@ -975,13 +974,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "cannot apply [" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]"));
             }
 
-            boolean cat = operation == Operation.ADD && compoundType == String.class;
-
-            if (cat && userRightNode instanceof EBinary &&
-                    ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                semanticScope.setCondition(userRightNode, Concatenate.class);
-            }
-
             if (isShift) {
                 if (compoundType == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
@@ -1004,10 +996,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.putDecoration(userAssignmentNode, new CompoundType(compoundType));
 
-            if (cat) {
-                semanticScope.setCondition(userAssignmentNode, Concatenate.class);
-            }
-
             if (upcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new UpcastPainlessCast(upcast));
             }
@@ -1015,7 +1003,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (downcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-            // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
@@ -1187,23 +1175,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             valueType = binaryType;
 
-            if (operation == Operation.ADD && binaryType == String.class) {
-                if (userLeftNode instanceof EBinary &&
-                        ((EBinary)userLeftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
-                    semanticScope.setCondition(userLeftNode, Concatenate.class);
-                }
-
-                if (userRightNode instanceof EBinary &&
-                        ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                    semanticScope.setCondition(userRightNode, Concatenate.class);
-                }
-            } else if (binaryType == def.class || shiftType == def.class) {
+            if (binaryType == def.class || shiftType == def.class) {
                 TargetType targetType = semanticScope.getDecoration(userBinaryNode, TargetType.class);
 
                 if (targetType != null) {
                     valueType = targetType.getTargetType();
                 }
-            } else {
+            } else if (operation != Operation.ADD || binaryType != String.class) {
                 semanticScope.putDecoration(userLeftNode, new TargetType(binaryType));
 
                 if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
@@ -2446,6 +2424,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             throw userDotNode.createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        String index = userDotNode.getIndex();
+
         AExpression userPrefixNode = userDotNode.getPrefixNode();
         semanticScope.setCondition(userPrefixNode, Read.class);
         visit(userPrefixNode, semanticScope);
@@ -2457,9 +2438,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        String index = userDotNode.getIndex();
 
         if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
             if (prefixValueType != null) {
@@ -2755,6 +2733,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
                 checkedVisit(userIndexNode, semanticScope);
                 decorateWithCast(userIndexNode, semanticScope);
+
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {
@@ -2799,6 +2778,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.putDecoration(userIndexNode, new TargetType(int.class));
                 checkedVisit(userIndexNode, semanticScope);
                 decorateWithCast(userIndexNode, semanticScope);
+
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {

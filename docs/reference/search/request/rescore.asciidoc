@@ -1,10 +1,11 @@
-[[request-body-search-rescore]]
-==== Rescoring
+[discrete]
+[[rescore]]
+=== Rescore filtered search results
 
 Rescoring can help to improve precision by reordering just the top (eg
 100 - 500) documents returned by the
 <<request-body-search-query,`query`>> and
-<<request-body-search-post-filter,`post_filter`>> phases, using a
+<<post-filter,`post_filter`>> phases, using a
 secondary (usually more costly) algorithm, instead of applying the
 costly algorithm to all documents in the index.
 
@@ -23,11 +24,13 @@ NOTE: when exposing pagination to your users, you should not change
 `from` values) since that can alter the top hits causing results to
 confusingly shift as the user steps through pages.
 
-===== Query rescorer
+[discrete]
+[[query-rescorer]]
+==== Query rescorer
 
 The query rescorer executes a second query only on the Top-K results
 returned by the <<request-body-search-query,`query`>> and
-<<request-body-search-post-filter,`post_filter`>> phases. The
+<<post-filter,`post_filter`>> phases. The
 number of docs which will be examined on each shard can be controlled by
 the `window_size` parameter, which defaults to 10.
 
@@ -82,7 +85,9 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 |`min`      |Take the min of the original score and the rescore query score.
 |=======================================================================
 
-===== Multiple Rescores
+[discrete]
+[[multiple-rescores]]
+==== Multiple rescores
 
 It is also possible to execute multiple rescores in sequence:
 

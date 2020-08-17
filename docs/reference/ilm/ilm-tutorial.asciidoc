@@ -110,14 +110,16 @@ The create template request for the example template looks like this:
 
 [source,console]
 -----------------------
-PUT _template/timeseries_template
+PUT _index_template/timeseries_template
 {
   "index_patterns": ["timeseries-*"],                 <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "timeseries_policy",      <2>
-    "index.lifecycle.rollover_alias": "timeseries"    <3>
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "timeseries_policy",    <2>
+      "index.lifecycle.rollover_alias": "timeseries"  <3>
+    }
   }
 }
 -----------------------
@@ -132,7 +134,7 @@ Required for policies that use the rollover action.
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/timeseries_template
+DELETE /_index_template/timeseries_template
 --------------------------------------------------
 // TEST[continued]
 

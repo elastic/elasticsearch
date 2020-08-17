@@ -89,14 +89,16 @@ The wizard invokes the <<indices-put-template,put template API>> to add template
 ====
 [source,console]
 -----------------------
-PUT _template/my_template
+PUT _index_template/my_template
 {
   "index_patterns": ["test-*"], <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "my_policy", <2>
-    "index.lifecycle.rollover_alias": "test-alias" <3>
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "my_policy", <2>
+      "index.lifecycle.rollover_alias": "test-alias" <3>
+    }
   }
 }
 -----------------------
@@ -109,7 +111,7 @@ PUT _template/my_template
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/my_template
+DELETE _index_template/my_template
 --------------------------------------------------
 // TEST[continued]
 
@@ -197,22 +199,24 @@ WARNING: Be careful that you don't inadvertently match indices that you don't wa
 //////////////////////////
 [source,console]
 -----------------------
-PUT _template/mylogs_template
+PUT _index_template/mylogs_template
 {
   "index_patterns": [
     "mylogs-*"
   ],
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1
-  },
-  "mappings": {
-    "properties": {
-      "message": {
-        "type": "text"
-      },
-      "@timestamp": {
-        "type": "date"
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1
+    },
+    "mappings": {
+      "properties": {
+        "message": {
+          "type": "text"
+        },
+        "@timestamp": {
+          "type": "date"
+        }
       }
     }
   }
@@ -241,7 +245,7 @@ POST mylogs-pre-ilm-2019.06.25/_doc
 
 [source,console]
 --------------------------------------------------
-DELETE _template/mylogs_template
+DELETE _index_template/mylogs_template
 --------------------------------------------------
 // TEST[continued]
 

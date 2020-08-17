@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -161,6 +162,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
         // TODO implement dates against the parser
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(Booleans.parseBoolean(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
             "value(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"

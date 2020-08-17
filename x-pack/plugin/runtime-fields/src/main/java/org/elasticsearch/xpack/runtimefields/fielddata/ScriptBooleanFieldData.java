@@ -72,7 +72,7 @@ public final class ScriptBooleanFieldData extends IndexNumericFieldData {
 
     @Override
     public NumericType getNumericType() {
-        return NumericType.DOUBLE;
+        return NumericType.BOOLEAN;
     }
 
     @Override

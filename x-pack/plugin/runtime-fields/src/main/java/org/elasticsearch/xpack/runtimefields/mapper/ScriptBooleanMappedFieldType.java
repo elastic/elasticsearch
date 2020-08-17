@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -190,13 +191,6 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
         } else {
             sValue = value.toString();
         }
-        switch (sValue) {
-            case "true":
-                return true;
-            case "false":
-                return false;
-            default:
-                throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
-        }
+        return Booleans.parseBoolean(sValue);
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.LinkedHashSet;
@@ -106,6 +108,15 @@ final class QueryTranslator {
                     }
 
                     return new TermsQuery(f.source(), targetFieldName, set);
+                }
+            }
+            if (f instanceof StringContains) {
+                StringContains sc = (StringContains) f;
+                if (sc.isCaseSensitive() && sc.string() instanceof FieldAttribute && sc.substring().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sc.string()).exactAttribute());
+                    String substring = (String) sc.substring().fold();
+
+                    return new WildcardQuery(f.source(), targetFieldName, "*" + substring + "*");
                 }
             }
 

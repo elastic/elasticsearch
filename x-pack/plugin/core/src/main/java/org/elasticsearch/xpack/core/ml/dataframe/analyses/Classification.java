@@ -177,7 +177,7 @@ public class Classification implements DataFrameAnalysis {
         } else {
             randomizeSeed = Randomness.get().nextLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
         } else {
             featureProcessors = Collections.emptyList();
@@ -234,7 +234,7 @@ public class Classification implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
     }

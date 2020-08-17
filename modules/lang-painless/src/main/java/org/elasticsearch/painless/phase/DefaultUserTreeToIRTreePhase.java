@@ -160,7 +160,6 @@ import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.Compound;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
-import org.elasticsearch.painless.symbol.Decorations.Concatenate;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
@@ -853,7 +852,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 StringConcatenationNode stringConcatenationNode = new StringConcatenationNode();
                 stringConcatenationNode.setLocation(irStoreNode.getLocation());
                 stringConcatenationNode.setExpressionType(String.class);
-                stringConcatenationNode.setCat(false);
                 irCompoundNode = stringConcatenationNode;
             // handles when the operation is mathematical
             } else {
@@ -987,7 +985,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         if (operation == Operation.ADD && valueType == String.class) {
             StringConcatenationNode stringConcatenationNode = new StringConcatenationNode();
-            stringConcatenationNode.setCat(scriptScope.getCondition(userBinaryNode, Concatenate.class));
             stringConcatenationNode.addArgumentNode((ExpressionNode)visit(userBinaryNode.getLeftNode(), scriptScope));
             stringConcatenationNode.addArgumentNode((ExpressionNode)visit(userBinaryNode.getRightNode(), scriptScope));
             irExpressionNode = stringConcatenationNode;

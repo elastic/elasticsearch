@@ -184,7 +184,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), origin, pivot);
+        return Objects.hash(super.hashCode(), origin, pivot, boost);
     }
 
     @Override
@@ -193,7 +193,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             return false;
         }
         LongScriptFieldDistanceFeatureQuery other = (LongScriptFieldDistanceFeatureQuery) obj;
-        return origin == other.origin && pivot == other.pivot;
+        return origin == other.origin && pivot == other.pivot && boost == other.boost;
     }
 
     @Override

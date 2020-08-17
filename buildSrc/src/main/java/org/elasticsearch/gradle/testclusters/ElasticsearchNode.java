@@ -1284,7 +1284,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Set<File> getDistributionFiles(Action<PatternFilterable> patternFilter) {
         Set<File> files = new TreeSet<>();
         for (ElasticsearchDistribution distribution : distributions) {
-            files.addAll(project.fileTree(Paths.get(distribution.getExtracted().toString())).matching(patternFilter).getFiles());
+            Path path = Paths.get(distribution.getExtracted().getSingleFile().getAbsolutePath());
+            files.addAll(project.fileTree(path).matching(patternFilter).getFiles());
         }
         return files;
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
-import org.elasticsearch.painless.ir.AccessNode;
+import org.elasticsearch.painless.ir.BinaryNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -35,12 +35,12 @@ import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SFunction;
@@ -398,25 +398,25 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
-            VariableNode irVariableNode = new VariableNode();
-            irVariableNode.setLocation(internalLocation);
-            irVariableNode.setExpressionType(ScriptException.class);
-            irVariableNode.setName("#painlessExplainError");
+            LoadVariableNode irLoadVariableNode = new LoadVariableNode();
+            irLoadVariableNode.setLocation(internalLocation);
+            irLoadVariableNode.setExpressionType(ScriptException.class);
+            irLoadVariableNode.setName("#painlessExplainError");
 
-            irInvokeCallMemberNode.addArgumentNode(irVariableNode);
+            irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
-            AccessNode irAccessNode = new AccessNode();
-            irAccessNode.setLocation(internalLocation);
-            irAccessNode.setExpressionType(Map.class);
+            BinaryNode irBinaryNode = new BinaryNode();
+            irBinaryNode.setLocation(internalLocation);
+            irBinaryNode.setExpressionType(Map.class);
 
-            irInvokeCallMemberNode.addArgumentNode(irAccessNode);
+            irInvokeCallMemberNode.addArgumentNode(irBinaryNode);
 
-            irVariableNode = new VariableNode();
-            irVariableNode.setLocation(internalLocation);
-            irVariableNode.setExpressionType(PainlessExplainError.class);
-            irVariableNode.setName("#painlessExplainError");
+            irLoadVariableNode = new LoadVariableNode();
+            irLoadVariableNode.setLocation(internalLocation);
+            irLoadVariableNode.setExpressionType(PainlessExplainError.class);
+            irLoadVariableNode.setName("#painlessExplainError");
 
-            irAccessNode.setLeftNode(irVariableNode);
+            irBinaryNode.setLeftNode(irLoadVariableNode);
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
             irInvokeCallNode.setLocation(internalLocation);
@@ -436,7 +436,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     )
             );
 
-            irAccessNode.setRightNode(irInvokeCallNode);
+            irBinaryNode.setRightNode(irInvokeCallNode);
 
             LoadFieldMemberNode irLoadFieldMemberNode = new LoadFieldMemberNode();
             irLoadFieldMemberNode.setLocation(internalLocation);
@@ -486,24 +486,24 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
-                irVariableNode = new VariableNode();
-                irVariableNode.setLocation(internalLocation);
-                irVariableNode.setExpressionType(ScriptException.class);
-                irVariableNode.setName(name);
+                irLoadVariableNode = new LoadVariableNode();
+                irLoadVariableNode.setLocation(internalLocation);
+                irLoadVariableNode.setExpressionType(ScriptException.class);
+                irLoadVariableNode.setName(name);
 
-                irInvokeCallMemberNode.addArgumentNode(irVariableNode);
+                irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
-                irAccessNode = new AccessNode();
-                irAccessNode.setLocation(internalLocation);
-                irAccessNode.setExpressionType(Map.class);
+                irBinaryNode = new BinaryNode();
+                irBinaryNode.setLocation(internalLocation);
+                irBinaryNode.setExpressionType(Map.class);
 
-                irInvokeCallMemberNode.addArgumentNode(irAccessNode);
+                irInvokeCallMemberNode.addArgumentNode(irBinaryNode);
 
                 StaticNode irStaticNode = new StaticNode();
                 irStaticNode.setLocation(internalLocation);
                 irStaticNode.setExpressionType(Collections.class);
 
-                irAccessNode.setLeftNode(irStaticNode);
+                irBinaryNode.setLeftNode(irStaticNode);
 
                 irInvokeCallNode = new InvokeCallNode();
                 irInvokeCallNode.setLocation(internalLocation);
@@ -521,7 +521,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         )
                 );
 
-                irAccessNode.setRightNode(irInvokeCallNode);
+                irBinaryNode.setRightNode(irInvokeCallNode);
             }
 
             irBlockNode = new BlockNode();

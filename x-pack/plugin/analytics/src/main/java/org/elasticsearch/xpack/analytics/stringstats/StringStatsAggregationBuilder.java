@@ -27,6 +27,8 @@ import java.util.Objects;
 public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
 
     public static final String NAME = "string_stats";
+    public static final ValuesSourceRegistry.RegistryKey<StringStatsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, StringStatsAggregatorSupplier.class);
 
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
     public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
@@ -93,6 +95,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     /**

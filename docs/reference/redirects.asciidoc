@@ -81,7 +81,7 @@ See <<highlighting>>.
 
 [role="exclude",id="search-request-index-boost"]
 === Index boost parameter for request body search API
-See <<request-body-search-index-boost>>.
+See <<index-boost>>.
 
 [role="exclude",id="search-request-inner-hits"]
 === Inner hits parameter for request body search API
@@ -101,7 +101,7 @@ See <<post-filter>>.
 
 [role="exclude",id="search-request-preference"]
 === Preference parameter for request body search API
-See <<request-body-search-preference>>.
+See <<search-preference>>.
 
 [role="exclude",id="search-request-query"]
 === Query parameter for request body search API
@@ -109,7 +109,7 @@ See <<request-body-search-query>>.
 
 [role="exclude",id="search-request-rescore"]
 === Rescoring parameter for request body search API
-See <<request-body-search-rescore>>.
+See <<rescore>>.
 
 [role="exclude",id="search-request-script-fields"]
 === Script fields parameter for request body search API
@@ -125,11 +125,11 @@ See <<search-after>>.
 
 [role="exclude",id="search-request-search-type"]
 === Search type parameter for request body search API
-See <<request-body-search-search-type>>.
+See <<search-type>>.
 
 [role="exclude",id="search-request-seq-no-primary-term"]
 === Sequence numbers and primary terms parameter for request body search API
-See <<request-body-search-search-type>>.
+See <<optimistic-concurrency-control>>.
 
 [role="exclude",id="search-request-sort"]
 === Sort parameter for request body search API
@@ -146,7 +146,7 @@ See <<stored-fields>>.
 
 [role="exclude",id="search-request-track-total-hits"]
 === Track total hits parameter for request body search API
-See <<request-body-search-track-total-hits>>.
+See <<track-total-hits>>.
 
 [role="exclude",id="search-request-version"]
 === Version parameter for request body search API
@@ -981,7 +981,11 @@ See <<eql-syntax-limitations>>.
 
 See <<eql-required-fields>>.
 
-////
+[role="exclude",id="sql-client-apps-tableau"]
+=== Tableau Desktop
+
+See <<sql-client-apps-tableau-desktop>> and <<sql-client-apps-tableau-server>>.
+
 [role="exclude",id="search-request-body"]
 === Request body search
 
@@ -989,12 +993,17 @@ This page has been removed.
 
 For search API reference documentation, see <<search-search>>.
 
-For search examples, see <<run-a-search>>.
+For search examples, see <<search-your-data>>.
 
 [role="exclude",id="request-body-search-docvalue-fields"]
 ==== Doc value fields
 
 See <<docvalue-fields, doc value fields>>.
+
+[role="exclude",id="_fast_check_for_any_matching_docs"]
+==== Fast check for any matching docs
+
+See <<quickly-check-for-matching-docs>>.
 
 [role="exclude",id="request-body-search-collapse"]
 ==== Field collapsing
@@ -1016,26 +1025,36 @@ See <<highlighting>>.
 
 See <<how-es-highlighters-work-internally>>.
 
+[role="exclude",id="request-body-search-index-boost"]
+==== Index boost
+See <<index-boost>>.
+
 [role="exclude",id="request-body-search-inner-hits"]
-=== Inner hits
+==== Inner hits
 See <<inner-hits>>.
 
 [role="exclude",id="request-body-search-min-score"]
-=== `min_score`
-See <<search-api-min-score>>.
+==== `min_score`
+
+See the <<search-api-min-score,`min_score`>> parameter.
 
 [role="exclude",id="request-body-search-queries-and-filters"]
-=== Named queries
+==== Named queries
 
-See <<named-queries>.
+See <<named-queries>>.
 
 [role="exclude",id="request-body-search-post-filter"]
-=== Post filter
+==== Post filter
 
 See <<post-filter>>.
 
+[role="exclude",id="request-body-search-preference"]
+==== Preference
+
+See <<search-preference>>.
+
 [role="exclude",id="request-body-search-rescore"]
-=== Rescoring
+==== Rescoring
 
 See <<rescore>>.
 
@@ -1050,12 +1069,12 @@ See <<script-fields>>.
 See <<scroll-search-results>>.
 
 [[_clear_scroll_api]]
-===== Clear scroll API
+==== Clear scroll API
 
 See <<clear-scroll-api>>.
 
 [[sliced-scroll]]
-===== Sliced scroll
+==== Sliced scroll
 
 See <<slice-scroll>>.
 
@@ -1063,6 +1082,11 @@ See <<slice-scroll>>.
 ==== Search after
 
 See <<search-after>>.
+
+[role="exclude",id="request-body-search-search-type"]
+==== Search type
+
+See <<search-type>>.
 
 [role="exclude",id="request-body-search-sort"]
 ==== Sort
@@ -1078,4 +1102,18 @@ See <<source-filtering>>.
 ==== Stored fields
 
 See <<stored-fields>>.
-////
+
+[role="exclude",id="request-body-search-track-total-hits"]
+==== Track total hits
+
+See <<track-total-hits>>.
+
+[role="exclude",id="_notes_3"]
+=== Joining queries notes
+
+See <<joining-queries-notes>>.
+
+[role="exclude",id="_notes_4"]
+=== Percolate query notes
+
+See <<percolate-query-notes>>.

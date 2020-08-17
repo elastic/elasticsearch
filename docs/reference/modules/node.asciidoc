@@ -1,8 +1,8 @@
 [[modules-node]]
 === Node
 
-Any time that you start an instance of Elasticsearch, you are starting a _node_.
-A collection of connected nodes is called a <<modules-cluster,cluster>>. If you
+Any time that you start an instance of {es}, you are starting a _node_. A 
+collection of connected nodes is called a <<modules-cluster,cluster>>. If you
 are running a single node of {es}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
@@ -21,6 +21,15 @@ and (if available) machine learning. All data nodes are also transform nodes.
 TIP: As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from
 dedicated data nodes, {ml} nodes, and {transform} nodes.
+
+[[node-roles]]
+==== Nore roles
+
+You can define the roles of a node by setting `node.roles`. If you don't 
+configure this setting, then the node has the following roles by default: 
+`master`, `data`, `ingest`, `transform`, `ml`.
+
+If you set node.roles, the node is assigned only the roles you specify.
 
 <<master-node,Master-eligible node>>::
 

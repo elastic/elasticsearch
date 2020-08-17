@@ -67,7 +67,7 @@ from all the existing ones. At most `shard_size` total buckets are created.
 
 In the reduce step, the coordinating node sorts the buckets from all shards by their centroids. Then, the two buckets
 with the nearest centroids are repeatedly merged until the target number of buckets is achieved.
-This merging procedure is a form of https://en.wikipedia.org/wiki/Hierarchical_clustering[agglomerative hierarchical clustering].
+This merging procedure is a form of {wikipedia}/Hierarchical_clustering[agglomerative hierarchical clustering].
 
 TIP: A shard can return fewer than `shard_size` buckets, but it cannot return more.
 

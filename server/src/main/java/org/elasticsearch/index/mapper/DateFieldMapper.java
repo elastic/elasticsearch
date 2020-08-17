@@ -572,7 +572,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
+            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;

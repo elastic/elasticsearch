@@ -731,7 +731,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
             }            
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, getMaxDeterminizedStates(), 
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getMaxDeterminizedStates(), 
                 getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {

@@ -137,7 +137,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     public void testUpdateStatsUpgradeMode() {
         String aliasName = MlStatsIndex.writeAlias();
         String concreteIndex = ".ml-stats-000001";
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
         // create a valid index routing so persistence will occur
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

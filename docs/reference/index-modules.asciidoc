@@ -95,6 +95,25 @@ indices.
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
 
+[[ccr-index-soft-deletes]]
+// tag::ccr-index-soft-deletes-tag[]
+`index.soft_deletes.enabled`::
+deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
+Indicates whether soft deletes are enabled on the index. Soft deletes can only
+be configured at index creation and only on indices created on or after
+{es} 6.5.0. Defaults to `true`.
+// end::ccr-index-soft-deletes-tag[]
+
+[[ccr-index-soft-deletes-retention-period]]
+//tag::ccr-index-soft-deletes-retention-tag[]
+`index.soft_deletes.retention_lease.period`::
+The maximum period to retain a shard history retention lease before it is
+considered expired. Shard history retention leases ensure that soft deletes are
+retained during merges on the Lucene index. If a soft delete is merged away
+before it can be replicated to a follower the following process will fail due
+to incomplete history on the leader. Defaults to `12h`.
+//end::ccr-index-soft-deletes-retention-tag[]
+
 [[load-fixed-bitset-filters-eagerly]] `index.load_fixed_bitset_filters_eagerly`::
 
     Indicates whether <<query-filter-context, cached filters>> are pre-loaded for

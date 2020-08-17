@@ -47,7 +47,9 @@ public class ReturnNode extends StatementNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        expressionNode.visit(irTreeVisitor, scope);
+        if (expressionNode != null) {
+            expressionNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

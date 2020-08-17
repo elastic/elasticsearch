@@ -1,0 +1,60 @@
+[discrete]
+[[quickly-check-for-matching-docs]]
+=== Quickly check for matching docs
+
+If you only want to know if there are any documents matching a
+specific query, you can set the `size` to `0` to indicate that we are not
+interested in the search results. You can also set `terminate_after` to `1`
+to indicate that the query execution can be terminated whenever the first
+matching document was found (per shard).
+
+[source,console]
+--------------------------------------------------
+GET /_search?q=user.id:elkbee&size=0&terminate_after=1
+--------------------------------------------------
+// TEST[setup:my_index]
+
+NOTE: `terminate_after` is always applied **after** the
+<<post-filter,`post_filter`>> and stops the query as well as the aggregation
+executions when enough hits have been collected on the shard. Though the doc
+count on aggregations may not reflect the `hits.total` in the response since
+aggregations are applied **before** the post filtering.
+
+The response will not contain any hits as the `size` was set to `0`. The
+`hits.total` will be either equal to `0`, indicating that there were no
+matching documents, or greater than `0` meaning that there were at least
+as many documents matching the query when it was early terminated.
+Also if the query was terminated early, the `terminated_early` flag will
+be set to `true` in the response.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "terminated_early": true,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": null,
+    "hits": []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+
+The `took` time in the response contains the milliseconds that this request
+took for processing, beginning quickly after the node received the query, up
+until all search related work is done and before the above JSON is returned
+to the client. This means it includes the time spent waiting in thread pools,
+executing a distributed search across the whole cluster and gathering all the
+results.

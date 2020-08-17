@@ -227,7 +227,14 @@ GET /*/_search
 ----
 // TEST[setup:my_index]
 
+include::request/index-boost.asciidoc[]
+include::request/preference.asciidoc[]
+include::request/search-type.asciidoc[]
+include::request/track-total-hits.asciidoc[]
+include::quickly-check-for-matching-docs.asciidoc[]
+
 include::request/collapse.asciidoc[]
+include::filter-search-results.asciidoc[]
 include::request/highlighting.asciidoc[]
 include::{es-repo-dir}/async-search.asciidoc[]
 include::{es-repo-dir}/search/near-real-time.asciidoc[]

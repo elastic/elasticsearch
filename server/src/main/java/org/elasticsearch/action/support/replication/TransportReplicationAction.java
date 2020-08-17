@@ -845,7 +845,7 @@ public abstract class TransportReplicationAction<
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    run();
+                    reRun();
                 }
 
                 @Override
@@ -856,9 +856,15 @@ public abstract class TransportReplicationAction<
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     // Try one more time...
-                    run();
+                    reRun();
                 }
             });
+        }
+
+        // Reruns this action on the generic pool to avoid running it on the transport or CS update threads because it may be long
+        // running and we want to respect forced executions for actions while not blocking these threads ever.
+        private void reRun() {
+            threadPool.generic().execute(this);
         }
 
         void finishAsFailed(Exception failure) {

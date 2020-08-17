@@ -23,11 +23,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class FetchPhaseExecutor {
 
-    List<FetchSubPhaseExecutor> executors;
+    private final List<FetchSubPhaseExecutor> executors = new ArrayList<>();
 
     public FetchPhaseExecutor(FetchSubPhase[] fetchSubPhases, SearchContext context) throws IOException {
         for (FetchSubPhase subPhase : fetchSubPhases) {

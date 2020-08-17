@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -121,7 +122,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
                 "for index [index]", exception.getMessage());
     }
 
-    public void testNestedSourceWithSourceDisabled() {
+    public void testNestedSourceWithSourceDisabled() throws IOException {
         HitContext hitContext = hitExecute(null, true, null, null,
             new SearchHit.NestedIdentity("nested1", 0, null));
         assertNull(hitContext.hit().getSourceAsMap());
@@ -132,23 +133,23 @@ public class FetchSourcePhaseTests extends ESTestCase {
             "for index [index]", e.getMessage());
     }
 
-    private HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
+    private HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) throws IOException {
         return hitExecute(source, fetchSource, include, exclude, null);
     }
 
     private HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude,
-                                                    SearchHit.NestedIdentity nestedIdentity) {
+                                                    SearchHit.NestedIdentity nestedIdentity) throws IOException {
         return hitExecuteMultiple(source, fetchSource,
             include == null ? Strings.EMPTY_ARRAY : new String[]{include},
             exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude}, nestedIdentity);
     }
 
-    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) {
+    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) throws IOException {
         return hitExecuteMultiple(source, fetchSource, includes, excludes, null);
     }
 
     private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
-                                                            SearchHit.NestedIdentity nestedIdentity) {
+                                                            SearchHit.NestedIdentity nestedIdentity) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
         SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext);
 
@@ -161,7 +162,13 @@ public class FetchSourcePhaseTests extends ESTestCase {
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        phase.hitExecute(searchContext, hitContext);
+        FetchSubPhaseExecutor executor = phase.getExecutor(searchContext);
+        if (fetchSource == false) {
+            assertNull(executor);
+        } else {
+            assertNotNull(executor);
+            executor.execute(hitContext);
+        }
         return hitContext;
     }
 

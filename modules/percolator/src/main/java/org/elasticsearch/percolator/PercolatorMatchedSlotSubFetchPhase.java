@@ -80,10 +80,10 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             public void execute(HitContext hitContext) throws IOException {
                 for (PercolateContext pc : percolateContexts) {
                     String fieldName = pc.fieldName(singlePercolateQuery);
-                    Query query = pc.percolateQuery.getQueryStore().getQueries(ctx).apply(hitContext.readerDocId());
+                    Query query = pc.percolateQuery.getQueryStore().getQueries(ctx).apply(hitContext.docId());
                     if (query == null) {
                         // This is not a document with a percolator field.
-                        return;
+                        continue;
                     }
                     query = pc.filterNestedDocs(query);
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
@@ -92,7 +92,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     if (topDocs.totalHits.value == 0) {
                         // This hit didn't match with a percolate query,
                         // likely to happen when percolating multiple documents
-                        return;
+                        continue;
                     }
 
                     IntStream slots = convertTopDocsToSlots(topDocs, pc.rootDocsBySlot);

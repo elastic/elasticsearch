@@ -48,7 +48,7 @@ public final class FetchVersionPhase implements FetchSubPhase {
             @Override
             public void execute(HitContext hitContext) throws IOException {
                 long version = Versions.NOT_FOUND;
-                if (versions != null && versions.advanceExact(hitContext.readerDocId())) {
+                if (versions != null && versions.advanceExact(hitContext.docId())) {
                     version = versions.longValue();
                 }
                 hitContext.hit().version(version < 0 ? -1 : version);

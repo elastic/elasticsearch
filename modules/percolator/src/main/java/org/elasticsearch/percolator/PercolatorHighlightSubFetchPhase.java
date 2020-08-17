@@ -25,12 +25,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,7 +50,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     private final HighlightPhase highlightPhase;
 
     PercolatorHighlightSubFetchPhase(Map<String, Highlighter> highlighters) {
-        this.highlightPhase = new HighlightPhase(highlighters, true);   // MemoryIndex doesn't store fields
+        this.highlightPhase = new HighlightPhase(highlighters);
     }
 
     @Override
@@ -79,13 +81,13 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                     PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
                     LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
-                    final Query query = queryStore.getQueries(ctx).apply(hit.readerDocId());
+                    final Query query = queryStore.getQueries(ctx).apply(hit.docId());
                     if (query != null) {
                         DocumentField field = hit.hit().field(fieldName);
                         if (field == null) {
                             // It possible that a hit did not match with a particular percolate query,
                             // so then continue highlighting with the next hit.
-                            return;
+                            continue;
                         }
 
                         for (Object matchedSlot : field.getValues()) {
@@ -96,8 +98,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 percolatorLeafReaderContext, slot, percolatorIndexSearcher, new HashMap<>()
                             );
                             subContext.sourceLookup().setSource(document);
-                            FetchSubPhaseExecutor executor = highlightPhase.getExecutor(searchContext);
-                            executor.setNextReader(percolatorLeafReaderContext);
+                            // force source because MemoryIndex does not store fields
+                            SearchHighlightContext highlight = new SearchHighlightContext(searchContext.highlight().fields(), true);
+                            QueryShardContext shardContext = new QueryShardContext(searchContext.getQueryShardContext());
+                            FetchSubPhaseExecutor executor = highlightPhase.getExecutor(shardContext, searchContext.shardTarget(),
+                                highlight, query);
                             executor.execute(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
                                 if (percolateQuery.getDocuments().size() == 1) {

@@ -64,12 +64,11 @@ public interface FetchSubPhase {
             return readerContext;
         }
 
+        /**
+         * @return the docId of this hit relative to the leaf reader context
+         */
         public int docId() {
             return docId;
-        }
-
-        public int readerDocId() {
-            return docId - readerContext.docBase;
         }
 
         /**

@@ -51,7 +51,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
 
             @Override
             public void execute(HitContext hitContext) {
-                int docId = hitContext.readerDocId();
+                int docId = hitContext.docId();
                 for (int i = 0; i < leafScripts.length; i++) {
                     leafScripts[i].setDocument(docId);
                     final Object value;

@@ -73,7 +73,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             @Override
             public void execute(HitContext hitContext) throws IOException {
                 List<String> matches = new ArrayList<>();
-                int doc = hitContext.readerDocId();
+                int doc = hitContext.docId();
                 for (Map.Entry<String, DocIdSetIterator> iterator : matchingIterators.entrySet()) {
                     if (iterator.getValue().advance(doc) == doc) {
                         matches.add(iterator.getKey());

@@ -42,27 +42,25 @@ import java.util.function.Function;
 public class HighlightPhase implements FetchSubPhase {
 
     private final Map<String, Highlighter> highlighters;
-    private final boolean globalForceSource;
 
     public HighlightPhase(Map<String, Highlighter> highlighters) {
-        this(highlighters, false);
-    }
-
-    public HighlightPhase(Map<String, Highlighter> highlighters, boolean globalForceSource) {
         this.highlighters = highlighters;
-        this.globalForceSource = globalForceSource;
     }
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
         if (context.highlight() == null) {
             return null;
         }
-        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(context.getQueryShardContext(),
-            context.shardTarget(), context.highlight(), context.query());
+
+        return getExecutor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.query());
+    }
+
+    public FetchSubPhaseExecutor getExecutor(QueryShardContext qsc, SearchShardTarget target, SearchHighlightContext hc, Query query) {
+        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(qsc, target, hc, query);
         return new FetchSubPhaseExecutor() {
             @Override
-            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
@@ -148,7 +146,7 @@ public class HighlightPhase implements FetchSubPhase {
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
-                boolean forceSource = globalForceSource || highlight.forceSource(field);
+                boolean forceSource = highlight.forceSource(field);
                 builders.put(fieldName,
                     hc -> new FieldHighlightContext(fieldName, field, fieldType, shardTarget, context, hc,
                         highlightQuery == null ? query : highlightQuery, forceSource, fieldNameContainsWildcards));

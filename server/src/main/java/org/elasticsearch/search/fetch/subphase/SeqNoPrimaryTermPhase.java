@@ -48,7 +48,7 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
             @Override
             public void execute(HitContext hitContext) throws IOException {
-                int docId = hitContext.readerDocId();
+                int docId = hitContext.docId();
                 long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
                 // we have to check the primary term field as it is only assigned for non-nested documents

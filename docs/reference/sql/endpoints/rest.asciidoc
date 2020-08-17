@@ -76,7 +76,7 @@ s|Description
 
 |csv
 |text/csv
-|https://en.wikipedia.org/wiki/Comma-separated_values[Comma-separated values]
+|{wikipedia}/Comma-separated_values[Comma-separated values]
 
 |json
 |application/json
@@ -84,7 +84,7 @@ s|Description
 
 |tsv
 |text/tab-separated-values
-|https://en.wikipedia.org/wiki/Tab-separated_values[Tab-separated values]
+|{wikipedia}/Tab-separated_values[Tab-separated values]
 
 |txt
 |text/plain
@@ -92,7 +92,7 @@ s|Description
 
 |yaml
 |application/yaml
-|https://en.wikipedia.org/wiki/YAML[YAML] (YAML Ain't Markup Language) human-readable format
+|{wikipedia}/YAML[YAML] (YAML Ain't Markup Language) human-readable format
 
 3+h| Binary Formats
 
@@ -102,7 +102,7 @@ s|Description
 
 |smile
 |application/smile
-|https://en.wikipedia.org/wiki/Smile_(data_interchange_format)[Smile] binary data format similar to CBOR
+|{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar to CBOR
 
 |===
 

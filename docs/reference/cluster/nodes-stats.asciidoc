@@ -182,7 +182,7 @@ Contains statistics for the node.
 `timestamp`::
 (integer)
 Time the node stats were collected for this response. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `name`::
 (string)
@@ -824,7 +824,7 @@ type filters for <<parent-join,join>> fields.
 `max_unsafe_auto_id_timestamp`::
 (integer)
 Time of the most recently retried indexing request. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `file_sizes`::
 (object)
@@ -953,7 +953,7 @@ Contains statistics about the operating system for the node.
 `timestamp`::
 (integer)
 Last time the operating system statistics were refreshed. Recorded in
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
 
 `cpu`::
 (object)
@@ -1178,7 +1178,7 @@ Contains process statistics for the node.
 `timestamp`::
 (integer)
 Last time the statistics were refreshed. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
@@ -1650,7 +1650,7 @@ Contains file store statistics for the node.
 `timestamp`::
 (integer)
 Last time the file stores statistics were refreshed. Recorded in
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
 
 `total`::
 (object)

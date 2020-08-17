@@ -96,7 +96,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         };
     }
 
-    private static abstract class DocValueField {
+    private abstract static class DocValueField {
 
         final String field;
         final DocValueFormat format;

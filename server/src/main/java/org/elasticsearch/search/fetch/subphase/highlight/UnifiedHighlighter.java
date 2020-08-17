@@ -77,7 +77,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments();
         try {
             final Analyzer analyzer = getAnalyzer(context.getMapperService().documentMapper(), hitContext);
-            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext, fieldContext.forceSource);
+            List<Object> fieldValues = loadFieldValues(fieldType, field, hitContext, fieldContext.forceSource);
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -167,10 +167,9 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(MappedFieldType fieldType,
                                            SearchHighlightContext.Field field,
-                                           QueryShardContext context,
                                            FetchSubPhase.HitContext hitContext,
                                            boolean forceSource) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, context, hitContext, forceSource);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

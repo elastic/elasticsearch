@@ -22,8 +22,11 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.process.ChunkedTrainedModelPersister;
+import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
@@ -40,8 +43,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
@@ -71,15 +77,19 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), "test-node"),
             (ex) -> { throw new ElasticsearchException(ex); },
-            new ExtractedFields(extractedFieldList, Collections.emptyMap())
+            new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
         //Accuracy for size is not tested here
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
-        persister.createAndIndexInferenceModelMetadata(modelSizeInfo);
+        persister.createAndIndexInferenceModelConfig(modelSizeInfo);
         for (int i = 0; i < chunks.size(); i++) {
             persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(chunks.get(i), i, i == (chunks.size() - 1)));
         }
+        ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+            .limit(randomIntBetween(1, 10))
+            .collect(Collectors.toList()));
+        persister.createAndIndexInferenceModelMetadata(modelMetadata);
 
         PlainActionFuture<Tuple<Long, Set<String>>> getIdsFuture = new PlainActionFuture<>();
         trainedModelProvider.expandIds(modelId + "*", false, PageParams.defaultParams(), Collections.emptySet(), getIdsFuture);
@@ -93,6 +103,13 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long)modelSizeInfo.numOperations()));
         assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
+
+        PlainActionFuture<TrainedModelMetadata> getTrainedMetadataFuture = new PlainActionFuture<>();
+        trainedModelProvider.getTrainedModelMetadata(ids.v2().iterator().next(), getTrainedMetadataFuture);
+
+        TrainedModelMetadata storedMetadata = getTrainedMetadataFuture.actionGet();
+        assertThat(storedMetadata.getModelId(), startsWith(modelId));
+        assertThat(storedMetadata.getTotalFeatureImportances(), equalTo(modelMetadata.getFeatureImportances()));
     }
 
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {

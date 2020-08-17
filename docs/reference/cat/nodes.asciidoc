@@ -134,6 +134,12 @@ Used query cache memory, such as `0b`.
 `query_cache.evictions`, `qce`, `queryCacheEvictions`::
 Query cache evictions, such as `0`.
 
+`query_cache.hit_count`, `qchc`, `queryCacheHitCount`::
+Query cache hit count, such as `0`.
+
+`query_cache.miss_count`, `qcmc`, `queryCacheMissCount`::
+Query cache miss count, such as `0`.
+
 `request_cache.memory_size`, `rcm`, `requestCacheMemory`::
 Used request cache memory, such as `0b`.
 

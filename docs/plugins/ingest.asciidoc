@@ -11,7 +11,7 @@ The core ingest plugins are:
 <<ingest-attachment>>::
 
 The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
-using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
+using the Apache text extraction library https://tika.apache.org/[Tika].
 
 <<ingest-geoip>>::
 

@@ -1,0 +1,52 @@
+[[paginate-search-results]]
+== Paginate search results
+
+By default, the <<search-search,search API>> returns the top 10 matching documents.
+
+To paginate through a larger set of results, you can use the search API's `size`
+and `from` parameters. The `size` parameter is the number of matching documents
+to return. The `from` parameter is a zero-indexed offset from the beginning of
+the complete result set that indicates the document you want to start with.
+
+The following search API request sets the `from` offset to `5`, meaning the
+request offsets, or skips, the first five matching documents.
+
+The `size` parameter is `20`, meaning the request can return up to 20 documents,
+starting at the offset.
+
+[source,console]
+----
+GET /_search
+{
+  "from": 5,
+  "size": 20,
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+
+By default, you cannot page through more than 10,000 documents using the `from`
+and `size` parameters. This limit is set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+Deep paging or requesting many results at once can result in slow searches.
+Results are sorted before being returned. Because search requests usually span
+multiple shards, each shard must generate its own sorted results. These separate
+results must then be combined and sorted to ensure that the overall sort order
+is correct.
+
+As an alternative to deep paging, we recommend using
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
+
+WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal
+doc IDs can be completely different across replicas of the same
+data. When paginating, you might occasionally see that documents with the same
+sort values are not ordered consistently.
+
+include::request/scroll.asciidoc[]
+
+include::request/search-after.asciidoc[]

@@ -57,7 +57,7 @@ The following settings are supported:
 `conf.<key>`::
 
     Inlined configuration parameter to be added to Hadoop configuration. (Optional)
-    Only client oriented properties from the hadoop http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/core-default.xml[core] and http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs] configuration files will be recognized by the plugin.
+    Only client oriented properties from the hadoop https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/core-default.xml[core] and https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs] configuration files will be recognized by the plugin.
 
 `compress`::
 

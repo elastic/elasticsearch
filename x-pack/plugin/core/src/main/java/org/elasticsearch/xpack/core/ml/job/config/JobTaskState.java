@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -62,11 +61,7 @@ public class JobTaskState implements PersistentTaskState {
     public JobTaskState(StreamInput in) throws IOException {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            reason = in.readOptionalString();
-        } else {
-            reason = null;
-        }
+        reason = in.readOptionalString();
     }
 
     public JobState getState() {
@@ -102,9 +97,7 @@ public class JobTaskState implements PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
         out.writeLong(allocationId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalString(reason);
-        }
+        out.writeOptionalString(reason);
     }
 
     @Override

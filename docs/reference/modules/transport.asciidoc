@@ -54,7 +54,7 @@ TCP keep-alives apply to all kinds of long-lived connections and not just to
 transport connections.
 
 `transport.tcp.no_delay`::
-Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
 setting. Defaults to `network.tcp.no_delay`.
 
 `transport.tcp.keep_alive`::

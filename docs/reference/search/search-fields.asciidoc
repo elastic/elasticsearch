@@ -100,7 +100,7 @@ POST my-index-000001/_search
     <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
     accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
-    https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].
+    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
     Other field types do not support the `format` parameter.
 
 The values are returned as a flat list in the `fields` section in each hit:

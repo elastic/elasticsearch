@@ -10,9 +10,9 @@ indices.
 
 [source,console]
 ----
-POST /twitter/_forcemerge
+POST /my-index-000001/_forcemerge
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[forcemerge-api-request]]
@@ -139,7 +139,7 @@ NOTE: This parameter does *not* override the
 
 [source,console]
 ----
-POST /twitter/_forcemerge
+POST /my-index-000001/_forcemerge
 ----
 // TEST[continued]
 
@@ -149,9 +149,9 @@ POST /twitter/_forcemerge
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_forcemerge
+POST /my-index-000001,my-index-000002/_forcemerge
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[forcemerge-api-all-ex]]
@@ -178,8 +178,8 @@ its shards can be force-merged to a single segment.
 --------------------------------------------------
 POST /.ds-logs-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/.ds-logs-000001/twitter/]
+// TEST[setup:my_index]
+// TEST[s/.ds-logs-000001/my-index-000001/]
 
 This can be a good idea because single-segment shards can sometimes use simpler
 and more efficient data structures to perform searches.

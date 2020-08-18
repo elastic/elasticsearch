@@ -101,13 +101,13 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
 
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
-ignored when frozen. Defaults to `false`.
+ignored when frozen. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -159,7 +159,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
@@ -185,8 +185,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -322,9 +322,15 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
+
+[[search-api-min-score]]
+`min_score`::
+(Optional, float)
+Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
+lower `_score` are not included in the search results.
 
 [[request-body-search-query]]
 `query`::
@@ -351,8 +357,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -428,7 +434,7 @@ Identifier for the search and its <<scroll-search-context,search context>>.
 +
 You can use this scroll ID with the <<scroll-api,scroll API>> to retrieve the
 next batch of search results for the request. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.
@@ -570,8 +576,8 @@ Contains field values for the documents. These fields must be specified in the
 request using one or more of the following request parameters:
 
 * <<search-docvalue-fields-param,`docvalue_fields`>>
-* <<request-body-search-script-fields,`script_fields`>>
-* <<request-body-search-stored-fields,`stored_fields`>>
+* <<script-fields,`script_fields`>>
+* <<stored-fields,`stored_fields`>>
 
 This property is returned only if one or more of these parameters are set.
 --

@@ -95,7 +95,9 @@
         index: .tasks
         body:
           query:
-            match_all: {}
+            match:
+              task.description:
+                query: 'reindexed_index_copy'
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: '/.+:\d+/' }
   - set: {hits.hits.0._id: task_id}

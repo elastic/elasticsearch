@@ -32,7 +32,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -93,17 +93,15 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                     for (Object matchedSlot : field.getValues()) {
                         int slot = (int) matchedSlot;
                         BytesReference document = percolateQuery.getDocuments().get(slot);
-                        SearchContextHighlight highlight = new SearchContextHighlight(context.highlight().fields());
                         // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-                        highlight.globalForceSource(true);
+                        SearchHighlightContext highlight = new SearchHighlightContext(context.highlight().fields(), true);
                         QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
                         shardContext.freezeContext();
-                        shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, slot);
-                        shardContext.lookup().source().setSource(document);
                         hitContext.reset(
                             new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
+                        hitContext.sourceLookup().setSource(document);
                         hitContext.cache().clear();
                         highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, hitContext);
                         for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {

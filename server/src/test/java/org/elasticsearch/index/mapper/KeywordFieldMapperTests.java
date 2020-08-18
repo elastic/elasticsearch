@@ -26,9 +26,9 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -39,11 +39,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -53,7 +54,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -62,17 +62,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMapper.Builder> {
-
-    @Override
-    protected KeywordFieldMapper.Builder newBuilder() {
-        return new KeywordFieldMapper.Builder("keyword");
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer");
-    }
+public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
@@ -96,11 +86,6 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         return pluginList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
     }
 
-    @Override
-    protected Settings getIndexMapperSettings() {
-        return mapperSettings;
-    }
-
     private static final Settings mapperSettings = Settings.builder()
         .put("index.analysis.normalizer.my_lowercase.type", "custom")
         .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
@@ -114,18 +99,6 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
     public void setup() {
         indexService = createIndex("test", mapperSettings);
         parser = indexService.mapperService().documentMapperParser();
-        addModifier("normalizer", false, (a, b) -> {
-            a.normalizer(indexService.getIndexAnalyzers(), "my_lowercase");
-        });
-        addBooleanModifier("split_queries_on_whitespace", true, KeywordFieldMapper.Builder::splitQueriesOnWhitespace);
-        addModifier("index_options", false, (a, b) -> {
-            a.indexOptions(IndexOptions.DOCS);
-            b.indexOptions(IndexOptions.DOCS_AND_FREQS);
-        });
-        addModifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
-        });
     }
 
     public void testDefaults() throws Exception {
@@ -166,6 +139,9 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
 
         // used by TermVectorsService
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertEquals("1234", fieldMapper.parseSourceValue("1234", null));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -333,16 +309,17 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
                     .startObject("properties").startObject("field").field("type", "keyword")
                     .field("index_options", indexOptions).endObject().endObject()
                     .endObject().endObject());
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping2)));
-            assertEquals("The [keyword] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
+            assertEquals("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]",
+                e.getMessage());
         }
     }
 
     public void testBoost() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("boost", 2f).endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties").startObject("field").field("type", "keyword").field("boost", 2f).endObject().endObject()
+            .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -518,8 +495,8 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
                 () -> indexService.mapperService().merge("type",
                         new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertEquals(
-                "Mapper for [field] conflicts with existing mapping:\n" +
-                    "[mapper [field] has different [analyzer], mapper [field] has different [normalizer]]",
+                "Mapper for [field] conflicts with existing mapper:\n" +
+                    "\tCannot update parameter [normalizer] from [my_lowercase] to [my_other_lowercase]",
                 e.getMessage());
     }
 
@@ -623,5 +600,39 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
+        assertEquals("value", mapper.parseSourceValue("value", null));
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
+
+        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
+        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
+        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+
+        KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field", indexService.getIndexAnalyzers())
+            .normalizer("lowercase")
+            .build(context);
+        assertEquals("value", normalizerMapper.parseSourceValue("VALUE", null));
+        assertEquals("42", normalizerMapper.parseSourceValue(42L, null));
+        assertEquals("value", normalizerMapper.parseSourceValue("value", null));
+
+        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
     }
 }

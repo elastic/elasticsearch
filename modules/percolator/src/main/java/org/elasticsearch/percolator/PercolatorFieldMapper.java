@@ -149,8 +149,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
             KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetadataFieldBuilder.docValues(false);
-            queryMetadataFieldBuilder.store(false);
-            queryMetadataFieldBuilder.indexOptions(IndexOptions.DOCS);
             return queryMetadataFieldBuilder.build(context);
         }
 
@@ -365,6 +363,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
         Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return value;
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,

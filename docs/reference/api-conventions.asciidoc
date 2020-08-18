@@ -20,7 +20,7 @@ parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
 data streams, indices, or index aliases: `test1,test2,test3`. You can also use
-https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
+{wikipedia}/Glob_(programming)[glob-like] wildcard (`*`)
 expressions to target any
 resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
 
@@ -85,19 +85,10 @@ You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
 [source,console]
-----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
-{
-  "query" : {
-    "match": {
-      "test": "data"
-    }
-  }
-}
-----------------------------------------------------------------------
-// TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20%7C%7C/]
+----
+# PUT /<my-index-{now/d}>
+PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
+----
 
 [NOTE]
 .Percent encoding of date math characters
@@ -160,7 +151,7 @@ include::rest-api/cron-expressions.asciidoc[]
 
 The following options can be applied to all of the REST APIs.
 
-[float]
+[discrete]
 ==== Pretty Results
 
 When appending `?pretty=true` to any request made, the JSON returned
@@ -169,7 +160,7 @@ to set `?format=yaml` which will cause the result to be returned in the
 (sometimes) more readable yaml format.
 
 
-[float]
+[discrete]
 ==== Human readable output
 
 Statistics are returned in a format suitable for humans
@@ -182,7 +173,7 @@ consumption.  The default for the `human` flag is
 `false`.
 
 [[date-math]]
-[float]
+[discrete]
 ==== Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`
@@ -219,7 +210,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 `now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00`
  `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
-[float]
+[discrete]
 [[common-options-response-filtering]]
 ==== Response Filtering
 
@@ -229,9 +220,9 @@ separated list of filters expressed with the dot notation:
 
 [source,console]
 --------------------------------------------------
-GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+GET /_search?q=kimchy&filter_path=took,hits.hits._id,hits.hits._score
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -259,7 +250,7 @@ of a field's name:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.stat*
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -268,7 +259,7 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "twitter": {"state": "open"}
+      "my-index-000001": {"state": "open"}
     }
   }
 }
@@ -282,7 +273,7 @@ of every segment with this request:
 --------------------------------------------------
 GET /_cluster/state?filter_path=routing_table.indices.**.state
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 Responds:
 
@@ -291,7 +282,7 @@ Responds:
 {
   "routing_table": {
     "indices": {
-      "twitter": {
+      "my-index-000001": {
         "shards": {
           "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
@@ -307,7 +298,7 @@ It is also possible to exclude one or more fields by prefixing the filter with t
 --------------------------------------------------
 GET /_count?filter_path=-_shards
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Responds:
 
@@ -326,7 +317,7 @@ inclusive filters:
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
 --------------------------------------------------
-// TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\nPUT my-index-000003\nPUT logstash-2016.01\n/]
 
 Responds:
 
@@ -335,9 +326,9 @@ Responds:
 {
   "metadata" : {
     "indices" : {
-      "index-1" : {"state" : "open"},
-      "index-2" : {"state" : "open"},
-      "index-3" : {"state" : "open"}
+      "my-index-000001" : {"state" : "open"},
+      "my-index-000002" : {"state" : "open"},
+      "my-index-000003" : {"state" : "open"}
     }
   }
 }
@@ -376,7 +367,7 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ==== Flat Settings
 
 The `flat_settings` flag affects rendering of the lists of settings. When the
@@ -384,46 +375,46 @@ The `flat_settings` flag affects rendering of the lists of settings. When the
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=true
+GET my-index-000001/_settings?flat_settings=true
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings": {
       "index.number_of_replicas": "1",
       "index.number_of_shards": "1",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.provided_name" : "twitter"
+      "index.provided_name" : "my-index-000001"
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
-// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_settings?flat_settings=false
+GET my-index-000001/_settings?flat_settings=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Returns:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "twitter" : {
+  "my-index-000001" : {
     "settings" : {
       "index" : {
         "number_of_replicas": "1",
@@ -433,39 +424,39 @@ Returns:
         "version": {
           "created": ...
         },
-        "provided_name" : "twitter"
+        "provided_name" : "my-index-000001"
       }
     }
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
-// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
+// TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
 
 By default `flat_settings` is set to `false`.
 
-[float]
+[discrete]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
-[float]
+[discrete]
 ==== Boolean Values
 
 All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
-[float]
+[discrete]
 ==== Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
 [[time-units]]
-[float]
+[discrete]
 ==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
@@ -481,7 +472,7 @@ the unit, like `2d` for 2 days.  The supported units are:
 `nanos`::   Nanoseconds
 
 [[byte-units]]
-[float]
+[discrete]
 ==== Byte size units
 
 Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
@@ -497,7 +488,7 @@ these units use powers of 1024, so `1kb` means 1024 bytes. The supported units a
 `pb`::  Petabytes
 
 [[size-units]]
-[float]
+[discrete]
 ==== Unit-less quantities
 
 Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
@@ -513,7 +504,7 @@ when we mean 87 though. These are the supported multipliers:
 `p`::  Peta
 
 [[distance-units]]
-[float]
+[discrete]
 ==== Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
@@ -535,14 +526,14 @@ Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
 [[fuzziness]]
-[float]
+[discrete]
 ==== Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
 using the `fuzziness` parameter.
 
 When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
-http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
+{wikipedia}/Levenshtein_distance[Levenshtein Edit Distance]
 -- the number of one character changes that need to be made to one string to
 make it the same as another string.
 
@@ -567,7 +558,7 @@ the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 `AUTO` should generally be the preferred value for `fuzziness`.
 --
 
-[float]
+[discrete]
 [[common-options-error-options]]
 ==== Enabling stack traces
 
@@ -578,7 +569,7 @@ invalid `size` parameter to the `_search` API:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me
+POST /my-index-000001/_search?size=surprise_me
 ----------------------------------------------------------------------
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
@@ -610,7 +601,7 @@ But if you set `error_trace=true`:
 
 [source,console]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me&error_trace=true
+POST /my-index-000001/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // TEST[catch:bad_request]
 
@@ -643,7 +634,7 @@ The response looks like:
 // TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
 // TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
-[float]
+[discrete]
 ==== Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,
@@ -652,7 +643,7 @@ instead. When using this method, the `source_content_type` parameter
 should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
-[float]
+[discrete]
 ==== Content-Type Requirements
 
 The type of the content sent in a request body must be specified using

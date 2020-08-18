@@ -24,11 +24,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Contains integration tests that simulate the new indexing strategy upgrade scenarios.
+ */
 public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
     public void testCompatibleMappingUpgrade() throws Exception {
         // Create pipeline
-        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error1");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
         assertOK(client().performRequest(putPipelineRequest));
 
@@ -47,7 +50,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
                 + "}"
                 + "},"
                 + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error\""
+                + "\"index.default_pipeline\":\"mysql-error1\""
                 + "}"
                 + "}"
                 + "}"
@@ -58,6 +61,16 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         Request indexRequest = new Request("POST", "/logs-mysql-error/_doc");
         indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread_id\":23}");
         assertOK(client().performRequest(indexRequest));
+
+        // Create new pipeline and update default pipeline:
+        putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error2");
+        putPipelineRequest.setJsonEntity(
+            "{\"processors\":[{\"rename\":{\"field\":\"thread_id\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
+        );
+        assertOK(client().performRequest(putPipelineRequest));
+        Request updateSettingsRequest = new Request("PUT", "/logs-mysql-error/_settings");
+        updateSettingsRequest.setJsonEntity("{ \"index\": { \"default_pipeline\" : \"mysql-error2\" }}");
+        assertOK(client().performRequest(updateSettingsRequest));
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
@@ -78,7 +91,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
                 + "}"
                 + "},"
                 + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error\""
+                + "\"index.default_pipeline\":\"mysql-error2\""
                 + "}"
                 + "}"
                 + "}"
@@ -91,12 +104,9 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         putMappingRequest.setJsonEntity("{\"properties\":{\"thread\":{\"properties\":{\"id\":{\"type\":\"long\"}}}}}");
         assertOK(client().performRequest(putMappingRequest));
 
-        // Update pipeline
-        putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[{\"rename\":{\"field\":\"thread_id\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
-        );
-        assertOK(client().performRequest(putPipelineRequest));
+        // Delete old pipeline
+        Request deletePipeline = new Request("DELETE", "/_ingest/pipeline/mysql-error1");
+        assertOK(client().performRequest(deletePipeline));
 
         // Index more docs
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");
@@ -117,7 +127,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
     public void testConflictingMappingUpgrade() throws Exception {
         // Create pipeline
-        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error1");
         putPipelineRequest.setJsonEntity("{\"processors\":[]}");
         assertOK(client().performRequest(putPipelineRequest));
 
@@ -136,7 +146,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
                 + "}"
                 + "},"
                 + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error\""
+                + "\"index.default_pipeline\":\"mysql-error1\""
                 + "}"
                 + "}"
                 + "}"
@@ -147,6 +157,16 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         Request indexRequest = new Request("POST", "/logs-mysql-error/_doc");
         indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread\":23}");
         assertOK(client().performRequest(indexRequest));
+
+        // Create new pipeline and update default pipeline:
+        putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error2");
+        putPipelineRequest.setJsonEntity(
+            "{\"processors\":[{\"rename\":{\"field\":\"thread\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
+        );
+        assertOK(client().performRequest(putPipelineRequest));
+        Request updateSettingsRequest = new Request("PUT", "/logs-mysql-error/_settings");
+        updateSettingsRequest.setJsonEntity("{ \"index\": { \"default_pipeline\" : \"mysql-error2\" }}");
+        assertOK(client().performRequest(updateSettingsRequest));
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
@@ -167,7 +187,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
                 + "}"
                 + "},"
                 + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error\""
+                + "\"index.default_pipeline\":\"mysql-error2\""
                 + "}"
                 + "}"
                 + "}"
@@ -185,12 +205,9 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
         Request rolloverRequest = new Request("POST", "/logs-mysql-error/_rollover");
         assertOK(client().performRequest(rolloverRequest));
 
-        // Update pipeline
-        putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[{\"rename\":{\"field\":\"thread\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
-        );
-        assertOK(client().performRequest(putPipelineRequest));
+        // Delete old pipeline
+        Request deletePipeline = new Request("DELETE", "/_ingest/pipeline/mysql-error1");
+        assertOK(client().performRequest(deletePipeline));
 
         // Index more docs
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");

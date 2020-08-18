@@ -47,8 +47,8 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
             threadPool.absoluteTimeInMillis());
     }
 
-    public RepositoryStatsSnapshot statsSnapshot(long clusterVersion) {
-        return new RepositoryStatsSnapshot(repositoryInfo, stats(), clusterVersion, false);
+    public RepositoryStatsSnapshot statsSnapshot() {
+        return new RepositoryStatsSnapshot(repositoryInfo, stats(), RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION, false);
     }
 
     public RepositoryStatsSnapshot statsSnapshotForArchival(long clusterVersion) {

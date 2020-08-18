@@ -3,14 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.repositories.metrics.azure;
+package org.elasticsearch.xpack.repositories.metering.azure;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.repositories.metrics.AbstractRepositoriesMetricsAPIRestTestCase;
+import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 
 import java.util.List;
 
-public class AzureRepositoriesMetricsIT extends AbstractRepositoriesMetricsAPIRestTestCase {
+public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
     @Override
     protected String repositoryType() {

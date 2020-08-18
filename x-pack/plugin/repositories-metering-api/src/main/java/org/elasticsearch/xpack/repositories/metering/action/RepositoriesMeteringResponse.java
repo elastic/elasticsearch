@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -17,34 +17,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public final class RepositoriesMetricsResponse extends BaseNodesResponse<RepositoriesNodeMetricsResponse> implements ToXContentFragment {
+public final class RepositoriesMeteringResponse extends BaseNodesResponse<RepositoriesNodeMeteringResponse> implements ToXContentFragment {
 
-    public RepositoriesMetricsResponse(StreamInput in) throws IOException {
+    public RepositoriesMeteringResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public RepositoriesMetricsResponse(
+    public RepositoriesMeteringResponse(
         ClusterName clusterName,
-        List<RepositoriesNodeMetricsResponse> nodes,
+        List<RepositoriesNodeMeteringResponse> nodes,
         List<FailedNodeException> failures
     ) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    protected List<RepositoriesNodeMetricsResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(RepositoriesNodeMetricsResponse::new);
+    protected List<RepositoriesNodeMeteringResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(RepositoriesNodeMeteringResponse::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<RepositoriesNodeMetricsResponse> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<RepositoriesNodeMeteringResponse> nodes) throws IOException {
         out.writeList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("nodes");
-        for (RepositoriesNodeMetricsResponse nodeStats : getNodes()) {
+        for (RepositoriesNodeMeteringResponse nodeStats : getNodes()) {
             nodeStats.toXContent(builder, params);
         }
         builder.endObject();

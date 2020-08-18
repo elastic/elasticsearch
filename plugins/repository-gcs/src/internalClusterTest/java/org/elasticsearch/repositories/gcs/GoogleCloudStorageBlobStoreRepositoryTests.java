@@ -310,15 +310,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
-                trackRequest("GET");
+                trackRequest("storage.objects.get");
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("LIST");
+                trackRequest("storage.objects.list");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
-                trackRequest("GET");
+                trackRequest("storage.objects.get");
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
-                trackRequest("PUT");
+                trackRequest("storage.objects.resumable-insert");
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest("POST");
+                trackRequest("storage.objects.insert");
             }
         }
 

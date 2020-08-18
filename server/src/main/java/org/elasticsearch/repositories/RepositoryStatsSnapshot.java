@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
+    public static final long UNKNOWN_CLUSTER_VERSION = -1;
     private final RepositoryInfo repositoryInfo;
     private final RepositoryStats repositoryStats;
     private final long clusterVersion;
@@ -39,6 +40,7 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
                                    RepositoryStats repositoryStats,
                                    long clusterVersion,
                                    boolean archived) {
+        assert archived != (clusterVersion == UNKNOWN_CLUSTER_VERSION);
         this.repositoryInfo = repositoryInfo;
         this.repositoryStats = repositoryStats;
         this.clusterVersion = clusterVersion;
@@ -80,9 +82,11 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         repositoryInfo.toXContent(builder, params);
-        builder.field("cluster_version", clusterVersion);
         builder.field("request_counts", repositoryStats.requestCounts);
         builder.field("archived", archived);
+        if (archived) {
+            builder.field("cluster_version", clusterVersion);
+        }
         builder.endObject();
         return builder;
     }

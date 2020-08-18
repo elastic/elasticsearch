@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,16 +18,16 @@ import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import java.io.IOException;
 import java.util.List;
 
-public final class RepositoriesNodeMetricsResponse extends BaseNodeResponse implements ToXContentFragment {
+public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse implements ToXContentFragment {
 
     final List<RepositoryStatsSnapshot> repositoryStatsSnapshots;
 
-    public RepositoriesNodeMetricsResponse(DiscoveryNode node, List<RepositoryStatsSnapshot> repositoryStatsSnapshots) {
+    public RepositoriesNodeMeteringResponse(DiscoveryNode node, List<RepositoryStatsSnapshot> repositoryStatsSnapshots) {
         super(node);
         this.repositoryStatsSnapshots = repositoryStatsSnapshots;
     }
 
-    public RepositoriesNodeMetricsResponse(StreamInput in) throws IOException {
+    public RepositoriesNodeMeteringResponse(StreamInput in) throws IOException {
         super(in);
         this.repositoryStatsSnapshots = in.readList(RepositoryStatsSnapshot::new);
     }

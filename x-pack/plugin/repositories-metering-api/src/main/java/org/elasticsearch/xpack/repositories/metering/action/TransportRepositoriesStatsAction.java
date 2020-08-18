@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.util.List;
 
 public final class TransportRepositoriesStatsAction extends TransportNodesAction<
-    RepositoriesMetricsRequest,
-    RepositoriesMetricsResponse,
+    RepositoriesMeteringRequest,
+    RepositoriesMeteringResponse,
     TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
-    RepositoriesNodeMetricsResponse> {
+    RepositoriesNodeMeteringResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -38,41 +38,41 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
         RepositoriesService repositoriesService
     ) {
         super(
-            RepositoriesMetricsAction.NAME,
+            RepositoriesMeteringAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
-            RepositoriesMetricsRequest::new,
+            RepositoriesMeteringRequest::new,
             RepositoriesNodeStatsRequest::new,
             ThreadPool.Names.SAME,
-            RepositoriesNodeMetricsResponse.class
+            RepositoriesNodeMeteringResponse.class
         );
         this.repositoriesService = repositoriesService;
     }
 
     @Override
-    protected RepositoriesMetricsResponse newResponse(
-        RepositoriesMetricsRequest request,
-        List<RepositoriesNodeMetricsResponse> repositoriesNodeStatsResponses,
+    protected RepositoriesMeteringResponse newResponse(
+        RepositoriesMeteringRequest request,
+        List<RepositoriesNodeMeteringResponse> repositoriesNodeStatsResponses,
         List<FailedNodeException> failures
     ) {
-        return new RepositoriesMetricsResponse(clusterService.getClusterName(), repositoriesNodeStatsResponses, failures);
+        return new RepositoriesMeteringResponse(clusterService.getClusterName(), repositoriesNodeStatsResponses, failures);
     }
 
     @Override
-    protected RepositoriesNodeStatsRequest newNodeRequest(RepositoriesMetricsRequest request) {
+    protected RepositoriesNodeStatsRequest newNodeRequest(RepositoriesMeteringRequest request) {
         return new RepositoriesNodeStatsRequest();
     }
 
     @Override
-    protected RepositoriesNodeMetricsResponse newNodeResponse(StreamInput in) throws IOException {
-        return new RepositoriesNodeMetricsResponse(in);
+    protected RepositoriesNodeMeteringResponse newNodeResponse(StreamInput in) throws IOException {
+        return new RepositoriesNodeMeteringResponse(in);
     }
 
     @Override
-    protected RepositoriesNodeMetricsResponse nodeOperation(RepositoriesNodeStatsRequest request, Task task) {
-        return new RepositoriesNodeMetricsResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
+    protected RepositoriesNodeMeteringResponse nodeOperation(RepositoriesNodeStatsRequest request, Task task) {
+        return new RepositoriesNodeMeteringResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
     }
 
     static final class RepositoriesNodeStatsRequest extends TransportRequest {

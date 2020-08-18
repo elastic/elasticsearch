@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics;
+package org.elasticsearch.xpack.repositories.metering;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractRepositoriesMetricsAPIRestTestCase extends ESRestTestCase {
+public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRestTestCase {
     protected abstract String repositoryType();
 
     protected abstract String repositoryLocation();
@@ -299,7 +299,7 @@ public abstract class AbstractRepositoriesMetricsAPIRestTestCase extends ESRestT
     }
 
     private List<RepositoryStatsSnapshot> getRepositoriesStats() throws IOException {
-        Map<String, Object> response = getAsMap("/_nodes/_all/_repositories_metrics");
+        Map<String, Object> response = getAsMap("/_nodes/_all/_repositories_metering");
         return parseRepositoriesStatsResponse(response);
     }
 
@@ -314,8 +314,11 @@ public abstract class AbstractRepositoriesMetricsAPIRestTestCase extends ESRestT
             for (Map<String, Object> nodeStatSnapshot : nodeStats) {
                 RepositoryInfo repositoryInfo = parseRepositoryInfo(nodeStatSnapshot);
                 Map<String, Integer> intRequestCounters = extractValue(nodeStatSnapshot, "request_counts");
-                int clusterVersion = extractValue(nodeStatSnapshot, "cluster_version");
                 boolean archived = extractValue(nodeStatSnapshot, "archived");
+                int clusterVersion = (int) RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION;
+                if (archived) {
+                    clusterVersion = extractValue(nodeStatSnapshot, "cluster_version");
+                }
                 Map<String, Long> requestCounters = intRequestCounters.entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().longValue()));
@@ -348,7 +351,7 @@ public abstract class AbstractRepositoriesMetricsAPIRestTestCase extends ESRestT
     }
 
     private List<RepositoryStatsSnapshot> clearRepositoriesStats(long maxVersionToClear) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "/_nodes/_all/_repositories_metrics/" + maxVersionToClear);
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_nodes/_all/_repositories_metering/" + maxVersionToClear);
         final Response response = client().performRequest(request);
         assertThat(
             "Failed to clear repositories stats: " + response,

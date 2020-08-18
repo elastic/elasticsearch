@@ -384,11 +384,11 @@ public class AzureBlobStore implements BlobStore {
         private final AtomicLong putBlockOperations = new AtomicLong();
 
         private Map<String, Long> toMap() {
-            return Map.of("GET", getOperations.get(),
-                "LIST", listOperations.get(),
-                "HEAD", headOperations.get(),
-                "PUT", putOperations.get(),
-                "PUT_BLOCK", putBlockOperations.get());
+            return Map.of("GetBlob", getOperations.get(),
+                "ListBlobs", listOperations.get(),
+                "GetBlobProperties", headOperations.get(),
+                "PutBlob", putOperations.get(),
+                "PutBlock", putBlockOperations.get());
         }
     }
 }

@@ -3,37 +3,36 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.repositories.metrics.s3;
+package org.elasticsearch.xpack.repositories.metering.gcs;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.repositories.metrics.AbstractRepositoriesMetricsAPIRestTestCase;
+import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 
 import java.util.List;
 
-public class S3RepositoriesMetricsIT extends AbstractRepositoriesMetricsAPIRestTestCase {
+public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
     @Override
     protected String repositoryType() {
-        return "s3";
+        return "gcs";
     }
 
     @Override
     protected String repositoryLocation() {
-        return getProperty("test.s3.bucket") + "/" + getProperty("test.s3.base_path") + "/";
+        return getProperty("test.gcs.bucket") + "/" + getProperty("test.gcs.base_path") + "/";
     }
 
     @Override
     protected Settings repositorySettings() {
-        final String bucket = getProperty("test.s3.bucket");
-        final String basePath = getProperty("test.s3.base_path");
+        final String bucket = getProperty("test.gcs.bucket");
+        final String basePath = getProperty("test.gcs.base_path");
 
         return Settings.builder().put("client", "repositories_metering").put("bucket", bucket).put("base_path", basePath).build();
     }
 
     @Override
     protected Settings updatedRepositorySettings() {
-        Settings settings = repositorySettings();
-        return Settings.builder().put(settings).put("s3.client.max_retries", 4).build();
+        return Settings.builder().put(repositorySettings()).put("gcs.client.repositories_metering.application_name", "updated").build();
     }
 
     @Override
@@ -43,6 +42,6 @@ public class S3RepositoriesMetricsIT extends AbstractRepositoriesMetricsAPIRestT
 
     @Override
     protected List<String> writeCounterKeys() {
-        return List.of("PUT");
+        return List.of("POST");
     }
 }

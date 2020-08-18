@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,10 +24,10 @@ import java.io.IOException;
 import java.util.List;
 
 public final class TransportClearRepositoriesStatsArchiveAction extends TransportNodesAction<
-    ClearRepositoriesMetricsArchiveRequest,
-    RepositoriesMetricsResponse,
+    ClearRepositoriesMeteringArchiveRequest,
+    RepositoriesMeteringResponse,
     TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
-    RepositoriesNodeMetricsResponse> {
+    RepositoriesNodeMeteringResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -40,42 +40,42 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
         RepositoriesService repositoriesService
     ) {
         super(
-            ClearRepositoriesMetricsArchiveAction.NAME,
+            ClearRepositoriesMeteringArchiveAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRepositoriesMetricsArchiveRequest::new,
+            ClearRepositoriesMeteringArchiveRequest::new,
             ClearRepositoriesStatsArchiveNodeRequest::new,
             ThreadPool.Names.SAME,
-            RepositoriesNodeMetricsResponse.class
+            RepositoriesNodeMeteringResponse.class
         );
         this.repositoriesService = repositoriesService;
     }
 
     @Override
-    protected RepositoriesMetricsResponse newResponse(
-        ClearRepositoriesMetricsArchiveRequest request,
-        List<RepositoriesNodeMetricsResponse> nodesResponses,
+    protected RepositoriesMeteringResponse newResponse(
+        ClearRepositoriesMeteringArchiveRequest request,
+        List<RepositoriesNodeMeteringResponse> nodesResponses,
         List<FailedNodeException> failures
     ) {
-        return new RepositoriesMetricsResponse(clusterService.getClusterName(), nodesResponses, failures);
+        return new RepositoriesMeteringResponse(clusterService.getClusterName(), nodesResponses, failures);
     }
 
     @Override
-    protected ClearRepositoriesStatsArchiveNodeRequest newNodeRequest(ClearRepositoriesMetricsArchiveRequest request) {
+    protected ClearRepositoriesStatsArchiveNodeRequest newNodeRequest(ClearRepositoriesMeteringArchiveRequest request) {
         return new ClearRepositoriesStatsArchiveNodeRequest(request.getMaxVersionToClear());
     }
 
     @Override
-    protected RepositoriesNodeMetricsResponse newNodeResponse(StreamInput in) throws IOException {
-        return new RepositoriesNodeMetricsResponse(in);
+    protected RepositoriesNodeMeteringResponse newNodeResponse(StreamInput in) throws IOException {
+        return new RepositoriesNodeMeteringResponse(in);
     }
 
     @Override
-    protected RepositoriesNodeMetricsResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
+    protected RepositoriesNodeMeteringResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
         List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive(request.maxVersionToClear);
-        return new RepositoriesNodeMetricsResponse(clusterService.localNode(), clearedStats);
+        return new RepositoriesNodeMeteringResponse(clusterService.localNode(), clearedStats);
     }
 
     static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {

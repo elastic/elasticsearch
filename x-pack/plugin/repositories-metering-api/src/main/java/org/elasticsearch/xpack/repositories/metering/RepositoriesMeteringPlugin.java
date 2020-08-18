@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics;
+package org.elasticsearch.xpack.repositories.metering;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -18,12 +18,12 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xpack.repositories.metrics.action.ClearRepositoriesMetricsArchiveAction;
-import org.elasticsearch.xpack.repositories.metrics.action.RepositoriesMetricsAction;
-import org.elasticsearch.xpack.repositories.metrics.action.TransportClearRepositoriesStatsArchiveAction;
-import org.elasticsearch.xpack.repositories.metrics.action.TransportRepositoriesStatsAction;
-import org.elasticsearch.xpack.repositories.metrics.rest.RestClearRepositoriesMetricsArchiveAction;
-import org.elasticsearch.xpack.repositories.metrics.rest.RestGetRepositoriesMetricsAction;
+import org.elasticsearch.xpack.repositories.metering.action.ClearRepositoriesMeteringArchiveAction;
+import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringAction;
+import org.elasticsearch.xpack.repositories.metering.action.TransportClearRepositoriesStatsArchiveAction;
+import org.elasticsearch.xpack.repositories.metering.action.TransportRepositoriesStatsAction;
+import org.elasticsearch.xpack.repositories.metering.rest.RestClearRepositoriesMeteringArchiveAction;
+import org.elasticsearch.xpack.repositories.metering.rest.RestGetRepositoriesMeteringAction;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -33,8 +33,8 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(RepositoriesMetricsAction.INSTANCE, TransportRepositoriesStatsAction.class),
-            new ActionHandler<>(ClearRepositoriesMetricsArchiveAction.INSTANCE, TransportClearRepositoriesStatsArchiveAction.class)
+            new ActionHandler<>(RepositoriesMeteringAction.INSTANCE, TransportRepositoriesStatsAction.class),
+            new ActionHandler<>(ClearRepositoriesMeteringArchiveAction.INSTANCE, TransportClearRepositoriesStatsArchiveAction.class)
         );
     }
 
@@ -48,6 +48,6 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRepositoriesMetricsAction(), new RestClearRepositoriesMetricsArchiveAction());
+        return List.of(new RestGetRepositoriesMeteringAction(), new RestClearRepositoriesMeteringArchiveAction());
     }
 }

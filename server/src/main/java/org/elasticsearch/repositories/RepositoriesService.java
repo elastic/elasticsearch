@@ -90,7 +90,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
-    private volatile long lastKnownClusterVersion;
 
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry, Map<String, Repository.Factory> internalTypesRegistry,
@@ -315,7 +314,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
-            this.lastKnownClusterVersion = state.version();
             RepositoriesMetadata oldMetadata = event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE);
             RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE);
 
@@ -439,7 +437,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
             .filter(r -> r instanceof MeteredBlobStoreRepository)
             .map(r -> (MeteredBlobStoreRepository) r)
-            .map(r -> r.statsSnapshot(lastKnownClusterVersion))
+            .map(MeteredBlobStoreRepository::statsSnapshot)
             .collect(Collectors.toList());
     }
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -12,15 +12,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public final class ClearRepositoriesMetricsArchiveRequest extends BaseNodesRequest<ClearRepositoriesMetricsArchiveRequest> {
+public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequest<ClearRepositoriesMeteringArchiveRequest> {
     private final long maxVersionToClear;
 
-    public ClearRepositoriesMetricsArchiveRequest(StreamInput in) throws IOException {
+    public ClearRepositoriesMeteringArchiveRequest(StreamInput in) throws IOException {
         super(in);
         this.maxVersionToClear = in.readLong();
     }
 
-    public ClearRepositoriesMetricsArchiveRequest(long maxVersionToClear, String... nodesIds) {
+    public ClearRepositoriesMeteringArchiveRequest(long maxVersionToClear, String... nodesIds) {
         super(nodesIds);
         this.maxVersionToClear = maxVersionToClear;
     }

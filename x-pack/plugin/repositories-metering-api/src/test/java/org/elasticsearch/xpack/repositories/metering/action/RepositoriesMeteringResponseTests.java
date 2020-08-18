@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.repositories.metrics.action;
+package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
@@ -22,25 +22,25 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoriesMetricsResponseTests extends ESTestCase {
+public class RepositoriesMeteringResponseTests extends ESTestCase {
     public void testSerializationRoundtrip() throws Exception {
-        final RepositoriesMetricsResponse repositoriesMetricsResponse = createResponse();
-        final RepositoriesMetricsResponse deserializedResponse = copyWriteable(
-            repositoriesMetricsResponse,
+        final RepositoriesMeteringResponse repositoriesMeteringResponse = createResponse();
+        final RepositoriesMeteringResponse deserializedResponse = copyWriteable(
+            repositoriesMeteringResponse,
             writableRegistry(),
-            RepositoriesMetricsResponse::new,
+            RepositoriesMeteringResponse::new,
             Version.CURRENT
         );
-        assertResponsesAreEqual(repositoriesMetricsResponse, deserializedResponse);
+        assertResponsesAreEqual(repositoriesMeteringResponse, deserializedResponse);
     }
 
-    private void assertResponsesAreEqual(RepositoriesMetricsResponse response, RepositoriesMetricsResponse otherResponse) {
-        List<RepositoriesNodeMetricsResponse> nodeResponses = response.getNodes();
-        List<RepositoriesNodeMetricsResponse> otherNodeResponses = otherResponse.getNodes();
+    private void assertResponsesAreEqual(RepositoriesMeteringResponse response, RepositoriesMeteringResponse otherResponse) {
+        List<RepositoriesNodeMeteringResponse> nodeResponses = response.getNodes();
+        List<RepositoriesNodeMeteringResponse> otherNodeResponses = otherResponse.getNodes();
         assertThat(nodeResponses.size(), equalTo(otherNodeResponses.size()));
         for (int i = 0; i < nodeResponses.size(); i++) {
-            RepositoriesNodeMetricsResponse nodeResponse = nodeResponses.get(i);
-            RepositoriesNodeMetricsResponse otherNodeResponse = otherNodeResponses.get(i);
+            RepositoriesNodeMeteringResponse nodeResponse = nodeResponses.get(i);
+            RepositoriesNodeMeteringResponse otherNodeResponse = otherNodeResponses.get(i);
             assertThat(nodeResponse.repositoryStatsSnapshots, equalTo(otherNodeResponse.repositoryStatsSnapshots));
         }
 
@@ -55,10 +55,10 @@ public class RepositoriesMetricsResponseTests extends ESTestCase {
         }
     }
 
-    private RepositoriesMetricsResponse createResponse() {
+    private RepositoriesMeteringResponse createResponse() {
         ClusterName clusterName = new ClusterName("test");
         int nodes = randomIntBetween(1, 10);
-        List<RepositoriesNodeMetricsResponse> nodeResponses = new ArrayList<>(nodes);
+        List<RepositoriesNodeMeteringResponse> nodeResponses = new ArrayList<>(nodes);
         for (int i = 0; i < nodes; i++) {
             DiscoveryNode node = new DiscoveryNode("nodeId" + i, buildNewFakeTransportAddress(), Version.CURRENT);
             int numberOfRepos = randomInt(10);
@@ -72,16 +72,17 @@ public class RepositoriesMetricsResponseTests extends ESTestCase {
                 long startedAt = System.currentTimeMillis() - 1;
                 Long stoppedAt = randomBoolean() ? System.currentTimeMillis() : null;
                 RepositoryInfo repositoryInfo = new RepositoryInfo(repoId, repoName, repoType, repoLocation, startedAt, stoppedAt);
+                boolean archived = randomBoolean();
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
                     repositoryInfo,
                     new RepositoryStats(Map.of("GET", randomLongBetween(0, 2000))),
-                    j,
-                    randomBoolean()
+                    archived ? j : RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION,
+                    archived
                 );
                 nodeRepoStats.add(statsSnapshot);
             }
 
-            nodeResponses.add(new RepositoriesNodeMetricsResponse(node, nodeRepoStats));
+            nodeResponses.add(new RepositoriesNodeMeteringResponse(node, nodeRepoStats));
         }
 
         int numberOfFailures = randomInt(20);
@@ -95,6 +96,6 @@ public class RepositoriesMetricsResponseTests extends ESTestCase {
             failures.add(failedNodeException);
         }
 
-        return new RepositoriesMetricsResponse(clusterName, nodeResponses, failures);
+        return new RepositoriesMeteringResponse(clusterName, nodeResponses, failures);
     }
 }

@@ -63,6 +63,23 @@ public class FilePermissionUtils {
      */
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
     public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions) throws IOException {
+        addDirectoryPath(policy, configurationName, path, permissions, true, true);
+    }
+
+    /**
+     * Add access to path with direct and/or recursive access. This also creates the directory if it does not exist.
+     *
+     * @param policy            current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path              the path itself
+     * @param permissions       set of file permissions to grant to the path
+     * @param directAccess      indicates if the permission should provide direct access to the file
+     * @param recursiveAccess   indicates if the permission should provide recursive access to files underneath
+     */
+    @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
+    public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions,
+                                        boolean directAccess, boolean recursiveAccess) throws IOException {
+        assert directAccess || recursiveAccess : "Must at least provide direct access to file or recursive access files underneath";
         // paths may not exist yet, this also checks accessibility
         try {
             Security.ensureDirectoryExists(path);
@@ -70,18 +87,28 @@ public class FilePermissionUtils {
             throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
         }
 
-        // add each path twice: once for itself, again for files underneath it
-        policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
-        policy.add(new FilePermission(path.toString(), permissions));
+        if (directAccess) {
+            // add access for path itself
+            policy.add(new FilePermission(path.toString(), permissions));
+        }
+        if (recursiveAccess) {
+            // add access for files underneath
+            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+        }
         /*
          * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
          * https://github.com/elastic/elasticsearch/issues/21534.
          */
         final Path realPath = path.toRealPath();
         if (path.toString().equals(realPath.toString()) == false) {
-            policy.add(new FilePermission(realPath.toString(), permissions));
-            policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
+            if (directAccess) {
+                // add access for path itself
+                policy.add(new FilePermission(realPath.toString(), permissions));
+            }
+            if (recursiveAccess) {
+                // add access for files underneath
+                policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
+            }
         }
     }
-
 }

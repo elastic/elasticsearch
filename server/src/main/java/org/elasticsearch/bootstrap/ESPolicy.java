@@ -54,7 +54,8 @@ final class ESPolicy extends Policy {
         this(codebases, dynamic, plugins, filterBadDefaults, new Permissions());
     }
 
-    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults, PermissionCollection dataPathPermission) {
+    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
+             PermissionCollection dataPathPermission) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = dataPathPermission;
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
@@ -104,6 +105,8 @@ final class ESPolicy extends Policy {
             }
         }
 
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we check it first.
         if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
             return true;
         }

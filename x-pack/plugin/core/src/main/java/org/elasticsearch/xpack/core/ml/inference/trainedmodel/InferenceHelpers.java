@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -139,11 +138,13 @@ public final class InferenceHelpers {
             if (v.length == 1) {
                 importances.add(FeatureImportance.forRegression(k, v[0]));
             } else {
-                Map<String, Double> classImportance = new LinkedHashMap<>(v.length, 1.0f);
+                List<FeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
-                    classImportance.put(classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i), v[i]);
+                    classImportance.add(new FeatureImportance.ClassImportance(
+                        classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i),
+                        v[i]));
                 }
                 importances.add(FeatureImportance.forClassification(k, classImportance));
             }

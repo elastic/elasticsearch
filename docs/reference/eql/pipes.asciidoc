@@ -19,7 +19,7 @@ experimental::[]
 
 Returns up to a specified number of events or sequences, starting with the
 earliest matches. Works similarly to the
-https://en.wikipedia.org/wiki/Head_(Unix)[Unix head command].
+{wikipedia}/Head_(Unix)[Unix head command].
 
 [%collapsible]
 ====
@@ -53,7 +53,7 @@ Maximum number of matching events or sequences to return.
 
 Returns up to a specified number of events or sequences, starting with the most
 recent matches. Works similarly to the
-https://en.wikipedia.org/wiki/Tail_(Unix)[Unix tail command].
+{wikipedia}/Tail_(Unix)[Unix tail command].
 
 [%collapsible]
 ====

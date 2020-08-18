@@ -793,9 +793,15 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         );
                     } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
                         assertThat(
-                            "Expected no bytes requested from blob store for " + fileName + " of shard " + shardRouting,
-                            indexInputStats.getBlobStoreBytesRequested().getCount(),
-                            equalTo(0L)
+                            "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
+                            Math.max(
+                                Math.max(
+                                    indexInputStats.getCachedBytesRead().getCount(),
+                                    indexInputStats.getCachedBytesWritten().getCount()
+                                ),
+                                indexInputStats.getIndexCacheBytesRead().getCount()
+                            ),
+                            greaterThan(0L)
                         );
                         assertThat(
                             "Expected no optimized read for " + fileName + " of shard " + shardRouting,

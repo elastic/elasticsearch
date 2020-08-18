@@ -107,6 +107,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
             randomCounter(),
             randomCounter(),
             randomCounter(),
+            randomCounter(),
             randomTimedCounter(),
             randomTimedCounter(),
             randomTimedCounter(),

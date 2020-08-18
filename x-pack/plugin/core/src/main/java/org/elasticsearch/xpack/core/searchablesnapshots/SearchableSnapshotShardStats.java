@@ -135,6 +135,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter contiguousReads;
         private final Counter nonContiguousReads;
         private final Counter cachedBytesRead;
+        private final Counter indexCacheBytesRead;
         private final TimedCounter cachedBytesWritten;
         private final TimedCounter directBytesRead;
         private final TimedCounter optimizedBytesRead;
@@ -145,8 +146,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
-                                    Counter cachedBytesRead, TimedCounter cachedBytesWritten,
-                                    TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
+                                    Counter cachedBytesRead, Counter indexCacheBytesRead,
+                                    TimedCounter cachedBytesWritten, TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
                                     Counter blobStoreBytesRequested, long currentIndexCacheFills) {
             this.fileName = fileName;
             this.fileLength = fileLength;
@@ -159,6 +160,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.contiguousReads = contiguousReads;
             this.nonContiguousReads = nonContiguousReads;
             this.cachedBytesRead = cachedBytesRead;
+            this.indexCacheBytesRead = indexCacheBytesRead;
             this.cachedBytesWritten = cachedBytesWritten;
             this.directBytesRead = directBytesRead;
             this.optimizedBytesRead = optimizedBytesRead;
@@ -178,6 +180,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.contiguousReads = new Counter(in);
             this.nonContiguousReads = new Counter(in);
             this.cachedBytesRead = new Counter(in);
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.indexCacheBytesRead = new Counter(in);
+            } else {
+                this.indexCacheBytesRead = new Counter(0, 0, 0, 0);
+            }
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
@@ -187,7 +194,6 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             } else {
                 this.blobStoreBytesRequested = new Counter(0, 0, 0, 0);
                 this.currentIndexCacheFills = 0;
-
             }
         }
 
@@ -205,6 +211,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             contiguousReads.writeTo(out);
             nonContiguousReads.writeTo(out);
             cachedBytesRead.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                indexCacheBytesRead.writeTo(out);
+            }
             cachedBytesWritten.writeTo(out);
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
@@ -258,6 +267,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return cachedBytesRead;
         }
 
+        public Counter getIndexCacheBytesRead() {
+            return indexCacheBytesRead;
+        }
+
         public TimedCounter getCachedBytesWritten() {
             return cachedBytesWritten;
         }
@@ -289,6 +302,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 builder.field("contiguous_bytes_read", getContiguousReads());
                 builder.field("non_contiguous_bytes_read", getNonContiguousReads());
                 builder.field("cached_bytes_read", getCachedBytesRead());
+                builder.field("index_cache_bytes_read", getIndexCacheBytesRead());
                 builder.field("cached_bytes_written", getCachedBytesWritten());
                 builder.field("direct_bytes_read", getDirectBytesRead());
                 builder.field("optimized_bytes_read", getOptimizedBytesRead());
@@ -330,6 +344,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && Objects.equals(contiguousReads, stats.contiguousReads)
                 && Objects.equals(nonContiguousReads, stats.nonContiguousReads)
                 && Objects.equals(cachedBytesRead, stats.cachedBytesRead)
+                && Objects.equals(indexCacheBytesRead, stats.indexCacheBytesRead)
                 && Objects.equals(cachedBytesWritten, stats.cachedBytesWritten)
                 && Objects.equals(directBytesRead, stats.directBytesRead)
                 && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead)
@@ -343,8 +358,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 forwardSmallSeeks, backwardSmallSeeks,
                 forwardLargeSeeks, backwardLargeSeeks,
                 contiguousReads, nonContiguousReads,
-                cachedBytesRead, cachedBytesWritten,
-                directBytesRead, optimizedBytesRead,
+                cachedBytesRead, indexCacheBytesRead,
+                cachedBytesWritten, directBytesRead, optimizedBytesRead,
                 blobStoreBytesRequested, currentIndexCacheFills);
         }
     }

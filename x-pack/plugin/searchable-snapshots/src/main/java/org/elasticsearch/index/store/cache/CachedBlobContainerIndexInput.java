@@ -194,6 +194,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         fileInfo.physicalName(),
                         position
                     );
+                    stats.addIndexCacheBytesRead(cachedBlob.length());
                     b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
 
                     try {

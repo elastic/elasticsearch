@@ -84,6 +84,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -991,7 +992,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
         if (Files.exists(getDistroDir()) == false) {
-            syncWithLinks(distroExtractDir, getDistroDir());
+            try {
+                syncWithLinks(distroExtractDir, getDistroDir());
+            } catch (IOException e) {
+                // Note does not work for network drives, e.g. Vagrant
+                LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
+                // ensure we get a clean copy
+                Files.delete(getDistroDir());
+                syncWithCopy(distroExtractDir, getDistroDir());
+            }
         }
         // Start configuration from scratch in case of a restart
         project.delete(configFile.getParent());
@@ -1010,7 +1019,28 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @param sourceRoot      where to copy from
      * @param destinationRoot destination to link to
      */
-    private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
+    private void syncWithLinks(Path sourceRoot, Path destinationRoot) throws IOException {
+        sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
+            try {
+                Files.createLink(d, s);
+            } catch (IOException e) {
+                // Note does not work for network drives, e.g. Vagrant
+                throw new UncheckedIOException("Failed to create hard link " + d + " pointing to " + s, e);
+            }
+        });
+    }
+
+    private void syncWithCopy(Path sourceRoot, Path destinationRoot) {
+        sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
+            try {
+                Files.copy(s, d);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to copy " + s + " to " + d, e);
+            }
+        });
+    }
+
+    private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
@@ -1034,12 +1064,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     } catch (IOException e) {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
-                    try {
-                        Files.createLink(destination, source);
-                    } catch (IOException e) {
-                        // Note does not work for network drives, e.g. Vagrant
-                        throw new UncheckedIOException("Failed to create hard link " + destination + " pointing to " + source, e);
-                    }
+                    syncMethod.accept(destination, source);
+
                 }
             });
         } catch (IOException e) {

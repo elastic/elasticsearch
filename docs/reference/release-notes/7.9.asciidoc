@@ -3,6 +3,20 @@
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
+[[known-issues-7.9.0]]
+[discrete]
+=== Known issues
+
+* Upgrading to 7.9.0 from an earlier version will result in incorrect mappings
+on the {ml} annotations index, and possibly also on the {ml} config index. This
+will lead to some pages in the {ml} UI not displaying correctly, and may prevent
+{ml-jobs} being created or updated. The best way to avoid this problem if you
+read about this known issue before upgrading is to manually update the mappings
+on these indices in your old {es} version _before_ upgrading to 7.9.0. If you
+find out about the issue after upgrading then reindexing is required to recover.
+Full details of the mitigations are in
+{ml-docs}/ml-troubleshooting.html#ml-troubleshooting-mappings[Upgrade to 7.9.0 causes incorrect mappings].
+
 [[breaking-7.9.0]]
 [discrete]
 === Breaking changes

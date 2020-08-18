@@ -405,7 +405,7 @@ a <<eql-sequences,sequence>>.
 [%collapsible%open]
 =====
 `join_keys`::
-(array of strings)
+(array of values)
 Shared field values used to constrain matches in the sequence. These are defined
 using the <<eql-sequences,`by` keyword>> in the EQL query syntax.
 
@@ -627,7 +627,7 @@ shared `process.pid` value for each matching event.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {

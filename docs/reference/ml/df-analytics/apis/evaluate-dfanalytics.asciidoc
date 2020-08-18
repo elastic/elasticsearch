@@ -126,7 +126,7 @@ which outputs a prediction of values.
 
   `mse`:::
     (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
-    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+    For more information, read {wikipedia}/Mean_squared_error[this wiki article].
 
   `msle`:::
     (Optional, object) Average squared difference between the logarithm of the predicted values and the logarithm of the actual
@@ -134,11 +134,11 @@ which outputs a prediction of values.
 
   `huber`:::
     (Optional, object) Pseudo Huber loss function.
-    For more information, read https://en.wikipedia.org/wiki/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
+    For more information, read {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
 
   `r_squared`:::
     (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
-    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
+    For more information, read {wikipedia}/Coefficient_of_determination[this wiki article].
 
 
   

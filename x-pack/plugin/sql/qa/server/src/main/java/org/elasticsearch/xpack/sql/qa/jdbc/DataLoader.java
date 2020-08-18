@@ -129,6 +129,7 @@ public class DataLoader {
                 if (extraFields) {
                     createIndex.startObject("extra_gender").field("type", "constant_keyword").endObject();
                     createIndex.startObject("null_constant").field("type", "constant_keyword").endObject();
+                    createIndex.startObject("wildcard_name").field("type", "wildcard").endObject();
                     createIndex.startObject("extra.info.gender").field("type", "alias").field("path", "gender").endObject();
                 }
 
@@ -186,6 +187,8 @@ public class DataLoader {
 
             boolean hadLastItem = false;
 
+            String wildcard_name = null;
+            boolean setWildcardName = true;
             for (int f = 0; f < fields.size(); f++) {
                 // an empty value in the csv file is treated as 'null', thus skipping it in the bulk request
                 if (fields.get(f).trim().length() > 0) {
@@ -198,7 +201,19 @@ public class DataLoader {
                         bulk.append(",\"extra_gender\":\"Female\"");
                     }
                 }
+                if ((titles.get(f).equals("first_name") || titles.get(f).equals("last_name")) && extraFields && setWildcardName) {
+                    if (fields.get(f).trim().length() == 0) {
+                        setWildcardName = false;
+                    } else {
+                        wildcard_name = wildcard_name == null ? fields.get(f) : wildcard_name + " " + fields.get(f);
+                    }
+                }
             }
+            // append the wildcard field
+            if (extraFields && setWildcardName) {
+                bulk.append(",\"wildcard_name\":\"" + wildcard_name + "\"");
+            }
+
             // append department
             List<List<String>> list = dep_emp.get(emp_no);
             if (!list.isEmpty()) {

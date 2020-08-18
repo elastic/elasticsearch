@@ -4,7 +4,7 @@
 <titleabbrev>Edge n-gram</titleabbrev>
 ++++
 
-Forms an https://en.wikipedia.org/wiki/N-gram[n-gram] of a specified length from
+Forms an {wikipedia}/N-gram[n-gram] of a specified length from
 the beginning of a token.
 
 For example, you can use the `edge_ngram` token filter to change `quick` to

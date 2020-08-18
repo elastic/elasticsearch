@@ -23,6 +23,7 @@ import org.elasticsearch.client.Request;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
@@ -67,6 +68,16 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 getTasksIndex.addParameter("allow_no_indices", "false");
                 assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
             });
+
+            // Create an alias to make sure it gets upgraded properly
+            Request putAliasRequest = new Request("POST", "/_aliases");
+            putAliasRequest.setJsonEntity("{\n" +
+                "  \"actions\": [\n" +
+                "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
+                "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
+                "  ]\n" +
+                "}");
+            assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
@@ -84,6 +95,13 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 assertNotNull(testIndex);
                 assertThat(testIndex.get("system"), is(false));
             });
+
+            // Verify that the alias survived the upgrade
+            Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
+            getAliasRequest.addParameter("allow_system_index_access", "true");
+            Map<String, Object> response = entityAsMap(client().performRequest(getAliasRequest));
+            assertThat(response, hasKey(".tasks"));
+            assertThat(response, hasKey("test_index_reindex"));
         }
     }
 }

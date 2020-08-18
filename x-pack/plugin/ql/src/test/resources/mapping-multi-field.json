@@ -13,6 +13,9 @@
                 "constant" : {
                     "type" : "constant_keyword",
                     "value" : "some constant value"
+                },
+                "wildcard" : {
+                    "type" : "wildcard"
                 }
             }
         }

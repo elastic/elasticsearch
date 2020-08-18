@@ -92,10 +92,6 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     test.systemProperty("java.locale.providers", "SPI,COMPAT");
                 }
             });
-            if (BuildParams.isInFipsJvm()) {
-                project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
-                project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bctls-fips:1.0.9");
-            }
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 

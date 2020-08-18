@@ -70,7 +70,7 @@ GET /my-index-000001/_eql/search
 
 The API returns the following response. Matching events are included in the
 `hits.events` property. These events are sorted by timestamp, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
 [source,console-result]
@@ -316,7 +316,7 @@ contains the shared `process.pid` value for each matching event.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {
@@ -716,3 +716,4 @@ You can also manually delete saved synchronous searches using the
 include::syntax.asciidoc[]
 include::functions.asciidoc[]
 include::pipes.asciidoc[]
+include::detect-threats-with-eql.asciidoc[]

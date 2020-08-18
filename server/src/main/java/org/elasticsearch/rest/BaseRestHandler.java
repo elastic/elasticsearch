@@ -21,7 +21,6 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -58,8 +57,6 @@ public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
-    public static final Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;
-    public static final String ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER = "allow_system_index_access";
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -196,14 +193,6 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     protected Set<String> responseParams() {
         return Collections.emptySet();
-    }
-
-    /**
-     * Controls whether requests handled by this class are allowed to to access system indices by default.
-     * @return {@code true} if requests handled by this class should be allowed to access system indices.
-     */
-    protected boolean allowSystemIndexAccessByDefault() {
-        return false;
     }
 
     public static class Wrapper extends BaseRestHandler {

@@ -53,7 +53,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     @Override
-    protected boolean allowSystemIndexAccessByDefault() {
+    public boolean allowSystemIndexAccessByDefault() {
         return true;
     }
 

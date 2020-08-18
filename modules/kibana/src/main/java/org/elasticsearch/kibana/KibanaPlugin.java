@@ -134,7 +134,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
 
         @Override
-        protected boolean allowSystemIndexAccessByDefault() {
+        public boolean allowSystemIndexAccessByDefault() {
             return true;
         }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -30,6 +31,9 @@ import java.util.List;
  * Handler for REST requests
  */
 public interface RestHandler {
+
+    Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;
+    String ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER = "allow_system_index_access";
 
     /**
      * Handles a rest request.
@@ -87,6 +91,15 @@ public interface RestHandler {
      */
     default List<ReplacedRoute> replacedRoutes() {
         return Collections.emptyList();
+    }
+
+
+    /**
+     * Controls whether requests handled by this class are allowed to to access system indices by default.
+     * @return {@code true} if requests handled by this class should be allowed to access system indices.
+     */
+    default boolean allowSystemIndexAccessByDefault() {
+        return false;
     }
 
     class Route {

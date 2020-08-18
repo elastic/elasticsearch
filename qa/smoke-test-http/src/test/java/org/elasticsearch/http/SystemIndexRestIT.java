@@ -136,7 +136,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         public static class AddDocRestHandler extends BaseRestHandler {
             @Override
-            protected boolean allowSystemIndexAccessByDefault() {
+            public boolean allowSystemIndexAccessByDefault() {
                 return true;
             }
 

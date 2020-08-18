@@ -27,7 +27,7 @@ import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
-import static org.elasticsearch.rest.BaseRestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
+import static org.elasticsearch.rest.RestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

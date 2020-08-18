@@ -97,7 +97,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.rest.BaseRestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
+import static org.elasticsearch.rest.RestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;

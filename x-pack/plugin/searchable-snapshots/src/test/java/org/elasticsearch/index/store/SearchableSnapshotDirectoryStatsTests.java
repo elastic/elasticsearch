@@ -202,7 +202,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = directory.getStats(fileName);
 
                 // account for internal buffered reads
-                final long bufferSize = BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE;
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -319,7 +319,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE;
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -384,7 +384,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.readBytes(readBuffer, 0, size);
 
                     // BufferedIndexInput tries to read as much bytes as possible
-                    final long bytesRead = Math.min(BaseSearchableSnapshotIndexInput.DEFAULT_BUFFER_SIZE, input.length() - randomPosition);
+                    final long bytesRead = Math.min(BufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
                     lastReadPosition = randomPosition + bytesRead;
                     totalBytesRead += bytesRead;
                     minBytesRead = (bytesRead < minBytesRead) ? bytesRead : minBytesRead;

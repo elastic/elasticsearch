@@ -8,7 +8,6 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
@@ -18,8 +17,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
-
-    public static final int DEFAULT_BUFFER_SIZE = Math.toIntExact(ByteSizeUnit.KB.toBytes(4L));
 
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
@@ -41,7 +38,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long offset,
         long length
     ) {
-        super(resourceDesc, DEFAULT_BUFFER_SIZE); // TODO align buffer size with block size on disk and length of content cached for blobs
+        super(resourceDesc, context);
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);

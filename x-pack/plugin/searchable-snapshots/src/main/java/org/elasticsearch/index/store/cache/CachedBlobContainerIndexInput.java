@@ -85,6 +85,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize
         );
+        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 
@@ -165,9 +166,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         if (directory.isRecoveryDone() == false) {
             // We try to use the snapshot blob cache if:
             // - the file is small enough to be fully cached in the blob cache
-            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE * 2;
+            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
             // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_SIZE);
+            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
 
             if (canBeFullyCached || isStartOfFile) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
@@ -237,7 +238,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
                 indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
             } else if (isStartOfFile) {
-                indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_SIZE);
+                indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
             } else {
                 indexCacheMiss = null;
             }

@@ -31,11 +31,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    public static final int DEFAULT_SIZE = Math.toIntExact(ByteSizeUnit.KB.toBytes(4L));
+    public static final int DEFAULT_CACHED_BLOB_SIZE = Math.toIntExact(ByteSizeUnit.KB.toBytes(4L));
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;

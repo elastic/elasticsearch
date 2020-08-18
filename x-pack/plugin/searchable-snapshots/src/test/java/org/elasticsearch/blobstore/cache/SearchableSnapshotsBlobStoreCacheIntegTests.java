@@ -164,8 +164,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         // wait for all async cache fills to complete
         assertBusy(() -> {
             for (final SearchableSnapshotShardStats shardStats : client().execute(
-                    SearchableSnapshotsStatsAction.INSTANCE,
-                    new SearchableSnapshotsStatsRequest()
+                SearchableSnapshotsStatsAction.INSTANCE,
+                new SearchableSnapshotsStatsRequest()
             ).actionGet().getStats()) {
                 for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getCurrentIndexCacheFills(), equalTo(0L));
@@ -240,7 +240,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                         // we read a couple of longs at the end of the .fdt file (see https://issues.apache.org/jira/browse/LUCENE-9456)
                         // TODO revisit this when this issue is addressed in Lucene
                         || indexInputStats.getFileName().endsWith(".fdt");
-                if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_SIZE * 2 || mayReadMoreThanHeader == false) {
+                if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2
+                    || mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
                 }
             }
@@ -391,7 +392,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                     }
 
                     final String path = String.join("/", repositoryName, blob.getKey(), fileInfo.physicalName());
-                    if (fileInfo.length() <= BlobStoreCacheService.DEFAULT_SIZE * 2) {
+                    if (fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2) {
                         // file has been fully cached
                         final GetResponse getResponse = systemClient().prepareGet(SNAPSHOT_BLOB_CACHE_INDEX, path + "/@0").get();
                         assertThat("not cached: [" + path + "/@0] for blob [" + fileInfo + "]", getResponse.isExists(), is(true));
@@ -412,8 +413,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
                         CachedBlob cachedBlob = CachedBlob.fromSource(getResponse.getSourceAsMap());
                         assertThat(cachedBlob.from(), equalTo(0L));
-                        assertThat(cachedBlob.to(), equalTo((long) BlobStoreCacheService.DEFAULT_SIZE));
-                        assertThat(cachedBlob.length(), equalTo(BlobStoreCacheService.DEFAULT_SIZE));
+                        assertThat(cachedBlob.to(), equalTo((long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE));
+                        assertThat(cachedBlob.length(), equalTo(BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE));
                         numberOfCachedBlobs += 1;
                     }
                 }

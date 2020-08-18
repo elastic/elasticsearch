@@ -297,12 +297,15 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
         int matchFlagsValue = caseInsensitive ? RegExp87.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
+        // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
+        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp87.ALL;
+
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            query = fieldType.regexpQuery(value, syntaxFlagsValue, matchFlagsValue, maxDeterminizedStates, method, context);
+            query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery87 regexpQuery = new RegexpQuery87(new Term(fieldName, BytesRefs.toBytesRef(value)), syntaxFlagsValue,
+            RegexpQuery87 regexpQuery = new RegexpQuery87(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
                 matchFlagsValue, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);

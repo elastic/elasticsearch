@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -100,7 +101,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update mapping
         Request putMappingRequest = new Request("PUT", "/logs-mysql-error/_mappings");
-        putMappingRequest.addParameters(Map.of("write_index_only", "true"));
+        putMappingRequest.addParameters(Collections.singletonMap("write_index_only", "true"));
         putMappingRequest.setJsonEntity("{\"properties\":{\"thread\":{\"properties\":{\"id\":{\"type\":\"long\"}}}}}");
         assertOK(client().performRequest(putMappingRequest));
 
@@ -196,7 +197,7 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update mapping
         Request putMappingRequest = new Request("PUT", "/logs-mysql-error/_mappings");
-        putMappingRequest.addParameters(Map.of("write_index_only", "true"));
+        putMappingRequest.addParameters(Collections.singletonMap("write_index_only", "true"));
         putMappingRequest.setJsonEntity("{\"properties\":{\"thread\":{\"properties\":{\"id\":{\"type\":\"long\"}}}}}");
         Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putMappingRequest));
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [thread] with an object mapping"));

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,12 +37,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -155,12 +159,15 @@ public final class TimeSeriesRestDriver {
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
-        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
+        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(25));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "integTest-3"), null, null));
+        Map<String, LifecycleAction> frozenActions = new HashMap<>();
+        frozenActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("frozen", new Phase("frozen", TimeValue.ZERO, frozenActions));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
@@ -204,4 +211,36 @@ public final class TimeSeriesRestDriver {
         }
     }
 
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
+        throws IOException {
+        createIndexWithSettings(client, index, alias, settings, randomBoolean());
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings,
+                                               boolean useWriteIndex) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+
+        String writeIndexSnippet = "";
+        if (useWriteIndex) {
+            writeIndexSnippet = "\"is_write_index\": true";
+        }
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
+        client.performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("GET", index + "/_segments"));
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
+            response.getEntity().getContent(), false);
+        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        responseEntity = (Map<String, Object>) responseEntity.get(index);
+        responseEntity = (Map<String, Object>) responseEntity.get("shards");
+        List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
+        return (Integer) shards.get(0).get("num_search_segments");
+    }
 }

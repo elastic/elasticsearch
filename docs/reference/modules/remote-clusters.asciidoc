@@ -11,7 +11,7 @@ remote cluster connections: <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>.
 
 Communication with a remote cluster uses the <<modules-transport,transport
-layer>> to establishe a number of <<long-lived-connections,long-lived>> TCP
+layer>> to establish a number of <<long-lived-connections,long-lived>> TCP
 connections from the coordinating nodes of the local cluster to the chosen
 nodes in the remote cluster.
 
@@ -46,14 +46,15 @@ communicate with 6.7. The matrix below summarizes compatibility as described abo
 // tag::remote-cluster-compatibility-matrix[]
 [cols="^,^,^,^,^,^,^,^"]
 |====
-| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
-| 5.0->5.5      |    Yes   | Yes |    No    | No  | No  | No  |    No
-| 5.6           |    Yes   | Yes |    Yes   | Yes | Yes | No  |    No
-| 6.0->6.6      |    No    | Yes |    Yes   | Yes | Yes | No  |    No
-| 6.7           |    No    | Yes |    Yes   | Yes | Yes | Yes |    No
-| 6.8           |    No    | Yes |    Yes   | Yes | Yes | Yes |    Yes
-| 7.0           |    No    | No  |    No    | Yes | Yes | Yes |    Yes
-| 7.1->7.x      |    No    | No  |    No    | No  | Yes | Yes |    Yes
+| 7+^h| Local cluster
+h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
+| 5.0->5.5      | {yes-icon} | {yes-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon} | {no-icon}
+| 5.6           | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
+| 6.0->6.6      | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
+| 6.7           | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 6.8           | {no-icon} | {yes-icon} |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 7.0           | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
 |====
 // end::remote-cluster-compatibility-matrix[]
 

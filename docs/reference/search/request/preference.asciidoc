@@ -1,7 +1,8 @@
-[[request-body-search-preference]]
-==== Preference
+[discrete]
+[[search-preference]]
+=== Preference
 
-Controls a `preference` of the shard copies on which to execute the search.  By
+You can use the `preference` parameter to control the shard copies on which a search runs. By
 default, Elasticsearch selects from the available shard copies in an
 unspecified order, taking the <<shard-allocation-awareness,allocation awareness>> and
 <<search-adaptive-replica,adaptive replica selection>> configuration into

@@ -37,10 +37,10 @@ include-tagged::{doc-tests-file}[{api}-evaluation-outlierdetection]
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
 <3> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive.
 <4> The remaining parameters are the metrics to be calculated based on the two fields described above
-<5> https://en.wikipedia.org/wiki/Precision_and_recall#Precision[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
-<6> https://en.wikipedia.org/wiki/Precision_and_recall#Recall[Recall] calculated at thresholds: 0.5 and 0.7
-<7> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
-<8> https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
+<5> {wikipedia}/Precision_and_recall#Precision[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
+<6> {wikipedia}/Precision_and_recall#Recall[Recall] calculated at thresholds: 0.5 and 0.7
+<7> {wikipedia}/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
+<8> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
 
 ===== Classification
 
@@ -67,10 +67,10 @@ include-tagged::{doc-tests-file}[{api}-evaluation-regression]
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) value for an example.
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) value for the example.
 <4> The remaining parameters are the metrics to be calculated based on the two fields described above
-<5> https://en.wikipedia.org/wiki/Mean_squared_error[Mean squared error]
+<5> {wikipedia}/Mean_squared_error[Mean squared error]
 <6> Mean squared logarithmic error
-<7> https://en.wikipedia.org/wiki/Huber_loss#Pseudo-Huber_loss_function[Pseudo Huber loss]
-<8> https://en.wikipedia.org/wiki/Coefficient_of_determination[R squared]
+<7> {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[Pseudo Huber loss]
+<8> {wikipedia}/Coefficient_of_determination[R squared]
 
 include::../execution.asciidoc[]
 

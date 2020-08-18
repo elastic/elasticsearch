@@ -53,7 +53,7 @@ TCP keep-alives apply to all kinds of long-lived connections and not just to
 transport connections.
 
 `transport.tcp.no_delay`::
-Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
 setting. Defaults to `network.tcp.no_delay`.
 
 `transport.tcp.keep_alive`::
@@ -85,7 +85,7 @@ sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`
 if set, or the system default otherwise. Only applicable on Linux and macOS, and
 requires Java 11 or newer.
 
-transport.tcp.reuse_address::
+`transport.tcp.reuse_address`::
 Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
 
 `transport.tcp.send_buffer_size`::

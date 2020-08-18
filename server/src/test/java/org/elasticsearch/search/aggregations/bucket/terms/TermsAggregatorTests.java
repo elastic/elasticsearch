@@ -1206,7 +1206,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                         try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                             {
-                                InternalNested result = search(newSearcher(indexReader, false, true),
+                                InternalNested result = searchAndReduce(newSearcher(indexReader, false, true),
                                     // match root document only
                                     new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
                                 InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
@@ -1216,7 +1216,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             {
                                 FilterAggregationBuilder filter = new FilterAggregationBuilder("filter", new MatchAllQueryBuilder())
                                     .subAggregation(nested);
-                                InternalFilter result = search(newSearcher(indexReader, false, true),
+                                InternalFilter result = searchAndReduce(newSearcher(indexReader, false, true),
                                     // match root document only
                                     new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), filter, fieldType);
                                 InternalNested nestedResult = result.getAggregations().get("nested");
@@ -1276,7 +1276,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i").executionHint(executionHint)
                         .subAggregation(new TermsAggregationBuilder("j").field("j").executionHint(executionHint)
                             .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint)));
-                    StringTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                    StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request,
                         keywordField("i"), keywordField("j"), keywordField("k"));
                     for (int i = 0; i < 10; i++) {
                         StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
@@ -1316,7 +1316,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i")
                         .subAggregation(new TermsAggregationBuilder("j").field("j")
                             .subAggregation(new TermsAggregationBuilder("k").field("k")));
-                    LongTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                    LongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request,
                         longField("i"), longField("j"), longField("k"));
                     for (int i = 0; i < 10; i++) {
                         LongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));

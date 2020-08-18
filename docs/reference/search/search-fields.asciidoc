@@ -1,6 +1,8 @@
-[discrete]
 [[search-fields]]
-=== Retrieve selected fields
+== Retrieve selected fields from a search
+++++
+<titleabbrev>Retrieve selected fields</titleabbrev>
+++++
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
@@ -41,6 +43,11 @@ such as keywords and dates.
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 
+If needed, you can use the <<script-fields,`script_field`>> parameter to
+transform field values in the response using a script. However, scripts can’t
+make use of {es}'s index structures or related optimizations. This can sometimes
+result in slower search speeds.
+
 You can find more detailed information on each of these methods in the
 following sections:
 
@@ -48,6 +55,7 @@ following sections:
 * <<docvalue-fields>>
 * <<stored-fields>>
 * <<source-filtering>>
+* <<script-fields>>
 
 [discrete]
 [[search-fields-param]]
@@ -92,7 +100,7 @@ POST my-index-000001/_search
     <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
     accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
-    https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].
+    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
     Other field types do not support the `format` parameter.
 
 The values are returned as a flat list in the `fields` section in each hit:
@@ -211,7 +219,7 @@ GET my-index-000001/_search
 TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty
 array (`[ ]`) for the field. To access nested fields, use the
-<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+<<inner-hits, `inner_hits`>> parameter's `docvalue_fields`
 property.
 
 [discrete]
@@ -220,8 +228,9 @@ property.
 
 It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to include
-these stored values in the search response.
+`stored_fields` parameter to include these stored values in the search response.
+
+include::request/stored-fields.asciidoc[]
 
 [discrete]
 [[source-filtering]]
@@ -308,3 +317,5 @@ GET /_search
   }
 }
 ----
+
+include::request/script-fields.asciidoc[]

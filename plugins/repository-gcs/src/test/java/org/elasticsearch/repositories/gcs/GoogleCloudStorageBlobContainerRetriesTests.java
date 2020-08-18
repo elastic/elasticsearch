@@ -22,7 +22,6 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
@@ -56,7 +55,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -151,21 +149,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(clientSettings.build()));
 
-        final List<HttpContext> httpContexts = Arrays.asList(
-            // Auth
-            httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
-            // Does bucket exists?
-            httpServer.createContext("/storage/v1/b/bucket", safeHandler(exchange -> {
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                exchange.getResponseBody().write(response);
-            }))
-        );
-
+        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
             randomIntBetween(1, 8) * 1024);
-        httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
     }

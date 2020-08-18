@@ -4,8 +4,8 @@
 <titleabbrev>IP</titleabbrev>
 ++++
 
-An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
-https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
+An `ip` field can index/store either {wikipedia}/IPv4[IPv4] or
+{wikipedia}/IPv6[IPv6] addresses.
 
 [source,console]
 --------------------------------------------------
@@ -51,13 +51,18 @@ The following parameters are accepted by `ip` fields:
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
 
+<<ignore-malformed,`ignore_malformed`>>::
+
+    If `true`, malformed IP addresses are ignored. If `false` (default), malformed
+    IP addresses throw an exception and reject the whole document.
+
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
-    Accepts an IPv4 value which is substituted for any explicit `null` values.
+    Accepts an IPv4 or IPv6 value which is substituted for any explicit `null` values.
     Defaults to `null`, which means the field is treated as missing.
 
 <<mapping-store,`store`>>::
@@ -70,7 +75,7 @@ The following parameters are accepted by `ip` fields:
 ==== Querying `ip` fields
 
 The most common way to query ip addresses is to use the
-https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
+{wikipedia}/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 notation: `[ip_address]/[prefix_length]`. For instance:
 
 [source,console]

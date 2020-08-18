@@ -107,10 +107,8 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * Returns BytesReference composed of the provided ByteBuffer.
      */
     static BytesReference fromByteBuffer(ByteBuffer buffer) {
-        if (buffer.hasArray()) {
-            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-        }
-        return new ByteBufferReference(buffer);
+        assert buffer.hasArray();
+        return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
     }
 
     /**

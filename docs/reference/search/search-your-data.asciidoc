@@ -24,55 +24,29 @@ a specific number of results.
 [[run-an-es-search]]
 == Run a search
 
-You can use the <<search-search,search API>> to search data stored in
-{es} data streams or indices.
+You can use the <<search-search,search API>> to search data stored in {es} data
+streams or indices. The API's `query` request body parameter accepts queries
+written in <<query-dsl,Query DSL>>.
 
-The API can run two types of searches, depending on how you provide
-queries:
-
-<<run-uri-search,URI searches>>::
-  Queries are provided through a query parameter. URI searches tend to be
-  simpler and best suited for testing.
-
-<<run-request-body-search,Request body searches>>::
-  Queries are provided through the JSON body of the API request. These queries
-  are written in <<query-dsl,Query DSL>>. We recommend using request body
-  searches in most production use cases.
-
-[WARNING]
-====
-If you specify a query in both the URI and request body, the search API request
-runs only the URI query.
-====
-
-[discrete]
-[[run-uri-search]]
-=== Run a URI search
-
-You can use the search API's <<search-api-query-params-q,`q` query string
-parameter>> to run a search in the request's URI. The `q` parameter only accepts
-queries written in Lucene's <<query-string-syntax,query string syntax>>.
-
-The following URI search matches documents with a `user.id` value of `kimchy`.
+The following request searches `my-index-000001` using a
+<<query-dsl-match-query,`match`>> query. This query matches documents with a
+`user.id` value of `kimchy`.
 
 [source,console]
 ----
-GET /my-index-000001/_search?q=user.id:kimchy
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
 ----
 // TEST[setup:my_index]
 
-The API returns the following response.
-
-By default, the `hits.hits` property returns the top 10 documents matching the
-query. To retrieve more documents, see <<paginate-search-results>>.
-
-The response sorts documents in `hits.hits` by `_score`, a
-<<relevance-scores,relevance score>> that measures how well each document
-matches the query.
-
-The `hit.hits` property also includes the <<mapping-source-field,`_source`>> for
-each matching document. To retrieve only a subset of the `_source` or other
-fields, see <<search-fields>>.
+The API response returns the top 10 documents matching the query in the
+`hits.hits` property.
 
 [source,console-result]
 ----
@@ -123,30 +97,6 @@ fields, see <<search-fields>>.
 ----
 // TESTRESPONSE[s/"took": 5/"took": "$body.took"/]
 // TESTRESPONSE[s/"_id": "kxWFcnMByiguvud1Z8vC"/"_id": "$body.hits.hits.0._id"/]
-
-[discrete]
-[[run-request-body-search]]
-=== Run a request body search
-
-You can use the search API's <<request-body-search-query,`query` request
-body parameter>> to provide a query as a JSON object, written in
-<<query-dsl,Query DSL>>.
-
-The following request body search uses the <<query-dsl-match-query,`match`>>
-query to match documents with a `user.id` value of `kimchy`.
-
-[source,console]
-----
-GET /my-index-000001/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-----
-// TEST[setup:my_index]
 
 [discrete]
 [[search-multiple-indices]]
@@ -227,9 +177,45 @@ GET /*/_search
 ----
 // TEST[setup:my_index]
 
-include::request/index-boost.asciidoc[]
-include::request/preference.asciidoc[]
-include::request/search-type.asciidoc[]
+[discrete]
+[[common-search-options]]
+=== Common search options
+
+You can use the following options to customize your search requests and results.
+
+*Paginate search results* +
+By default, searches return only the top 10 matching hits. To retrieve
+more or fewer documents, see <<paginate-search-results>>.
+
+*Retrieve selected fields* +
+The search response's `hit.hits` property includes the full document
+<<mapping-source-field,`_source`>> for each hit. To retrieve only a subset of
+the `_source` or other fields, see <<search-fields>>.
+
+*Sort search results* +
+By default, search hits are sorted by `_score`, a <<relevance-scores,relevance
+score>> that measures how well each document matches the query. To customize the
+calculation of these scores, use the
+<<query-dsl-function-score-query,`function_score`>> or
+<<query-dsl-script-score-query,`script_score`>> query. To sort search hits by
+other field values, see <<sort-search-results>>.
+
+*Run an async search* +
+{es} searches are designed to run on large volumes of data quickly, often
+returning results in milliseconds. For this reason, searches are
+_synchronous_ by default. The search request waits for complete results before
+returning a response. 
+
+However, complete results can take longer for searches across:
+
+* <<frozen-indices,Frozen indices>>
+* <<modules-cross-cluster-search,Multiple clusters>>
+* Many shards
+
+To avoid long waits, you can use run an _asynchronous_, or _async_, search
+instead. An <<async-search-intro,async search>> lets you retrieve partial
+results for a long-running search now and get complete results later.
+
 include::request/track-total-hits.asciidoc[]
 include::quickly-check-for-matching-docs.asciidoc[]
 

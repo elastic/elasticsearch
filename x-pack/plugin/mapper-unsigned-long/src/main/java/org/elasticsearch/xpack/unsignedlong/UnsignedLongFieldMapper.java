@@ -378,7 +378,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     private Explicit<Boolean> ignoreMalformed;
     private final String nullValue;
-    private final Long nullValueNumeric;
+    private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
+    private final Number nullValueFormatted; // null value to use in place of a {@code null} value in the document source
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -391,7 +392,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueNumeric = nullValue == null ? null : convertToSignedLong(parseUnsignedLong(nullValue));
+        if (nullValue == null) {
+            this.nullValueIndexed = null;
+            this.nullValueFormatted = null;
+        } else {
+            long parsed = parseUnsignedLong(nullValue);
+            this.nullValueIndexed = convertToSignedLong(parsed);
+            this.nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
+        }
+
         this.ignoreMalformed = ignoreMalformed;
     }
 
@@ -408,6 +417,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected UnsignedLongFieldMapper clone() {
         return (UnsignedLongFieldMapper) super.clone();
+    }
+
+    @Override
+    protected Number nullValue() {
+        return nullValueFormatted;
     }
 
     @Override
@@ -437,7 +451,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
         }
         if (numericValue == null) {
-            numericValue = nullValueNumeric;
+            numericValue = nullValueIndexed;
             if (numericValue == null) return;
         } else {
             numericValue = convertToSignedLong(numericValue);
@@ -451,6 +465,23 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         context.doc().addAll(fields);
         if (docValued == false && (indexed || stored)) {
             createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected Number parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        if (value.equals("")) {
+            return nullValueFormatted;
+        }
+        long ulValue = parseUnsignedLong(value);
+        if (ulValue >= 0) {
+            return ulValue;
+        } else {
+            return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
         }
     }
 

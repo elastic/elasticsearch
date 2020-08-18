@@ -44,11 +44,6 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public void clear() {
-        signedLongIFD.clear();
-    }
-
-    @Override
     public NumericType getNumericType() {
         return NumericType.LONG;
     }

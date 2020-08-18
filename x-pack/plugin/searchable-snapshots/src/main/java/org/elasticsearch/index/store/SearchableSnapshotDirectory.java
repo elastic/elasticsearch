@@ -431,10 +431,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
-            logger.trace("{} prewarming complete", shardId);
-            recoveryState.setPreWarmComplete();
-        }, e -> {}), // Ignore pre-warm errors
+        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(
+            ActionListener.wrap(voids -> recoveryState.setPreWarmComplete(), e -> {}), // Ignore pre-warm errors
             snapshot().totalFileCount()
         );
 
@@ -487,9 +485,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         }
 
+        logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
+
         // Start as many workers as fit into the searchable snapshot pool at once at the most
         final int workers = Math.min(threadPool.info(CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getMax(), queue.size());
-        logger.debug("{} warming shard cache for [{}] files with [{}] workers", shardId, queue.size(), workers);
         for (int i = 0; i < workers; ++i) {
             prewarmNext(executor, queue);
         }

@@ -31,9 +31,11 @@ import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -312,6 +314,28 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     }
                     return strValues;
                 }, initializer);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of string values
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param values        the set of values that the parameter can take.  The first value in the list
+         *                      is the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<String> restrictedStringParam(String name, boolean updateable,
+                                                              Function<FieldMapper, String> initializer, String... values) {
+            assert values.length > 0;
+            Set<String> acceptedValues = new LinkedHashSet<>(Arrays.asList(values));
+            return stringParam(name, updateable, initializer, values[0])
+                .setValidator(v -> {
+                   if (acceptedValues.contains(v)) {
+                       return;
+                   }
+                   throw new MapperParsingException("Unknown value [" + v + "] for field [" + name +
+                       "] - accepted values are " + acceptedValues.toString());
+                });
         }
 
         /**

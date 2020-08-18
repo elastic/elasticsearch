@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
@@ -52,6 +53,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailu
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -164,8 +166,11 @@ public class DockerTests extends PackagingTestCase {
         final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
         append(tempDir.resolve("jvm.options"), jvmOptions);
 
-        // Make the temp directory and contents accessible when bind-mounted
+        // Make the temp directory and contents accessible when bind-mounted.
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+        // These permissions are necessary to run the tests under Vagrant
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
@@ -237,7 +242,7 @@ public class DockerTests extends PackagingTestCase {
         volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
 
         // Restart the container
-        runContainer(distribution(), volumes, null, 1500, 1500);
+        runContainer(distribution(), volumes, null, 501, 501);
 
         waitForElasticsearch(installation);
     }
@@ -266,6 +271,8 @@ public class DockerTests extends PackagingTestCase {
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+        // But when running in Vagrant, also ensure ES can actually access the file
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 

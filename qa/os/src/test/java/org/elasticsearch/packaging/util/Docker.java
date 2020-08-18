@@ -438,12 +438,30 @@ public class Docker {
      */
     public static void rmDirWithPrivilegeEscalation(Path localPath) {
         final Path containerBasePath = Paths.get("/mount");
-        final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
         final List<String> args = new ArrayList<>();
 
         args.add("cd " + containerBasePath.toAbsolutePath());
         args.add("&&");
-        args.add("rm -rf " + localPath.getFileName());
+        args.add("rm -r " + localPath.getFileName());
+        final String command = String.join(" ", args);
+        executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
+    }
+
+    /**
+     * Change the ownership of a path using Docker backed privilege escalation.
+     * @param localPath The path to the file or directory to change.
+     * @param ownership the ownership to apply. Can either be just the user, or the user and group, separated by a colon (":"),
+     *                  or just the group if prefixed with a colon.
+     */
+    public static void chownWithPrivilegeEscalation(Path localPath, String ownership) {
+        final Path containerBasePath = Paths.get("/mount");
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
+        final List<String> args = new ArrayList<>();
+
+        args.add("cd " + containerBasePath.toAbsolutePath());
+        args.add("&&");
+        args.add("chown " + ownership + " " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
     }

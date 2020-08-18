@@ -224,7 +224,7 @@ public final class TestUtils {
 
         @Override
         protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
-            listener.onResponse(null);
+            listener.onResponse(CachedBlob.CACHE_NOT_READY);
         }
 
         @Override

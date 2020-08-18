@@ -328,7 +328,7 @@ The query matches a sequence, indicating the attack likely succeeded.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {

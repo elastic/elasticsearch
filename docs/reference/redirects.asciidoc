@@ -3,6 +3,31 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="ccr-remedy-follower-index"]
+=== Leader index retaining operations for replication
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-leader-not-replicating"]
+=== Remedying a follower that has fallen behind
+
+See <<ccr-recreate-follower-index,Recreating a follower index>>.
+
+[role="exclude",id="remote-reovery"]
+=== Remote recovery process
+
+See <<ccr-remote-recovery,Remote recovery process>>.
+
+[role="exclude",id="ccr-requirements"]
+=== Leader index requirements
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-overview"]
+=== Cross-cluster replication overview
+
+See <<xpack-ccr,Cross-cluster replication>>.
+
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
@@ -639,66 +664,66 @@ See:
 [role="exclude",id="testing"]
 === Testing
 
-This page was deleted. 
-Information about the Java testing framework was removed 
-({es-issue}55257[#55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[#55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 [role="exclude",id="testing-framework"]
 === Java testing framework
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="why-randomized-testing"]
 === Why randomized testing?
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="using-elasticsearch-test-classes"]
 === Using the {es} test classes
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="unit-tests"]
 === Unit tests
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="integration-tests"]
 === Integration tests
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="number-of-shards"]
@@ -954,12 +979,12 @@ The `xpack.sql.enabled` setting has been deprecated. SQL access is always enable
 [role="exclude",id="indices-templates"]
 === Index templates [[getting]]
 
-See <<index-templates>>. 
+See <<index-templates>>.
 
 [role="exclude",id="run-a-search"]
 === Run a search
 
-See <<run-an-es-search>>. 
+See <<run-an-es-search>>.
 
 [role="exclude",id="how-highlighters-work-internally"]
 === How highlighters work internally

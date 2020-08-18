@@ -44,7 +44,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_KEY;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 
 /**
  * Base handler for REST requests.
@@ -59,7 +59,7 @@ public abstract class BaseRestHandler implements RestHandler {
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
     public static final Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;
-    public static final String ALLOW_SYSTEM_INDEX_ACCESS_KEY = "allow_system_index_access";
+    public static final String ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER = "allow_system_index_access";
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -84,11 +84,11 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (allowSystemIndexAccessByDefault() == false) {
-            final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_KEY);
+            final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER);
             final ThreadContext threadContext = client.threadPool().getThreadContext();
-            if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY) == null
+            if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) == null
                 && Booleans.parseBoolean(allowSystemIndexParameter, false) == false) {
-                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_KEY, Boolean.FALSE.toString());
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
             }
         }
         // prepare the request for execution; has the side effect of touching the request parameters

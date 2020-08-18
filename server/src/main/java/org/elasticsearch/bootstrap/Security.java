@@ -258,7 +258,7 @@ final class Security {
     private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false, true);
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
         return policy;
     }

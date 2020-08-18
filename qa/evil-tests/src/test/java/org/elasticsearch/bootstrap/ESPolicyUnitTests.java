@@ -82,4 +82,14 @@ public class ESPolicyUnitTests extends ESTestCase {
                 new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")));
     }
 
+    public void testDataPathPermissionIsChecked() {
+        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
+        final PermissionCollection dataPathPermission = new Permissions();
+        dataPathPermission.add(new FilePermission("/home/elasticsearch/data/-", "read"));
+        final ESPolicy policy = new ESPolicy(Collections.emptyMap(), new Permissions(), Collections.emptyMap(), true, dataPathPermission);
+        assertTrue(
+            policy.implies(
+                    new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
+                    new FilePermission("/home/elasticsearch/data/index/file.si", "read")));
+    }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -43,6 +44,7 @@ final class QueryTranslator {
             new ExpressionTranslators.StringQueries(),
             new ExpressionTranslators.Matches(),
             new ExpressionTranslators.MultiMatches(),
+            new CaseSensitiveScalarFunctions(),
             new Scalars()
     );
 
@@ -110,17 +112,38 @@ final class QueryTranslator {
                     return new TermsQuery(f.source(), targetFieldName, set);
                 }
             }
-            if (f instanceof StringContains) {
-                StringContains sc = (StringContains) f;
-                if (sc.isCaseSensitive() && sc.string() instanceof FieldAttribute && sc.substring().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) sc.string()).exactAttribute());
-                    String substring = (String) sc.substring().fold();
-
-                    return new WildcardQuery(f.source(), targetFieldName, "*" + substring + "*");
-                }
-            }
 
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+        }
+    }
+
+    public static class CaseSensitiveScalarFunctions extends ExpressionTranslator<CaseSensitiveScalarFunction> {
+
+        @Override
+        protected Query asQuery(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            return f.isCaseSensitive() ? doTranslate(f, handler) : null;
+        }
+
+        public static Query doTranslate(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            Expression field = null;
+            Expression constant = null;
+
+            if (f instanceof StringContains) {
+                StringContains sc = (StringContains) f;
+                field = sc.string();
+                constant = sc.substring();
+            } else {
+                return null;
+            }
+
+            if (field instanceof FieldAttribute && constant.foldable()) {
+                String targetFieldName = handler.nameOf(((FieldAttribute) field).exactAttribute());
+                String substring = (String) constant.fold();
+
+                return new WildcardQuery(f.source(), targetFieldName, "*" + substring + "*");
+            }
+
+            return null;
         }
     }
 }

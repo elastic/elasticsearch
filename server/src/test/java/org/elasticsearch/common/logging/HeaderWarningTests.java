@@ -239,8 +239,7 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(HeaderWarning.encode(s), IsSame.sameInstance(s));
     }
 
-
-    public void testWarningHeaderCountSetting() throws IOException{
+    public void testWarningHeaderCountSetting() throws IOException {
         // Test that the number of warning headers don't exceed 'http.max_warning_header_count'
         final int maxWarningHeaderCount = 2;
         Settings settings = Settings.builder()
@@ -262,13 +261,13 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses.get(1), containsString("\"A simple message 2"));
     }
 
-    public void testWarningHeaderSizeSetting() throws IOException{
+    public void testWarningHeaderSizeSetting() throws IOException {
         // Test that the size of warning headers don't exceed 'http.max_warning_header_size'
         Settings settings = Settings.builder()
             .put("http.max_warning_header_size", "1Kb")
             .build();
 
-        byte [] arr = new byte[300];
+        byte[] arr = new byte[300];
         String message1 = new String(arr, StandardCharsets.UTF_8) + "1";
         String message2 = new String(arr, StandardCharsets.UTF_8) + "2";
         String message3 = new String(arr, StandardCharsets.UTF_8) + "3";
@@ -283,7 +282,7 @@ public class HeaderWarningTests extends ESTestCase {
         final List<String> responses = responseHeaders.get("Warning");
 
         long warningHeadersSize = 0L;
-        for (String response : responses){
+        for (String response : responses) {
             warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
                 response.getBytes(StandardCharsets.UTF_8).length;
         }

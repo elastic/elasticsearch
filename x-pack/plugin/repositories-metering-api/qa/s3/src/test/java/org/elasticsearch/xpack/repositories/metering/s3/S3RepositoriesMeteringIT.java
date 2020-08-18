@@ -38,11 +38,11 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
 
     @Override
     protected List<String> readCounterKeys() {
-        return List.of("GET", "LIST");
+        return List.of("GetObject", "ListObjects");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return List.of("PUT");
+        return List.of("PutObject");
     }
 }

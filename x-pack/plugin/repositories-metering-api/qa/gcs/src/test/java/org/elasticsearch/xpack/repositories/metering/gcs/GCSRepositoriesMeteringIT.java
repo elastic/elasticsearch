@@ -37,11 +37,11 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected List<String> readCounterKeys() {
-        return List.of("GET", "LIST");
+        return List.of("storage.objects.get", "storage.objects.list");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return List.of("POST");
+        return List.of("storage.objects.insert");
     }
 }

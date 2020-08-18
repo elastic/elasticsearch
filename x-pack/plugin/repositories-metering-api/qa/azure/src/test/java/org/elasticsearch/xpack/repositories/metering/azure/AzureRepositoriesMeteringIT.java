@@ -38,11 +38,11 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
 
     @Override
     protected List<String> readCounterKeys() {
-        return List.of("GET", "HEAD", "LIST");
+        return List.of("GetBlob", "GetBlobProperties", "ListBlobs");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return List.of("PUT");
+        return List.of("PutBlob");
     }
 }

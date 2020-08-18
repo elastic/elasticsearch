@@ -3,6 +3,18 @@
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
+[float]
+[[security-updates-7.9.0]]
+=== Security updates
+
+* A field disclosure flaw was found in {es} when running a scrolling search with
+field level security. If a user runs the same query another more privileged user
+recently ran, the scrolling search can leak fields that should be hidden. This
+could result in an attacker gaining additional permissions against a restricted
+index. All versions of {es} before 7.9.0 and 6.8.12 are affected by this flaw.
+You must upgrade to {es} version 7.9.0 or 6.8.12 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-7019[CVE-2020-7019]
+
 [[known-issues-7.9.0]]
 [discrete]
 === Known issues

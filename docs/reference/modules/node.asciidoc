@@ -27,7 +27,7 @@ dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 You can define the roles of a node by setting `node.roles`. If you don't 
 configure this setting, then the node has the following roles by default: 
-`master`, `data`, `ingest`, `transform`, `ml`.
+`master`, `data`, `ingest`, `ml`.
 
 If you set node.roles, the node is assigned only the roles you specify.
 

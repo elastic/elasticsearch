@@ -82,7 +82,7 @@ statistics.
 === Incorporating static relevance signals into the score
 
 Many domains have static signals that are known to be correlated with relevance.
-For instance https://en.wikipedia.org/wiki/PageRank[PageRank] and url length are
+For instance {wikipedia}/PageRank[PageRank] and url length are
 two commonly used features for web search in order to tune the score of web
 pages independently of the query.
 

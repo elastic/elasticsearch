@@ -175,9 +175,10 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]");
         testIgnoreMalfomedForValue("-2147483648",
                 "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
+        testIgnoreMalfomedForValue("-522000000", "long overflow");
     }
 
-    private void testIgnoreMalfomedForValue(String value, String expectedException) throws IOException {
+    private void testIgnoreMalfomedForValue(String value, String expectedCause) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject());
@@ -193,7 +194,9 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString(expectedException));
+        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [date]"));
+        assertThat(e.getMessage(), containsString("Preview of field's value: '" + value + "'"));
+        assertThat(e.getCause().getMessage(), containsString(expectedCause));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")

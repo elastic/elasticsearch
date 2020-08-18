@@ -529,8 +529,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
      */
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
-        DateFormatter formatter
-            = DateFormatter.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")).withLocale(Locale.ROOT);
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(Locale.ROOT);
         MappedFieldType fieldType = new DateFieldMapper.DateFieldType(job.getGroupConfig().getDateHistogram().getField(), formatter);
         fieldTypes.put(fieldType.name(), fieldType);
 

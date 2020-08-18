@@ -176,6 +176,7 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
+        builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name());
     }
 
     @Override

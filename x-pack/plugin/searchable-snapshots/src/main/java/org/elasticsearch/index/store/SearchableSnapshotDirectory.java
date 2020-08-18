@@ -616,8 +616,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public CachedBlob getCachedBlob(String name, long offset, int length) {
         final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, offset);
-        assert cachedBlob == null || cachedBlob.from() <= offset;
-        assert cachedBlob == null || offset + length <= cachedBlob.to();
+        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= offset;
+        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || offset + length <= cachedBlob.to();
         return cachedBlob;
     }
 

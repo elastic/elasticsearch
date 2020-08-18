@@ -9,6 +9,7 @@ package org.elasticsearch.blobstore.cache;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -18,6 +19,16 @@ import java.util.Base64;
 import java.util.Map;
 
 public class CachedBlob implements ToXContent {
+
+    /**
+     * Sentinel {@link CachedBlob} indicating that searching the cache index returned an error.
+     */
+    public static final CachedBlob CACHE_NOT_READY = new CachedBlob(null, null, null, "CACHE_NOT_READY", null, BytesArray.EMPTY, 0L, 0L);
+
+    /**
+     * Sentinel {@link CachedBlob} indicating that the cache index definitely did not contain the requested data.
+     */
+    public static final CachedBlob CACHE_MISS = new CachedBlob(null, null, null, "CACHE_MISS", null, BytesArray.EMPTY, 0L, 0L);
 
     private static final String TYPE = "blob";
 

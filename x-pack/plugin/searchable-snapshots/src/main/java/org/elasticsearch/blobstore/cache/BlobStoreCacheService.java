@@ -243,7 +243,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             // TODO TBD can we just execute the GET request and let it fail if the index isn't ready yet?
             // We might get lucky and hit a started shard anyway.
             logger.debug("not ready : [{}]", CachedBlob.generateId(repository, name, path, offset));
-            listener.onResponse(null);
+            listener.onResponse(CachedBlob.CACHE_NOT_READY);
             return;
         }
         try {
@@ -260,7 +260,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                         listener.onResponse(cachedBlob);
                     } else {
                         logger.debug("cache miss: [{}]", request.id());
-                        listener.onResponse(null);
+                        listener.onResponse(CachedBlob.CACHE_MISS);
                     }
                 }
 
@@ -271,7 +271,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                         // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
                         // recovering.
                         logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                        listener.onResponse(null);
+                        listener.onResponse(CachedBlob.CACHE_NOT_READY);
                     } else {
                         logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
                         listener.onFailure(e);

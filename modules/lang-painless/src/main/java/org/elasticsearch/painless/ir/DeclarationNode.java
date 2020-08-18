@@ -69,8 +69,15 @@ public class DeclarationNode extends StatementNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDeclaration(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDeclaration(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

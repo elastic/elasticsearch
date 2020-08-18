@@ -271,12 +271,12 @@ This `aggregated_output` type works with binary classification (classification
 for values [0, 1]). It multiplies the outputs (in the case of the `ensemble`
 model, the inference model values) by the supplied `weights`. The resulting
 vector is summed and passed to a
-https://en.wikipedia.org/wiki/Sigmoid_function[`sigmoid` function]. The result
+{wikipedia}/Sigmoid_function[`sigmoid` function]. The result
 of the `sigmoid` function is considered the probability of class 1 (`P_1`),
 consequently, the probability of class 0 is `1 - P_1`. The class with the
 highest probability (either 0 or 1) is then returned. For more information about
 logistic regression, see
-https://en.wikipedia.org/wiki/Logistic_regression[this wiki article].
+{wikipedia}/Logistic_regression[this wiki article].
 +
 .Properties of `logistic_regression`
 [%collapsible%open]

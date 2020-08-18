@@ -42,11 +42,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.painless.spi.PainlessExtension;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
-import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -54,7 +49,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -681,7 +675,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             bulkProcessor.flush();
         }
         IOUtils.closeWhileHandlingException(httpClient);
-        Duration d = new Duration();
         try {
             if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("failed to properly close watcher bulk processor");

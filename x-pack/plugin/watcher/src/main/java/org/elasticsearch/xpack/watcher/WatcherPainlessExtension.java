@@ -8,27 +8,25 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.BucketAggregationSelectorScript;
-import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.script.FilterScript;
-import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.StringSortScript;
+import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
-
 public class WatcherPainlessExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(WatcherPainlessExtension.class, "painless_whitelist.txt");
+    private static final Whitelist WHITELIST =
+        WhitelistLoader.loadFromResourceFiles(WatcherPainlessExtension.class, "painless_whitelist.txt");
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(FieldScript.CONTEXT, Collections.singletonList(WHITELIST));
+        Map<ScriptContext<?>, List<Whitelist>> contextWhiltelists = new HashMap<>();
+        contextWhiltelists.put(WatcherConditionScript.CONTEXT, Collections.singletonList(WHITELIST));
+        contextWhiltelists.put(WatcherTransformScript.CONTEXT, Collections.singletonList(WHITELIST));
+        return Collections.unmodifiableMap(contextWhiltelists);
     }
 }

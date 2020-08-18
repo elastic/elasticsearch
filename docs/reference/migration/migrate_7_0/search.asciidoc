@@ -149,8 +149,11 @@ for a particular index with the index setting `index.max_regex_length`.
 
 Executing queries that use automatic expansion of fields (e.g. `query_string`, `simple_query_string`
 or `multi_match`) can have performance issues for indices with a large numbers of fields.
-To safeguard against this, a hard limit of 1024 fields has been introduced for queries
-using the "all fields" mode ("default_field": "*") or other fieldname expansions (e.g. "foo*").
+To safeguard against this, a default limit of 1024 fields has been introduced for
+queries using the "all fields" mode (`"default_field": "*"`) or other fieldname
+expansions (e.g. `"foo*"`). If needed, you can change this limit using the
+<<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
+dynamic cluster setting.
 
 [discrete]
 [[invalid-search-request-body]]

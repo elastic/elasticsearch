@@ -282,7 +282,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
 
         private final int count;
-        private final List<String> keys;
+        private final List<Object> keys;
         private final float percent;
 
         private static final ParseField COUNT = new ParseField(Fields.COUNT);
@@ -294,26 +294,28 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 args -> {
                     int i = 0;
                     int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     float percent = (float) args[i];
                     return new EqlSearchResponse.Count(count, joinKeys, percent);
                 });
 
         static {
             PARSER.declareInt(constructorArg(), COUNT);
-            PARSER.declareStringArray(constructorArg(), KEYS);
+            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
+                ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareFloat(constructorArg(), PERCENT);
         }
 
-        public Count(int count, List<String> keys, float percent) {
+        public Count(int count, List<Object> keys, float percent) {
             this.count = count;
             this.keys = keys == null ? Collections.emptyList() : keys;
             this.percent = percent;
         }
 
+        @SuppressWarnings("unchecked")
         public Count(StreamInput in) throws IOException {
             count = in.readVInt();
-            keys = in.readStringList();
+            keys = (List<Object>) in.readGenericValue();
             percent = in.readFloat();
         }
 
@@ -324,7 +326,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(count);
-            out.writeStringCollection(keys);
+            out.writeGenericValue(keys);
             out.writeFloat(percent);
         }
 
@@ -361,7 +363,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return count;
         }
 
-        public List<String> keys() {
+        public List<Object> keys() {
             return keys;
         }
 

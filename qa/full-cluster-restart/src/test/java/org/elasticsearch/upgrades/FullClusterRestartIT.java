@@ -1422,6 +1422,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // make sure .tasks index exists
             assertBusy(() -> {
                 Request getTasksIndex = new Request("GET", "/.tasks");
+                getTasksIndex.addParameter("allow_no_indices", "false");
                 assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
             });
         } else {

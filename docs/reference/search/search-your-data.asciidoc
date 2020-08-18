@@ -181,7 +181,7 @@ GET /*/_search
 [[common-search-options]]
 === Common search options
 
-You can use the following options to customize your search requests and results.
+You can use the following options to customize your searches.
 
 *Paginate search results* +
 By default, searches return only the top 10 matching hits. To retrieve

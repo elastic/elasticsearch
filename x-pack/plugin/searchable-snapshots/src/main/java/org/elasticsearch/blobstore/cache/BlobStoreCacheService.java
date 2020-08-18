@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;

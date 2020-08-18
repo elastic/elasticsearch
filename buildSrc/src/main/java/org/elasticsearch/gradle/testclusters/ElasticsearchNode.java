@@ -994,7 +994,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (Files.exists(getDistroDir()) == false) {
             try {
                 syncWithLinks(distroExtractDir, getDistroDir());
-            } catch (IOException e) {
+            } catch (LinkCreationException e) {
                 // Note does not work for network drives, e.g. Vagrant
                 LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
                 // ensure we get a clean copy
@@ -1019,13 +1019,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @param sourceRoot      where to copy from
      * @param destinationRoot destination to link to
      */
-    private void syncWithLinks(Path sourceRoot, Path destinationRoot) throws IOException {
+    private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
             try {
                 Files.createLink(d, s);
             } catch (IOException e) {
                 // Note does not work for network drives, e.g. Vagrant
-                throw new UncheckedIOException("Failed to create hard link " + d + " pointing to " + s, e);
+                throw new LinkCreationException("Failed to create hard link " + d + " pointing to " + s, e);
             }
         });
     }
@@ -1416,6 +1416,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         @Input
         public CharSequence[] getArgs() {
             return args;
+        }
+    }
+
+    private static class LinkCreationException extends UncheckedIOException {
+        LinkCreationException(String message, IOException cause) {
+            super(message, cause);
         }
     }
 }

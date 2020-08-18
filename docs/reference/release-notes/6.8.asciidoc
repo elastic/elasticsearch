@@ -19,6 +19,11 @@ Distributed::
 Machine Learning::
 * Fix restoration of change detectors after seasonality change {ml-pull}1391[#1391]
 
+Security::
+* Fix Elasticsearch field disclosure flaw (ESA-2020-12). (CVE-2020-7019). See
+https://discuss.elastic.co/t/elastic-stack-7-9-0-and-6-8-12-security-update/245456
+
+
 [[release-notes-6.8.11]]
 == {es} version 6.8.11
 
@@ -50,7 +55,6 @@ Search::
 
 Task Management::
 * Remove ban tasks with the current thread context {es-pull}55404[#55404]
-
 
 
 [[upgrade-6.8.11]]

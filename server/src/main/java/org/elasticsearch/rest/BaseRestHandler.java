@@ -22,12 +22,10 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -42,8 +40,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 
 /**
  * Base handler for REST requests.
@@ -80,14 +76,6 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (allowSystemIndexAccessByDefault() == false) {
-            final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER);
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            if (threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) == null
-                && Booleans.parseBoolean(allowSystemIndexParameter, false) == false) {
-                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
-            }
-        }
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 

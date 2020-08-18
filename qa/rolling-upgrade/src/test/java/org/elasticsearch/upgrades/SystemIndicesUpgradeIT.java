@@ -19,12 +19,18 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
+import static org.elasticsearch.rest.BaseRestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
@@ -63,45 +69,62 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             client().performRequest(getTask);
 
             // make sure .tasks index exists
+            Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.addParameter("allow_no_indices", "false");
+
+            // We run "upgrade" tests from the current version as well, so if we're on a recent enough version we need to specify that
+            // we need system index access here.
+            if (minimumNodeVersion().onOrAfter(ALLOW_SYSTEM_INDEX_ADDED_VERSION)) {
+                getTasksIndex.addParameter("allow_system_index_access", "true");
+            }
             assertBusy(() -> {
-                Request getTasksIndex = new Request("GET", "/.tasks");
-                getTasksIndex.addParameter("allow_no_indices", "false");
-                assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+                try {
+                    assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+                } catch (ResponseException e) {
+                    throw new AssertionError(".tasks index does not exist yet");
+                }
             });
 
-            // Create an alias to make sure it gets upgraded properly
-            Request putAliasRequest = new Request("POST", "/_aliases");
-            putAliasRequest.setJsonEntity("{\n" +
-                "  \"actions\": [\n" +
-                "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
-                "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
-                "  ]\n" +
-                "}");
-            assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
+            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
+            // upgraded properly. If we're already on 8.x, skip this part of the test.
+            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                // Create an alias to make sure it gets upgraded properly
+                Request putAliasRequest = new Request("POST", "/_aliases");
+                putAliasRequest.setJsonEntity("{\n" +
+                    "  \"actions\": [\n" +
+                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
+                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
+                    "  ]\n" +
+                    "}");
+                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
+            }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
-                Map<String, Object> response = entityAsMap(client().performRequest(clusterStateRequest));
-                Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
-                assertNotNull(metadata);
-                Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
-                assertNotNull(indices);
+                Map<String, Object> indices = new JsonMapView(entityAsMap(client().performRequest(clusterStateRequest)))
+                    .get("metadata.indices");
 
-                Map<String, Object> tasksIndex = (Map<String, Object>) indices.get(".tasks");
-                assertNotNull(tasksIndex);
+                // Make sure our non-system index is still non-system
+                assertThat(new JsonMapView(indices).get("test_index_old.system"), is(false));
+
+                // Can't get the .tasks index via JsonMapView because it splits on `.`
+                assertThat(indices, hasKey(".tasks"));
+                JsonMapView tasksIndex = new JsonMapView((Map<String, Object>) indices.get(".tasks"));
                 assertThat(tasksIndex.get("system"), is(true));
 
-                Map<String, Object> testIndex = (Map<String, Object>) indices.get("test_index_old");
-                assertNotNull(testIndex);
-                assertThat(testIndex.get("system"), is(false));
+                // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
+                final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
+                assertThat(tasksCreatedVersionString, notNullValue());
+                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                    // Verify that the alias survived the upgrade
+                    Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
+                    getAliasRequest.addParameter("allow_system_index_access", "true");
+                    Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
+                    assertThat(aliasResponse, hasKey(".tasks"));
+                    assertThat(aliasResponse, hasKey("test_index_reindex"));
+                }
             });
-
-            // Verify that the alias survived the upgrade
-            Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
-            getAliasRequest.addParameter("allow_system_index_access", "true");
-            Map<String, Object> response = entityAsMap(client().performRequest(getAliasRequest));
-            assertThat(response, hasKey(".tasks"));
-            assertThat(response, hasKey("test_index_reindex"));
         }
     }
 }

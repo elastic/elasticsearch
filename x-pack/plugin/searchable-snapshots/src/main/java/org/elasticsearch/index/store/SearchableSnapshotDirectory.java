@@ -208,9 +208,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 if (alreadyLoaded == false) {
                     this.blobContainer = blobContainerSupplier.get();
                     this.snapshot = snapshotSupplier.get();
-                    this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
+                    this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     prewarmCache();
                 }
             }

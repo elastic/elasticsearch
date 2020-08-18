@@ -317,6 +317,10 @@ Search::
 * Don't omit empty arrays when filtering _source {es-pull}56527[#56527] (issues: {es-issue}20736[#20736], {es-issue}22593[#22593], {es-issue}23796[#23796])
 * Fix casting of scaled_float in sorts {es-pull}57207[#57207]
 
+Security::
+* Fix Elasticsearch field disclosure flaw (ESA-2020-12). (CVE-2020-7019). See
+https://discuss.elastic.co/t/elastic-stack-7-9-0-and-6-8-12-security-update/245456
+
 Snapshot/Restore::
 * Account for recovery throttling when restoring snapshot {es-pull}58658[#58658] (issue: {es-issue}57023[#57023])
 * Fix noisy logging during snapshot delete {es-pull}56264[#56264]

@@ -235,6 +235,10 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
 
+        chownWithPrivilegeEscalation(tempEsConfigDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
+
         // Define the bind mounts
         final Map<Path, Path> volumes = new HashMap<>();
         volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);

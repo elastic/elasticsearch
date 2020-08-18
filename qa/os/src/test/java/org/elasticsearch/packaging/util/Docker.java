@@ -183,9 +183,12 @@ public class Docker {
             volumes.forEach((localPath, containerPath) -> {
                 assertThat(localPath, fileExists());
 
-                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
+                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root") && uid == null) {
                     // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
                     // so we need to ensure that the container process is able to read the bind-mounted files.
+                    //
+                    // NOTE that we don't do this if a UID is specified - in that case, we assume that the caller knows
+                    // what they're doing!
                     sh.run("chown -R 1000:0 " + localPath);
                 }
                 args.add("--volume \"" + localPath + ":" + containerPath + "\"");
@@ -461,7 +464,7 @@ public class Docker {
 
         args.add("cd " + containerBasePath.toAbsolutePath());
         args.add("&&");
-        args.add("chown " + ownership + " " + localPath.getFileName());
+        args.add("chown -R " + ownership + " " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
     }

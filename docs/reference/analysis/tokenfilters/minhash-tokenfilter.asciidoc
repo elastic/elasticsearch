@@ -4,7 +4,7 @@
 <titleabbrev>MinHash</titleabbrev>
 ++++
 
-Uses the https://en.wikipedia.org/wiki/MinHash[MinHash] technique to produce a
+Uses the {wikipedia}/MinHash[MinHash] technique to produce a
 signature for a token stream. You can use MinHash signatures to estimate the
 similarity of documents. See <<analysis-minhash-tokenfilter-similarity-search>>.
 
@@ -95,8 +95,8 @@ locality sensitive hashing (LSH).
 
 Depending on what constitutes the similarity between documents,
 various LSH functions https://arxiv.org/abs/1408.2927[have been proposed].
-For https://en.wikipedia.org/wiki/Jaccard_index[Jaccard similarity], a popular
-LSH function is https://en.wikipedia.org/wiki/MinHash[MinHash].
+For {wikipedia}/Jaccard_index[Jaccard similarity], a popular
+LSH function is {wikipedia}/MinHash[MinHash].
 A general idea of the way MinHash produces a signature for a document
 is by applying a random permutation over the whole index vocabulary (random
 numbering for the vocabulary), and recording the minimum value for this permutation

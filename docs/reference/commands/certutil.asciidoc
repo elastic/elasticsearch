@@ -290,7 +290,7 @@ parameter to specify the location of the file. For example:
 
 [source, sh]
 --------------------------------------------------
-bin/elasticsearch-certutil cert --silent --in instances.yml --out test1.zip --pass testpassword
+bin/elasticsearch-certutil cert --silent --in instances.yml --out test1.zip --pass testpassword --keep-ca-key
 --------------------------------------------------
 
 This command generates a compressed `test1.zip` file. After you decompress the

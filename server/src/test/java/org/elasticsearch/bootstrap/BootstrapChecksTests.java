@@ -723,6 +723,9 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     public void testDiscoveryConfiguredCheck() throws NodeValidationException {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
 
+        final BootstrapContext zen1Context = createTestContext(Settings.builder()
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
+
         final BootstrapContext zen2Context = createTestContext(Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
 
@@ -731,7 +734,11 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         // not enforced for non-zen2 discovery
         BootstrapChecks.check(createTestContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            randomFrom(ZEN_DISCOVERY_TYPE, "single-node", randomAlphaOfLength(5))).build(), Metadata.EMPTY_METADATA), true, checks);
+            randomFrom("single-node", randomAlphaOfLength(5))).build(), Metadata.EMPTY_METADATA), true, checks);
+
+        assertThat(expectThrows(NodeValidationException.class,
+                () -> BootstrapChecks.check(zen1Context, true, checks)),
+                hasToString(containsString("discovery type [legacy-zen-for-testing-only-do-not-use] is unsuitable for production use")));
 
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));

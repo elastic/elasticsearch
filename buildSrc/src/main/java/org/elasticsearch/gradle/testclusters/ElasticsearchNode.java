@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -998,7 +999,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // Note does not work for network drives, e.g. Vagrant
                 LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
                 // ensure we get a clean copy
-                Files.delete(getDistroDir());
+                FileUtils.deleteDirectory(getDistroDir().toFile());
                 syncWithCopy(distroExtractDir, getDistroDir());
             }
         }

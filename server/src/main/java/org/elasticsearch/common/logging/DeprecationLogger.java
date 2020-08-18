@@ -45,6 +45,7 @@ public class DeprecationLogger {
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
     private final Logger logger;
+    private final Logger headerLogger = LogManager.getLogger("header_logger");
 
     private DeprecationLogger(Logger parentLogger) {
         this.logger = parentLogger;
@@ -83,7 +84,8 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a message at the {@link #DEPRECATION} level.
+     * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
      */
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder().withDeprecation(key, msg, params);
@@ -95,6 +97,7 @@ public class DeprecationLogger {
             ESLogMessage deprecationMessage = DeprecatedMessage.of(key, HeaderWarning.getXOpaqueId(), msg, params);
 
             logger.log(DEPRECATION, deprecationMessage);
+            headerLogger.warn(deprecationMessage);
 
             return this;
         }

@@ -41,7 +41,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -97,6 +96,7 @@ public class MetadataIndexTemplateService {
         "      }\n" +
         "    }";
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
+    private static final Logger headerLogger = LogManager.getLogger("header_logger");
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
@@ -480,7 +480,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            HeaderWarning.addWarning(warning);
+            headerLogger.warn(warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -792,7 +792,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                HeaderWarning.addWarning(warning);
+                headerLogger.warn(warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +

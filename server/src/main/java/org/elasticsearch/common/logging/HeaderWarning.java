@@ -77,7 +77,7 @@ public class HeaderWarning {
             Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
             Build.CURRENT.hash());
 
-    private static BitSet doesNotNeedEncoding;
+    private static final BitSet doesNotNeedEncoding;
 
     static {
         doesNotNeedEncoding = new BitSet(1 + 0xFF);
@@ -205,10 +205,7 @@ public class HeaderWarning {
      */
     public static String formatWarning(final String s) {
         // Assume that the common scenario won't have a string to escape and encode.
-        int length = WARNING_PREFIX.length() + s.length() + 3;
-        final StringBuilder sb = new StringBuilder(length);
-        sb.append(WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
-        return sb.toString();
+        return WARNING_PREFIX + " \"" + escapeAndEncode(s) + "\"";
     }
 
     /**
@@ -321,7 +318,7 @@ public class HeaderWarning {
             .orElse("");
     }
 
-    public static void addWarning(String message, Object... params) {
+    static void addWarning(String message, Object... params) {
         addWarning(THREAD_CONTEXT, message, params);
     }
 

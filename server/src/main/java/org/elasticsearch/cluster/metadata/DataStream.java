@@ -52,7 +52,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
         assert indices.size() > 0;
-        assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
     }
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
@@ -73,6 +72,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public long getGeneration() {
         return generation;
+    }
+
+    public Index getWriteIndex() {
+        return indices.get(indices.size() - 1);
     }
 
     /**

@@ -33,19 +33,24 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class MetadataCreateDataStreamService {
 
@@ -121,43 +126,111 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request)
-        throws Exception {
+                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
+        return createDataStream(metadataCreateIndexService, currentState, request.name, List.of(), null);
+    }
+
+    /**
+     * Creates a data stream with the specified properties.
+     *
+     * @param metadataCreateIndexService Used if a new write index must be created
+     * @param currentState               Cluster state
+     * @param dataStreamName             Name of the data stream
+     * @param backingIndices             List of backing indices. May be empty
+     * @param writeIndex                 Write index for the data stream. If null, a new write index will be created.
+     * @return                           Cluster state containing the new data stream
+     */
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex) throws Exception
+    {
+        Objects.requireNonNull(metadataCreateIndexService);
+        Objects.requireNonNull(currentState);
+        Objects.requireNonNull(backingIndices);
         if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
             throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
         }
-        if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
+        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
 
-        MetadataCreateIndexService.validateIndexOrAliasName(request.name,
+        MetadataCreateIndexService.validateIndexOrAliasName(dataStreamName,
             (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-        if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
+        if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (dataStreamName.startsWith(".")) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '.'");
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
-        CreateIndexClusterStateUpdateRequest createIndexRequest =
-            new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                .dataStreamName(request.name)
-                .settings(Settings.builder().put("index.hidden", true).build());
-        currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-        IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
-        assert firstBackingIndex != null;
-        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
+        if (backingIndices.size() > 0) {
+            validateBackingIndices(currentState, dataStreamName);
+
+            // hide existing indices and remove aliases
+            for (IndexMetadata backingIndex : backingIndices) {
+                Metadata.Builder b = Metadata.builder(currentState.metadata());
+                b.put(hideAndRemoveAlias(backingIndex, dataStreamName), false);
+                currentState = ClusterState.builder(currentState).metadata(b).build();
+            }
+        }
+
+        if (writeIndex == null) {
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            CreateIndexClusterStateUpdateRequest createIndexRequest =
+                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                    .dataStreamName(dataStreamName)
+                    .settings(Settings.builder().put("index.hidden", true).build());
+            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+            writeIndex = currentState.metadata().index(firstBackingIndexName);
+        } else {
+            writeIndex = hideAndRemoveAlias(writeIndex, dataStreamName);
+            currentState = ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.metadata()).put(writeIndex, false).build()).build();
+        }
+        assert writeIndex != null;
+        assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
+        dsBackingIndices.add(writeIndex.getIndex());
+        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}]", request.name);
+        logger.info("adding data stream [{}]", dataStreamName);
         return ClusterState.builder(currentState).metadata(builder).build();
+    }
+
+    private static IndexMetadata hideAndRemoveAlias(IndexMetadata im, String dataStreamName) {
+        return IndexMetadata.builder(im)
+                .removeAlias(dataStreamName)
+                .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
+            .build();
+    }
+
+    // package-visible for testing
+    static void validateBackingIndices(ClusterState currentState, String dataStreamName) {
+        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(dataStreamName);
+        if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
+            throw new IllegalArgumentException("alias [" + dataStreamName + "] does not exist");
+        }
+        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
+
+        // ensure that no other aliases reference indices
+        List<String> indicesWithOtherAliases = new ArrayList<>();
+        for (IndexMetadata im : alias.getIndices()) {
+            if (im.getAliases().size() > 1 || im.getAliases().containsKey(alias.getName()) == false) {
+                indicesWithOtherAliases.add(im.getIndex().getName());
+            }
+        }
+        if (indicesWithOtherAliases.size() > 0) {
+            throw new IllegalArgumentException("other aliases referencing indices [" +
+                Strings.collectionToCommaDelimitedString(indicesWithOtherAliases) + "] must be removed before migrating to a data stream");
+        }
     }
 
     public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {

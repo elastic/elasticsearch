@@ -24,16 +24,20 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -136,6 +140,164 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(),
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
+    }
+
+    public void testValidateRequestWithIndicesWithMultipleAliasReferences() {
+        String aliasName = "alias";
+        AliasMetadata alias1 = AliasMetadata.builder(aliasName).build();
+        AliasMetadata alias2 = AliasMetadata.builder(aliasName + "2").build();
+        ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
+            Metadata.builder()
+                .put(IndexMetadata.builder("foo1")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .putAlias(alias2)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo3")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .putAlias(alias2)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo4")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+        ).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetadataCreateDataStreamService.validateBackingIndices(cs, aliasName));
+        String emsg = e.getMessage();
+        assertThat(emsg, containsString("other aliases referencing indices ["));
+        assertThat(emsg, containsString("] must be removed before migrating to a data stream"));
+        String referencedIndices = emsg.substring(emsg.indexOf('[') + 1, emsg.indexOf(']'));
+        Set<String> indices = Strings.commaDelimitedListToSet(referencedIndices);
+        assertThat(indices, containsInAnyOrder("foo2", "foo3"));
+    }
+
+    public void testCreateDataStreamHidesBackingIndicesAndRemovesAlias() throws Exception {
+        String dataStreamName = "foo";
+        AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
+        IndexMetadata foo1 = IndexMetadata.builder("foo1")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        IndexMetadata foo2 = IndexMetadata.builder("foo2")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
+            Metadata.builder()
+                .put(foo1, false)
+                .put(foo2, false)
+                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
+            .build();
+
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(getMetadataCreateIndexService(), cs, dataStreamName,
+            List.of(foo1, foo2), null);
+        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(3));
+        List<String> backingIndexNames = ds.getIndices().stream().map(x -> x.getIndex().getName()).collect(Collectors.toList());
+        assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2", DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+        for (IndexMetadata im : ds.getIndices()) {
+            assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
+            assertThat(im.getAliases().size(), equalTo(0));
+        }
+    }
+
+    public void testCreateDataStreamWithSuppliedWriteIndex() throws Exception {
+        String dataStreamName = "foo";
+        AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
+        IndexMetadata foo1 = IndexMetadata.builder("foo1")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        IndexMetadata foo2 = IndexMetadata.builder("foo2")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
+            Metadata.builder()
+                .put(foo1, false)
+                .put(foo2, false)
+                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
+            .build();
+
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(getMetadataCreateIndexService(), cs, dataStreamName,
+            List.of(foo1), foo2);
+        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(2));
+        List<String> backingIndexNames = ds.getIndices().stream().map(x -> x.getIndex().getName()).collect(Collectors.toList());
+        assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
+        assertThat(ds.getWriteIndex().getIndex().getName(), equalTo("foo2"));
+        for (IndexMetadata im : ds.getIndices()) {
+            assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
+            assertThat(im.getAliases().size(), equalTo(0));
+        }
+    }
+
+    public void testCreateDataStreamWithoutSuppliedWriteIndex() throws Exception {
+        String dataStreamName = "foo";
+        AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
+        IndexMetadata foo1 = IndexMetadata.builder("foo1")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        IndexMetadata foo2 = IndexMetadata.builder("foo2")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .putAlias(alias)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp", "date"))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
+            Metadata.builder()
+                .put(foo1, false)
+                .put(foo2, false)
+                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
+            .build();
+
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(getMetadataCreateIndexService(), cs, dataStreamName,
+            List.of(foo1, foo2), null);
+        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(3));
+        List<String> backingIndexNames = ds.getIndices().stream().map(x -> x.getIndex().getName()).collect(Collectors.toList());
+        assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2", DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+        assertThat(ds.getWriteIndex().getIndex().getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+        for (IndexMetadata im : ds.getIndices()) {
+            assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
+            assertThat(im.getAliases().size(), equalTo(0));
+        }
     }
 
     public static ClusterState createDataStream(final String dataStreamName) throws Exception {

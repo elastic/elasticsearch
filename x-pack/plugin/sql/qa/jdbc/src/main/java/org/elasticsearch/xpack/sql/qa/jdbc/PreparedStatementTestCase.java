@@ -233,7 +233,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT id, text FROM test WHERE text = ?")) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, text FROM test WHERE text = ? ORDER BY id")) {
                 statement.setString(1, text);
 
                 try (ResultSet results = statement.executeQuery()) {

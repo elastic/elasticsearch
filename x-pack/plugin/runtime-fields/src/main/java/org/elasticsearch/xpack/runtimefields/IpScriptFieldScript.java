@@ -40,7 +40,7 @@ import java.util.Map;
  * </ul>
  */
 public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ip_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "ip_whitelist.txt"));

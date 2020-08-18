@@ -8,26 +8,25 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.elasticsearch.script.ScriptContext;
 
-public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateScriptFieldScript.Factory> {
-    public static final DateScriptFieldScript.Factory DUMMY = (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<BooleanScriptFieldScript.Factory> {
+    public static final BooleanScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new BooleanScriptFieldScript(
         params,
         lookup,
-        formatter,
         ctx
     ) {
         @Override
         public void execute() {
-            new DateScriptFieldScript.Millis(this).millis(1595431354874L);
+            new BooleanScriptFieldScript.Value(this).value(false);
         }
     };
 
     @Override
-    protected ScriptContext<DateScriptFieldScript.Factory> context() {
-        return DateScriptFieldScript.CONTEXT;
+    protected ScriptContext<BooleanScriptFieldScript.Factory> context() {
+        return BooleanScriptFieldScript.CONTEXT;
     }
 
     @Override
-    protected DateScriptFieldScript.Factory dummyScript() {
+    protected BooleanScriptFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 }

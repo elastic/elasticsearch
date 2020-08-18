@@ -851,6 +851,8 @@ public class IndexNameExpressionResolver {
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                             context.includeDataStreams() == false) {
                             throw indexNotFoundException(expression);
+                        } else if (indexAbstraction.isSystem() && context.isSystemIndexAccessAllowed() == false) {
+                            throw indexNotFoundException(expression);
                         }
                     }
                     if (add) {

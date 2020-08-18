@@ -138,6 +138,7 @@ available shards at random, accounting for
 <<search-adaptive-replica,adaptive replica selection>>.
 +
 .Valid values for `preference`
+[%collapsible%open]
 ====
 `_only_local`::
 Run the search only on shards on the local node.
@@ -213,6 +214,7 @@ How {wikipedia}/Tf–idf[distributed term frequencies] are calculated for
 <<relevance-scores,relevance scoring>>.
 +
 .Valid values for `search_type`
+[%collapsible%open]
 ====
 `query_then_fetch`::
 (Default)
@@ -346,7 +348,7 @@ You can specify items in the array as a string or object.
 See <<docvalue-fields>>.
 +
 .Properties of `docvalue_fields` objects
-[%collapsible]
+[%collapsible%open]
 ====
 `field`::
 (Required, string)
@@ -394,17 +396,17 @@ As an alternative to deep paging, we recommend using
 Boosts the <<relevance-scores,`_score`>> of documents from specified indices.
 +
 .Properties of `indices_boost` objects
+[%collapsible%open]
 ====
-`<index>`::
-(Required, string)
-Name of the index or index alias. Wildcard (`*`) expressions are supported.
-
-`<boost-value>`::
+`<index>: <boost-value>`::
 (Required, float)
-Boost value by which scores are multiplied.
+`<index>` is the name of the index or index alias. Wildcard (`*`) expressions
+are supported.
 +
-A boost value greater than `1.0` increases the score. A value between `0`
-and `1.0` decreases the score. 
+`<boost-value>` is the factor by which scores are multiplied.
++
+A boost value greater than `1.0` increases the score. A boost value between
+`0` and `1.0` decreases the score. 
 ====
 
 [[search-api-min-score]]

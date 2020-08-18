@@ -209,10 +209,9 @@ public class RegExp87 {
    * @exception IllegalArgumentException if an error occurred while parsing the
    *              regular expression
    */
-  public RegExp87(String s, int syntax_flags, int match_flags) throws IllegalArgumentException {    
-    if (syntax_flags >  ALL) {
-      throw new IllegalArgumentException("Illegal syntax flag");
-    }
+  public RegExp87(String s, int syntax_flags, int match_flags) throws IllegalArgumentException {
+    // BWC leniency - older clients pass 0xffff and syntax flags are now only in range 0xff
+    syntax_flags = syntax_flags &  ALL;
     
     if (match_flags > 0 && match_flags <= ALL) {
       throw new IllegalArgumentException("Illegal match flag");

@@ -1,37 +1,7 @@
-[role="xpack"]
-[testenv="basic"]
-[[get-repositories-metering-api]]
-=== Repositories metering API
-++++
-<titleabbrev>Repositories metering API</titleabbrev>
-++++
-
-Returns cluster repositories metering.
-
-[[get-repositories-metering-api-request]]
-==== {api-request-title}
-
-`GET /_nodes/<node_id>/_repositories_metering`
-
-[[get-repositories-metering-api-desc]]
-==== {api-description-title}
-
-You can use the cluster repositories metering API to retrieve repositories metrics in a cluster.
-
-All the nodes selective options are explained <<cluster-nodes,here>>.
-
-[[get-repositories-metering-api-path-params]]
-==== {api-path-parms-title}
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
-
-[[get-repositories-metering-api-query-params]]
-==== {api-query-parms-title}
-
-[role="child_attributes"]
-[[get-repositories-metering-api-response-body]]
-==== {api-response-body-title}
-
+tag::repositories-metering-body[]
+`<node_id>`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
 `_nodes`::
 (object)
 Contains statistics about the number of nodes selected by the request.
@@ -102,7 +72,7 @@ since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 (boolean) 
 A flag that tells whether or not this object has been archived.
 
-`cluster_version`::
+`cluster_version`:: 
 (long) 
 The cluster state version when this object was created, this field
 can be used as a logical timestamp to delete all the archived metrics up
@@ -117,7 +87,6 @@ grouped by request type.
 .Properties of `request_counts` for repository type `Azure`
 [%collapsible%open]
 ======
-Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[pricing].
 `GetBlobProperties`::
 (long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties[Get Blob Properties] requests.
 `GetBlob`::
@@ -128,34 +97,39 @@ Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[p
 (long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob[Put Blob] requests.
 `PutBlobBlock`::
 (long) Number of  https://docs.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block] requests.
+
+Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[pricing].
 ======
 +
 .Properties of `request_counts` for repository type `GCP`
 [%collapsible%open]
 ======
-Google Cloud Platform storage https://cloud.google.com/storage/pricing[pricing].
 `storage.objects.get`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/get[GET] requests.
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/get[get] requests.
 `storage.objects.list`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[LIST] requests.
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[list] requests.
 `storage.objects.resumable-insert`::
-(long) Number of https://cloud.google.com/storage/docs/performing-resumable-uploads[PUT] requests.
+(long) Number of https://cloud.google.com/storage/docs/performing-resumable-uploads[resumable insert] requests.
 `storage.objects.insert`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[POST] requests.
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert] requests.
+
+Google Cloud storage https://cloud.google.com/storage/pricing[pricing].
 ======
 +
 .Properties of `request_counts` for repository type `S3`
 [%collapsible%open]
 ======
-Amazon Web Services Simple Storage Service https://aws.amazon.com/s3/pricing/[pricing].
 `GetObject`::
-(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html[GET] requests.
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html[GetObject] requests.
 `ListObjects`::
-(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html[LIST] requests.
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html[ListObjects] requests.
 `PutObject`::
-(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html[PUT] requests.
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html[PutObject] requests.
 `PutMultipartObject`::
 (long) Number of https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html[MultiPart] requests.
+
+Amazon Web Services Simple Storage Service https://aws.amazon.com/s3/pricing/[pricing].
 ======
 =====
 ====
+end::repositories-metering-body[]

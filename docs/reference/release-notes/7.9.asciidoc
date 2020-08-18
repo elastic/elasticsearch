@@ -10,25 +10,14 @@ coming::[7.9.0]
 === Known issues
 
 * Upgrading to 7.9.0 from an earlier version will result in incorrect mappings
-on the {ml} annotations index, which in turn will lead to some pages in the {ml}
-UI not displaying correctly. The best way to avoid this problem if you read
-about this known issue before upgrading is to manually update the mappings on
-the {ml} annotations index in your old {es} version _before_ upgrading to 7.9.0.
-If you find out about the issue after upgrading then reindexing is required
-to recover. The details of both mitigations are in {kib} issue
-{kib-issue}74953[#74953].
-
-* Upgrading to 7.9.0 from an earlier version may result in incorrect mappings
-on the {ml} config index. If this happens it will be impossible to create or
-update any {ml-jobs}. The problem is most likely to occur if after upgrading
-you open an existing {anomaly-job} in 7.9.0 before creating or updating one.
-The best way to avoid this problem if you read about this known issue before
-upgrading is to manually update the mappings on the {ml} config index in your
-old {es} version _before_ upgrading to 7.9.0. You can also apply the mappings
-manually if you find out about the issue after upgrading but before opening
-an {anomaly-job}. If the incorrect mappings have already been applied then
-reindexing is required to recover. The details of both mitigations are in issue
-{es-issue}61157[#61157].
+on the {ml} annotations index, and possibly also on the {ml} config index. This
+will lead to some pages in the {ml} UI not displaying correctly, and may prevent
+{ml-jobs} being created or updated. The best way to avoid this problem if you
+read about this known issue before upgrading is to manually update the mappings
+on these indices in your old {es} version _before_ upgrading to 7.9.0. If you
+find out about the issue after upgrading then reindexing is required to recover.
+Full details of the mitigations are in
+{ml-docs}/ml-troubleshooting.html#ml-troubleshooting-mappings[Upgrade to 7.9.0 causes incorrect mappings].
 
 [[breaking-7.9.0]]
 [discrete]

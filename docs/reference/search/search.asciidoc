@@ -83,6 +83,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
+
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.

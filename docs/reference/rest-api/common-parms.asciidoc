@@ -228,6 +228,14 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
+tag::allow-system-index-access[]
+`allow_system_index_access`::
+(Optional, boolean) If `true`, allows this request to access system indices
+directly. This option should be used with caution, as system indices are not
+intended to be accessed directly.
+Defaults to `false`.
+end::allow-system-index-access[]
+
 tag::exponential-avg-checkpoint-duration-ms[]
 Exponential moving average of the duration of the checkpoint, in milliseconds.
 end::exponential-avg-checkpoint-duration-ms[]
@@ -651,7 +659,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 supported:
 +
 --
@@ -673,7 +681,7 @@ supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in 
+IMPORTANT: {transforms-cap} support a subset of the functionality in
 aggregations. See <<transform-limitations>>.
 
 --
@@ -685,7 +693,7 @@ Defines how to group the data. More than one grouping can be defined
 +
 --
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>> 
+* <<_geotile_grid,Geotile Grid>>
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 

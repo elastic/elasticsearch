@@ -171,7 +171,7 @@ GET kibana_sample_data_logs/_search
     }
   }
 }
---------------------------------------------------
+-------------------------------------------------
 // NOTCONSOLE
 
 <1> A composite bucket aggregation that aggregates the data by `client_ip`.

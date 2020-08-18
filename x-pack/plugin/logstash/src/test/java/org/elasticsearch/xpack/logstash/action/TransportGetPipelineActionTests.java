@@ -38,7 +38,6 @@ public class TransportGetPipelineActionTests extends ESTestCase {
     /**
      * Test that an error message is logged on a partial failure of
      * a TransportGetPipelineAction.
-     * @throws Exception
      */
     public void testGetPipelineMultipleIDsPartialFailure() throws Exception {
         // Set up a log appender for detecting log messages

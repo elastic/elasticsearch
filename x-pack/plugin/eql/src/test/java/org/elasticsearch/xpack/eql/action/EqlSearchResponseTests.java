@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
 
@@ -68,11 +69,17 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         int size = randomIntBetween(1, 10);
         List<EqlSearchResponse.Sequence> seq = null;
         if (randomBoolean()) {
+            List<Supplier<Object[]>> randoms = new ArrayList<>();
+            randoms.add(() -> generateRandomStringArray(6, 11, false));
+            randoms.add(() -> randomArray(0, 6, Integer[]::new, ()-> randomInt()));
+            randoms.add(() -> randomArray(0, 6, Long[]::new, ()-> randomLong()));
+            randoms.add(() -> randomArray(0, 6, Boolean[]::new, ()-> randomBoolean()));
+            
             seq = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                List<String> joins = null;
+                List<Object> joins = null;
                 if (randomBoolean()) {
-                    joins = Arrays.asList(generateRandomStringArray(6, 11, false));
+                    joins = Arrays.asList(randomFrom(randoms).get());
                 }
                 seq.add(new EqlSearchResponse.Sequence(joins, randomEvents()));
             }

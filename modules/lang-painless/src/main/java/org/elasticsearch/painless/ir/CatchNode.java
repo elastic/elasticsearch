@@ -68,7 +68,9 @@ public class CatchNode extends StatementNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        blockNode.visit(irTreeVisitor, scope);
+        if (blockNode != null) {
+            blockNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

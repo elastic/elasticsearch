@@ -87,11 +87,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     }
 
     @Override
-    protected int numberOfShards() {
-        return 1; // TODO remove this before merge
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))

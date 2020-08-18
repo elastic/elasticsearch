@@ -138,6 +138,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -1491,9 +1492,10 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
+            try (InputStream inputStream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.Set;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -100,7 +102,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addHighPriorityApplier(this);
+            if (isDedicatedVotingOnlyNode(DiscoveryNode.getRolesFromSettings(settings)) == false) {
+                clusterService.addHighPriorityApplier(this);
+            }
         }
         this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
         this.repositoriesStatsArchive = new RepositoriesStatsArchive(REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
@@ -222,7 +226,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
@@ -231,6 +234,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         boolean changed = false;
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
+                                ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
                                 logger.info("delete repository [{}]", repositoryMetadata.name());
                                 changed = true;
                             } else {
@@ -296,6 +300,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
+    static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.MASTER_ROLE) && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false &&
+            roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
+    }
 
     /**
      * Checks if new repositories appeared in or disappeared from cluster metadata and updates current list of
@@ -516,7 +524,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (isRepositoryInUse(clusterState, repository)) {
-            throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
+            throw new IllegalStateException("trying to modify or unregister repository that is currently used");
         }
     }
 

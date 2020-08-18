@@ -56,6 +56,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
+    public static final ValuesSourceRegistry.RegistryKey<DateHistogramAggregationSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, DateHistogramAggregationSupplier.class);
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -421,6 +423,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     @Override

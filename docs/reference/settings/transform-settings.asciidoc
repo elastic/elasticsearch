@@ -32,6 +32,9 @@ run transforms, there must be at least one transform node in your cluster.
 If you use the `node.roles` setting, then all required roles must be explicitly  
 set. Consult <<modules-node>> to learn more.
 
+The `node.transform` setting is deprecated in the 7.9.0 version, use this
+setting instead.
+
 `xpack.transform.enabled`::
 deprecated:[7.8.0,Basic License features should always be enabled] +
 This deprecated setting no longer has any effect.

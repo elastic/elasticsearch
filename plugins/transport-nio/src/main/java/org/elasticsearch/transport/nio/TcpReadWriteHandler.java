@@ -43,7 +43,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     private final InboundPipeline pipeline;
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
-        this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
         final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();

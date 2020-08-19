@@ -39,6 +39,13 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+/**
+ * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)},
+ * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}, or {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
+ * for testing.
+ *
+ * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
+ */
 public class NoOpNodeClient extends NodeClient {
 
     /**
@@ -49,7 +56,7 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     /**
-     * Create a new {@link TestThreadPool} for this client.
+     * Create a new {@link TestThreadPool} for this client. This {@linkplain TestThreadPool} is terminated on {@link #close()}.
      */
     public NoOpNodeClient(String testName) {
         super(Settings.EMPTY, new TestThreadPool(testName));

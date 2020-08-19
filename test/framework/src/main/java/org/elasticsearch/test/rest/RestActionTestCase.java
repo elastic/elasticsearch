@@ -79,6 +79,13 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller.dispatchRequest(request, channel, threadContext);
     }
 
+    /**
+     * A mocked {@link org.elasticsearch.client.node.NodeClient} which can be easily reconfigured to verify arbitrary verification
+     * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
+     *
+     * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
+     * {@link #setExecuteVerifier(BiFunction)} or {@link #setExecuteLocallyVerifier(BiFunction)}.
+     */
     public static class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction> executeLocallyVerifier = new AtomicReference<>();
@@ -88,6 +95,11 @@ public abstract class RestActionTestCase extends ESTestCase {
             reset();
         }
 
+        /**
+         * Clears any previously set verifier functions set by {@link #setExecuteVerifier(BiFunction)} and/or
+         * {@link #setExecuteLocallyVerifier(BiFunction)}. These functions are replaced with functions which will throw an
+         * {@link AssertionError} if called.
+         */
         public void reset() {
             executeVerifier.set((arg1, arg2) -> {
                 throw new AssertionError();
@@ -97,6 +109,11 @@ public abstract class RestActionTestCase extends ESTestCase {
             });
         }
 
+        /**
+         * Sets the function that will be called when {@link #doExecute(ActionType, ActionRequest, ActionListener)} is called. The given
+         * function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
+         */
         public <Request extends ActionRequest, Response extends ActionResponse>
         void setExecuteVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
             executeVerifier.set(verifier);
@@ -108,6 +125,11 @@ public abstract class RestActionTestCase extends ESTestCase {
             listener.onResponse((Response) executeVerifier.get().apply(action, request));
         }
 
+        /**
+         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, TaskListener)}is called. The given
+         * function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
+         */
         public <Request extends ActionRequest, Response extends ActionResponse>
         void setExecuteLocallyVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
             executeLocallyVerifier.set(verifier);

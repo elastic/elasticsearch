@@ -44,7 +44,7 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                                    Settings settings, XPackLicenseState licenseState, Client client) {
         super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.enabled = EqlPlugin.isEnabled(settings);
+        this.enabled = EqlPlugin.isEnabled();
         this.licenseState = licenseState;
         this.client = client;
     }

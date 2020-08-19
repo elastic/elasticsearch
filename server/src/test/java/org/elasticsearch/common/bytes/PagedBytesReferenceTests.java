@@ -39,7 +39,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
             byteArray.set(i, (byte) random().nextInt(1 << 8));
         }
         assertThat(byteArray.size(), Matchers.equalTo((long) length));
-        BytesReference ref = PagedBytesReference.of(byteArray, length);
+        BytesReference ref = BytesReference.fromByteArray(byteArray, length);
         assertThat(ref.length(), Matchers.equalTo(length));
         if (byteArray.hasArray()) {
             assertThat(ref, Matchers.instanceOf(BytesArray.class));
@@ -122,8 +122,8 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         }
 
         // get refs & compare
-        BytesReference pbr = PagedBytesReference.of(ba1, length);
-        BytesReference pbr2 = PagedBytesReference.of(ba2, length);
+        BytesReference pbr = BytesReference.fromByteArray(ba1, length);
+        BytesReference pbr2 = BytesReference.fromByteArray(ba2, length);
         assertEquals(pbr, pbr2);
         int offsetToFlip = randomIntBetween(0, length - 1);
         int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));

@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -150,7 +149,7 @@ public class BytesStreamOutput extends BytesStream {
         if (bytes == null) {
             return BytesArray.EMPTY;
         }
-        return PagedBytesReference.of(bytes, count);
+        return BytesReference.fromByteArray(bytes, count);
     }
 
     /**

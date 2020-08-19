@@ -235,9 +235,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             }
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
-                    if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                        document.add(new Field(fieldType().name(), fieldName, fieldType));
-                    }
+                    document.add(new Field(fieldType().name(), fieldName, Defaults.FIELD_TYPE));
                 }
             }
         }

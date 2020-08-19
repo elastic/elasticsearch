@@ -15,7 +15,7 @@ The string stats aggregation returns the following results:
 * `min_length` - The length of the shortest term.
 * `max_length` - The length of the longest term.
 * `avg_length` - The average length computed over all terms.
-* `entropy` - The https://en.wikipedia.org/wiki/Entropy_(information_theory)[Shannon Entropy] value computed over all terms collected by
+* `entropy` - The {wikipedia}/Entropy_(information_theory)[Shannon Entropy] value computed over all terms collected by
 the aggregation. Shannon entropy quantifies the amount of information contained in the field. It is a very useful metric for
 measuring a wide range of properties of a data set, such as diversity, similarity, randomness etc.
 

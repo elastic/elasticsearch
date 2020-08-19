@@ -83,6 +83,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Required, array of strings)
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
++
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
+patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
+templates to create data streams. If you use {agent}, assign your index
+templates a priority lower than `100` to avoid an override of the built-in
+templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern, or assign your templates a `priority` higher or
+lower than `100`.
+====
 
 [xpack]#`data_stream`#::
 (Optional, object)

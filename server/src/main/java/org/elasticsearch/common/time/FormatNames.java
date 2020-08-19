@@ -102,13 +102,17 @@ public enum FormatNames {
     STRICT_YEAR_MONTH("strict_year_month"),
     STRICT_YEAR_MONTH_DAY("strict_year_month_day");
 
-    private final String snakeCaseName;
+    private final String name;
 
-    FormatNames(String snakeCaseName) {
-        this.snakeCaseName = snakeCaseName;
+    FormatNames(String name) {
+        this.name = name;
     }
 
     public boolean matches(String format) {
-        return format.equals(snakeCaseName);
+        return format.equals(name);
+    }
+
+    public String getName() {
+        return name;
     }
 }

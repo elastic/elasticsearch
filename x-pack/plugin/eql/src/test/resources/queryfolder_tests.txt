@@ -193,14 +193,14 @@ stringContainsExactField-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
-{"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
+{"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}
 ;
 
 stringContainsExactSubField-caseSensitive
 process where stringContains(hostname, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
-{"wildcard":{"hostname.keyword":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
+{"wildcard":{"hostname.keyword":{"wildcard":"*foo*","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}
 ;
 
 stringContains-caseInsensitive

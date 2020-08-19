@@ -32,6 +32,7 @@ import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
@@ -43,7 +44,11 @@ import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
+import org.elasticsearch.painless.node.SReturn;
+import org.elasticsearch.painless.symbol.Decorations.Converter;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
@@ -534,5 +539,44 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    @Override
+    public void visitExpression(SExpression userExpressionNode, ScriptScope scriptScope) {
+        // sets IRNodeDecoration with ReturnNode or StatementExpressionNode
+        super.visitExpression(userExpressionNode, scriptScope);
+        injectConverter(userExpressionNode, scriptScope);
+    }
+
+    @Override
+    public void visitReturn(SReturn userReturnNode, ScriptScope scriptScope) {
+        super.visitReturn(userReturnNode, scriptScope);
+        injectConverter(userReturnNode, scriptScope);
+    }
+
+    public void injectConverter(AStatement userStatementNode, ScriptScope scriptScope) {
+        Converter converter = scriptScope.getDecoration(userStatementNode, Converter.class);
+        if (converter == null) {
+            return;
+        }
+
+        IRNodeDecoration irNodeDecoration = scriptScope.getDecoration(userStatementNode, IRNodeDecoration.class);
+        IRNode irNode = irNodeDecoration.getIRNode();
+
+        if ((irNode instanceof ReturnNode) == false) {
+            // Shouldn't have a Converter decoration if StatementExpressionNode, should be ReturnNode if explicit return
+            throw userStatementNode.createError(new IllegalStateException("illegal tree structure"));
+        }
+
+        ReturnNode returnNode = (ReturnNode) irNode;
+
+        // inject converter
+        InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode();
+        irInvokeCallMemberNode.setLocation(userStatementNode.getLocation());
+        irInvokeCallMemberNode.setLocalFunction(converter.getConverter());
+        ExpressionNode returnExpression = returnNode.getExpressionNode();
+        returnNode.setExpressionNode(irInvokeCallMemberNode);
+        irInvokeCallMemberNode.addArgumentNode(returnExpression);
+
     }
 }

@@ -66,14 +66,6 @@ public abstract class MapperTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    protected final String randomIndexOptions() {
-        return randomFrom(new String[] { "docs", "freqs", "positions", "offsets" });
-    }
-
-    protected final MapperService createIndex(XContentBuilder mappings) throws IOException {
-        return createIndex(getIndexSettings(), mappings);
-    }
-
     protected IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
@@ -82,10 +74,22 @@ public abstract class MapperTestCase extends ESTestCase {
         );
     }
 
+    protected final String randomIndexOptions() {
+        return randomFrom(new String[] { "docs", "freqs", "positions", "offsets" });
+    }
+
+    protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
+        return createMapperService(mappings).documentMapper();
+    }
+
+    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        return createMapperService(getIndexSettings(), mappings);
+    }
+
     /**
-     * Create the {@link MapperService} for an index.
+     * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createIndex(Settings settings, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Settings settings, XContentBuilder mapping) throws IOException {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(Settings.builder().put("index.version.created", Version.CURRENT))
             .numberOfReplicas(0)
@@ -134,7 +138,7 @@ public abstract class MapperTestCase extends ESTestCase {
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     public final void testEmptyName() throws IOException {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createIndex(mapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("");
             minimalMapping(b);
             b.endObject();
@@ -149,7 +153,7 @@ public abstract class MapperTestCase extends ESTestCase {
                 b.field("meta", Collections.singletonMap("foo", "bar"));
             }
         );
-        MapperService mapperService = createIndex(mapping);
+        MapperService mapperService = createMapperService(mapping);
         assertEquals(
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType())

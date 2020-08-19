@@ -134,7 +134,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
-        DocumentMapper mapper = createIndex(mapping).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(
@@ -174,7 +174,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreAbove() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5))).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5)));
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
@@ -202,7 +202,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -213,7 +213,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("null_value", "uri"))).documentMapper();
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("null_value", "uri")));
         doc = mapper.parse(
             new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
         );
@@ -235,7 +235,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testEnableStore() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("store", true))).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("store", true)));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -251,7 +251,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("index", false))).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -268,7 +268,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisableDocValues() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -284,7 +284,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testIndexOptions() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("index_options", "freqs"))).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index_options", "freqs")));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -301,7 +301,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
-                () -> createIndex(fieldMapping(b -> b.field("type", "keyword").field("index_options", indexOptions)))
+                () -> createMapperService(fieldMapping(b -> b.field("type", "keyword").field("index_options", indexOptions)))
             );
             assertThat(
                 e.getMessage(),
@@ -311,13 +311,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testBoost() throws IOException {
-        MapperService mapperService = createIndex(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
         assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
     }
 
     public void testEnableNorms() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("norms", true)))
-            .documentMapper();
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("norms", true))
+        );
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -336,8 +337,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testNormalizer() throws IOException {
-        DocumentMapper mapper = createIndex(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")))
-            .documentMapper();
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
@@ -369,7 +369,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
-        DocumentMapper defaultMapper = createIndex(fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         BytesReference source = BytesReference.bytes(
             XContentFactory.jsonBuilder().startObject().startObject("field").endObject().endObject()
@@ -385,7 +385,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testParsesKeywordNestedListStrict() throws IOException {
-        DocumentMapper defaultMapper = createIndex(fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         BytesReference source = BytesReference.bytes(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -411,7 +411,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testParsesKeywordNullStrict() throws IOException {
-        DocumentMapper defaultMapper = createIndex(fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         BytesReference source = BytesReference.bytes(
             XContentFactory.jsonBuilder().startObject().startObject("field").nullField("field_name").endObject().endObject()
         );
@@ -426,7 +426,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testUpdateNormalizer() throws IOException {
-        MapperService mapperService = createIndex(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("normalizer", "other_lowercase")))
@@ -439,7 +439,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testSplitQueriesOnWhitespace() throws IOException {
-        MapperService mapperService = createIndex(mapping(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").endObject();
             b.startObject("field_with_normalizer");
             {
@@ -465,7 +465,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             new String[] { "hello", "world" }
         );
 
-        mapperService = createIndex(mapping(b -> {
+        mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").field("split_queries_on_whitespace", true).endObject();
             b.startObject("field_with_normalizer");
             {

@@ -210,7 +210,7 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
         XContentBuilder mappings = mappingsToJson(builder.build(context), false);
         XContentBuilder mappingsWithDefault = mappingsToJson(builder.build(context), true);
 
-        MapperService mapperService = createIndex(mappings);
+        MapperService mapperService = createMapperService(mappings);
 
         Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
         XContentBuilder reparsed = mappingsToJson(rebuilt, false);

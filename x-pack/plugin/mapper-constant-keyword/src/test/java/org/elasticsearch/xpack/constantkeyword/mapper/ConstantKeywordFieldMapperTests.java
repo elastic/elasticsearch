@@ -62,7 +62,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
 
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
-        DocumentMapper mapper = createIndex(mapping).documentMapper();
+        DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject());
@@ -86,7 +86,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
     }
 
     public void testDynamicValue() throws Exception {
-        MapperService mapperService = createIndex(fieldMapping(b -> b.field("type", "constant_keyword")));
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject());
         ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", source, XContentType.JSON));
@@ -109,7 +109,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
     }
 
     public void testLookupValues() throws Exception {
-        MapperService mapperService = createIndex(fieldMapping(b -> b.field("type", "constant_keyword")));
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
         FieldMapper fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         List<?> values = fieldMapper.lookupValues(new SourceLookup(), null);
         assertTrue(values.isEmpty());

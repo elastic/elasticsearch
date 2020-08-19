@@ -20,29 +20,29 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::indices/index-templates.asciidoc[]
-
-include::data-streams/data-streams.asciidoc[]
-
-include::search/search-your-data.asciidoc[]
-
-include::query-dsl.asciidoc[]
-
-include::eql/eql.asciidoc[]
-
-include::sql/index.asciidoc[]
-
-include::aggregations.asciidoc[]
-
-include::scripting.asciidoc[]
+include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::indices/index-templates.asciidoc[]
+
+include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
+
+include::search/search-your-data.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::eql/eql.asciidoc[]
+
+include::sql/index.asciidoc[]
+
+include::scripting.asciidoc[]
 
 include::ilm/index.asciidoc[]
 

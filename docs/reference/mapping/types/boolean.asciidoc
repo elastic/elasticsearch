@@ -10,7 +10,7 @@ strings which are interpreted as either true or false:
 [horizontal]
 False values::
 
-    `false`, `"false"`
+    `false`, `"false"`, `""` (empty string)
 
 True values::
 

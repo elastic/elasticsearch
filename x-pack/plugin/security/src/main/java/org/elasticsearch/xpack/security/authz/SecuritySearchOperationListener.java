@@ -48,7 +48,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     @Override
     public void onNewReaderContext(ReaderContext readerContext) {
-        if (licenseState.isSecurityEnabled()) {
+        if (licenseState.isSecurityEnabled() && readerContext.singleSession() == false) {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
             // store the DLS and FLS permissions of the initial search request that created the reader context
             // this is then used to assert the DLS/FLS permission for the scroll search action
@@ -65,7 +65,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
-        if (licenseState.isSecurityEnabled()) {
+        if (licenseState.isSecurityEnabled() && readerContext.singleSession() == false) {
             final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
             final Authentication current = securityContext.getAuthentication();
             final ThreadContext threadContext = securityContext.getThreadContext();
@@ -84,23 +84,22 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
-        ensureIndicesAccessControlForThreadContext(searchContext);
+        ensureIndicesAccessControlForThreadContext(searchContext.readerContext());
     }
 
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
-        ensureIndicesAccessControlForThreadContext(searchContext);
+        ensureIndicesAccessControlForThreadContext(searchContext.readerContext());
     }
 
-    void ensureIndicesAccessControlForThreadContext(SearchContext searchContext) {
-        if (licenseState.isSecurityEnabled()) {
-            IndicesAccessControl scrollIndicesAccessControl = searchContext.readerContext()
-                .getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+    private void ensureIndicesAccessControlForThreadContext(ReaderContext readerContext) {
+        if (licenseState.isSecurityEnabled() && readerContext.singleSession() == false) {
+            IndicesAccessControl indicesAccessControl = readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl threadIndicesAccessControl =
                 securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            if (scrollIndicesAccessControl != threadIndicesAccessControl) {
-                throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected indices access control [" +
-                    scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
+            if (indicesAccessControl != threadIndicesAccessControl) {
+                throw new ElasticsearchSecurityException("[" + readerContext.id() + "] expected indices access control [" +
+                    indicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
                     "context");
             }
         }

@@ -1825,10 +1825,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        if (throttleRestoreViaRecoverySettings) {
-            client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "10k").build()).get();
-        }
+        client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        throttleRestoreViaRecoverySettings ? "10k" : "0").build()).get();
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));

@@ -71,7 +71,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
+        int bytesConsumed = decoder.decode(releasable1, new FragmentListAdapter(fragments));
         assertEquals(totalHeaderSize, bytesConsumed);
         assertEquals(1, releasable1.refCount());
 
@@ -93,7 +93,7 @@ public class InboundDecoderTests extends ESTestCase {
 
         final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
         final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
-        int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
+        int bytesConsumed2 = decoder.decode(releasable2, new FragmentListAdapter(fragments));
         assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
         final Object content = fragments.get(0);
@@ -102,7 +102,7 @@ public class InboundDecoderTests extends ESTestCase {
         assertEquals(messageBytes, content);
         // Ref count is incremented since the bytes are forwarded as a fragment
         assertEquals(2, releasable2.refCount());
-        assertEquals(InboundDecoder.END_CONTENT, endMarker);
+        assertEquals(FragmentListAdapter.END_CONTENT, endMarker);
     }
 
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
@@ -122,7 +122,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
+        int bytesConsumed = decoder.decode(releasable1, new FragmentListAdapter(fragments));
         assertEquals(partialHeaderSize, bytesConsumed);
         assertEquals(1, releasable1.refCount());
 
@@ -137,9 +137,9 @@ public class InboundDecoderTests extends ESTestCase {
 
         final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
         final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
-        int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
+        int bytesConsumed2 = decoder.decode(releasable2, new FragmentListAdapter(fragments));
         assertEquals(2, fragments.size());
-        assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
+        assertEquals(FragmentListAdapter.END_CONTENT, fragments.get(fragments.size() - 1));
         assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
     }
 
@@ -159,7 +159,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
+        int bytesConsumed = decoder.decode(releasable1, new FragmentListAdapter(fragments));
         assertEquals(totalHeaderSize, bytesConsumed);
         assertEquals(1, releasable1.refCount());
 
@@ -204,7 +204,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
+        int bytesConsumed = decoder.decode(releasable1, new FragmentListAdapter(fragments));
         assertEquals(totalHeaderSize, bytesConsumed);
         assertEquals(1, releasable1.refCount());
 
@@ -226,7 +226,7 @@ public class InboundDecoderTests extends ESTestCase {
 
         final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
         final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
-        int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
+        int bytesConsumed2 = decoder.decode(releasable2, new FragmentListAdapter(fragments));
         assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
         final Object content = fragments.get(0);
@@ -235,7 +235,7 @@ public class InboundDecoderTests extends ESTestCase {
         assertEquals(uncompressedBytes, content);
         // Ref count is not incremented since the bytes are immediately consumed on decompression
         assertEquals(1, releasable2.refCount());
-        assertEquals(InboundDecoder.END_CONTENT, endMarker);
+        assertEquals(FragmentListAdapter.END_CONTENT, endMarker);
     }
 
     public void testCompressedDecodeHandshakeCompatibility() throws IOException {
@@ -254,7 +254,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
+        int bytesConsumed = decoder.decode(releasable1, new FragmentListAdapter(fragments));
         assertEquals(totalHeaderSize, bytesConsumed);
         assertEquals(1, releasable1.refCount());
 
@@ -281,7 +281,7 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
-        expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
+        expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, new FragmentListAdapter(fragments)));
         // No bytes are retained
         assertEquals(1, releasable1.refCount());
     }
@@ -306,5 +306,37 @@ public class InboundDecoderTests extends ESTestCase {
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);
         assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
             + version.minimumCompatibilityVersion() + "]", ise.getMessage());
+    }
+
+    private static class FragmentListAdapter implements InboundFragmentHandler {
+
+        static final Object PING = new Object();
+        static final Object END_CONTENT = new Object();
+
+        private final ArrayList<Object> fragments;
+
+        FragmentListAdapter(ArrayList<Object> fragments) {
+            this.fragments = fragments;
+        }
+
+        @Override
+        public void handleHeader(Header header) {
+            fragments.add(header);
+        }
+
+        @Override
+        public void handlePing() {
+            fragments.add(PING);
+        }
+
+        @Override
+        public void handleEndContent() {
+            fragments.add(END_CONTENT);
+        }
+
+        @Override
+        public void handleFragment(ReleasableBytesReference fragment) {
+            fragments.add(fragment);
+        }
     }
 }

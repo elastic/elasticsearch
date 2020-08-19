@@ -271,11 +271,9 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
-        private final MockSocketChannel channel;
         private final InboundPipeline pipeline;
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
-            this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
             final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
             final RequestHandlers requestHandlers = transport.getRequestHandlers();
@@ -283,6 +281,7 @@ public class MockNioTransport extends TcpTransport {
             final StatsTracker statsTracker = transport.getStatsTracker();
             this.pipeline = new InboundPipeline(version, statsTracker, recycler, threadPool::relativeTimeInMillis, breaker,
                 requestHandlers::getHandler, transport::inboundMessage);
+            pipeline.setChannel(channel);
         }
 
         @Override
@@ -294,7 +293,7 @@ public class MockNioTransport extends TcpTransport {
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
-                pipeline.handleBytes(channel, reference);
+                pipeline.handleBytes(reference);
                 return reference.length();
             }
         }

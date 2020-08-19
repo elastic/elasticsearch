@@ -71,9 +71,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
         final ByteBuf buffer = (ByteBuf) msg;
         Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        pipeline.setChannel(channel);
         final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
-            pipeline.handleBytes(channel, reference);
+            pipeline.handleBytes(reference);
         }
     }
 

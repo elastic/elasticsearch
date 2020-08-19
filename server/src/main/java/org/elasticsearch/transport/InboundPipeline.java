@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -37,7 +36,6 @@ import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
-    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final LongSupplier relativeTimeInMillis;
@@ -45,9 +43,11 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
+    private final PipelineFragmentHandler fragmentHandler;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+    private TcpChannel channel;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
                            Supplier<CircuitBreaker> circuitBreaker,
@@ -64,6 +64,7 @@ public class InboundPipeline implements Releasable {
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
+        this.fragmentHandler = new PipelineFragmentHandler();
     }
 
     @Override
@@ -74,83 +75,42 @@ public class InboundPipeline implements Releasable {
         pending.clear();
     }
 
-    public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    public void handleBytes(ReleasableBytesReference reference) throws IOException {
+        assert channel != null;
         if (uncaughtException != null) {
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
         }
         try {
-            doHandleBytes(channel, reference);
+            doHandleBytes(reference);
         } catch (Exception e) {
             uncaughtException = e;
             throw e;
         }
     }
 
-    public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    private void doHandleBytes(ReleasableBytesReference reference) throws IOException {
+        assert isClosed == false : "received [" + reference.length() + "] bytes after close";
+
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
-
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
-                try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                            continueDecoding = false;
-                        }
-                    } else {
-                        continueDecoding = false;
-                    }
-                }
-            }
-
-            if (fragments.isEmpty()) {
-                continueHandling = false;
-            } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
-                        }
-                    }
-                    fragments.clear();
+        while (pending.isEmpty() == false) {
+            try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                fragmentHandler.madeProgress = false;
+                final int bytesConsumed = decoder.decode(toDecode, fragmentHandler);
+                if (isClosed) {
+                    assert pending.isEmpty() : "closed without releasing [" + pending.size() + "] chunks";
+                    break;
+                } else if (fragmentHandler.madeProgress) {
+                    assert bytesConsumed > 0 : "made progress without consuming bytes";
+                    releasePendingBytes(bytesConsumed);
+                } else {
+                    assert bytesConsumed == 0 : "consumed [" + bytesConsumed + "] bytes without making progress";
+                    break;
                 }
             }
         }
-    }
-
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
-        for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
-                assert aggregator.isAggregating() == false;
-                aggregator.headerReceived((Header) fragment);
-            } else if (fragment == InboundDecoder.PING) {
-                assert aggregator.isAggregating() == false;
-                messageHandler.accept(channel, PING_MESSAGE);
-            } else if (fragment == InboundDecoder.END_CONTENT) {
-                assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
-                    statsTracker.markMessageReceived();
-                    messageHandler.accept(channel, aggregated);
-                }
-            } else {
-                assert aggregator.isAggregating();
-                assert fragment instanceof ReleasableBytesReference;
-                aggregator.aggregate((ReleasableBytesReference) fragment);
-            }
-        }
-    }
-
-    private boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
     private ReleasableBytesReference getPendingBytes() {
@@ -172,7 +132,7 @@ public class InboundPipeline implements Releasable {
         int bytesToRelease = bytesConsumed;
         while (bytesToRelease != 0) {
             try (ReleasableBytesReference reference = pending.pollFirst()) {
-                assert reference != null;
+                assert reference != null : channel;
                 if (bytesToRelease < reference.length()) {
                     pending.addFirst(reference.retainedSlice(bytesToRelease, reference.length() - bytesToRelease));
                     bytesToRelease -= bytesToRelease;
@@ -182,4 +142,48 @@ public class InboundPipeline implements Releasable {
             }
         }
     }
+
+    public void setChannel(TcpChannel channel) {
+        assert this.channel == null || this.channel == channel : "changing channel from " + this.channel + " to " + channel;
+        assert channel != null;
+        this.channel = channel;
+    }
+
+    private class PipelineFragmentHandler implements InboundFragmentHandler {
+
+        boolean madeProgress;
+
+        @Override
+        public void handleHeader(Header header) {
+            assert aggregator.isAggregating() == false;
+            madeProgress = true;
+            aggregator.headerReceived(header);
+        }
+
+        @Override
+        public void handlePing() {
+            assert aggregator.isAggregating() == false;
+            madeProgress = true;
+            messageHandler.accept(channel, PING_MESSAGE);
+        }
+
+        @Override
+        public void handleEndContent() throws IOException {
+            assert aggregator.isAggregating();
+            madeProgress = true;
+            try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                statsTracker.markMessageReceived();
+                messageHandler.accept(channel, aggregated);
+            }
+        }
+
+        @Override
+        public void handleFragment(ReleasableBytesReference fragment) {
+            assert aggregator.isAggregating();
+            madeProgress = true;
+            aggregator.aggregate(fragment);
+            fragment.close(); // the aggregator took ownership by incrementing the refcount on the fragment itself
+        }
+    }
+
 }

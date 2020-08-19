@@ -40,7 +40,6 @@ import java.util.function.Supplier;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
-    private final NioTcpChannel channel;
     private final InboundPipeline pipeline;
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
@@ -50,6 +49,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
             breaker, requestHandlers::getHandler, transport::inboundMessage);
+        pipeline.setChannel(channel);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
-            pipeline.handleBytes(channel, reference);
+            pipeline.handleBytes(reference);
             return reference.length();
         }
     }

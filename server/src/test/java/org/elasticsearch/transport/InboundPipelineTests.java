@@ -91,7 +91,7 @@ public class InboundPipelineTests extends ESTestCase {
         circuitBreaker.startBreaking();
         final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
-        final FakeTcpChannel channel = new FakeTcpChannel();
+        pipeline.setChannel(new FakeTcpChannel());
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;
@@ -144,7 +144,7 @@ public class InboundPipelineTests extends ESTestCase {
                     try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
                         toRelease.add(reference);
                         bytesReceived += reference.length();
-                        pipeline.handleBytes(channel, reference);
+                        pipeline.handleBytes(reference);
                         currentOffset += bytesToRead;
                     }
                 }
@@ -184,6 +184,7 @@ public class InboundPipelineTests extends ESTestCase {
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
+        pipeline.setChannel(new FakeTcpChannel());
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";
@@ -203,12 +204,12 @@ public class InboundPipelineTests extends ESTestCase {
 
             final BytesReference reference = message.serialize(streamOutput);
             try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(reference)) {
-                expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
+                expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(releasable));
             }
 
             // Pipeline cannot be reused after uncaught exception
             final IllegalStateException ise = expectThrows(IllegalStateException.class,
-                () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY)));
+                () -> pipeline.handleBytes(ReleasableBytesReference.wrap(BytesArray.EMPTY)));
             assertEquals("Pipeline state corrupted by uncaught exception", ise.getMessage());
         }
     }
@@ -221,6 +222,7 @@ public class InboundPipelineTests extends ESTestCase {
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
+        pipeline.setChannel(new FakeTcpChannel());
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";
@@ -245,7 +247,7 @@ public class InboundPipelineTests extends ESTestCase {
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
             for (int i = 0; i < totalHeaderSize - 1; ++i) {
                 try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
-                    pipeline.handleBytes(new FakeTcpChannel(), slice);
+                    pipeline.handleBytes(slice);
                 }
             }
 
@@ -253,11 +255,11 @@ public class InboundPipelineTests extends ESTestCase {
             final int from = totalHeaderSize - 1;
             final BytesReference partHeaderPartBody = reference.slice(from, reference.length() - from - 1);
             try (ReleasableBytesReference slice = new ReleasableBytesReference(partHeaderPartBody, releasable)) {
-                pipeline.handleBytes(new FakeTcpChannel(), slice);
+                pipeline.handleBytes(slice);
             }
             assertFalse(bodyReleased.get());
             try (ReleasableBytesReference slice = new ReleasableBytesReference(reference.slice(reference.length() - 1, 1), releasable)) {
-                pipeline.handleBytes(new FakeTcpChannel(), slice);
+                pipeline.handleBytes(slice);
             }
             assertTrue(bodyReleased.get());
         }

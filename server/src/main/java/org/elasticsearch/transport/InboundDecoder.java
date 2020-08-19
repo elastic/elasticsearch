@@ -28,12 +28,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
-
-    static final Object PING = new Object();
-    static final Object END_CONTENT = new Object();
 
     private final Version version;
     private final PageCacheRecycler recycler;
@@ -47,23 +43,23 @@ public class InboundDecoder implements Releasable {
         this.recycler = recycler;
     }
 
-    public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int decode(ReleasableBytesReference reference, InboundFragmentHandler fragmentHandler) throws IOException {
         ensureOpen();
         try {
-            return internalDecode(reference, fragmentConsumer);
+            return internalDecode(reference, fragmentHandler);
         } catch (Exception e) {
             cleanDecodeState();
             throw e;
         }
     }
 
-    public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int internalDecode(ReleasableBytesReference reference, InboundFragmentHandler fragmentHandler) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
-                fragmentConsumer.accept(PING);
+                fragmentHandler.handlePing();
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(reference);
@@ -77,10 +73,10 @@ public class InboundDecoder implements Releasable {
                     if (header.isCompressed()) {
                         decompressor = new TransportDecompressor(recycler);
                     }
-                    fragmentConsumer.accept(header);
+                    fragmentHandler.handleHeader(header);
 
                     if (isDone()) {
-                        finishMessage(fragmentConsumer);
+                        finishMessage(fragmentHandler);
                     }
                     return headerBytesToRead;
                 }
@@ -102,13 +98,13 @@ public class InboundDecoder implements Releasable {
                 decompress(retainedContent);
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    fragmentConsumer.accept(decompressed);
+                    fragmentHandler.handleFragment(decompressed);
                 }
             } else {
-                fragmentConsumer.accept(retainedContent);
+                fragmentHandler.handleFragment(retainedContent);
             }
             if (isDone()) {
-                finishMessage(fragmentConsumer);
+                finishMessage(fragmentHandler);
             }
 
             return bytesToConsume;
@@ -121,9 +117,9 @@ public class InboundDecoder implements Releasable {
         cleanDecodeState();
     }
 
-    private void finishMessage(Consumer<Object> fragmentConsumer) {
+    private void finishMessage(InboundFragmentHandler fragmentHandler) throws IOException {
         cleanDecodeState();
-        fragmentConsumer.accept(END_CONTENT);
+        fragmentHandler.handleEndContent();
     }
 
     private void cleanDecodeState() {

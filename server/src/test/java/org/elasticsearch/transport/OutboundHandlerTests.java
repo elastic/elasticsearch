@@ -86,6 +86,7 @@ public class OutboundHandlerTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
             });
+        pipeline.setChannel(channel);
     }
 
     @After
@@ -157,8 +158,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(request, requestRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(ReleasableBytesReference.wrap(reference));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestRequest message = new TestRequest(tuple.v2().streamInput());
@@ -216,8 +216,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(ReleasableBytesReference.wrap(reference));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestResponse message = new TestResponse(tuple.v2().streamInput());
@@ -275,8 +274,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(error, responseRef.get());
 
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(ReleasableBytesReference.wrap(reference));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         assertEquals(version, header.getVersion());

@@ -1004,11 +1004,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Number nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
@@ -1056,16 +1051,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Number parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value.equals("")) {
-            return nullValue;
-        }
-
-        return fieldType().type.parse(value, coerce.value());
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                if (value.equals("")) {
+                    return nullValue;
+                }
+                return fieldType().type.parse(value, coerce.value());
+            }
+        };
     }
 
     @Override

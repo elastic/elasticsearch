@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
@@ -84,13 +86,13 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP).build(context);
         Map<String, Object> range = org.elasticsearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(org.elasticsearch.common.collect.Map.of("gte", "2001:db8::2:1"), mapper.parseSourceValue(range, null));
-        assertEquals("2001:db8::2:1/32", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1/32", null));
+        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("gte", "2001:db8::2:1")), fetchSourceValue(mapper, range));
+        assertEquals(List.of("2001:db8::2:1/32"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1/32"));
     }
 }

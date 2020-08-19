@@ -37,18 +37,17 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
@@ -359,22 +358,19 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true).build(context);
-        assertEquals(3, mapper.parseSourceValue(3.14, null));
-        assertEquals(42, mapper.parseSourceValue("42.9", null));
+        assertEquals(org.elasticsearch.common.collect.List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(org.elasticsearch.common.collect.List.of(42), fetchSourceValue(mapper, "42.9"));
 
         NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)
             .build(context);
-        assertEquals(2.71f, (float) nullValueMapper.parseSourceValue("", null), 0.00001);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(org.elasticsearch.common.collect.List.of(2.71f), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(org.elasticsearch.common.collect.List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(org.elasticsearch.common.collect.List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     @Timeout(millis = 30000)

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.fs.quotaaware;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -56,6 +58,7 @@ public final class QuotaAwareFileSystem extends FileSystem {
     }
 
     @Override
+    @SuppressForbidden(reason = "accesses the default filesystem by design")
     public void close() throws IOException {
         if (this == FileSystems.getDefault()) {
             throw new UnsupportedOperationException("The default file system cannot be closed");

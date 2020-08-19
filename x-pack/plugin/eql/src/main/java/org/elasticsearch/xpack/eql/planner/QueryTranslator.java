@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -42,9 +43,6 @@ final class QueryTranslator {
             new ExpressionTranslators.Nots(),
             new ExpressionTranslators.Likes(),
             new ExpressionTranslators.InComparisons(),
-            new ExpressionTranslators.StringQueries(),
-            new ExpressionTranslators.Matches(),
-            new ExpressionTranslators.MultiMatches(),
             new CaseSensitiveScalarFunctions(),
             new Scalars()
     );
@@ -133,6 +131,10 @@ final class QueryTranslator {
                 StringContains sc = (StringContains) f;
                 field = sc.string();
                 constant = sc.substring();
+            } else if (f instanceof EndsWith) {
+                EndsWith ew = (EndsWith) f;
+                field = ew.input();
+                constant = ew.pattern();
             } else {
                 return null;
             }
@@ -140,8 +142,9 @@ final class QueryTranslator {
             if (field instanceof FieldAttribute && constant.foldable()) {
                 String targetFieldName = handler.nameOf(((FieldAttribute) field).exactAttribute());
                 String substring = (String) constant.fold();
+                String query = "*" + substring + (f instanceof StringContains ? "*" : "");
 
-                return new WildcardQuery(f.source(), targetFieldName, "*" + substring + "*");
+                return new WildcardQuery(f.source(), targetFieldName, query);
             }
 
             return null;

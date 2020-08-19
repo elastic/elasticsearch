@@ -19,12 +19,14 @@
 
 package org.elasticsearch.common.compress;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -32,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -73,6 +74,59 @@ public class DeflateCompressor implements Compressor {
         return HEADER.length;
     }
 
+    // Reusable inflater reference for streaming decompression
+    private static final ThreadLocal<ReleasableReference<Inflater>> inflaterForStreamRef = ThreadLocal.withInitial(() -> {
+        final Inflater inflater = new Inflater(true);
+        return new ReleasableReference<>(inflater, inflater::reset);
+    });
+
+    // Reusable deflater reference for streaming compression
+    private static final ThreadLocal<ReleasableReference<Deflater>> deflaterForStreamRef = ThreadLocal.withInitial(() -> {
+        final Deflater deflater = new Deflater(LEVEL, true);
+        return new ReleasableReference<>(deflater, deflater::reset);
+    });
+
+    // Reference to a deflater or inflater that is used to make sure we do not use the same stream twice when nesting streams.
+    private static final class ReleasableReference<T> implements Releasable {
+
+        protected final T resource;
+
+        private final Releasable releasable;
+
+        // Thread that is currently using this reference
+        private Thread user = null;
+
+        // true if this reference is currently in use and is not available for re-use
+        boolean inUse;
+
+        protected ReleasableReference(T resource, Releasable releasable) {
+            this.resource = resource;
+            this.releasable = releasable;
+        }
+
+        T get() {
+            if (Assertions.ENABLED) {
+                assert user == null;
+                user = Thread.currentThread();
+            }
+            assert inUse == false;
+            inUse = true;
+            return resource;
+        }
+
+        @Override
+        public void close() {
+            if (Assertions.ENABLED) {
+                assert user == Thread.currentThread() :
+                        "Opened on [" + user.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
+                user = null;
+            }
+            assert inUse;
+            inUse = false;
+            releasable.close();
+        }
+    }
+
     @Override
     public StreamInput streamInput(StreamInput in) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
@@ -88,55 +142,63 @@ public class DeflateCompressor implements Compressor {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }
 
-        final boolean nowrap = true;
-        final Inflater inflater = new Inflater(nowrap);
-        InputStream decompressedIn = new InflaterInputStream(in, inflater, BUFFER_SIZE);
-        decompressedIn = new BufferedInputStream(decompressedIn, BUFFER_SIZE);
-        return new InputStreamStreamInput(decompressedIn) {
-            final AtomicBoolean closed = new AtomicBoolean(false);
-
+        final ReleasableReference<Inflater> current = inflaterForStreamRef.get();
+        final Releasable releasable;
+        final Inflater inflater;
+        if (current.inUse) {
+            // Nested de-compression streams should not happen but we still handle them safely by using a fresh Inflater
+            inflater = new Inflater(true);
+            releasable = inflater::end;
+        } else {
+            inflater = current.get();
+            releasable = current;
+        }
+        InputStream decompressedIn = new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+            @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    if (closed.compareAndSet(false, true)) {
-                        // important to release native memory
-                        inflater.end();
-                    }
+                    releasable.close();
                 }
             }
         };
+        return new InputStreamStreamInput(new BufferedInputStream(decompressedIn, BUFFER_SIZE));
     }
 
     @Override
     public StreamOutput streamOutput(OutputStream out) throws IOException {
         out.write(HEADER);
-        final boolean nowrap = true;
-        final Deflater deflater = new Deflater(LEVEL, nowrap);
+        final ReleasableReference<Deflater> current = deflaterForStreamRef.get();
+        final Releasable releasable;
+        final Deflater deflater;
+        if (current.inUse) {
+            // Nested compression streams should not happen but we still handle them safely by using a fresh Deflater
+            deflater = new Deflater(LEVEL, true);
+            releasable = deflater::end;
+        } else {
+            deflater = current.get();
+            releasable = current;
+        }
         final boolean syncFlush = true;
-        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
-        OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
-        return new OutputStreamStreamOutput(compressedOut) {
-            final AtomicBoolean closed = new AtomicBoolean(false);
-
+        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush) {
+            @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    if (closed.compareAndSet(false, true)) {
-                        // important to release native memory
-                        deflater.end();
-                    }
+                    releasable.close();
                 }
             }
         };
+        return new OutputStreamStreamOutput(new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE));
     }
 
-    // Reusable Inflater reference. Note: This is not used for the decompressing stream wrapper because we don't have strong guarantees
-    // about the scope in which the stream wrapper is used.
-    private static final ThreadLocal<Inflater> inflaterRef = ThreadLocal.withInitial(() -> new Inflater(true));
-
     private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);
+
+    // Reusable Inflater reference. Note: This is a separate instance from the one used for the decompressing stream wrapper because we
+    // want to be able to deal with decompressing bytes references that were read from a decompressing stream.
+    private static final ThreadLocal<Inflater> inflaterRef = ThreadLocal.withInitial(() -> new Inflater(true));
 
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
@@ -151,8 +213,8 @@ public class DeflateCompressor implements Compressor {
         return res;
     }
 
-    // Reusable Deflater reference. Note: This is not used for the compressing stream wrapper because we don't have strong guarantees
-    // about the scope in which the stream wrapper is used.
+    // Reusable Deflater reference. Note: This is a separate instance from the one used for the compressing stream wrapper because we
+    // want to be able to deal with compressing bytes references to a decompressing stream.
     private static final ThreadLocal<Deflater> deflaterRef = ThreadLocal.withInitial(() -> new Deflater(LEVEL, true));
 
     @Override

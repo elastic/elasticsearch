@@ -145,6 +145,8 @@ public class PublicationTransportHandler {
                 final ClusterState incomingState;
                 try {
                     incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                    // Close early to release resources used by the de-compression as early as possible
+                    in.close();
                 } catch (Exception e){
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
                     throw e;
@@ -165,6 +167,8 @@ public class PublicationTransportHandler {
                     ClusterState incomingState;
                     try {
                         Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        // Close early to release resources used by the de-compression as early as possible
+                        in.close();
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();

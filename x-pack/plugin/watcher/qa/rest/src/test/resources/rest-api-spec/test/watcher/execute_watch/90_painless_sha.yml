@@ -1,0 +1,60 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test String MessageDigest augmentation":
+  - do:
+      index:
+        index: my_test_index
+        id: my_id
+        refresh: true
+        body: >
+          {
+            "foo": "bar"
+          }
+
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "search": {
+                  "request": {
+                    "indices": [ "my_test_index" ],
+                    "body": {
+                      "query": { "match_all": {} }
+                    }
+                  }
+                }
+              },
+              "condition": {
+                "script": {
+                  "source": "ctx.payload.hits.hits[0]['_source'].keySet().iterator().next().sha1() == \"0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33\""
+                }
+              },
+              "transform" : {
+                "script": "return ctx.payload.hits.hits[0]['_source'].entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().sha256()))"
+              },
+              "actions": {
+                "test": "
+              }
+            }
+          }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.transform.status: "success" }
+
+  - do:
+      get:
+        index: my_test_index
+        id: my_id
+
+  - match: { _source.foo: "bar" }

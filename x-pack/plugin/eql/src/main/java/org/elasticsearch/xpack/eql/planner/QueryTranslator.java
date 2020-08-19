@@ -110,15 +110,6 @@ final class QueryTranslator {
                     return new TermsQuery(f.source(), targetFieldName, set);
                 }
             }
-            if (f instanceof EndsWith) {
-                EndsWith ew = (EndsWith) f;
-                if (ew.isCaseSensitive() && ew.input() instanceof FieldAttribute && ew.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) ew.input()).exactAttribute());
-                    String pattern = (String) ew.pattern().fold();
-
-                    return new WildcardQuery(f.source(), targetFieldName, "*" + pattern);
-                }
-            }
 
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
@@ -139,6 +130,10 @@ final class QueryTranslator {
                 StringContains sc = (StringContains) f;
                 field = sc.string();
                 constant = sc.substring();
+            } else if (f instanceof EndsWith) {
+                EndsWith ew = (EndsWith) f;
+                field = ew.input();
+                constant = ew.pattern();
             } else {
                 return null;
             }
@@ -146,8 +141,9 @@ final class QueryTranslator {
             if (field instanceof FieldAttribute && constant.foldable()) {
                 String targetFieldName = handler.nameOf(((FieldAttribute) field).exactAttribute());
                 String substring = (String) constant.fold();
+                String query = "*" + substring + (f instanceof StringContains ? "*" : "");
 
-                return new WildcardQuery(f.source(), targetFieldName, "*" + substring + "*");
+                return new WildcardQuery(f.source(), targetFieldName, query);
             }
 
             return null;

@@ -50,8 +50,8 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
                 () -> client().admin().indices().prepareClose("test_no_close").get());
         assertEquals(illegalStateException.getMessage(), "closing indices is forbidden since data in closed indices may be lost during " +
-		"migrations and upgrades, and they also consume significant disk space; set [cluster.indices.close.enable: true] to " +
-		"permit indices to be closed");
+                "migrations and upgrades, and they also consume significant disk space; set [cluster.indices.close.enable: true] to " +
+                "permit indices to be closed");
     }
 
     private void assertIndexIsClosed(String... indices) {

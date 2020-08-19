@@ -1,5 +1,5 @@
 ---
-"Verify data stream resolvability in EQL search API":
+setup:
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
@@ -22,7 +22,6 @@
   - do:
       indices.create_data_stream:
         name: simple-data-stream1
-  - is_true: acknowledged
 
   - do:
       bulk:
@@ -36,9 +35,29 @@
             "@timestamp": 2020-02-03T12:34:56Z
             user: SYSTEM
 
+---
+"Verify data stream resolvability in EQL search API":
   - do:
       eql.search:
         index: simple-data-stream1
+        body:
+          query: "process where user = 'SYSTEM'"
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Data stream EQL search with wildcard pattern":
+  - do:
+      eql.search:
+        index: simple-data-s*
         body:
           query: "process where user = 'SYSTEM'"
 

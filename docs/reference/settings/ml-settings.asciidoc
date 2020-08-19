@@ -11,16 +11,14 @@
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
 IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines whose
-CPUs https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs[support] SSE4.2. If you
+CPUs {wikipedia}/SSE4#Supporting_CPUs[support] SSE4.2. If you
 run {es} on older hardware you must disable {ml} (by setting `xpack.ml.enabled`
 to `false`).
 
-All of these settings can be added to the `elasticsearch.yml` configuration file.
-The dynamic settings can also be updated across a cluster with the
-<<cluster-update-settings,cluster update settings API>>.
-
-TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
-file.
+All of these settings can be added to the `elasticsearch.yml` configuration 
+file. The dynamic settings can also be updated across a cluster with the
+<<cluster-update-settings,cluster update settings API>>. Dynamic settings take 
+precedence over settings in the `elasticsearch.yml` file.
 
 // end::ml-settings-description-tag[]
 
@@ -28,20 +26,19 @@ file.
 [[general-ml-settings]]
 ==== General machine learning settings
 
-`node.ml`::
-deprecated:[7.9.0,"Use <<modules-node,node.roles>> instead."]
-Set to `true` (default) to identify the node as a _machine learning node_. +
+`node.roles: [ ml ]`::
+Set `node.roles` to contain `ml` to identify the node as a _{ml} node_ that is 
+capable of running jobs. Every node is a {ml} node by default.+
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run jobs. If set to
-`true` but `xpack.ml.enabled` is set to `false`, the `node.ml` setting is
-ignored and the node cannot run jobs. If you want to run jobs, there must be at
-least one machine learning node in your cluster. +
+If you use the `node.roles` setting, then all required roles must be explicitly  
+set. Consult <<modules-node>> to learn more.
 +
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
-the `node.ml` role.
+IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
+the `ml` role.
+
 
 `xpack.ml.enabled`::
-Set to `true` (default) to enable {ml} on the node.
+Set to `true` (default) to enable {ml} APIs on the node.
 +
 If set to `false`, the {ml} APIs are disabled on the node. Therefore the node
 cannot open jobs, start {dfeeds}, or receive transport (internal) communication
@@ -51,10 +48,10 @@ from clients (including {kib}) also fail. For more information about disabling
 {kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
 +
 IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
-that you set `xpack.ml.enabled` to `true` on all nodes. This is the
-default behavior. At a minimum, it must be enabled on all master-eligible nodes.
-If you want to use {ml-features} in clients or {kib}, it must also be enabled on
-all coordinating nodes.
+that you set `xpack.ml.enabled` to `true` on all nodes. This is the default 
+behavior. At a minimum, it must be enabled on all master-eligible nodes. If you 
+want to use {ml-features} in clients or {kib}, it must also be enabled on all 
+coordinating nodes.
 
 `xpack.ml.inference_model.cache_size`::
 The maximum inference cache size allowed. The inference cache exists in the JVM

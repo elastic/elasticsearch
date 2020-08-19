@@ -65,9 +65,8 @@ public class FieldValueRetriever {
                 }
 
                 FieldMapper fieldMapper = (FieldMapper) mapper;
-                ValueFetcher valueFetcher = fieldMapper.valueFetcher(format);
-                Set<String> sourcePath = mapperService.sourcePath(field);
-                fieldContexts.add(new FieldContext(field, valueFetcher, sourcePath));
+                ValueFetcher valueFetcher = fieldMapper.valueFetcher(mapperService, format);
+                fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }
 
@@ -87,7 +86,7 @@ public class FieldValueRetriever {
             }
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, context.sourcePath);
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
 
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
@@ -99,14 +98,10 @@ public class FieldValueRetriever {
     private static class FieldContext {
         final String fieldName;
         final ValueFetcher valueFetcher;
-        final Set<String> sourcePath;
-
 
         FieldContext(String fieldName,
-                     ValueFetcher valueFetcher,
-                     Set<String> sourcePath) {
+                     ValueFetcher valueFetcher) {
             this.fieldName = fieldName;
-            this.sourcePath = sourcePath;
             this.valueFetcher = valueFetcher;
         }
     }

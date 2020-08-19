@@ -134,8 +134,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(String format) {
-        return new SourceValueFetcher(name(), parsesArrayValue()) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
             protected String parseSourceValue(Object value) {
                 return value.toString();

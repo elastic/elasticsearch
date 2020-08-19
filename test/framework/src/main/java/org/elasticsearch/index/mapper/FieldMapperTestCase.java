@@ -46,6 +46,8 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link FieldMapper}s.
@@ -259,10 +261,14 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
     public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
         String field = mapper.name();
-        ValueFetcher fetcher = mapper.valueFetcher(format);
+
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
+
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup, Set.of(field));
+        return fetcher.fetchValues(lookup);
     }
 
 }

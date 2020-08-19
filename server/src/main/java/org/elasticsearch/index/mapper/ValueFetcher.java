@@ -23,7 +23,6 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link FieldMapper}
@@ -41,8 +40,7 @@ public interface ValueFetcher {
      * should not be relied on.
      *
      * @param lookup a lookup structure over the document's source.
-     * @param sourcePaths the field paths to look up in the source.
      * @return a list a standardized field values.
      */
-    List<Object> fetchValues(SourceLookup lookup, Set<String> sourcePaths);
+    List<Object> fetchValues(SourceLookup lookup);
 }

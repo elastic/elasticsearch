@@ -285,7 +285,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
      */
-    public abstract ValueFetcher valueFetcher(@Nullable String format);
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, @Nullable String format);
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

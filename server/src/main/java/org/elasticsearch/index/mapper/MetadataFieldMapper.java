@@ -165,7 +165,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 

@@ -375,13 +375,13 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
         DateFormatter formatter = format != null
             ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
             : defaultFormatter;
 
-        return new SourceValueFetcher(name(), parsesArrayValue()) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
 
             @Override
             @SuppressWarnings("unchecked")

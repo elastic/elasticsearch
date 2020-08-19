@@ -34,12 +34,12 @@ import java.util.Set;
  * to implement value fetching.
  */
 public abstract class SourceValueFetcher implements ValueFetcher {
-    private final String fieldName;
+    private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
     private final boolean parsesArrayValue;
 
-    public SourceValueFetcher(String fieldName, boolean parsesArrayValue) {
-        this(fieldName, parsesArrayValue, null);
+    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue) {
+        this(fieldName, mapperService, parsesArrayValue, null);
     }
 
     /**
@@ -47,14 +47,14 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param parsesArrayValue Whether the fetcher handles array values during document parsing.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, boolean parsesArrayValue, Object nullValue) {
-        this.fieldName = fieldName;
+    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue, Object nullValue) {
+        this.sourcePaths = mapperService.sourcePath(fieldName);
         this.nullValue = nullValue;
         this.parsesArrayValue = parsesArrayValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, Set<String> sourcePaths) {
+    public List<Object> fetchValues(SourceLookup lookup) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);

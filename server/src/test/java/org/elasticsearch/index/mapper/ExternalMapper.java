@@ -201,8 +201,8 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(String format) {
-        return new SourceValueFetcher(name(), parsesArrayValue()) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;

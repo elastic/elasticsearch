@@ -189,7 +189,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
             return null;
         }
 

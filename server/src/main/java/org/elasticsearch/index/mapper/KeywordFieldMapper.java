@@ -388,12 +388,12 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return new SourceValueFetcher(name(), parsesArrayValue(), nullValue) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
             @Override
             protected String parseSourceValue(Object value) {
                 String keywordValue = value.toString();

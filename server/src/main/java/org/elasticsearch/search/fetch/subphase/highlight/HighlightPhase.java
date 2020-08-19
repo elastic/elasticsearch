@@ -32,7 +32,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,7 +52,7 @@ public class HighlightPhase implements FetchSubPhase {
             return null;
         }
 
-        return getExecutor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.query());
+        return getExecutor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.parsedQuery().query());
     }
 
     public FetchSubPhaseExecutor getExecutor(QueryShardContext qsc, SearchShardTarget target, SearchHighlightContext hc, Query query) {
@@ -65,7 +64,7 @@ public class HighlightPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void execute(HitContext hitContext) {
                 Map<String, HighlightField> highlightFields = new HashMap<>();
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);

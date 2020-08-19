@@ -24,10 +24,19 @@ import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 
+/**
+ * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
+ */
 public interface FetchSubPhaseExecutor {
 
+    /**
+     * Called when moving to the next {@link LeafReaderContext} for a set of hits
+     */
     void setNextReader(LeafReaderContext readerContext) throws IOException;
 
+    /**
+     * Called in doc order for each hit in a leaf reader
+     */
     void execute(HitContext hitContext) throws IOException;
 
 }

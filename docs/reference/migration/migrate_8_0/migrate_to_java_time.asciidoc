@@ -1,14 +1,10 @@
-[discrete]
-[[breaking_80_java_time_changes]]
+[[migrate-to-java-time]]
 === Java time migration guide
 
 With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
-All indices created in {es} 7 are already using java-time so nothing needs to be done.
-However indices created in {es} 6 with joda-time patterns need to be reindex to with
-an updated mappings
 
 [discrete]
 [[java-time-convert-date-formats]]
@@ -18,7 +14,7 @@ To upgrade to {es} 8, you'll need to convert any joda-time date formats
 to their java-time equivalents.
 
 [[java-time-migration-impacted-features]]
-==== Impacted features
+=== Impacted features
 The switch to java time only impacts custom <<date,`date`>> and
 <<date_nanos,`date_nanos`>> formats.
 
@@ -36,7 +32,7 @@ To see if your date format is impacted, use the <<migration-api-deprecation,depr
 or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant].
 
 [[java-time-migration-incompatible-date-formats]]
-==== Incompatible date formats
+=== Incompatible date formats
 Custom date formats containing the following joda-time literals should be
 migrated.
 
@@ -206,7 +202,7 @@ In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
 --
 
 [[java-time-migration-test]]
-===== Test with your data
+=== Test with your data
 
 We strongly recommend you test any date format changes using real data before
 deploying in production.
@@ -215,7 +211,7 @@ For help with date debugging, consider using
 https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
 
 [[java-time-migrate-update-mappings]]
-==== Update index mappings
+=== Update index mappings
 To update joda-time date formats in index mappings, you must create a new index
 with an updated mapping and reindex your data to it.
 

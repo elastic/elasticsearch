@@ -172,7 +172,7 @@ GET kibana_sample_data_logs/_search
   }
 }
 -------------------------------------------------
-// NOTCONSOLE
+// TEST[skip:setup kibana sample data]
 
 <1> A composite bucket aggregation that aggregates the data by `client_ip`.
 <2> A series of metrics and bucket sub-aggregations.

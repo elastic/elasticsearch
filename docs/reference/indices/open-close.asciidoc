@@ -9,10 +9,11 @@ recovery process.
 
 [WARNING]
 ====
-To reduce the risk of data loss, avoid keeping closed indices for long periods.
-When a node leaves your cluster, {es} does not rebuild shard replicas for closed
-indices. If you regularly replace nodes in your cluster, this will eventually
-result in data loss for the cluster's closed indices.
+To reduce the risk of data loss, avoid keeping closed indices in your cluster
+for long periods of time. When a node leaves your cluster, {es} does not
+rebuild the lost copies of the shards in any closed indices. As you replace the
+nodes in your cluster over time you will gradually lose the shard data for any
+closed indices.
 
 If you want to reduce the overhead of an index while keeping it available for
 occasional searches, <<frozen-indices,freeze>> the index instead. If you want

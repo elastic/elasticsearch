@@ -40,7 +40,7 @@ public class PagedBytesReference extends AbstractBytesReference {
     private final int length;
 
     PagedBytesReference(ByteArray byteArray, int from, int length) {
-        assert byteArray.hasArray() == false;
+        assert byteArray.hasArray() == false : "use BytesReference#fromByteArray";
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;

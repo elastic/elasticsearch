@@ -57,6 +57,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisruptableMockTransportTests extends ESTestCase {
 
@@ -318,13 +319,16 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        send(service1, node2, responseHandlerShouldNotBeCalled());
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
+        send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerChannel.get());
+        assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
         deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
     public void testDisconnectedOnExceptionalResponse() throws IOException {
@@ -332,13 +336,16 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        send(service1, node2, responseHandlerShouldNotBeCalled());
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
+        send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerChannel.get());
+        assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
         deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
     public void testUnavailableOnSuccessfulResponse() throws IOException {

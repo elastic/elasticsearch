@@ -7,11 +7,11 @@ intended use. For example, you can index strings to both `text` and `keyword`
 fields. However, `text` field values are <<analysis,analyzed>> for full-text
 search while `keyword` strings are left as-is for filtering and sorting.
 
-Field types are grouped by _family_. Types in the same family are guaranteed to
-support the same search functionality, but may have different space usage or
-performance characteristics.
+Field types are grouped by _family_. Types in the same family support the same
+search functionality but may have different space usage or performance
+characteristics.
 
-Currently the only type family is `keyword`, which consists of the `keyword`,
+Currently, the only type family is `keyword`, which consists of the `keyword`,
 `constant_keyword`, and `wildcard` field types. Other type families have only a
 single field type. For example, the `boolean` type family consists of one field
 type: `boolean`.

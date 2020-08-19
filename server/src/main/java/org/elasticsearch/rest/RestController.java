@@ -207,7 +207,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
+                                 ThreadContext threadContext) throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -236,7 +237,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 final String allowSystemIndexParameter = request.param(ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER);
-                final ThreadContext threadContext = client.threadPool().getThreadContext();
                 if (Booleans.parseBoolean(allowSystemIndexParameter, false) == false) {
                     threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
                 }
@@ -324,7 +324,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler);
+                    dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }

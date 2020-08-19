@@ -22,17 +22,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,21 +36,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base class for testing {@link FieldMapper}s.
  * @param <T> builder for the mapper to test
- * @deprecated prefer {@link FieldMapperTestCase2}
  */
-@Deprecated
-public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
-
-    protected final Settings SETTINGS = Settings.builder()
-        .put("index.version.created", Version.CURRENT)
-        .build();
-
+public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> extends MapperTestCase {
     private final class Modifier {
         final String property;
         final boolean updateable;
@@ -84,19 +72,16 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         return Collections.emptySet();
     }
 
-    private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(
-        new Modifier("analyzer", false, (a, b) -> {
-            a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-        }),
-        new Modifier("boost", true, (a, b) -> {
-           a.boost(1.1f);
-           b.boost(1.2f);
-        }),
-        new Modifier("doc_values", false, (a, b) -> {
-            a.docValues(true);
-            b.docValues(false);
-        }),
+    private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(new Modifier("analyzer", false, (a, b) -> {
+        a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
+    }), new Modifier("boost", true, (a, b) -> {
+        a.boost(1.1f);
+        b.boost(1.2f);
+    }), new Modifier("doc_values", false, (a, b) -> {
+        a.docValues(true);
+        b.docValues(false);
+    }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
         booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
@@ -196,14 +181,17 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             if (modifier.updateable) {
                 mapper.merge(toMerge);
             } else {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    "Expected an error when merging property difference " + modifier.property, () -> mapper.merge(toMerge));
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    "Expected an error when merging property difference " + modifier.property,
+                    () -> mapper.merge(toMerge)
+                );
                 assertThat(e.getMessage(), containsString(modifier.property));
             }
         }
     }
 
-    public void testSerialization() throws IOException {
+    public final void testSerialization() throws IOException {
         for (Modifier modifier : modifiers) {
             if (unsupportedProperties().contains(modifier.property)) {
                 continue;
@@ -211,44 +199,31 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             T builder1 = newBuilder();
             T builder2 = newBuilder();
             modifier.apply(builder1, builder2);
-            assertSerializes(modifier.property + "-a", builder1);
-            assertSerializes(modifier.property + "-b", builder2);
+            assertSerializes(builder1);
+            assertSerializes(builder2);
         }
     }
 
-    protected Settings getIndexMapperSettings() {
-        return Settings.EMPTY;
-    }
 
-    protected void assertSerializes(String indexname, T builder) throws IOException {
+    protected void assertSerializes(T builder) throws IOException {
+        Mapper.BuilderContext context = new Mapper.BuilderContext(getIndexSettings(), new ContentPath(1));
+        XContentBuilder mappings = mappingsToJson(builder.build(context), false);
+        XContentBuilder mappingsWithDefault = mappingsToJson(builder.build(context), true);
 
-        // TODO can we do this without building an entire index?
-        IndexService index = createIndex("serialize-" + indexname, getIndexMapperSettings());
-        MapperService mapperService = index.mapperService();
-
-        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
-
-        String mappings = mappingsToString(builder.build(context), false);
-        String mappingsWithDefault = mappingsToString(builder.build(context), true);
-
-        mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
+        MapperService mapperService = createMapperService(mappings);
 
         Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
-        String reparsed = mappingsToString(rebuilt, false);
-        String reparsedWithDefault = mappingsToString(rebuilt, true);
+        XContentBuilder reparsed = mappingsToJson(rebuilt, false);
+        XContentBuilder reparsedWithDefault = mappingsToJson(rebuilt, true);
 
-        assertThat(reparsed, equalTo(mappings));
-        assertThat(reparsedWithDefault, equalTo(mappingsWithDefault));
+        assertThat(Strings.toString(reparsed), equalTo(Strings.toString(mappings)));
+        assertThat(Strings.toString(reparsedWithDefault), equalTo(Strings.toString(mappingsWithDefault)));
     }
 
-    private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
-        ToXContent.Params params = includeDefaults ?
-            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
-        XContentBuilder x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        builder.toXContent(x, params);
-        x.endObject().endObject();
-        return Strings.toString(x);
+    private XContentBuilder mappingsToJson(ToXContent builder, boolean includeDefaults) throws IOException {
+        ToXContent.Params params = includeDefaults
+            ? new ToXContent.MapParams(singletonMap("include_defaults", "true"))
+            : ToXContent.EMPTY_PARAMS;
+        return mapping(b -> builder.toXContent(b, params));
     }
-
 }

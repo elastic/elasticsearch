@@ -54,19 +54,6 @@ public class FilePermissionUtils {
     }
 
     /**
-     * Add access to path (and all files underneath it); this also creates the directory if it does not exist.
-     *
-     * @param policy            current policy to add permissions to
-     * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path              the path itself
-     * @param permissions       set of file permissions to grant to the path
-     */
-    @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
-    public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions) throws IOException {
-        addDirectoryPath(policy, configurationName, path, permissions, false);
-    }
-
-    /**
      * Add access to path with direct and/or recursive access. This also creates the directory if it does not exist.
      *
      * @param policy            current policy to add permissions to

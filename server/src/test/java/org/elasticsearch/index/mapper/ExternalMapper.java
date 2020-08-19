@@ -126,15 +126,6 @@ public class ExternalMapper extends FieldMapper {
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected ExternalFieldType(ExternalFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ExternalFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "faketype";
@@ -207,6 +198,11 @@ public class ExternalMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value, String format) {
+        return value;
     }
 
     @Override

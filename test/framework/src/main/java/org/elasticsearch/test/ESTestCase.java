@@ -70,6 +70,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -837,6 +838,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random valid date formatter pattern.
+     */
+    public static String randomDateFormatterPattern() {
+        return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -1266,11 +1274,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
 
+    private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+
     /**
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        return DEFAULT_NAMED_X_CONTENT_REGISTRY;
     }
 
     /**

@@ -21,7 +21,8 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -39,21 +40,35 @@ public class IfElseNode extends ConditionNode {
         return elseBlockNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitIfElse(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getConditionNode().visit(irTreeVisitor, scope);
+        getBlockNode().visit(irTreeVisitor, scope);
+        getElseBlockNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
         Label fals = new Label();
         Label end = new Label();
 
-        getConditionNode().write(classWriter, methodWriter, scopeTable);
+        getConditionNode().write(classWriter, methodWriter, writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
         getBlockNode().continueLabel = continueLabel;
         getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, scopeTable.newScope());
+        getBlockNode().write(classWriter, methodWriter, writeScope.newScope());
 
         if (getBlockNode().doAllEscape() == false) {
             methodWriter.goTo(end);
@@ -63,7 +78,7 @@ public class IfElseNode extends ConditionNode {
 
         elseBlockNode.continueLabel = continueLabel;
         elseBlockNode.breakLabel = breakLabel;
-        elseBlockNode.write(classWriter, methodWriter, scopeTable.newScope());
+        elseBlockNode.write(classWriter, methodWriter, writeScope.newScope());
 
         methodWriter.mark(end);
     }

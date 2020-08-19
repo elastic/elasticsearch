@@ -107,6 +107,10 @@ increase it if you expect nodes to be absent from the cluster and miss more
 than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
 
+include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
+You can use the <<dangling-indices-api,Dangling indices API>> to manage
+this situation.
+
 [[cluster-logger]]
 ===== Logger
 

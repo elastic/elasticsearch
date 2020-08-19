@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ public interface FetchSubPhase {
         private IndexSearcher searcher;
         private LeafReaderContext readerContext;
         private int docId;
+        private final SourceLookup sourceLookup = new SourceLookup();
         private Map<String, Object> cache;
 
         public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
@@ -46,6 +48,7 @@ public interface FetchSubPhase {
             this.readerContext = context;
             this.docId = docId;
             this.searcher = searcher;
+            this.sourceLookup.setSegmentAndDocument(context, docId);
         }
 
         public SearchHit hit() {
@@ -62,6 +65,17 @@ public interface FetchSubPhase {
 
         public int docId() {
             return docId;
+        }
+
+        /**
+         * This lookup provides access to the source for the given hit document. Note
+         * that it should always be set to the correct doc ID and {@link LeafReaderContext}.
+         *
+         * In most cases, the hit document's source is loaded eagerly at the start of the
+         * {@link FetchPhase}. This lookup will contain the preloaded source.
+         */
+        public SourceLookup sourceLookup() {
+            return sourceLookup;
         }
 
         public IndexReader topLevelReader() {
@@ -81,6 +95,8 @@ public interface FetchSubPhase {
      */
     default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
 
-
+    /**
+     * Executes the hits level phase (note, hits are sorted by doc ids).
+     */
     default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
 }

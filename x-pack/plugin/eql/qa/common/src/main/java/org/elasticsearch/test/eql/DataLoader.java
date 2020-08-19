@@ -30,12 +30,15 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
+
 public class DataLoader {
 
     private static final String TEST_DATA = "/test_data.json";
     private static final String MAPPING = "/mapping-default.json";
     static final String indexPrefix = "endgame";
-    static final String testIndexName = indexPrefix + "-1.4.0";
+    public static final String testIndexName = indexPrefix + "-1.4.0";
 
     public static void main(String[] args) throws IOException {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
@@ -48,22 +51,33 @@ public class DataLoader {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    protected static void loadDatasetIntoEs(RestHighLevelClient client,
+    public static void loadDatasetIntoEs(RestHighLevelClient client,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
 
+        createTestIndex(client);
+        loadData(client, p);
+    }
+
+    private static void createTestIndex(RestHighLevelClient client) throws IOException {
         CreateIndexRequest request = new CreateIndexRequest(testIndexName)
             .mapping(Streams.readFully(DataLoader.class.getResourceAsStream(MAPPING)), XContentType.JSON);
 
         client.indices().create(request, RequestOptions.DEFAULT);
+    }
 
+    @SuppressWarnings("unchecked")
+    private static void loadData(RestHighLevelClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
+        throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentParser parser = p.apply(JsonXContent.jsonXContent, DataLoader.class.getResourceAsStream(TEST_DATA))) {
             List<Object> list = parser.list();
             for (Object item : list) {
-                bulk.add(new IndexRequest(testIndexName).source((Map<String, Object>) item, XContentType.JSON));
+                assertThat(item, instanceOf(Map.class));
+                Map<String, Object> entry = (Map<String, Object>) item;
+                transformDataset(entry);
+                bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
 
@@ -75,6 +89,23 @@ public class DataLoader {
                 LogManager.getLogger(DataLoader.class).info("Data loaded");
             }
         }
+    }
+
+    private static void transformDataset(Map<String, Object> entry) {
+        Object object = entry.get("timestamp");
+        assertThat(object, instanceOf(Long.class));
+        Long ts = (Long) object;
+        // currently this is windows filetime
+        entry.put("@timestamp", winFileTimeToUnix(ts));
+    }
+
+
+    private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
+    private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
+
+    public static long winFileTimeToUnix(final long filetime) {
+        long ts = (filetime / FILETIME_ONE_MILLISECOND);
+        return ts - FILETIME_EPOCH_DIFF;
     }
 
     private static XContentParser createParser(XContent xContent, InputStream data) throws IOException {

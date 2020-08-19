@@ -58,8 +58,10 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";
 
     public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATED = "Created analytics with analysis type [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED = "Updated analytics settings: {0}";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED = "Started analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STOPPED = "Stopped analytics";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED = "Stopped analytics (forced)";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_DELETED = "Deleted analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON =
             "Updated analytics task state to [{0}] with reason [{1}]";
@@ -89,12 +91,16 @@ public final class Messages {
             " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
 
     public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
+    public static final String INFERENCE_TRAINED_MODEL_DOC_EXISTS = "Trained machine learning model chunked doc [{0}][{1}] already exists";
+    public static final String INFERENCE_TRAINED_MODEL_METADATA_EXISTS = "Trained machine learning model metadata [{0}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
+    public static final String INFERENCE_FAILED_TO_STORE_MODEL_METADATA = "Failed to store trained machine learning model metadata [{0}]";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
     public static final String INFERENCE_NOT_FOUND_MULTIPLE = "Could not find trained models {0}";
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
+    public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata [{0}]";
     public static final String INFERENCE_CANNOT_DELETE_MODEL =
         "Unable to delete model [{0}]";
     public static final String MODEL_DEFINITION_TRUNCATED =
@@ -144,8 +150,6 @@ public final class Messages {
             "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
     public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
         "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
-    public static final String JOB_AUDIT_CATEGORIZATION_STATUS_WARN = "categorization_status changed to [{0}] after [{1}] buckets." +
-        " This suggests an inappropriate categorization_field_name has been chosen.";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =

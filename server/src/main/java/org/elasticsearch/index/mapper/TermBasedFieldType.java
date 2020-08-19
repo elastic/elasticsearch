@@ -39,10 +39,6 @@ abstract class TermBasedFieldType extends SimpleMappedFieldType {
         super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
-    protected TermBasedFieldType(MappedFieldType ref) {
-        super(ref);
-    }
-
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */

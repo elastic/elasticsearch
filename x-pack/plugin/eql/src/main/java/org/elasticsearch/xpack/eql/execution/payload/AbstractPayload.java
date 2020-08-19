@@ -13,12 +13,10 @@ public abstract class AbstractPayload implements Payload {
 
     private final boolean timedOut;
     private final TimeValue timeTook;
-    private final Object[] nextKeys;
 
-    protected AbstractPayload(boolean timedOut, TimeValue timeTook, Object[] nextKeys) {
+    protected AbstractPayload(boolean timedOut, TimeValue timeTook) {
         this.timedOut = timedOut;
         this.timeTook = timeTook;
-        this.nextKeys = nextKeys;
     }
 
     @Override
@@ -29,10 +27,5 @@ public abstract class AbstractPayload implements Payload {
     @Override
     public TimeValue timeTook() {
         return timeTook;
-    }
-
-    @Override
-    public Object[] nextKeys() {
-        return nextKeys;
     }
 }

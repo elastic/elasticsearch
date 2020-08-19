@@ -9,15 +9,21 @@
   can also comment out blocks, like this one. See:
 
   https://docs.groovy-lang.org/latest/html/api/groovy/text/SimpleTemplateEngine.html
+
+  We use control-flow tags in this file to conditionally render the content. The
+  layout/presentation here has been adjusted so that it looks reasonable when rendered,
+  at the slight expense of how it looks here.
 */ %>
 ################################################################################
 # Build stage 0 `builder`:
-# Extract elasticsearch artifact
-# Set gid=0 and make group perms==owner perms
+# Extract Elasticsearch artifact
 ################################################################################
 
-FROM centos:7 AS builder
-
+FROM ${base_image} AS builder
+<% if (docker_base == 'ubi') { %>
+# Install required packages to extract the Elasticsearch distribution
+RUN ${package_manager} install -y tar gzip
+<% } %>
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 #
@@ -25,7 +31,6 @@ FROM centos:7 AS builder
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against the published checksum.
 RUN set -eux ; \\
-    \\
     tini_bin="" ; \\
     case "\$(arch)" in \\
         aarch64) tini_bin='tini-arm64' ;; \\
@@ -39,11 +44,7 @@ RUN set -eux ; \\
     mv \${tini_bin} /tini ; \\
     chmod +x /tini
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
-
+RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 ${source_elasticsearch}
@@ -56,29 +57,33 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 ################################################################################
-# Build stage 1 (the actual elasticsearch image):
+# Build stage 1 (the actual Elasticsearch image):
+#
 # Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 
-COPY --from=builder /tini /tini
-
-RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \\
-    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \\
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \\
+RUN for iter in {1..10}; do \\
+      ${package_manager} update --setopt=tsflags=nodocs -y && \\
+      ${package_manager} install --setopt=tsflags=nodocs -y \\
+        nc shadow-utils zip unzip <%= docker_base == 'ubi' ? 'findutils procps-ng' : '' %> && \\
+      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
+      sleep 10; \\
+    done; \\
     (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chmod 0775 /usr/share/elasticsearch && \\
-    chgrp 0 /usr/share/elasticsearch
+    chown -R 1000:0 /usr/share/elasticsearch
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=0:0 /tini /tini
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
@@ -116,7 +121,18 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
+<% if (docker_base == 'ubi') { %>
+LABEL name="Elasticsearch" \\
+  maintainer="infra@elastic.co" \\
+  vendor="Elastic" \\
+  version="${version}" \\
+  release="1" \\
+  summary="Elasticsearch" \\
+  description="You know, for search."
 
+RUN mkdir /licenses && \\
+    cp LICENSE.txt /licenses/LICENSE
+<% } %>
 USER elasticsearch:root
 
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

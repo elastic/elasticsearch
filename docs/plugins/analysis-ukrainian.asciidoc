@@ -3,13 +3,13 @@
 
 The Ukrainian Analysis plugin integrates Lucene's UkrainianMorfologikAnalyzer into elasticsearch.
 
-It provides stemming for Ukrainian using the http://github.com/morfologik/morfologik-stemming[Morfologik project].
+It provides stemming for Ukrainian using the https://github.com/morfologik/morfologik-stemming[Morfologik project].
 
 :plugin_name: analysis-ukrainian
 include::install_remove.asciidoc[]
 
 [[analysis-ukrainian-analyzer]]
-[float]
+[discrete]
 ==== `ukrainian` analyzer
 
 The plugin provides the `ukrainian` analyzer.

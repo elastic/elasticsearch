@@ -3,20 +3,19 @@
 
 A metric aggregation that computes the bounding box containing all geo values for a field.
 
-
 Example:
 
 [source,console]
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_point"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -35,45 +34,45 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "query" : {
-        "match" : { "name" : "musée" }
-    },
-    "aggs" : {
-        "viewport" : {
-            "geo_bounds" : {
-                "field" : "location", <1>
-                "wrap_longitude" : true <2>
-            }
-        }
+  "query": {
+    "match": { "name": "musée" }
+  },
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field": "location",    <1>
+        "wrap_longitude": true  <2>
+      }
     }
+  }
 }
 --------------------------------------------------
 
-<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds
-<2> `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`
+<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds.
+<2> [[geo-bounds-wrap-longitude]] `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`.
 
-The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a business type of shop
+The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a business type of shop.
 
 The response for the above aggregation:
 
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "viewport": {
-            "bounds": {
-                "top_left": {
-                    "lat": 48.86111099738628,
-                    "lon": 2.3269999679178
-                },
-                "bottom_right": {
-                    "lat": 48.85999997612089,
-                    "lon": 2.3363889567553997
-                }
-            }
+  ...
+  "aggregations": {
+    "viewport": {
+      "bounds": {
+        "top_left": {
+          "lat": 48.86111099738628,
+          "lon": 2.3269999679178
+        },
+        "bottom_right": {
+          "lat": 48.85999997612089,
+          "lon": 2.3363889567553997
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -84,19 +83,30 @@ The response for the above aggregation:
 
 The Geo Bounds Aggregation is also supported on `geo_shape` fields.
 
+If <<geo-bounds-wrap-longitude,`wrap_longitude`>> is set to `true`
+(the default), the bounding box can overlap the international date line and
+return a bounds where the `top_left` longitude is larger than the `top_right`
+longitude.
+
+For example, the upper right longitude will typically be greater than the lower
+left longitude of a geographic bounding box. However, when the area
+crosses the 180° meridian, the value of the lower left longitude will be
+greater than the value of the upper right longitude. See
+http://docs.opengeospatial.org/is/12-063r5/12-063r5.html#30[Geographic bounding box] on the Open Geospatial Consortium website for more information.
+
 Example:
 
 [source,console]
 --------------------------------------------------
 PUT /places
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "geo_shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 POST /places/_bulk?refresh
@@ -107,13 +117,13 @@ POST /places/_bulk?refresh
 
 POST /places/_search?size=0
 {
-    "aggs" : {
-        "viewport" : {
-            "geo_bounds" : {
-                "field" : "geometry"
-            }
-        }
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field": "geometry"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST
@@ -121,21 +131,21 @@ POST /places/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "viewport": {
-            "bounds": {
-                "top_left": {
-                    "lat": 52.39420966710895,
-                    "lon": 4.912349972873926
-                },
-                "bottom_right": {
-                    "lat": 52.374080987647176,
-                    "lon": 4.969425117596984
-                }
-            }
+  ...
+  "aggregations": {
+    "viewport": {
+      "bounds": {
+        "top_left": {
+          "lat": 52.39420966710895,
+          "lon": 4.912349972873926
+        },
+        "bottom_right": {
+          "lat": 52.374080987647176,
+          "lon": 4.969425117596984
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

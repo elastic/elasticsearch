@@ -50,21 +50,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
         phaseName = in.readOptionalString();
-        int numFailures = in.readVInt();
-        shardFailures = new ShardSearchFailure[numFailures];
-        for (int i = 0; i < numFailures; i++) {
-            shardFailures[i] = ShardSearchFailure.readShardSearchFailure(in);
-        }
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(phaseName);
-        out.writeVInt(shardFailures.length);
-        for (ShardSearchFailure failure : shardFailures) {
-            failure.writeTo(out);
-        }
+        out.writeArray(shardFailures);
     }
 
     private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {

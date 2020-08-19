@@ -21,6 +21,7 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -56,6 +57,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -476,7 +478,11 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that there are no files with a GID other than 0.
      */
-    public void test101AllFilesAreGroupZero() {
+    public void test101AllFilesAreGroupZero() throws Exception {
+        // We wait for Elasticsearch to finish starting up in order to avoid the situation where `find` traverses the filesystem
+        // and sees files in a directory listing, which have disappeared by the time `find` tries to examine them. This periodically
+        // happened with the keystore, for example.
+        waitForElasticsearch(installation);
         final String findResults = sh.run("find . -not -gid 0").stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
@@ -617,5 +623,45 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
+    }
+
+    /**
+     * Check that the UBI images has the correct license information in the correct place.
+     */
+    public void test200UbiImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+
+        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
+        assertThat(files, arrayContaining("/licenses/LICENSE"));
+
+        // UBI image doesn't contain `diff`
+        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
+        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
+        assertThat(ubiLicense, equalTo(distroLicense));
+    }
+
+    /**
+     * Check that the UBI image has the expected labels
+     */
+    public void test210UbiLabels() throws Exception {
+        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        final Map<String, String> staticLabels = new HashMap<>();
+        staticLabels.put("name", "Elasticsearch");
+        staticLabels.put("maintainer", "infra@elastic.co");
+        staticLabels.put("vendor", "Elastic");
+        staticLabels.put("summary", "Elasticsearch");
+        staticLabels.put("description", "You know, for search.");
+
+        final Set<String> dynamicLabels = Set.of("release", "version");
+
+        staticLabels.forEach((key, value) -> {
+            assertThat(labels, hasKey(key));
+            assertThat(labels.get(key), equalTo(value));
+        });
+
+        dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
     }
 }

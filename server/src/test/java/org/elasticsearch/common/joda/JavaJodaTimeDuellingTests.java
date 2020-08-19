@@ -24,6 +24,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
@@ -113,7 +114,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
@@ -493,13 +494,13 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1", "year");
         assertSameDate("-2000", "year");
 
-        assertSameDate("2012-12", "yearMonth");
-        assertSameDate("1-1", "yearMonth");
+        assertSameDate("2012-12", "year_month");
+        assertSameDate("1-1", "year_month");
 
-        assertSameDate("2012-12-31", "yearMonthDay");
-        assertSameDate("1-12-31", "yearMonthDay");
-        assertSameDate("2012-1-31", "yearMonthDay");
-        assertSameDate("2012-12-1", "yearMonthDay");
+        assertSameDate("2012-12-31", "year_month_day");
+        assertSameDate("1-12-31", "year_month_day");
+        assertSameDate("2012-1-31", "year_month_day");
+        assertSameDate("2012-12-1", "year_month_day");
 
         assertSameDate("2018", "week_year");
         assertSameDate("1", "week_year");
@@ -515,7 +516,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeParsing(){
         //in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDate("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
@@ -739,88 +740,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         ZonedDateTime javaDate = ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneOffset.UTC);
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
-        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
 
-        assertSamePrinterOutput("basicDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("date", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHour", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("dateOptionalTime", javaDate, jodaDate);
-        assertSamePrinterOutput("dateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("dateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("hour", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("time", javaDate, jodaDate);
-        assertSamePrinterOutput("timeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("tTime", javaDate, jodaDate);
-        assertSamePrinterOutput("tTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyear", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyearWeek", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyearWeekDay", javaDate, jodaDate);
-        assertSamePrinterOutput("year", javaDate, jodaDate);
-        assertSamePrinterOutput("yearMonth", javaDate, jodaDate);
-        assertSamePrinterOutput("yearMonthDay", javaDate, jodaDate);
-
-        assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHour", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateOptionalTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHour", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyear", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyearWeek", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyearWeekDay", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYear", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYearMonth", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYearMonthDay", javaDate, jodaDate);
-        assertSamePrinterOutput("strict_date_optional_time", javaDate, jodaDate);
-        assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
+        for (FormatNames format : FormatNames.values()) {
+            if (format == FormatNames.ISO8601 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS) {
+                // Nanos aren't supported by joda
+                continue;
+            }
+            assertSamePrinterOutput(format.getName(), javaDate, jodaDate);
+        }
     }
 
     public void testSamePrinterOutputWithTimeZone() {
@@ -856,7 +783,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             assertSameDate("2018-128", format, jodaFormatter, javaFormatter);
         }
         {
-            String format = "strictDateOptionalTime||dd-MM-yyyy";
+            String format = "strict_date_optional_time||dd-MM-yyyy";
             DateFormatter jodaFormatter = Joda.forPattern(format);
             DateFormatter javaFormatter = DateFormatter.forPattern(format);
             assertSameDate("31-01-2014", format, jodaFormatter, javaFormatter);

@@ -1,11 +1,11 @@
 [[date_nanos]]
-=== Date nanoseconds datatype
+=== Date nanoseconds data type
 ++++
 <titleabbrev>Date nanoseconds</titleabbrev>
 ++++
 
-This datatype is an addition to the `date` datatype. However there is an
-important distinction between the two. The existing `date` datatype stores
+This data type is an addition to the `date` data type. However there is an
+important distinction between the two. The existing `date` data type stores
 dates in millisecond resolution. The `date_nanos` data type stores dates
 in nanosecond resolution, which limits its range of dates from roughly
 1970 to 2262, as dates are still stored as a long representing nanoseconds
@@ -32,7 +32,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -43,21 +43,21 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "date": "2015-01-01" } <2>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "date": "2015-01-01T12:10:30.123456789Z" } <3>
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 { "date": 1420070400 } <4>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "sort": { "date": "asc"} <5>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields" : {
     "my_field" : {
@@ -69,7 +69,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "docvalue_fields" : [
     {

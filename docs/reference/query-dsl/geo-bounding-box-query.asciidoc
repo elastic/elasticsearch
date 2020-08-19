@@ -11,27 +11,27 @@ bounding box. Assuming the following indexed document:
 --------------------------------------------------
 PUT /my_locations
 {
-    "mappings": {
+  "mappings": {
+    "properties": {
+      "pin": {
         "properties": {
-            "pin": {
-                "properties": {
-                    "location": {
-                        "type": "geo_point"
-                    }
-                }
-            }
+          "location": {
+            "type": "geo_point"
+          }
         }
+      }
     }
+  }
 }
 
 PUT /my_locations/_doc/1
 {
-    "pin" : {
-        "location" : {
-            "lat" : 40.12,
-            "lon" : -71.34
-        }
+  "pin": {
+    "location": {
+      "lat": 40.12,
+      "lon": -71.34
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -43,31 +43,31 @@ Then the following simple query can be executed with a
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
-                    }
-                }
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Query Options
 
 [cols="<,<",options="header",]
@@ -85,44 +85,44 @@ Default is `memory`.
 |=======================================================================
 
 [[query-dsl-geo-bounding-box-query-accepted-formats]]
-[float]
+[discrete]
 ==== Accepted Formats
 
 In much the same way the geo_point type can accept different
 representations of the geo point, the filter can accept it as well:
 
-[float]
+[discrete]
 ===== Lat Lon As Properties
 
 [source,console]
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
-                    }
-                }
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
@@ -132,25 +132,25 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : [-74.1, 40.73],
-                        "bottom_right" : [-71.12, 40.01]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": [ -74.1, 40.73 ],
+            "bottom_right": [ -71.12, 40.01 ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon As String
 
 Format in `lat,lon`.
@@ -159,70 +159,70 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "40.73, -74.1",
-                        "bottom_right" : "40.01, -71.12"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": "40.73, -74.1",
+            "bottom_right": "40.01, -71.12"
+          }
+        }
+      }
     }
-}
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Bounding Box as Well-Known Text (WKT)
 
 [source,console]
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "wkt": "BBOX (-74.1, -71.12, 40.73, 40.01)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Geohash
 
 [source,console]
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "dr5r9ydj2y73",
-                        "bottom_right" : "drj7teegpus6"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": "dr5r9ydj2y73",
+            "bottom_right": "drj7teegpus6"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -242,14 +242,14 @@ geohash the geohash can be specified in both `top_left` and
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "geo_bounding_box" : {
-            "pin.location" : {
-                "top_left" : "dr",
-                "bottom_right" : "dr"
-            }
-        }
+  "query": {
+    "geo_bounding_box": {
+      "pin.location": {
+        "top_left": "dr",
+        "bottom_right": "dr"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -257,7 +257,7 @@ In this example, the geohash `dr` will produce the bounding box
 query with the top left corner at `45.0,-78.75` and the bottom right
 corner at `39.375,-67.5`.
 
-[float]
+[discrete]
 ==== Vertices
 
 The vertices of the bounding box can either be set by `top_left` and
@@ -271,41 +271,41 @@ values separately.
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top" : 40.73,
-                        "left" : -74.1,
-                        "bottom" : 40.01,
-                        "right" : -71.12
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top": 40.73,
+            "left": -74.1,
+            "bottom": 40.01,
+            "right": -71.12
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
 field.
 
-[float]
+[discrete]
 ==== Multi Location Per Document
 
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
 
-[float]
+[discrete]
 [[geo-bbox-type]]
 ==== Type
 
@@ -320,32 +320,32 @@ are not supported. Here is an example:
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.10,
-                            "lon" : -71.12
-                        }
-                    },
-                    "type" : "indexed"
-                }
+            "bottom_right": {
+              "lat": 40.10,
+              "lon": -71.12
             }
+          },
+          "type": "indexed"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
@@ -354,7 +354,7 @@ querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
 
-[float]
+[discrete]
 ==== Notes on Precision
 
 Geopoints have limited precision and are always rounded down during index time.

@@ -65,7 +65,7 @@ include-tagged::{doc-tests-file}[{api}-request-item-extras]
 <2> Version
 <3> Version type
 
-{ref}/search-request-body.html#request-body-search-preference[`preference`],
+{ref}/search-your-data.html#search-preference[`preference`],
 {ref}/docs-get.html#realtime[`realtime`]
 and
 {ref}/docs-get.html#get-refresh[`refresh`] can be set on the main request but

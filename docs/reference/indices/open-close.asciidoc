@@ -9,10 +9,10 @@ opens any closed backing indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/POST \/twitter\/_close\n/]
+// TEST[setup:my_index]
+// TEST[s/^/POST \/my-index-000001\/_close\n/]
 
 
 [[open-index-api-request]]
@@ -63,13 +63,20 @@ the current write index, the data stream must first be
 <<rollover-data-stream-ex,rolled over>> so that a new write index is created
 and then the previous write index can be closed.
 
+// end::closed-index[]
+
+[[open-index-api-wait-for-active-shards]]
 ===== Wait For active shards
+
+// tag::wait-for-active-shards[]
 
 Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the `_open` and `_close` index actions as well.
 
-// end::closed-index[]
+// end::wait-for-active-shards[]
+
+
 
 
 [[open-index-api-path-params]]
@@ -77,8 +84,8 @@ index creation applies to the `_open` and `_close` index actions as well.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices, and
-index aliases used to limit the request.
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
 +
 To target all data streams and indices, use `_all` or `*`.
 +
@@ -109,20 +116,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[open-index-api-example]]
 ==== {api-examples-title}
 
-The following request re-opens a closed index named `my_index`.
+The following request re-opens a closed index named `my-index-000001`.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
 
 The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true,
-    "shards_acknowledged" : true
+  "acknowledged" : true,
+  "shards_acknowledged" : true
 }
 --------------------------------------------------

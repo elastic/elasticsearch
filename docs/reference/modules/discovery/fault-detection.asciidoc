@@ -18,3 +18,10 @@ Similarly, if a node detects that the elected master has disconnected, this
 situation is treated as an immediate failure. The node bypasses the timeout and
 retry settings and restarts its discovery phase to try and find or elect a new
 master.
+
+[[cluster-fault-detection-filesystem-health]]
+Additionally, each node periodically verifies that its data path is healthy by
+writing a small file to disk and then deleting it again. If a node discovers
+its data path is unhealthy then it is removed from the cluster until the data
+path recovers. You can control this behavior with the
+<<modules-discovery-settings,`monitor.fs.health` settings>>.

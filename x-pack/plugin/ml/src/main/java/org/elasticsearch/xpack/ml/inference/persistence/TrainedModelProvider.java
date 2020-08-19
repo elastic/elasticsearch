@@ -14,10 +14,14 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -142,6 +147,135 @@ public class TrainedModelProvider {
         storeTrainedModelAndDefinition(trainedModelConfig, listener);
     }
 
+    public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+            return;
+        }
+        assert trainedModelConfig.getModelDefinition() == null;
+
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(true),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelConfig.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelDefinitionDoc.getModelId())));
+            return;
+        }
+
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelDefinitionDoc.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelDefinitionDoc),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(null),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_DOC_EXISTS,
+                                trainedModelDefinitionDoc.getModelId(),
+                                trainedModelDefinitionDoc.getDocNum())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelDefinitionDoc.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelMetadata.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelMetadata.getModelId())));
+            return;
+        }
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelMetadata.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelMetadata),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(null),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_METADATA_EXISTS,
+                                trainedModelMetadata.getModelId())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelMetadata.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void getTrainedModelMetadata(String modelId, ActionListener<TrainedModelMetadata> listener) {
+        SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
+                .boolQuery()
+                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
+                    TrainedModelMetadata.NAME))))
+            .setSize(1)
+            // First find the latest index
+            .addSort("_index", SortOrder.DESC)
+            .request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelId)));
+                    return;
+                }
+                List<TrainedModelMetadata> metadataList = handleHits(searchResponse.getHits().getHits(),
+                    modelId,
+                    this::parseMetadataLenientlyFromSource);
+                listener.onResponse(metadataList.get(0));
+            },
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelId)));
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        ));
+    }
+
+    public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(InferenceIndexConstants.INDEX_PATTERN),
+            listener);
+    }
+
     private void storeTrainedModelAndDefinition(TrainedModelConfig trainedModelConfig,
                                                 ActionListener<Boolean> listener) {
 
@@ -164,7 +298,8 @@ public class TrainedModelProvider {
                     .setCompressedString(chunkedStrings.get(i))
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
                     .setDefinitionLength(chunkedStrings.get(i).length())
-                    .setTotalDefinitionLength(compressedString.length())
+                    // If it is the last doc, it is the EOS
+                    .setEos(i == chunkedStrings.size() - 1)
                     .build());
             }
         } catch (IOException ex) {
@@ -264,6 +399,9 @@ public class TrainedModelProvider {
                 .unmappedType("long"))
             .request();
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            // TODO how could we stream in the model definition WHILE parsing it?
+            // This would reduce the overall memory usage as we won't have to load the whole compressed string
+            // XContentParser supports streams.
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
                     listener.onFailure(new ResourceNotFoundException(
@@ -273,19 +411,16 @@ public class TrainedModelProvider {
                 List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
                     modelId,
                     this::parseModelDefinitionDocLenientlyFromSource);
-                String compressedString = docs.stream()
-                    .map(TrainedModelDefinitionDoc::getCompressedString)
-                    .collect(Collectors.joining());
-                if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                    listener.onFailure(ExceptionsHelper.serverError(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                    return;
+                try {
+                    String compressedString = getDefinitionFromDocs(docs, modelId);
+                    InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
+                        compressedString,
+                        InferenceDefinition::fromXContent,
+                        xContentRegistry);
+                    listener.onResponse(inferenceDefinition);
+                } catch (ElasticsearchException elasticsearchException) {
+                    listener.onFailure(elasticsearchException);
                 }
-                InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                    compressedString,
-                    InferenceDefinition::fromXContent,
-                    xContentRegistry);
-                listener.onResponse(inferenceDefinition);
             },
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -360,15 +495,14 @@ public class TrainedModelProvider {
                         List<TrainedModelDefinitionDoc> docs = handleSearchItems(multiSearchResponse.getResponses()[1],
                             modelId,
                             this::parseModelDefinitionDocLenientlyFromSource);
-                        String compressedString = docs.stream()
-                            .map(TrainedModelDefinitionDoc::getCompressedString)
-                            .collect(Collectors.joining());
-                        if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                            listener.onFailure(ExceptionsHelper.serverError(
-                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                        try {
+                            String compressedString = getDefinitionFromDocs(docs, modelId);
+                            builder.setDefinitionFromString(compressedString);
+                        } catch (ElasticsearchException elasticsearchException) {
+                            listener.onFailure(elasticsearchException);
                             return;
                         }
-                        builder.setDefinitionFromString(compressedString);
+
                     } catch (ResourceNotFoundException ex) {
                         listener.onFailure(new ResourceNotFoundException(
                             Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
@@ -805,6 +939,26 @@ public class TrainedModelProvider {
         return results;
     }
 
+    private static String getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
+        String compressedString = docs.stream()
+            .map(TrainedModelDefinitionDoc::getCompressedString)
+            .collect(Collectors.joining());
+        // BWC for when we tracked the total definition length
+        // TODO: remove in 9
+        if (docs.get(0).getTotalDefinitionLength() != null) {
+            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
+            }
+        } else {
+            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+            // Either we are missing the last doc, or some previous doc
+            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
+            }
+        }
+        return compressedString;
+    }
+
     static List<String> chunkStringWithSize(String str, int chunkSize) {
         List<String> subStrings = new ArrayList<>((int)Math.ceil(str.length()/(double)chunkSize));
         for (int i = 0; i < str.length();i += chunkSize) {
@@ -835,14 +989,29 @@ public class TrainedModelProvider {
         }
     }
 
+    private TrainedModelMetadata parseMetadataLenientlyFromSource(BytesReference source, String modelId) throws IOException {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return TrainedModelMetadata.fromXContent(parser, true);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] failed to parse model metadata", modelId), e);
+            throw e;
+        }
+    }
+
+    private IndexRequest createRequest(String docId, String index, ToXContentObject body) {
+        return createRequest(new IndexRequest(index), docId, body);
+    }
+
     private IndexRequest createRequest(String docId, ToXContentObject body) {
+        return createRequest(new IndexRequest(), docId, body);
+    }
+
+    private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
-
-            return new IndexRequest()
-                .opType(DocWriteRequest.OpType.CREATE)
-                .id(docId)
-                .source(source);
+            return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.

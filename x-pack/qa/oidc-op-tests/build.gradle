@@ -1,3 +1,6 @@
+Project idpFixtureProject = xpackProject("test:idp-fixture")
+
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'

@@ -1,5 +1,5 @@
 [[geo-point]]
-=== Geo-point datatype
+=== Geo-point data type
 ++++
 <titleabbrev>Geo-point</titleabbrev>
 ++++
@@ -18,7 +18,7 @@ There are five ways that a geo-point may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -29,7 +29,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Geo-point as an object",
   "location": { <1>
@@ -38,31 +38,31 @@ PUT my_index/_doc/1
   }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text": "Geo-point as a string",
   "location": "41.12,-71.34" <2>
 }
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 {
   "text": "Geo-point as a geohash",
   "location": "drm3btev3e86" <3>
 }
 
-PUT my_index/_doc/4
+PUT my-index-000001/_doc/4
 {
   "text": "Geo-point as an array",
   "location": [ -71.34, 41.12 ] <4>
 }
 
-PUT my_index/_doc/5
+PUT my-index-000001/_doc/5
 {
   "text": "Geo-point as a WKT POINT primitive",
   "location" : "POINT (-71.34 41.12)" <5>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "geo_bounding_box": { <6>
@@ -85,7 +85,7 @@ GET my_index/_search
 <2> Geo-point expressed as a string with the format: `"lat,lon"`.
 <3> Geo-point expressed as a geohash.
 <4> Geo-point expressed as an array with the format: [ `lon`, `lat`]
-<5> Geo-point expressed as a http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+<5> Geo-point expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 POINT with the format: `"POINT(lon lat)"`
 <6> A geo-bounding box query which finds all geo-points that fall inside the box.
 
@@ -102,8 +102,8 @@ format was changed early on to conform to the format used by GeoJSON.
 ==================================================
 
 [NOTE]
-A point can be expressed as a http://en.wikipedia.org/wiki/Geohash[geohash].
-Geohashes are https://en.wikipedia.org/wiki/Base32[base32] encoded strings of
+A point can be expressed as a {wikipedia}/Geohash[geohash].
+Geohashes are {wikipedia}/Base32[base32] encoded strings of
 the bits of the latitude and longitude interleaved. Each character in a geohash
 adds additional 5 bits to the precision. So the longer the hash, the more
 precise it is. For the indexing purposed geohashs are translated into

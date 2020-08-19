@@ -9,6 +9,10 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -16,18 +20,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.cache.TestUtils;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -110,24 +121,27 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
                 final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
-                assertThat(inputStats.getCachedBytesWritten(), notNullValue());
-                assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
-                assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
-                assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
-                assertThat(
-                    inputStats.getCachedBytesWritten().max(),
-                    (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
-                );
-                assertThat(
-                    inputStats.getCachedBytesWritten().totalNanoseconds(),
-                    allOf(
-                        // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
-                        greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
+                // cache writes are executed in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertThat(inputStats.getCachedBytesWritten(), notNullValue());
+                    assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
+                    assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
+                    assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
+                    assertThat(
+                        inputStats.getCachedBytesWritten().max(),
+                        (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
+                    );
+                    assertThat(
+                        inputStats.getCachedBytesWritten().totalNanoseconds(),
+                        allOf(
+                            // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
+                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
 
-                        // worst case: we start all reads before finishing any of them
-                        lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
-                    )
-                );
+                            // worst case: we start all reads before finishing any of them
+                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
+                        )
+                    );
+                });
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());
                 assertThat(inputStats.getCachedBytesRead().total(), greaterThanOrEqualTo(length));
@@ -144,7 +158,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -335,15 +349,17 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     }
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // cache file has been written in a single chunk in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -383,15 +399,18 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.seek(0L);
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // Use assertBusy() here to wait for the cache write to be processed in the searchable snapshot thread pool
+                assertBusy(() -> {
+                    // cache file has been written in a single chunk
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -556,7 +575,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) {
         executeTestCase(
-            new CacheService(cacheSize, cacheRangeSize),
+            new CacheService(TestUtils::noOpCacheCleaner, cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -579,7 +598,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName(), SearchableSnapshots.executorBuilders());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
@@ -588,6 +607,14 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final Path shardDir;
+        try {
+            shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        final Path cacheDir = createTempDir();
 
         try (
             CacheService ignored = cacheService;
@@ -600,7 +627,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 indexSettings,
                 statsCurrentTimeNanos,
                 cacheService,
-                createTempDir(),
+                cacheDir,
+                shardPath,
                 threadPool
             ) {
                 @Override
@@ -615,7 +643,16 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            final boolean loaded = directory.loadSnapshot();
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                randomAlphaOfLength(10),
+                0,
+                randomAlphaOfLength(10),
+                true,
+                ShardRoutingState.INITIALIZING
+            );
+            DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+            final boolean loaded = directory.loadSnapshot(recoveryState);
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());

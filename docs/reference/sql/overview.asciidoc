@@ -6,7 +6,7 @@
 {es-sql} aims to provide a powerful yet lightweight SQL interface to {es}.
 
 [[sql-introduction]]
-[float]
+[discrete]
 === Introduction
 
 {es-sql} is an X-Pack component that allows SQL-like queries to be executed in real-time against {es}.
@@ -15,7 +15,7 @@ _natively_ inside {es}.
 One can think of {es-sql} as a _translator_, one that understands both SQL and {es} and makes it easy to read and process data in real-time, at scale by leveraging {es} capabilities.
 
 [[sql-why]]
-[float]
+[discrete]
 === Why {es-sql} ?
 
 Native integration::

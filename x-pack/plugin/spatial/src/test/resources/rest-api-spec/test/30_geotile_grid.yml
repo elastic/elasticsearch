@@ -80,7 +80,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /data for \[<agg \[grid\]>\] would be \[28648\/27.9kb\], which is larger than the limit of \[25600\/25kb\]/
+      catch: /data for \[<agg \[grid\]>\] would be \[42760\/41.7kb\], which is larger than the limit of \[25600\/25kb\]/
       search:
         rest_total_hits_as_int: true
         index: locations
@@ -93,7 +93,7 @@
                 field: location
 
   - do:
-      catch: /data for \[<agg \[grid\]>\] would be \[28648\/27.9kb\], which is larger than the limit of \[25600\/25kb\]/
+      catch: /data for \[<agg \[grid\]>\] would be \[42760\/41.7kb\], which is larger than the limit of \[25600\/25kb\]/
       search:
         rest_total_hits_as_int: true
         index: locations

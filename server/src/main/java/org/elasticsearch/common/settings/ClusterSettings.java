@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
-import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
@@ -73,12 +72,12 @@ import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -90,6 +89,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
@@ -107,6 +107,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -196,7 +197,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BreakerSettings.CIRCUIT_BREAKER_TYPE,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
-            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -221,6 +221,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
             RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
+            RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -263,7 +264,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
             HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
             HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-            HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
             HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
             HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
@@ -369,9 +369,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
-            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
-            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
@@ -470,7 +467,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
             Coordinator.PUBLISH_TIMEOUT_SETTING,
             Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
-            JoinHelper.JOIN_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
             FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
@@ -483,7 +479,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
-            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
+            SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+            FsHealthService.ENABLED_SETTING,
+            FsHealthService.REFRESH_INTERVAL_SETTING,
+            FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
+            IndexingPressure.MAX_INDEXING_BYTES);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

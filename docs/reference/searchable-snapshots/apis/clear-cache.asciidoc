@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-api-clear-cache]]
 === Clear cache API
 ++++
@@ -15,7 +15,7 @@ Clear the cache of searchable snapshots.
 
 `POST /_searchable_snapshots/cache/clear`
 
-`POST /<index>/_searchable_snapshots/cache/clear`
+`POST /<target>/_searchable_snapshots/cache/clear`
 
 [[searchable-snapshots-api-clear-cache-prereqs]]
 ==== {api-prereq-title}
@@ -32,9 +32,9 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Optional, string)
-A comma-separated list of index names for which the
+A comma-separated list of data streams and indices for which the
 searchable snapshots cache must be cleared.
 
 
@@ -45,16 +45,16 @@ searchable snapshots cache must be cleared.
 -----------------------------------
 PUT /docs
 {
-    "settings" : {
-        "index.number_of_shards" : 1,
-        "index.number_of_replicas" : 0
-    }
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
-    "include_global_state": false,
-    "indices": "docs"
+  "include_global_state": false,
+  "indices": "docs"
 }
 
 DELETE /docs

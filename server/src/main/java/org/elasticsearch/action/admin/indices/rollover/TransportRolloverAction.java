@@ -91,7 +91,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
 
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, true, request.indices()));
+            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request));
     }
 
     @Override

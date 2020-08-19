@@ -8,7 +8,7 @@ There are two important discovery and cluster formation settings that should be
 configured before going to production so that nodes in the cluster can discover
 each other and elect a master node.
 
-[float]
+[discrete]
 [[unicast.hosts]]
 ==== `discovery.seed_hosts`
 
@@ -29,7 +29,7 @@ If your master-eligible nodes do not have fixed names or addresses, use an
 <<built-in-hosts-providers,alternative hosts provider>> to find their addresses
 dynamically.
 
-[float]
+[discrete]
 [[initial_master_nodes]]
 ==== `cluster.initial_master_nodes`
 
@@ -42,8 +42,11 @@ themselves. As this auto-bootstrapping is <<modules-discovery-quorums,inherently
 unsafe>>, when you start a brand new cluster in <<dev-vs-prod-mode,production
 mode>>, you must explicitly list the master-eligible nodes whose votes should be
 counted in the very first election. This list is set using the
-`cluster.initial_master_nodes` setting. You should not use this setting when
-restarting a cluster or adding a new node to an existing cluster.
+`cluster.initial_master_nodes` setting. 
+
+NOTE: You should remove `cluster.initial_master_nodes` setting from the nodes' configuration
+*once the cluster has successfully formed for the first time*. Do not use this setting when
+restarting a cluster or adding a new node to an existing cluster.  
 
 [source,yaml]
 --------------------------------------------------

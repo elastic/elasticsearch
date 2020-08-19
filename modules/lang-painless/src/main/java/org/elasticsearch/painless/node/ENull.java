@@ -20,10 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NullNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a null constant.
@@ -35,35 +32,12 @@ public class ENull extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNull(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
-        }
-
-        Output output = new Output();
-
-        if (input.expected != null) {
-            if (input.expected.isPrimitive()) {
-                throw createError(new IllegalArgumentException(
-                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]."));
-            }
-
-            output.actual = input.expected;
-        } else {
-            output.actual = Object.class;
-        }
-
-        NullNode nullNode = new NullNode();
-
-        nullNode.setLocation(getLocation());
-        nullNode.setExpressionType(output.actual);
-
-        output.expressionNode = nullNode;
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

@@ -20,12 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -65,54 +60,14 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        ScriptScope scriptScope = semanticScope.getScriptScope();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCatch(this, scope);
+    }
 
-        Output output = new Output();
-
-        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
-        }
-
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (type == null) {
-            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
-        }
-
-        semanticScope.defineVariable(getLocation(), type, symbol, false);
-
-        if (baseException.isAssignableFrom(type) == false) {
-            throw createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
-        }
-
-        Output blockOutput = null;
-
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         if (blockNode != null) {
-            Input blockInput = new Input();
-            blockInput.lastSource = input.lastSource;
-            blockInput.inLoop = input.inLoop;
-            blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
-
-            output.methodEscape = blockOutput.methodEscape;
-            output.loopEscape = blockOutput.loopEscape;
-            output.allEscape = blockOutput.allEscape;
-            output.anyContinue = blockOutput.anyContinue;
-            output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        CatchNode catchNode = new CatchNode();
-        catchNode.setExceptionType(type);
-        catchNode.setSymbol(symbol);
-        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        catchNode.setLocation(getLocation());
-
-        output.statementNode = catchNode;
-
-        return output;
     }
 }

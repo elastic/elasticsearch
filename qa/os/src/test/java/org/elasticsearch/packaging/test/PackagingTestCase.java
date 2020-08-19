@@ -178,7 +178,7 @@ public abstract class PackagingTestCase extends Assert {
     public void teardown() throws Exception {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
-        if (installation != null) {
+        if (installation != null && failed == false) {
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
@@ -216,6 +216,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.verifyPackageInstallation(installation, distribution, sh);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
@@ -291,6 +292,7 @@ public abstract class PackagingTestCase extends Assert {
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
+            case DOCKER_UBI:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -309,6 +311,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.stopElasticsearch(sh);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -328,6 +331,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.assertElasticsearchStarted(sh, installation);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:

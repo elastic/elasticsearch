@@ -86,7 +86,7 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
         Long priority = randomBoolean() ? null : randomNonNegativeLong();
         Long version = randomBoolean() ? null : randomNonNegativeLong();
         if (randomBoolean()) {
-            dataStreamTemplate = new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
+            dataStreamTemplate = new ComposableIndexTemplate.DataStreamTemplate();
         }
         return new ComposableIndexTemplate(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
     }

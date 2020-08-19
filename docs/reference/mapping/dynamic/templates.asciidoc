@@ -4,11 +4,11 @@
 Dynamic templates allow you to define custom mappings that can be applied to
 dynamically added fields based on:
 
-* the <<dynamic-mapping,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the <<dynamic-mapping,data type>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
 * the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
 * the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
 
-The original field name `{name}` and the detected datatype
+The original field name `{name}` and the detected data type
 `{dynamic_type}` <<template-variables,template variables>> can be used in
 the mapping specification as placeholders.
 
@@ -48,7 +48,7 @@ snippet may cause the update or validation of a dynamic template to fail under c
   is considered valid as string type, but if a field matching the dynamic template is indexed as a long, a validation 
   error is returned at index time.
 
-* If the `{{name}}` placeholder is used in the mapping snippet, validation is skipped when updating the dynamic 
+* If the `{name}` placeholder is used in the mapping snippet, validation is skipped when updating the dynamic
   template. This is because the field name is unknown at that time. Instead, validation occurs when the template is applied
   at index time.
 
@@ -60,12 +60,12 @@ reordered or deleted after they were initially added.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` is the datatype detected by the JSON parser. Since
+The `match_mapping_type` is the data type detected by the JSON parser. Since
 JSON doesn't distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, i.e. `long` for integers
+a `float`, it will always choose the wider data type, i.e. `long` for integers
 and `double` for floating-point numbers.
 
-The following datatypes may be automatically detected:
+The following data types may be automatically detected:
 
  - `boolean` when `true` or `false` are encountered.
  - `date` when <<date-detection,date detection>> is enabled and a string matching
@@ -75,7 +75,7 @@ The following datatypes may be automatically detected:
  - `object` for objects, also called hashes.
  - `string` for character strings.
 
-`*` may also be used in order to match all datatypes.
+`*` may also be used in order to match all data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -83,7 +83,7 @@ could use the following template:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -113,7 +113,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
@@ -137,7 +137,7 @@ fields:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -155,7 +155,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "long_num": "5", <1>
   "long_text": "foo" <2>
@@ -191,7 +191,7 @@ top-level `full_name` field, except for the `middle` field:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -209,7 +209,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "name": {
     "first":  "John",
@@ -226,7 +226,7 @@ field `name.title`, which can't be mapped as text:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "name": {
     "first":  "Paul",
@@ -251,7 +251,7 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -278,7 +278,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "english": "Some English text", <1>
   "count":   5 <2>
@@ -303,7 +303,7 @@ you will have to search on the exact same value that was indexed.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -331,7 +331,7 @@ before 5.0):
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -356,7 +356,7 @@ disable the storage of these scoring factors in the index and save some space.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
@@ -394,7 +394,7 @@ maybe gain some indexing speed:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [

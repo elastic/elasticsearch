@@ -78,15 +78,6 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
-    protected int calculateHashCode() {
-        int result = 1;
-        for (int i = 0; i < length; i++) {
-            result = 31 * result + bytes[offset + i];
-        }
-        return result;
-    }
-
-    @Override
     public boolean equals(Object other) {
         if (this == other) {
             return true;

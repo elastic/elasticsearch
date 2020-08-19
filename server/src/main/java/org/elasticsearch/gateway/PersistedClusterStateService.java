@@ -847,7 +847,7 @@ public class PersistedClusterStateService {
         DocumentBuffer(int size, BigArrays bigArrays) {
             if (size <= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
                 final ByteArray byteArray = bigArrays.newByteArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
-                final BytesRefIterator iterator = new PagedBytesReference(byteArray, Math.toIntExact(byteArray.size())).iterator();
+                final BytesRefIterator iterator = PagedBytesReference.of(byteArray, Math.toIntExact(byteArray.size())).iterator();
                 final BytesRef firstPage;
                 try {
                     firstPage = iterator.next();

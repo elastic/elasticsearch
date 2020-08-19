@@ -87,8 +87,9 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testDeprecatedMessage() throws IOException {
-        final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("someKey", "someId","deprecated message1"));
+        setXOpaqueId("someId");
+        final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+        testLogger.deprecate("someKey", "deprecated message1");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -172,15 +173,17 @@ public class JsonLoggerTests extends ESTestCase {
 
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
-        final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", "someOtherId","deprecated message1"));
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", "", "deprecated message2"));
-        // This next message will be filtered out, because a null opaque ID has the same effect as an empty ID.
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", null,"deprecated message3"));
-        testLogger.log(DEPRECATION,"deprecated message4");
+        final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+
+        testLogger.deprecate("a key", "deprecated message1");
+
+        // Also test that a message sent directly to the logger comes through
+        final Logger rawLogger = LogManager.getLogger("deprecation.test");
+        rawLogger.log(DEPRECATION, "deprecated message2");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
@@ -193,14 +196,6 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
-                    hasEntry("x-opaque-id", "someOtherId")),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "DEPRECATION"),
-                    hasEntry("log.logger", "deprecation.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message2"),
                     not(hasKey("x-opaque-id"))
                 ),
                 allOf(
@@ -209,16 +204,16 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message4"),
+                    hasEntry("message", "deprecated message2"),
                     not(hasKey("x-opaque-id"))
                 )
                 )
             );
-
-            assertThat(jsonLogs, not(contains(hasEntry("message", "deprecated message3"))));
         }
 
-        assertWarnings("deprecated message1", "deprecated message2", "deprecated message3", "deprecated message4");
+        // The message sent directly to the logger does not appear in the header warnings, because
+        // it is DeprecationLogger that also writes it to the `header_logger` logger instance.
+        assertWarnings("deprecated message1");
     }
 
     public void testJsonLayout() throws IOException {

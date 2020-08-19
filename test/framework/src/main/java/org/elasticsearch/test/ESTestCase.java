@@ -149,6 +149,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1471,4 +1472,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public void setXOpaqueId(String value) {
+        threadContext.putHeader(X_OPAQUE_ID, value);
+    }
 }

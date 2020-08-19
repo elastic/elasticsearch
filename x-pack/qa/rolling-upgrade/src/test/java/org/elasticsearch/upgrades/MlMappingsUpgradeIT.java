@@ -48,7 +48,9 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
                 break;
             case UPGRADED:
-                assertUpgradedMappings();
+                assertUpgradedResultsMappings();
+                closeAndReopenTestJob();
+                assertUpgradedConfigMappings();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -77,8 +79,21 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    // Doing this should force the config index mappings to be upgraded,
+    // when the finished time is cleared on reopening the job
+    private void closeAndReopenTestJob() throws IOException {
+
+        Request closeJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_close");
+        Response response = client().performRequest(closeJob);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        Request openJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_open");
+        response = client().performRequest(openJob);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
     @SuppressWarnings("unchecked")
-    private void assertUpgradedMappings() throws Exception {
+    private void assertUpgradedResultsMappings() throws Exception {
 
         assertBusy(() -> {
             Request getMappings = new Request("GET", XPackRestTestHelper.resultsWriteAlias(JOB_ID) + "/_mappings");
@@ -105,8 +120,40 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(propertiesLevel);
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
-            Map<String, Object> fieldLevel = (Map<String, Object>) propertiesLevel.get("multi_bucket_impact");
-            assertEquals(Collections.singletonMap("type", "double"), fieldLevel);
+            Map<String, Object> objectLevel = (Map<String, Object>) propertiesLevel.get("model_size_stats");
+            assertNotNull(objectLevel);
+            Map<String, Object> propertiesLevel2 = (Map<String, Object>) objectLevel.get("properties");
+            assertNotNull(propertiesLevel2);
+            Map<String, Object> fieldLevel = (Map<String, Object>) propertiesLevel2.get("peak_model_bytes");
+            assertEquals(Collections.singletonMap("type", "long"), fieldLevel);
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertUpgradedConfigMappings() throws Exception {
+
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", ".ml-config/_mappings");
+            Response response = client().performRequest(getMappings);
+
+            Map<String, Object> responseLevel = entityAsMap(response);
+            assertNotNull(responseLevel);
+            Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
+            assertNotNull(indexLevel);
+            Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
+            assertNotNull(mappingsLevel);
+            Map<String, Object> metaLevel = (Map<String, Object>) mappingsLevel.get("_meta");
+            assertEquals(Collections.singletonMap("version", Version.CURRENT.toString()), metaLevel);
+            Map<String, Object> propertiesLevel = (Map<String, Object>) mappingsLevel.get("properties");
+            assertNotNull(propertiesLevel);
+            // TODO: as the years go by, the field we assert on here should be changed
+            // to the most recent field we've added that is NOT of type "keyword"
+            Map<String, Object> objectLevel = (Map<String, Object>) propertiesLevel.get("model_plot_config");
+            assertNotNull(objectLevel);
+            Map<String, Object> propertiesLevel2 = (Map<String, Object>) objectLevel.get("properties");
+            assertNotNull(propertiesLevel2);
+            Map<String, Object> fieldLevel = (Map<String, Object>) propertiesLevel2.get("annotations_enabled");
+            assertEquals(Collections.singletonMap("type", "boolean"), fieldLevel);
         });
     }
 }

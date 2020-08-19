@@ -3,11 +3,9 @@
 
 [float]
 === Hosted Elasticsearch
-Elasticsearch can be run on your own hardware or using our hosted Elasticsearch
-Service on https://www.elastic.co/cloud[Elastic Cloud], which is available on
-AWS, GCP and Azure. You can
-https://www.elastic.co/cloud/elasticsearch-service/signup[try out the hosted
-service] for free.
+{es} can be run on your own hardware or using our hosted {ess} on
+https://www.elastic.co/cloud[{ecloud}], which is available on AWS, GCP and
+Azure. You can {ess-trial}[try out the hosted service] for free.
 
 [float]
 === Installing Elasticsearch Yourself
@@ -77,4 +75,3 @@ include::install/rpm.asciidoc[]
 include::install/windows.asciidoc[]
 
 include::install/docker.asciidoc[]
-

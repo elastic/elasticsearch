@@ -189,12 +189,18 @@ process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}]
 ;
 
-stringContains-caseSensitive
+stringContainsExactField-caseSensitive
 process where stringContains(process_name, "foo")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":true}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}
+;
+
+stringContainsExactSubField-caseSensitive
+process where stringContains(hostname, "foo")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"hostname.keyword":{"wildcard":"*foo*","boost":1.0}}}],"adjust_pure_negative":true,"boost":1.0}}
 ;
 
 stringContains-caseInsensitive

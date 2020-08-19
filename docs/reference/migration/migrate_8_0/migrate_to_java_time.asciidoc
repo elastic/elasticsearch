@@ -6,7 +6,7 @@ formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
 
-[discrete]
+
 [[java-time-convert-date-formats]]
 === Convert date formats
 

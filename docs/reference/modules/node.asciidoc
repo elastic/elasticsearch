@@ -23,7 +23,7 @@ TIP: As the cluster grows and in particular if you have large {ml} jobs or
 dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 [[node-roles]]
-==== Nore roles
+==== Node roles
 
 You can define the roles of a node by setting `node.roles`. If you don't 
 configure this setting, then the node has the following roles by default: 

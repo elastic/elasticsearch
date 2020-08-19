@@ -78,6 +78,9 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         + "/c2id/clients";
     private static final String LOGIN_API = "http://127.0.0.1:" + getEphemeralTcpPortFromProperty("oidc-provider", "8080")
         + "/c2id-login/api/";
+    private static final String CLIENT_SECRET = "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2";
+    // SHA256 of this is defined in  x-pack/test/idp-fixture/oidc/override.properties
+    private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
     private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
     private static Path HTTP_TRUSTSTORE;
 
@@ -106,7 +109,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 "\"grant_types\": [\"authorization_code\"]," +
                 "\"response_types\": [\"code\"]," +
                 "\"preferred_client_id\":\"https://my.elasticsearch.org/rp\"," +
-                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"preferred_client_secret\":\"" + CLIENT_SECRET + "\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
                 "\"token_endpoint_auth_method\":\"client_secret_basic\"" +
                 "}";
@@ -114,14 +117,14 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 "\"grant_types\": [\"implicit\"]," +
                 "\"response_types\": [\"token id_token\"]," +
                 "\"preferred_client_id\":\"elasticsearch-rp\"," +
-                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"preferred_client_secret\":\"" + CLIENT_SECRET + "\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]" +
                 "}";
             String postClient = "{" +
                 "\"grant_types\": [\"authorization_code\"]," +
                 "\"response_types\": [\"code\"]," +
                 "\"preferred_client_id\":\"elasticsearch-post\"," +
-                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"preferred_client_secret\":\"" + CLIENT_SECRET + "\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
                 "\"token_endpoint_auth_method\":\"client_secret_post\"" +
                 "}";
@@ -129,7 +132,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 "\"grant_types\": [\"authorization_code\"]," +
                 "\"response_types\": [\"code\"]," +
                 "\"preferred_client_id\":\"elasticsearch-post-jwt\"," +
-                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"preferred_client_secret\":\"" + CLIENT_SECRET + "\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
                 "\"token_endpoint_auth_method\":\"client_secret_jwt\"" +
                 "}";
@@ -138,25 +141,25 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             httpPost.setEntity(new StringEntity(codeClient, ContentType.APPLICATION_JSON));
             httpPost.setHeader("Accept", "application/json");
             httpPost.setHeader("Content-type", "application/json");
-            httpPost.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+            httpPost.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
 
             HttpPost httpPost2 = new HttpPost(REGISTRATION_URL);
             httpPost2.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
             httpPost2.setHeader("Accept", "application/json");
             httpPost2.setHeader("Content-type", "application/json");
-            httpPost2.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+            httpPost2.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
 
             HttpPost httpPost3 = new HttpPost(REGISTRATION_URL);
             httpPost3.setEntity(new StringEntity(postClient, ContentType.APPLICATION_JSON));
             httpPost3.setHeader("Accept", "application/json");
             httpPost3.setHeader("Content-type", "application/json");
-            httpPost3.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+            httpPost3.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
 
             HttpPost httpPost4 = new HttpPost(REGISTRATION_URL);
             httpPost4.setEntity(new StringEntity(jwtClient, ContentType.APPLICATION_JSON));
             httpPost4.setHeader("Accept", "application/json");
             httpPost4.setHeader("Content-type", "application/json");
-            httpPost4.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+            httpPost4.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
 
             SocketAccess.doPrivileged(() -> {
                 try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {

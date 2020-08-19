@@ -336,9 +336,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     }
 
     private void refreshSystemIndex() {
-        final RefreshResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
-        assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
+        try {
+            final RefreshResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
+            assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
+            assertThat(refreshResponse.getFailedShards(), equalTo(0));
+        } catch (IndexNotFoundException indexNotFoundException) {
+            throw new AssertionError("unexpected", indexNotFoundException);
+        }
     }
 
     /**

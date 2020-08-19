@@ -7,14 +7,17 @@ for maintaining its metadata), and is blocked for read/write operations.
 A closed index can be opened which will then go through the normal
 recovery process.
 
-IMPORTANT: {es} will not rebuild any copies of shards of closed indices that
-are lost when a node leaves your cluster. This means you will should expect to
-lose the data held in closed indices if you replace the nodes in your cluster
-over time. Because of the risk of data loss it is best to avoid keeping closed
-indices in your cluster for a long period of time. You should instead prefer to
-<<frozen-indices,freeze>> indices that you want to keep available for
-occasional searches with low overhead, and store any other indices outside the
-cluster using a <<modules-snapshots,snapshot>>.
+[WARNING]
+====
+To reduce the risk of data loss, avoid keeping closed indices for long periods.
+When a node leaves your cluster, {es} does not rebuild shard replicas for closed
+indices. If you regularly replace nodes in your cluster, this will eventually
+result in data loss for the cluster's closed indices.
+
+If you want to reduce the overhead of an index while keeping it available for
+occasional searches, <<frozen-indices,freeze>> the index instead. If you want
+to store an index outside of the cluster, use a <<modules-snapshots,snapshot>>.
+====
 
 The REST endpoint is `/{index}/_close` and `/{index}/_open`. For
 example:

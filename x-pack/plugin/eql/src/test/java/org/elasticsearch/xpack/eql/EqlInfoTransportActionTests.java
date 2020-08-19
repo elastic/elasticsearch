@@ -101,7 +101,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new EqlUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client);
+            mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get().getUsage();

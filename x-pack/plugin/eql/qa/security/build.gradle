@@ -11,7 +11,6 @@ dependencies {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.eql.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.security.enabled', 'true'

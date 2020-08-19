@@ -57,7 +57,6 @@ testClusters.integTest {
       systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
-    setting 'xpack.eql.enabled', 'true'
     keystorePassword 's3cr3t'
   }
 

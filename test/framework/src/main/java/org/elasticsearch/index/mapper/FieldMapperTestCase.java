@@ -262,7 +262,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         ValueFetcher fetcher = mapper.valueFetcher(format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        return fetcher.fetchValues(lookup, Set.of(field));
     }
 
 }

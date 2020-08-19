@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -39,13 +40,12 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
-    private final MappingLookup fieldMappers;
-    private final List<FieldContext> fields;
+    private final List<FieldContext> fieldContexts;
 
     public static FieldValueRetriever create(MapperService mapperService,
                                              Collection<FieldAndFormat> fieldAndFormats) {
         MappingLookup fieldMappers = mapperService.documentMapper().mappers();
-        List<FieldContext> fields = new ArrayList<>();
+        List<FieldContext> fieldContexts = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
@@ -53,38 +53,41 @@ public class FieldValueRetriever {
 
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
-                if (fieldMappers.getMapper(field) != null && mapperService.isMetadataField(field) == false) {
-                    Set<String> sourcePath = mapperService.sourcePath(field);
-                    fields.add(new FieldContext(field, sourcePath, format));
+                Mapper mapper = fieldMappers.getMapper(field);
+                if (mapper == null || mapperService.isMetadataField(field)) {
+                    continue;
                 }
+
+                if (mapper instanceof FieldAliasMapper) {
+                    String target = ((FieldAliasMapper) mapper).path();
+                    mapper = fieldMappers.getMapper(target);
+                    assert mapper instanceof FieldMapper;
+                }
+
+                FieldMapper fieldMapper = (FieldMapper) mapper;
+                ValueFetcher valueFetcher = fieldMapper.valueFetcher(format);
+                Set<String> sourcePath = mapperService.sourcePath(field);
+                fieldContexts.add(new FieldContext(field, valueFetcher, sourcePath));
             }
         }
 
-        return new FieldValueRetriever(fieldMappers, fields);
+        return new FieldValueRetriever(fieldContexts);
     }
 
-    private FieldValueRetriever(MappingLookup fieldMappers,
-                                List<FieldContext> fields) {
-        this.fieldMappers = fieldMappers;
-        this.fields = fields;
+    private FieldValueRetriever(List<FieldContext> fieldContexts) {
+        this.fieldContexts = fieldContexts;
     }
 
     public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext context : fields) {
+        for (FieldContext context : fieldContexts) {
             String field = context.fieldName;
-            String format = context.format;
             if (ignoredFields.contains(field)) {
                 continue;
             }
 
-            List<Object> parsedValues = new ArrayList<>();
-            for (String path : context.sourcePath) {
-                FieldMapper fieldMapper = (FieldMapper) fieldMappers.getMapper(path);
-                ValueFetcher fetcher = fieldMapper.valueFetcher(format);
-                List<?> values = fetcher.fetchValues(sourceLookup);
-                parsedValues.addAll(values);
-            }
+            ValueFetcher valueFetcher = context.valueFetcher;
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, context.sourcePath);
 
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
@@ -95,15 +98,16 @@ public class FieldValueRetriever {
 
     private static class FieldContext {
         final String fieldName;
+        final ValueFetcher valueFetcher;
         final Set<String> sourcePath;
-        final @Nullable String format;
+
 
         FieldContext(String fieldName,
-                     Set<String> sourcePath,
-                     String format) {
+                     ValueFetcher valueFetcher,
+                     Set<String> sourcePath) {
             this.fieldName = fieldName;
             this.sourcePath = sourcePath;
-            this.format = format;
+            this.valueFetcher = valueFetcher;
         }
     }
 }

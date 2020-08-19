@@ -115,18 +115,19 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
         FieldMapper fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         ValueFetcher fetcher = fieldMapper.valueFetcher(null);
 
+        Set<String> sourcePaths = Set.of("field");
         SourceLookup missingValueLookup = new SourceLookup();
         SourceLookup nullValueLookup = new SourceLookup();
         nullValueLookup.setSource(Collections.singletonMap("field", null));
 
-        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+        assertTrue(fetcher.fetchValues(missingValueLookup, sourcePaths).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup, sourcePaths).isEmpty());
 
         merge(mapperService, fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         fetcher = fieldMapper.valueFetcher(null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, sourcePaths));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, sourcePaths));
     }
 }

@@ -26,6 +26,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 
 /**
  * An implementation of {@link ValueFetcher} that knows how to extract values
@@ -53,34 +54,35 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<?> fetchValues(SourceLookup lookup) {
-        Object sourceValue = lookup.extractValue(fieldName, nullValue);
-        if (sourceValue == null) {
-            return List.of();
-        }
+    public List<Object> fetchValues(SourceLookup lookup, Set<String> sourcePaths) {
+        List<Object> values = new ArrayList<>();
+        for (String path : sourcePaths) {
+            Object sourceValue = lookup.extractValue(path, nullValue);
+            if (sourceValue == null) {
+                return List.of();
+            }
 
-        if (parsesArrayValue) {
-            return (List<?>) parseSourceValue(sourceValue);
-        } else {
-            List<Object> values = new ArrayList<>();
-
-            // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
-            // So we need to unwrap these arrays before passing them on to be parsed.
-            Queue<Object> queue = new ArrayDeque<>();
-            queue.add(sourceValue);
-            while (queue.isEmpty() == false) {
-                Object value = queue.poll();
-                if (value instanceof List) {
-                    queue.addAll((List<?>) value);
-                } else {
-                    Object parsedValue = parseSourceValue(value);
-                    if (parsedValue != null) {
-                        values.add(parsedValue);
+            if (parsesArrayValue) {
+                values.addAll((List<?>) parseSourceValue(sourceValue));
+            } else {
+                // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
+                // So we need to unwrap these arrays before passing them on to be parsed.
+                Queue<Object> queue = new ArrayDeque<>();
+                queue.add(sourceValue);
+                while (queue.isEmpty() == false) {
+                    Object value = queue.poll();
+                    if (value instanceof List) {
+                        queue.addAll((List<?>) value);
+                    } else {
+                        Object parsedValue = parseSourceValue(value);
+                        if (parsedValue != null) {
+                            values.add(parsedValue);
+                        }
                     }
                 }
             }
-            return values;
         }
+        return values;
     }
 
     /**

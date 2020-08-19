@@ -41,7 +41,8 @@ public interface ValueFetcher {
      * should not be relied on.
      *
      * @param lookup a lookup structure over the document's source.
+     * @param sourcePaths the field paths to look up in the source.
      * @return a list a standardized field values.
      */
-    List<?> fetchValues(SourceLookup lookup);
+    List<Object> fetchValues(SourceLookup lookup, Set<String> sourcePaths);
 }

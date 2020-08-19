@@ -205,8 +205,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
                                 break;
 
                             case BLACK_HOLE:
+                                logger.trace("blackholed during response to {}: channel is {}", requestDescription, connectionStatus);
+                                onBlackholedDuringSend(requestId, action, destinationTransport);
+                                break;
                             case DISCONNECTED:
-                                logger.trace("dropping response to {}: channel is {}", requestDescription, connectionStatus);
+                                logger.trace("disconnected during response to {}: channel is {}", requestDescription, connectionStatus);
+                                onDisconnectedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:
@@ -235,8 +239,14 @@ public abstract class DisruptableMockTransport extends MockTransport {
                                 break;
 
                             case BLACK_HOLE:
+                                logger.trace("blackholed during exception response to {}: channel is {}",
+                                        requestDescription, connectionStatus);
+                                onBlackholedDuringSend(requestId, action, destinationTransport);
+                                break;
                             case DISCONNECTED:
-                                logger.trace("dropping exception response to {}: channel is {}", requestDescription, connectionStatus);
+                                logger.trace("disconnected during exception response to {}: channel is {}",
+                                        requestDescription, connectionStatus);
+                                onDisconnectedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:

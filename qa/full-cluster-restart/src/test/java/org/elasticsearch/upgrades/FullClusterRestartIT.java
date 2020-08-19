@@ -98,7 +98,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57245")
     public void testSearch() throws Exception {
         int count;
         if (isRunningAgainstOldCluster()) {

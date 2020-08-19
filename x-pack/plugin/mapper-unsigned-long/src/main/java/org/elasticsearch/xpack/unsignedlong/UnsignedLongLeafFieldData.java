@@ -18,7 +18,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.convertToOriginal;
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.sortableSignedLongToUnsigned;
 
 public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     private final LeafNumericFieldData signedLongFD;
@@ -91,7 +91,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     private static double convertUnsignedLongToDouble(long value) {
         if (value < 0L) {
-            return convertToOriginal(value); // add 2 ^ 63
+            return sortableSignedLongToUnsigned(value); // add 2 ^ 63
         } else {
             // add 2 ^ 63 as a double to make sure there is no overflow and final result is positive
             return 0x1.0p63 + value;

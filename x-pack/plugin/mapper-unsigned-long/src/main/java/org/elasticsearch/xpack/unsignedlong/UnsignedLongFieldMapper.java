@@ -171,7 +171,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            Query query = LongPoint.newExactQuery(name(), convertToSignedLong(longValue));
+            Query query = LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -187,7 +187,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 Object value = values.get(i);
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
-                    lvalues[upTo++] = convertToSignedLong(longValue);
+                    lvalues[upTo++] = unsignedToSortableSignedLong(longValue);
                 }
             }
             if (upTo == 0) {
@@ -211,12 +211,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (lowerTerm != null) {
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
                 if (lt == null) return new MatchNoDocsQuery();
-                l = convertToSignedLong(lt);
+                l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
                 if (ut == null) return new MatchNoDocsQuery();
-                u = convertToSignedLong(ut);
+                u = unsignedToSortableSignedLong(ut);
             }
             if (l > u) return new MatchNoDocsQuery();
 
@@ -397,7 +397,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this.nullValueFormatted = null;
         } else {
             long parsed = parseUnsignedLong(nullValue);
-            this.nullValueIndexed = convertToSignedLong(parsed);
+            this.nullValueIndexed = unsignedToSortableSignedLong(parsed);
             this.nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
         }
 
@@ -454,7 +454,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = nullValueIndexed;
             if (numericValue == null) return;
         } else {
-            numericValue = convertToSignedLong(numericValue);
+            numericValue = unsignedToSortableSignedLong(numericValue);
         }
 
         boolean docValued = fieldType().hasDocValues();
@@ -541,7 +541,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
      * @param value – unsigned long value in the range [0; 2^64-1], values greater than 2^63-1 are negative
      * @return signed long value in the range [-2^63; 2^63-1]
      */
-    private static long convertToSignedLong(long value) {
+    private static long unsignedToSortableSignedLong(long value) {
         // subtracting 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
         // equivalent to flipping the first bit
         return value ^ MASK_2_63;
@@ -552,7 +552,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
      * @param value – signed long value in the range [-2^63; 2^63-1]
      * @return unsigned long value in the range [0; 2^64-1],  values greater then 2^63-1 are negative
      */
-    protected static long convertToOriginal(long value) {
+    protected static long sortableSignedLongToUnsigned(long value) {
         // adding 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
         // equivalent to flipping the first bit
         return value ^ MASK_2_63;

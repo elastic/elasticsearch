@@ -62,7 +62,13 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class Rounding implements Writeable {
     public enum DateTimeUnit {
-        WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
+        WEEK_OF_WEEKYEAR(
+            (byte) 1,
+            "week",
+            IsoFields.WEEK_OF_WEEK_BASED_YEAR,
+            true,
+            TimeUnit.DAYS.toMillis(7)
+        ) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
 
             long roundFloor(long utcMillis) {
@@ -74,7 +80,13 @@ public abstract class Rounding implements Writeable {
                 return extraLocalOffsetLookup;
             }
         },
-        YEAR_OF_CENTURY((byte) 2, "year", ChronoField.YEAR_OF_ERA, false, 12) {
+        YEAR_OF_CENTURY(
+            (byte) 2,
+            "year",
+            ChronoField.YEAR_OF_ERA,
+            false,
+            12
+        ) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(366);
 
             long roundFloor(long utcMillis) {
@@ -85,7 +97,13 @@ public abstract class Rounding implements Writeable {
                 return extraLocalOffsetLookup;
             }
         },
-        QUARTER_OF_YEAR((byte) 3, "quarter", IsoFields.QUARTER_OF_YEAR, false, 3) {
+        QUARTER_OF_YEAR(
+            (byte) 3,
+            "quarter",
+            IsoFields.QUARTER_OF_YEAR,
+            false,
+            3
+        ) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(92);
 
             long roundFloor(long utcMillis) {
@@ -96,7 +114,13 @@ public abstract class Rounding implements Writeable {
                 return extraLocalOffsetLookup;
             }
         },
-        MONTH_OF_YEAR((byte) 4, "month", ChronoField.MONTH_OF_YEAR, false, 1) {
+        MONTH_OF_YEAR(
+            (byte) 4,
+            "month",
+            ChronoField.MONTH_OF_YEAR,
+            false,
+            1
+        ) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(31);
 
             long roundFloor(long utcMillis) {
@@ -107,7 +131,13 @@ public abstract class Rounding implements Writeable {
                 return extraLocalOffsetLookup;
             }
         },
-        DAY_OF_MONTH((byte) 5, "day", ChronoField.DAY_OF_MONTH, true, ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis()) {
+        DAY_OF_MONTH(
+            (byte) 5,
+            "day",
+            ChronoField.DAY_OF_MONTH,
+            true,
+            ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis()
+        ) {
             long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, this.ratio);
             }
@@ -116,7 +146,13 @@ public abstract class Rounding implements Writeable {
                 return ratio;
             }
         },
-        HOUR_OF_DAY((byte) 6, "hour", ChronoField.HOUR_OF_DAY, true, ChronoField.HOUR_OF_DAY.getBaseUnit().getDuration().toMillis()) {
+        HOUR_OF_DAY(
+            (byte) 6,
+            "hour",
+            ChronoField.HOUR_OF_DAY,
+            true,
+            ChronoField.HOUR_OF_DAY.getBaseUnit().getDuration().toMillis()
+        ) {
             long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
@@ -125,8 +161,13 @@ public abstract class Rounding implements Writeable {
                 return ratio;
             }
         },
-        MINUTES_OF_HOUR((byte) 7, "minute", ChronoField.MINUTE_OF_HOUR, true,
-            ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()) {
+        MINUTES_OF_HOUR(
+            (byte) 7,
+            "minute",
+            ChronoField.MINUTE_OF_HOUR,
+            true,
+            ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()
+        ) {
             long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
@@ -135,9 +176,13 @@ public abstract class Rounding implements Writeable {
                 return ratio;
             }
         },
-        SECOND_OF_MINUTE((byte) 8, "second", ChronoField.SECOND_OF_MINUTE, true,
-            ChronoField.SECOND_OF_MINUTE.getBaseUnit().getDuration().toMillis()) {
-
+        SECOND_OF_MINUTE(
+            (byte) 8,
+            "second",
+            ChronoField.SECOND_OF_MINUTE,
+            true,
+            ChronoField.SECOND_OF_MINUTE.getBaseUnit().getDuration().toMillis()
+        ) {
             long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }

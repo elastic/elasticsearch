@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface RateAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSourceConfig valuesSourceConfig,
-                     Rounding.DateTimeUnit rateUnit,
-                     SearchContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        Rounding.DateTimeUnit rateUnit,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

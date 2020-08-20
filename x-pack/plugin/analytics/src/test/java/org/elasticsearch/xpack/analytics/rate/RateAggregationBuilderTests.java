@@ -70,19 +70,20 @@ public class RateAggregationBuilderTests extends AbstractSerializingTestCase<Rat
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.add(new NamedXContentRegistry.Entry(
-            BaseAggregationBuilder.class,
-            new ParseField(RateAggregationBuilder.NAME),
-            (p, n) -> RateAggregationBuilder.PARSER.apply(p, (String) n)));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                BaseAggregationBuilder.class,
+                new ParseField(RateAggregationBuilder.NAME),
+                (p, n) -> RateAggregationBuilder.PARSER.apply(p, (String) n)
+            )
+        );
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 }
-

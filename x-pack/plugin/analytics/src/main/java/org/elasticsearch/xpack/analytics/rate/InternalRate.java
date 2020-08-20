@@ -20,12 +20,12 @@ import java.util.Objects;
 
 public class InternalRate extends InternalNumericMetricsAggregation.SingleValue implements Rate {
     final double sum;
-    final double divider;
+    final double divisor;
 
-    public InternalRate(String name, double sum, double divider, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalRate(String name, double sum, double divisor, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
         this.sum = sum;
-        this.divider = divider;
+        this.divisor = divisor;
         this.format = formatter;
     }
 
@@ -36,14 +36,14 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
-        divider = in.readDouble();
+        divisor = in.readDouble();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDouble(sum);
-        out.writeDouble(divider);
+        out.writeDouble(divisor);
     }
 
     @Override
@@ -53,12 +53,12 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
 
     @Override
     public double value() {
-        return sum / divider;
+        return sum / divisor;
     }
 
     @Override
     public double getValue() {
-        return sum / divider;
+        return sum / divisor;
     }
 
     // for testing only
@@ -71,15 +71,15 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        Double divider = null;
+        Double divisor = null;
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalRate) aggregation).sum;
             kahanSummation.add(value);
-            if (divider == null) {
-                divider = ((InternalRate) aggregation).divider;
+            if (divisor == null) {
+                divisor = ((InternalRate) aggregation).divisor;
             }
         }
-        return new InternalRate(name, kahanSummation.value(), divider, format, getMetadata());
+        return new InternalRate(name, kahanSummation.value(), divisor, format, getMetadata());
     }
 
     @Override
@@ -93,7 +93,7 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sum, divider);
+        return Objects.hash(super.hashCode(), sum, divisor);
     }
 
     @Override
@@ -103,6 +103,6 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
         if (super.equals(obj) == false) return false;
 
         InternalRate that = (InternalRate) obj;
-        return Objects.equals(sum, that.sum) && Objects.equals(divider, that.divider);
+        return Objects.equals(sum, that.sum) && Objects.equals(divisor, that.divisor);
     }
 }

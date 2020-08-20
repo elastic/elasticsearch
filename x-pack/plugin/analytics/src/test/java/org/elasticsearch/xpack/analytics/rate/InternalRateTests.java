@@ -49,7 +49,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
 
     @Override
     protected void assertReduced(InternalRate reduced, List<InternalRate> inputs) {
-        double expected = inputs.stream().mapToDouble(a -> a.sum).sum() / reduced.divider;
+        double expected = inputs.stream().mapToDouble(a -> a.sum).sum() / reduced.divisor;
         assertEquals(expected, reduced.getValue(), 0.00001);
     }
 
@@ -62,7 +62,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
     protected InternalRate mutateInstance(InternalRate instance) {
         String name = instance.getName();
         double sum = instance.sum;
-        double divider = instance.divider;
+        double divider = instance.divisor;
         DocValueFormat formatter = instance.format();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
@@ -92,13 +92,12 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<NamedXContentRegistry.Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(RateAggregationBuilder.NAME),
-            (p, c) -> {
+        extendedNamedXContents.add(
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(RateAggregationBuilder.NAME), (p, c) -> {
                 assumeTrue("There is no ParsedRate yet", false);
                 return null;
-            }
-        ));
+            })
+        );
         return extendedNamedXContents;
     }
 }

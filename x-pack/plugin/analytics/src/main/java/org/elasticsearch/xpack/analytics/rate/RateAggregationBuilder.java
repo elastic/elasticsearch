@@ -52,9 +52,11 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         super(name);
     }
 
-    protected RateAggregationBuilder(RateAggregationBuilder clone,
-                                     AggregatorFactories.Builder factoriesBuilder,
-                                     Map<String, Object> metadata) {
+    protected RateAggregationBuilder(
+        RateAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -96,10 +98,12 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     }
 
     @Override
-    protected RateAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                               AggregatorFactory parent,
-                                               AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-
+    protected RateAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
         return new RateAggregatorFactory(name, config, rateUnit, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
@@ -137,8 +141,17 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     @Override
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         if (field() == null && script() == null) {
-            return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW,
-                queryShardContext::nowInMillis);
+            return new ValuesSourceConfig(
+                CoreValuesSourceType.NUMERIC,
+                null,
+                true,
+                null,
+                null,
+                1.0,
+                null,
+                DocValueFormat.RAW,
+                queryShardContext::nowInMillis
+            );
         } else {
             return super.resolveConfig(queryShardContext);
         }

@@ -46,8 +46,7 @@ public class RateAggregator extends NumericMetricsAggregator.SingleValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             sums = context.bigArrays().newDoubleArray(1, true);
@@ -77,11 +76,7 @@ public class RateAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -125,7 +120,7 @@ public class RateAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalRate(name, sums.get(bucket),  sizedBucketAggregator.bucketSize(bucket, rateUnit), format, metadata());
+        return new InternalRate(name, sums.get(bucket), sizedBucketAggregator.bucketSize(bucket, rateUnit), format, metadata());
     }
 
     @Override

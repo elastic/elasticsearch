@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 public class PluginCliTests extends PackagingTestCase {
@@ -46,7 +47,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
+        assumeFalse("no docker", distribution.isDocker());
     }
 
     @FunctionalInterface

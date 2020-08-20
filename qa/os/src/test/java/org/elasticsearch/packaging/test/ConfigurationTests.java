@@ -28,13 +28,13 @@ import org.junit.Before;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.Assume.assumeFalse;
 
 public class ConfigurationTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
+        assumeFalse("no docker", distribution.isDocker());
     }
 
     public void test10Install() throws Exception {

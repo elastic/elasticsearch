@@ -173,18 +173,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("using [reader] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
-        }
-        {
-            // Reader context with indices
-            SearchRequest searchRequest = new SearchRequest()
-                .source(new SearchSourceBuilder()
-                    .pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueMillis(between(1, 10)))))
-                .indices("test");
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[index] cannot be used with search context", validationErrors.validationErrors().get(0));
+            assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
             // Reader context with preference
@@ -195,7 +184,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[preference] cannot be used with search context", validationErrors.validationErrors().get(0));
+            assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
         {
             // Reader context with routing

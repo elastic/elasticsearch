@@ -111,15 +111,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testValidateSearchContext() throws Exception {
-        final ReaderContext readerContext;
-        if (randomBoolean()) {
-            readerContext = new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false);
-        } else {
-            ShardSearchRequest request = mock(ShardSearchRequest.class);
-            when(request.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
-            readerContext = new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), request, Long.MAX_VALUE);
-        }
-        try {
+        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        try (LegacyReaderContext readerContext =
+                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
@@ -213,8 +208,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                     authzInfoRoles(authentication.getUser().roles()));
             }
-        } finally {
-            readerContext.close();
         }
     }
 

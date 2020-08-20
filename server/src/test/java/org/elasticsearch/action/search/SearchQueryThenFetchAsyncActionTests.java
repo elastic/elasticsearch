@@ -23,6 +23,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -58,14 +60,18 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws Exception {
-        testCase(false);
+        testCase(false, false);
     }
 
     public void testScrollDisableBottomFieldSort() throws Exception {
-        testCase(true);
+        testCase(true, false);
     }
 
-    private void testCase(boolean withScroll) throws Exception {
+    public void testCollapseDisableBottomFieldSort() throws Exception {
+        testCase(false, true);
+    }
+
+    private void testCase(boolean withScroll, boolean withCollapse) throws Exception {
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
@@ -95,12 +101,24 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE));
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
-                        new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                        new FieldDoc[] {
-                            new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() })
-                        }, new SortField[] { sortField }), Float.NaN),
-                    new DocValueFormat[] { DocValueFormat.RAW });
+                if (withCollapse) {
+                    queryResult.topDocs(new TopDocsAndMaxScore(
+                            new CollapseTopFieldDocs(
+                                "collapse_field",
+                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                new FieldDoc[]{
+                                    new FieldDoc(randomInt(1000), Float.NaN, new Object[]{request.shardId().id()})
+                                },
+                                new SortField[]{sortField}, new Object[] { 0L }), Float.NaN),
+                        new DocValueFormat[]{DocValueFormat.RAW});
+                } else {
+                    queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
+                            new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                            new FieldDoc[]{
+                                new FieldDoc(randomInt(1000), Float.NaN, new Object[]{request.shardId().id()})
+                            }, new SortField[]{sortField}), Float.NaN),
+                        new DocValueFormat[]{DocValueFormat.RAW});
+                }
                 queryResult.from(0);
                 queryResult.size(1);
                 successfulOps.incrementAndGet();
@@ -121,6 +139,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchRequest.scroll(TimeValue.timeValueMillis(100));
         } else {
             searchRequest.source().trackTotalHitsUpTo(2);
+        }
+        if (withCollapse) {
+            searchRequest.source().collapse(new CollapseBuilder("collapse_field"));
         }
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController(
@@ -150,7 +171,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(numWithTopDocs.get(), equalTo(0));
         } else {
             assertTrue(canReturnNullResponse.get());
-            assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+            if (withCollapse) {
+                assertThat(numWithTopDocs.get(), equalTo(0));
+            } else {
+                assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+            }
         }
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));

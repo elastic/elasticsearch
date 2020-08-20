@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -52,8 +50,11 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
-            CoreValuesSourceType.NUMERIC, (MedianAbsoluteDeviationAggregatorSupplier) MedianAbsoluteDeviationAggregator::new);
+        builder.register(
+            MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.NUMERIC,
+            MedianAbsoluteDeviationAggregator::new,
+                true);
     }
 
     @Override
@@ -73,18 +74,14 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            MedianAbsoluteDeviationAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof MedianAbsoluteDeviationAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MedianAbsoluteDeviationAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), config.format(),
-            searchContext, parent, metadata, compression);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config.getValuesSource(), config.format(), searchContext, parent, metadata, compression);
     }
 }

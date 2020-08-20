@@ -1,23 +1,22 @@
-[[request-body-search-index-boost]]
-==== Index Boost
+[discrete]
+[[index-boost]]
+=== Index boost
 
-Allows to configure different boost level per index when searching
-across more than one indices. This is very handy when hits coming from
-one index matter more than hits coming from another index (think social
-graph where each user has an index).
+When searching multiple indices, you can use the `indices_boost` parameter to
+boost results from one or more specified indices. This is useful when hits
+coming from one index matter more than hits coming from another index.
 
-deprecated[5.2.0, This format is deprecated. Please use array format instead.]
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-  "indices_boost" : [
-    { "index1" : 1.4 },
-    { "index2" : 1.3 }
+  "indices_boost": [
+    { "my-index-000001": 1.4 },
+    { "my-index-000002": 1.3 }
   ]
 }
 --------------------------------------------------
-// TEST[setup:index_boost]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Index aliases and wildcard expressions can also be used:
 
@@ -25,13 +24,13 @@ Index aliases and wildcard expressions can also be used:
 --------------------------------------------------
 GET /_search
 {
-  "indices_boost" : [
-    { "alias1" : 1.4 },
-    { "index*" : 1.3 }
+  "indices_boost": [
+    { "my-alias":  1.4 },
+    { "my-index*": 1.3 }
   ]
 }
 --------------------------------------------------
-// TEST[continued]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000001\/_alias\/my-alias\n/]
 
 If multiple matches are found, the first match will be used. For example, if an
 index is included in both `alias1` and `index*`, boost value of `1.4` is applied.

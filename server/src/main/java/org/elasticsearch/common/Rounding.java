@@ -125,7 +125,8 @@ public abstract class Rounding implements Writeable {
                 return ratio;
             }
         },
-        MINUTES_OF_HOUR((byte) 7, "minute", ChronoField.MINUTE_OF_HOUR, true, ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()) {
+        MINUTES_OF_HOUR((byte) 7, "minute", ChronoField.MINUTE_OF_HOUR, true,
+            ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()) {
             long roundFloor(long utcMillis) {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }

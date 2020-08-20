@@ -202,8 +202,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         );
         assertEquals(
             "Cannot use month-based rate unit [" + RateAggregationBuilder.parse(rate).shortName() +
-                "] with non-month based calendar interval histogram [" +
-                RateAggregationBuilder.parse(interval).shortName() + "] only week, day, hour, minute and second are supported for this histogram",
+                "] with non-month based calendar interval histogram [" + RateAggregationBuilder.parse(interval).shortName() +
+                "] only week, day, hour, minute and second are supported for this histogram",
             ex.getMessage());
     }
 

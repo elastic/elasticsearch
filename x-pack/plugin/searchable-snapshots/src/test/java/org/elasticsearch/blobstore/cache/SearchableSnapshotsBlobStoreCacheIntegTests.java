@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -131,16 +130,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         // extract the list of blobs per shard from the snapshot directory on disk
         final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot = blobsInSnapshot(repositoryLocation, snapshot.getUUID());
         assertThat("Failed to load all shard snapshot metadata files", blobsInSnapshot.size(), equalTo(numberOfShards.numPrimaries));
-
-        // register a new repository that can track blob read operations
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repositoryName));
-        createRepository(
-            repositoryName,
-            "fs",
-            Settings.builder().put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation).build(),
-            false
-        );
-        assertBusy(this::ensureClusterStateConsistency);
 
         expectThrows(
             IndexNotFoundException.class,

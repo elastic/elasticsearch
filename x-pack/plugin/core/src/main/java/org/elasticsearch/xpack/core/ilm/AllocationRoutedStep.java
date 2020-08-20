@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -22,15 +21,19 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Checks whether all shards have been correctly routed in response to an update to the allocation rules for an index.
@@ -40,8 +43,23 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
     private static final Logger logger = LogManager.getLogger(AllocationRoutedStep.class);
 
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Collections.singletonList(
-            new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
+    private static final Set<Setting<?>> ALL_CLUSTER_SETTINGS;
+
+    static {
+        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        ALL_CLUSTER_SETTINGS = allSettings;
+    }
+
+    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(
+        List.of(
+            new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
+        )
+    );
 
     AllocationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);

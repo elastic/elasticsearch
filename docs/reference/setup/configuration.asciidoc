@@ -106,13 +106,13 @@ apply across cluster restarts, or _transient_, which reset after a cluster
 restart. You can reset transient and persistent settings by assigning them a
 `null` value using the API.
 
-If you reset a setting or configure a setting using multiple methods, {es} uses
-the following order of precedence:
+If you reset a cluster setting or configure the same setting using multiple
+methods, {es} uses the following order of precedence:
 
-1. Transient cluster setting
-2. Persistent cluster setting
+1. Transient setting
+2. Persistent setting
 3. `elasticsearch.yml` setting
-4. `Default setting value
+4. Default setting value
 
 TIP: It’s best to set dynamic, cluster-wide settings with the cluster update
 settings API and use `elasticsearch.yml` only for local configurations. Using

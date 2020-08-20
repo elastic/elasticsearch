@@ -142,7 +142,7 @@ GET /my-index-000001/_eql/search
 The query matches one process event. The event has an `event.type` of
 `creation`, indicating the start of a `regsvr32.exe` process.
 
-Based on the `process.command_line` value, `regsvr32.exe` used `scrobj.dll` to
+Based on the `process.command_line.keyword` value, `regsvr32.exe` used `scrobj.dll` to
 register a script, `RegSvr32.sct`. This fits the behavior of a
 https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
 variant of `regsvr32` misuse.

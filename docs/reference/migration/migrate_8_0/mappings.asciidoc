@@ -59,6 +59,19 @@ The setting has been deprecated with 7.5 and is no longer supported on new indic
 Mappings for older indices will continue to work but emit a deprecation warning.
 
 *Impact* +
-The `enabled` setting for `_field_names` should be removed from templates and mappings. 
+The `enabled` setting for `_field_names` should be removed from templates and mappings.
 Disabling _field_names is not necessary because it no longer carries a large index overhead.
 ====
+
+[[breaking_80_java_time_changes]]
+==== Replacing Joda-Time with java time
+
+All indices created in {es} 7 are already using java-time so nothing needs to be done.
+However indices created in {es} 6 with joda-time patterns need to be reindexed with
+an updated mappings
+
+[discrete]
+===== Migration guide
+For a detailed migration guide, see <<migrate-to-java-time>>.
+
+include::migrate_to_java_time.asciidoc[]

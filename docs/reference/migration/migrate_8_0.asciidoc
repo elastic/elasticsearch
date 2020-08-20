@@ -34,7 +34,6 @@ coming[8.0.0]
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_threadpool_changes>>
 * <<breaking_80_transport_changes>>
-* <<breaking_80_java_time_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -93,4 +92,4 @@ include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
-include::migrate_8_0/java_time.asciidoc[]
+

@@ -234,6 +234,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", Instant.EPOCH.plusNanos(nanosAfterEpoch).toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
+        // output format is time only with nanosecond precision
         String expectedDate = "00:00:00." + String.format(Locale.ROOT, "%09d", nanosAfterEpoch);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(expectedDate));
     }

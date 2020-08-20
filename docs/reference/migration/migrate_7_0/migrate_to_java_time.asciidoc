@@ -5,25 +5,23 @@ With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
-*You do not need to convert joda-time date formats on indices created in {es} 6.8
-before upgrading to {es} 7.7 or newer*
+You do not need to convert joda-time date formats to java time for indices
+created in {es} 6.8 before upgrading to 7.7 or later versions. However, mappings
+for indices created in 7.7 and later versions must use java-time formats.
 
-However you will have to make sure mappings for newly created indices are using
-java-time patterns.
-Note: {es} 7.0-7.6 does not work with joda-time patterns. It was fixed in {es} 7.7
-see: {es-pull}52555[#52555]
+To ensure new indices use java-time formats, we recommend you update any ingest
+pipelines and index templates created in 6.8 to java time before upgrading. See:
 
-You need to update your pipelines or templates, because creating new indices with
-joda-time patterns in mappings is not allowed.
-<<java-time-migration-update-ingest-pipelines>>
-<<java-time-migration-update-index-templates>>
+* <<java-time-migration-update-ingest-pipelines>>
+* <<java-time-migration-update-index-templates>>
 
+Indices created in versions 7.0-7.6 cannot use joda time. This was fixed
+was in 7.7 with {es-pull}52555[#52555].
 [discrete]
 [[java-time-convert-date-formats]]
 === Convert date formats
 
-You can start using java-time patterns in {es} 6.8 by prefixing java-time
-date formats with an `8`.
+To use java time in 6.8, prefix the date format with an `8`.
 For example, you can change the date format `YYYY-MM-dd` to `8yyyy-MM-dd` to
 indicate the date format uses java time.
 
@@ -60,7 +58,7 @@ or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant].
 [[java-time-migration-incompatible-date-formats]]
 ==== Incompatible date formats
 Custom date formats containing the following joda-time literals should be
-migrated.
+converted to their java-time equivalents.
 
 `Y` (Year of era)::
 +

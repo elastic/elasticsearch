@@ -132,7 +132,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         final Map<String, Object> auth = getAsMap("/_security/_authenticate");
         // From file realm, configured in build.gradle
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
-        assertThat(ObjectPath.evaluate(auth, "roles"), contains("security_test_role"));
+        assertThat(ObjectPath.evaluate(auth, "roles"), contains("security_test_role", "anonymous"));
     }
 
     private void checkAllowedWrite(String indexName) throws IOException {

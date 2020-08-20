@@ -56,6 +56,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
@@ -138,7 +140,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testProcess() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -147,6 +149,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).waitUntilIdle();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
     }
 
@@ -243,6 +246,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(bulkResultsPersister).executeRequest();
     }
 
@@ -264,6 +268,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
         inOrder.verify(bulkResultsPersister).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
+        inOrder.verify(persister).commitAnnotationWrites();
         inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
@@ -288,6 +293,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(bulkAnnotationsPersister).persistAnnotation(annotation);
+        if (annotation.getEvent() == Annotation.Event.CATEGORIZATION_STATUS_CHANGE) {
+            verify(auditor).warning(eq(JOB_ID), anyString());
+        }
     }
 
     public void testProcessResult_modelSizeStats() {
@@ -338,46 +346,27 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
     }
 
-    public void testProcessResult_modelSizeStatsWithCategorizationStatusChanges() {
+    public void testProcessResult_categorizationStatusChangeAnnotationCausesNotification() {
         AutodetectResult result = mock(AutodetectResult.class);
         processorUnderTest.setDeleteInterimRequired(false);
 
-        // First one with ok
-        ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.OK).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        // Now one with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        // Another with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister, times(3)).persistModelSizeStats(any(ModelSizeStats.class), any());
-        // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
-        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
-    }
-
-    public void testProcessResult_modelSizeStatsWithFirstCategorizationStatusWarn() {
-        AutodetectResult result = mock(AutodetectResult.class);
-        processorUnderTest.setDeleteInterimRequired(false);
-
-        // First one with warn - this works because a default constructed ModelSizeStats has CategorizationStatus.OK
-        ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        Annotation annotation = new Annotation.Builder()
+            .setType(Annotation.Type.ANNOTATION)
+            .setJobId(JOB_ID)
+            .setAnnotation("Categorization status changed to 'warn' for partition 'foo'")
+            .setEvent(Annotation.Event.CATEGORIZATION_STATUS_CHANGE)
+            .setCreateTime(new Date())
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(new Date())
+            .setPartitionFieldName("part")
+            .setPartitionFieldValue("foo")
+            .build();
+        when(result.getAnnotation()).thenReturn(annotation);
         processorUnderTest.processResult(result);
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).persistModelSizeStats(any(ModelSizeStats.class), any());
-        // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
-        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
+        verify(bulkAnnotationsPersister).persistAnnotation(annotation);
+        verify(auditor).warning(JOB_ID, "Categorization status changed to 'warn' for partition 'foo' after 0 buckets");
     }
 
     public void testProcessResult_modelSnapshot() {
@@ -453,7 +442,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testAwaitCompletion() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -462,6 +451,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer).waitUntilIdle();
     }
@@ -503,7 +493,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testKill() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.setProcessKilled();
         processorUnderTest.process();
@@ -513,6 +503,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
         verify(renormalizer).shutdown();

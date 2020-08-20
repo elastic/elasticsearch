@@ -7,13 +7,16 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -28,7 +31,10 @@ public class SequenceExec extends PhysicalPlan {
 
     private final List<List<Attribute>> keys;
     private final Attribute timestamp;
-    private final Attribute tieBreaker;
+    private final Attribute tiebreaker;
+    private final Limit limit;
+    private final OrderDirection direction;
+    private final TimeValue maxSpan;
 
     public SequenceExec(Source source,
                         List<List<Attribute>> keys,
@@ -36,20 +42,32 @@ public class SequenceExec extends PhysicalPlan {
                         List<Attribute> untilKeys,
                         PhysicalPlan until,
                         Attribute timestamp,
-                        Attribute tieBreaker) {
-        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tieBreaker);
+                        Attribute tiebreaker,
+                        OrderDirection direction,
+                        TimeValue maxSpan) {
+        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker, null, direction, maxSpan);
     }
 
-    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute ts, Attribute tb) {
+    private SequenceExec(Source source,
+                         List<PhysicalPlan> children,
+                         List<List<Attribute>> keys,
+                         Attribute ts,
+                         Attribute tb,
+                         Limit limit,
+                         OrderDirection direction,
+                         TimeValue maxSpan) {
         super(source, children);
         this.keys = keys;
         this.timestamp = ts;
-        this.tieBreaker = tb;
+        this.tiebreaker = tb;
+        this.limit = limit;
+        this.direction = direction;
+        this.maxSpan = maxSpan;
     }
 
     @Override
     protected NodeInfo<SequenceExec> info() {
-        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tieBreaker);
+        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 
     @Override
@@ -59,15 +77,15 @@ public class SequenceExec extends PhysicalPlan {
                     children().size(),
                     newChildren.size());
         }
-        return new SequenceExec(source(), newChildren, keys, timestamp, tieBreaker);
+        return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 
     @Override
     public List<Attribute> output() {
         List<Attribute> attrs = new ArrayList<>();
         attrs.add(timestamp);
-        if (Expressions.isPresent(tieBreaker)) {
-            attrs.add(tieBreaker);
+        if (Expressions.isPresent(tiebreaker)) {
+            attrs.add(tiebreaker);
         }
         for (List<? extends NamedExpression> ne : keys) {
             attrs.addAll(Expressions.asAttributes(ne));
@@ -83,18 +101,31 @@ public class SequenceExec extends PhysicalPlan {
         return timestamp;
     }
 
-    public Attribute tieBreaker() {
-        return tieBreaker;
+    public Attribute tiebreaker() {
+        return tiebreaker;
+    }
+
+    public Limit limit() {
+        return limit;
+    }
+
+    public OrderDirection direction() {
+        return direction;
+    }
+
+    public SequenceExec with(Limit limit) {
+        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limit, direction, maxSpan);
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
-        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tieBreaker()).execute(listener);
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
+        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit()).execute(
+                listener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tieBreaker, keys, children());
+        return Objects.hash(timestamp, tiebreaker, keys, limit, direction, children());
     }
 
     @Override
@@ -109,7 +140,9 @@ public class SequenceExec extends PhysicalPlan {
 
         SequenceExec other = (SequenceExec) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker)
+                && Objects.equals(tiebreaker, other.tiebreaker)
+                && Objects.equals(limit, other.limit)
+                && Objects.equals(direction, other.direction)
                 && Objects.equals(children(), other.children())
                 && Objects.equals(keys, other.keys);
     }

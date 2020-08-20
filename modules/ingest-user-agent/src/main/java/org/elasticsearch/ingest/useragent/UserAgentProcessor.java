@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -41,7 +40,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -51,9 +50,9 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final UserAgentParser parser;
     private final boolean ignoreMissing;
 
-    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
-                              boolean ignoreMissing) {
-        super(tag);
+    public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
+                              Set<Property> properties, boolean ignoreMissing) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
@@ -179,7 +178,7 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         @Override
         public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         Map<String, Object> config) throws Exception {
+                                         String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
@@ -211,7 +210,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing);
+            return new UserAgentProcessor(processorTag, description, field, targetField, parser, properties, ignoreMissing);
         }
     }
 

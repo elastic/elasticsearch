@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -30,16 +31,17 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class LongKeyedBucketOrdsTests extends ESTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testExplicitCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, true));
+        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE));
     }
 
     public void testSurpriseCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, false));
+        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY));
     }
 
     private void collectsFromSingleBucketCase(LongKeyedBucketOrds ords) {
@@ -96,13 +98,15 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 assertThat(ordsEnum.value(), equalTo(values[i]));
             }
             assertFalse(ordsEnum.next());
+
+            assertThat(ords.maxOwningBucketOrd(), equalTo(0L));
         } finally {
             ords.close();
         }
     }
 
     public void testCollectsFromManyBuckets() {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             // Test a few explicit values
             assertThat(ords.add(0, 0), equalTo(0L));
             assertThat(ords.add(1, 0), equalTo(1L));
@@ -117,11 +121,13 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             seen.add(new OwningBucketOrdAndValue(0, 0));
             seen.add(new OwningBucketOrdAndValue(1, 0));
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
-            long maxOwningBucketOrd = scaledRandomIntBetween(0, values.length);
+            long maxAllowedOwningBucketOrd = scaledRandomIntBetween(0, values.length);
+            long maxOwningBucketOrd = Long.MIN_VALUE;
             for (int i = 0; i < values.length; i++) {
                 values[i] = randomValueOtherThanMany(seen::contains, () ->
-                        new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), randomLong()));
+                        new OwningBucketOrdAndValue(randomLongBetween(0, maxAllowedOwningBucketOrd), randomLong()));
                 seen.add(values[i]);
+                maxOwningBucketOrd = Math.max(maxOwningBucketOrd, values[i].owningBucketOrd);
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(-1L));
@@ -141,7 +147,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.add(1, 0), equalTo(-2L));
 
 
-            for (long owningBucketOrd = 0; owningBucketOrd <= maxOwningBucketOrd; owningBucketOrd++) {
+            for (long owningBucketOrd = 0; owningBucketOrd <= maxAllowedOwningBucketOrd; owningBucketOrd++) {
                 long expectedCount = 0;
                 LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(owningBucketOrd);
                 if (owningBucketOrd <= 1) {
@@ -164,6 +170,8 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
             assertFalse(ords.ordsEnum(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)).next());
             assertThat(ords.bucketsInOrd(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)), equalTo(0L));
+
+            assertThat(ords.maxOwningBucketOrd(), greaterThanOrEqualTo(maxOwningBucketOrd));
         }
     }
 
@@ -178,7 +186,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -187,7 +195,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

@@ -35,7 +35,7 @@ A role is defined by the following JSON structure:
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 1024 characters. They can
       contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces,
-      punctuation, and printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
+      punctuation, and printable symbols in the {wikipedia}/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
       Leading or trailing whitespace is not allowed.
 
 [[roles-indices-priv]]
@@ -55,14 +55,14 @@ The following describes the structure of an indices permissions entry:
 -------
 // NOTCONSOLE
 
-<1> A list of indices (or index name patterns) to which the permissions in this
-    entry apply.
+<1> A list of data streams, indices, and index aliases to which the permissions
+    in this entry apply. Wildcard (`*`) expressions are supported.
 <2> The index level privileges the owners of the role have on the associated
-    indices (those indices that are specified in the `names` field)
+    data streams and indices specified in the `names` argument.
 <3> Specification for document fields the owners of the role have read access to.
     See <<field-and-document-access-control>> for details.
 <4> A search query that defines the documents the owners of the role have read
-    access to. A document within the associated indices must match this query
+    access to. A document within the associated data streams and indices must match this query
     in order for it to be accessible by the owners of the role.
 <5> Restricted indices are a special category of indices that are used
     internally to store configuration data. Only internal system
@@ -75,8 +75,8 @@ The following describes the structure of an indices permissions entry:
 
 [TIP]
 ==============================================================================
-When specifying index names, you can use indices and aliases with their full
-names or regular expressions that refer to multiple indices.
+The `names` parameter accepts wildcard and regular expressions that may refer to
+multiple data streams, indices, and index aliases.
 
 * Wildcard (default) - simple wildcard matching where `*` is a placeholder
   for zero or more characters, `?` is a placeholder for a single character
@@ -190,14 +190,14 @@ custom roles providers.  If you need to integrate with another system to retriev
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-authorization>>.
 
-[float]
+[discrete]
 [[roles-management-ui]]
 === Role management UI
 
 You can manage users and roles easily in {kib}. To
 manage roles, log in to {kib} and go to *Management / Security / Roles*. 
 
-[float]
+[discrete]
 [[roles-management-api]]
 === Role management API
 
@@ -206,7 +206,7 @@ dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
 see <<security-role-apis>>. 
 
-[float]
+[discrete]
 [[roles-management-file]]
 === File-based role management
 

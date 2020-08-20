@@ -69,12 +69,14 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
         Template template = null;
-        if (randomBoolean()) {
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+
+        if (dataStreamTemplate != null || randomBoolean()) {
             if (randomBoolean()) {
                 settings = randomSettings();
             }
-            if (randomBoolean()) {
-                mappings = randomMappings();
+            if (dataStreamTemplate != null || randomBoolean()) {
+                mappings = randomMappings(dataStreamTemplate);
             }
             if (randomBoolean()) {
                 aliases = randomAliases();
@@ -86,8 +88,6 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             meta = randomMeta();
         }
-
-        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
@@ -111,9 +111,13 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static CompressedXContent randomMappings() {
+    private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
         try {
-            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+            if (dataStreamTemplate != null) {
+                return new CompressedXContent("{\"properties\":{\"" + dataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}");
+            } else {
+                return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+            }
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -144,7 +148,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             return null;
         } else {
-            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
+            return new ComposableIndexTemplate.DataStreamTemplate();
         }
     }
 
@@ -162,7 +166,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.priority(), orig.version(), orig.metadata(), orig.getDataStreamTemplate());
             case 1:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
-                    randomValueOtherThan(orig.template(), () -> new Template(randomSettings(), randomMappings(), randomAliases())),
+                    randomValueOtherThan(orig.template(), () -> new Template(randomSettings(),
+                        randomMappings(orig.getDataStreamTemplate()), randomAliases())),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),

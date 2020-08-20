@@ -25,23 +25,23 @@ public class KeyedFilter extends UnaryPlan {
 
     private final List<? extends NamedExpression> keys;
     private final Attribute timestamp;
-    private final Attribute tieBreaker;
+    private final Attribute tiebreaker;
 
-    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestamp, Attribute tieBreaker) {
+    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestamp, Attribute tiebreaker) {
         super(source, child);
         this.keys = keys;
         this.timestamp = timestamp;
-        this.tieBreaker = tieBreaker;
+        this.tiebreaker = tiebreaker;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tieBreaker);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker);
     }
 
     @Override
     protected KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys, timestamp, tieBreaker);
+        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
     }
     
     public List<? extends NamedExpression> keys() {
@@ -52,18 +52,18 @@ public class KeyedFilter extends UnaryPlan {
         return timestamp;
     }
     
-    public Attribute tieBreaker() {
-        return tieBreaker;
+    public Attribute tiebreaker() {
+        return tiebreaker;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(keys) && timestamp.resolved() && tieBreaker.resolved();
+        return Resolvables.resolved(keys) && timestamp.resolved() && tiebreaker.resolved();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys, timestamp, tieBreaker, child());
+        return Objects.hash(keys, timestamp, tiebreaker, child());
     }
     
     @Override
@@ -79,7 +79,7 @@ public class KeyedFilter extends UnaryPlan {
 
         return Objects.equals(keys, other.keys)
                 && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker)
+                && Objects.equals(tiebreaker, other.tiebreaker)
                 && Objects.equals(child(), other.child());
     }
 }

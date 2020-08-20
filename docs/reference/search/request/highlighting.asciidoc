@@ -1,5 +1,5 @@
-[[request-body-search-highlighting]]
-==== Highlighting
+[[highlighting]]
+== Highlighting
 
 Highlighters enable you to get highlighted snippets from one or more fields
 in your search results so you can show users where the query matches are.
@@ -24,32 +24,34 @@ the request body that specifies the `content` field:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "content": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "content" : {}
-        }
+  "query": {
+    "match": { "content": "kimchy" }
+  },
+  "highlight": {
+    "fields": {
+      "content": {}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 {es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
 highlighter). You can specify the highlighter `type` you want to use
 for each field.
 
+[discrete]
 [[unified-highlighter]]
-===== Unified highlighter
+=== Unified highlighter
 The `unified` highlighter uses the Lucene Unified Highlighter. This
 highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
 accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. This is the
 default highlighter.
 
+[discrete]
 [[plain-highlighter]]
-===== Plain highlighter
+=== Plain highlighter
 The `plain` highlighter uses the standard Lucene highlighter. It attempts to
 reflect the query matching logic in terms of understanding word importance and
 any word positioning criteria in phrase queries.
@@ -63,8 +65,9 @@ This is repeated for every field and every document that needs to be highlighted
 If you want to highlight a lot of fields in a lot of documents with complex
 queries, we recommend using the `unified` highlighter on `postings` or `term_vector` fields.
 
+[discrete]
 [[fast-vector-highlighter]]
-===== Fast vector highlighter
+=== Fast vector highlighter
 The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
@@ -82,8 +85,9 @@ This highlighter can be used on fields with `term_vector` set to
 The `fvh` highlighter does not support span queries. If you need support for
 span queries, try an alternative highlighter, such as the `unified` highlighter.
 
+[discrete]
 [[offsets-strategy]]
-===== Offsets Strategy
+=== Offsets strategy
 To create meaningful search snippets from the terms being queried,
 the highlighter needs to know the start and end character offsets of each word
 in the original text. These offsets can be obtained from:
@@ -115,8 +119,9 @@ To protect against this, the maximum number of text characters that will be anal
 limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
+[discrete]
 [[highlighting-settings]]
-===== Highlighting Settings
+=== Highlighting settings
 
 Highlighting settings can be set on a global level and overridden at
 the field level.
@@ -215,7 +220,7 @@ order:: Sorts highlighted fragments by score when set to `score`.  By default,
 fragments will be output in the order they appear in the field (order: `none`).
 Setting this option to `score` will output the most relevant fragments first.
 Each highlighter applies its own logic to compute relevancy scores. See
-the document <<highlighter-internal-work, How highlighters work internally>>
+the document <<how-es-highlighters-work-internally, How highlighters work internally>>
 for more details how different highlighters find the best fragments.
 
 phrase_limit:: Controls the number of matching phrases in a document that are
@@ -253,8 +258,9 @@ schema defines the following `pre_tags` and defines `post_tags` as
 type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 `unified`.
 
+[discrete]
 [[highlighting-examples]]
-===== Highlighting Examples
+=== Highlighting examples
 
 * <<override-global-settings, Override global settings>>
 * <<specify-highlight-query, Specify a highlight query>>
@@ -269,8 +275,8 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 * <<specify-fragmenter, Specify a fragmenter for the plain highlighter>>
 
 [[override-global-settings]]
-[float]
-==== Override global settings
+[discrete]
+== Override global settings
 
 You can specify highlighter settings globally and selectively override them for
 individual fields.
@@ -279,26 +285,26 @@ individual fields.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "number_of_fragments" : 3,
-        "fragment_size" : 150,
-        "fields" : {
-            "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
-            "blog.title" : { "number_of_fragments" : 0 },
-            "blog.author" : { "number_of_fragments" : 0 },
-            "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "number_of_fragments" : 3,
+    "fragment_size" : 150,
+    "fields" : {
+      "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
+      "blog.title" : { "number_of_fragments" : 0 },
+      "blog.author" : { "number_of_fragments" : 0 },
+      "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[specify-highlight-query]]
-==== Specify a highlight query
+== Specify a highlight query
 
 You can specify a `highlight_query` to take additional information into account
 when highlighting. For example, the following query includes both the search
@@ -309,65 +315,65 @@ highlighting would only take the search query into account.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": {
-            "comment": {
-                "query": "foo bar"
-            }
-        }
-    },
-    "rescore": {
-        "window_size": 50,
-        "query": {
-            "rescore_query" : {
-                "match_phrase": {
-                    "comment": {
-                        "query": "foo bar",
-                        "slop": 1
-                    }
-                }
-            },
-            "rescore_query_weight" : 10
-        }
-    },
-    "_source": false,
-    "highlight" : {
-        "order" : "score",
-        "fields" : {
-            "comment" : {
-                "fragment_size" : 150,
-                "number_of_fragments" : 3,
-                "highlight_query": {
-                    "bool": {
-                        "must": {
-                            "match": {
-                                "comment": {
-                                    "query": "foo bar"
-                                }
-                            }
-                        },
-                        "should": {
-                            "match_phrase": {
-                                "comment": {
-                                    "query": "foo bar",
-                                    "slop": 1,
-                                    "boost": 10.0
-                                }
-                            }
-                        },
-                        "minimum_should_match": 0
-                    }
-                }
-            }
-        }
+  "query": {
+    "match": {
+      "comment": {
+        "query": "foo bar"
+      }
     }
+  },
+  "rescore": {
+    "window_size": 50,
+    "query": {
+      "rescore_query": {
+        "match_phrase": {
+          "comment": {
+            "query": "foo bar",
+            "slop": 1
+          }
+        }
+      },
+      "rescore_query_weight": 10
+    }
+  },
+  "_source": false,
+  "highlight": {
+    "order": "score",
+    "fields": {
+      "comment": {
+        "fragment_size": 150,
+        "number_of_fragments": 3,
+        "highlight_query": {
+          "bool": {
+            "must": {
+              "match": {
+                "comment": {
+                  "query": "foo bar"
+                }
+              }
+            },
+            "should": {
+              "match_phrase": {
+                "comment": {
+                  "query": "foo bar",
+                  "slop": 1,
+                  "boost": 10.0
+                }
+              }
+            },
+            "minimum_should_match": 0
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[set-highlighter-type]]
-==== Set highlighter type
+== Set highlighter type
 
 The `type` field allows to force a specific highlighter type.
 The allowed values are: `unified`, `plain` and `fvh`.
@@ -377,21 +383,21 @@ The following is an example that forces the use of the plain highlighter:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {"type" : "plain"}
-        }
+  "query": {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight": {
+    "fields": {
+      "comment": { "type": "plain" }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[configure-tags]]
-[float]
-==== Configure highlighting tags
+[discrete]
+== Configure highlighting tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
@@ -401,19 +407,19 @@ for example:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "pre_tags" : ["<tag1>"],
-        "post_tags" : ["</tag1>"],
-        "fields" : {
-            "body" : {}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "pre_tags" : ["<tag1>"],
+    "post_tags" : ["</tag1>"],
+    "fields" : {
+      "body" : {}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 When using the fast vector highlighter, you can specify additional tags and the
 "importance" is ordered.
@@ -422,19 +428,19 @@ When using the fast vector highlighter, you can specify additional tags and the
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "pre_tags" : ["<tag1>", "<tag2>"],
-        "post_tags" : ["</tag1>", "</tag2>"],
-        "fields" : {
-            "body" : {}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "pre_tags" : ["<tag1>", "<tag2>"],
+    "post_tags" : ["</tag1>", "</tag2>"],
+    "fields" : {
+      "body" : {}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You can also use the built-in `styled` tag schema:
 
@@ -442,22 +448,22 @@ You can also use the built-in `styled` tag schema:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "tags_schema" : "styled",
-        "fields" : {
-            "comment" : {}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "tags_schema" : "styled",
+    "fields" : {
+      "comment" : {}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[highlight-source]]
-==== Highlight on source
+== Highlight on source
 
 Forces the highlighting to highlight fields based on the source even if fields
 are stored separately. Defaults to `false`.
@@ -466,22 +472,22 @@ are stored separately. Defaults to `false`.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {"force_source" : true}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "fields" : {
+      "comment" : {"force_source" : true}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[highlight-all]]
-[float]
-==== Highlight in all fields
+[discrete]
+== Highlight in all fields
 
 By default, only fields that contains a query match are highlighted. Set
 `require_field_match` to `false` to highlight all fields.
@@ -490,22 +496,22 @@ By default, only fields that contains a query match are highlighted. Set
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "require_field_match": false,
-        "fields": {
-                "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "require_field_match": false,
+    "fields": {
+      "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[matched-fields]]
-[float]
-==== Combine matches on multiple fields
+[discrete]
+== Combine matches on multiple fields
 
 WARNING: This is only supported by the `fvh` highlighter
 
@@ -523,24 +529,24 @@ analyzer and `comment.plain` is analyzed by the `standard` analyzer.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "comment.plain:running scissors",
-            "fields": ["comment"]
-        }
-    },
-    "highlight": {
-        "order": "score",
-        "fields": {
-            "comment": {
-                "matched_fields": ["comment", "comment.plain"],
-                "type" : "fvh"
-            }
-        }
+  "query": {
+    "query_string": {
+      "query": "comment.plain:running scissors",
+      "fields": [ "comment" ]
     }
+  },
+  "highlight": {
+    "order": "score",
+    "fields": {
+      "comment": {
+        "matched_fields": [ "comment", "comment.plain" ],
+        "type": "fvh"
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above matches both "run with scissors" and "running with scissors"
 and would highlight "running" and "scissors" but not "run". If both
@@ -552,24 +558,24 @@ are more matches in that fragment.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "running scissors",
-            "fields": ["comment", "comment.plain^10"]
-        }
-    },
-    "highlight": {
-        "order": "score",
-        "fields": {
-            "comment": {
-                "matched_fields": ["comment", "comment.plain"],
-                "type" : "fvh"
-            }
-        }
+  "query": {
+    "query_string": {
+      "query": "running scissors",
+      "fields": ["comment", "comment.plain^10"]
     }
+  },
+  "highlight": {
+    "order": "score",
+    "fields": {
+      "comment": {
+        "matched_fields": ["comment", "comment.plain"],
+        "type" : "fvh"
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above highlights "run" as well as "running" and "scissors" but
 still sorts "running with scissors" above "run with scissors" because
@@ -579,24 +585,24 @@ the plain match ("running") is boosted.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "running scissors",
-            "fields": ["comment", "comment.plain^10"]
-        }
-    },
-    "highlight": {
-        "order": "score",
-        "fields": {
-            "comment": {
-                "matched_fields": ["comment.plain"],
-                "type" : "fvh"
-            }
-        }
+  "query": {
+    "query_string": {
+      "query": "running scissors",
+      "fields": [ "comment", "comment.plain^10" ]
     }
+  },
+  "highlight": {
+    "order": "score",
+    "fields": {
+      "comment": {
+        "matched_fields": [ "comment.plain" ],
+        "type": "fvh"
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The above query wouldn't highlight "run" or "scissor" but shows that
 it is just fine not to list the field to which the matches are combined
@@ -638,8 +644,8 @@ to
 
 
 [[explicit-field-order]]
-[float]
-==== Explicitly order highlighted fields
+[discrete]
+== Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
@@ -648,15 +654,15 @@ in which fields are highlighted specify the `fields` as an array:
 --------------------------------------------------
 GET /_search
 {
-    "highlight": {
-        "fields": [
-            { "title": {} },
-            { "text": {} }
-        ]
-    }
+  "highlight": {
+    "fields": [
+      { "title": {} },
+      { "text": {} }
+    ]
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 None of the highlighters built into Elasticsearch care about the order that the
 fields are highlighted but a plugin might.
@@ -664,9 +670,9 @@ fields are highlighted but a plugin might.
 
 
 
-[float]
+[discrete]
 [[control-highlighted-frags]]
-==== Control highlighted fragments
+== Control highlighted fragments
 
 Each field highlighted can control the size of the highlighted fragment
 in characters (defaults to `100`), and the maximum number of fragments
@@ -677,17 +683,17 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "fields" : {
+      "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 On top of this it is possible to specify that highlighted fragments need
 to be sorted by score:
@@ -696,18 +702,18 @@ to be sorted by score:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "order" : "score",
-        "fields" : {
-            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "order" : "score",
+    "fields" : {
+      "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If the `number_of_fragments` value is set to `0` then no fragments are
 produced, instead the whole content of the field is returned, and of
@@ -719,18 +725,18 @@ is required. Note that `fragment_size` is ignored in this case.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "body" : {},
-            "blog.title" : {"number_of_fragments" : 0}
-        }
+  "query" : {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight" : {
+    "fields" : {
+      "body" : {},
+      "blog.title" : {"number_of_fragments" : 0}
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 When using `fvh` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
@@ -745,25 +751,25 @@ specified as it tries to break on a word boundary.
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {
-                "fragment_size" : 150,
-                "number_of_fragments" : 3,
-                "no_match_size": 150
-            }
-        }
+  "query": {
+    "match": { "user.id": "kimchy" }
+  },
+  "highlight": {
+    "fields": {
+      "comment": {
+        "fragment_size": 150,
+        "number_of_fragments": 3,
+        "no_match_size": 150
+      }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[highlight-postings-list]]
-==== Highlight using the postings list
+== Highlight using the postings list
 
 Here is an example of setting the `comment` field in the index mapping to
 allow for highlighting using the postings:
@@ -801,122 +807,116 @@ PUT /example
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[specify-fragmenter]]
-==== Specify a fragmenter for the plain highlighter
+== Specify a fragmenter for the plain highlighter
 
 When using the `plain` highlighter, you can choose between the `simple` and
 `span` fragmenters:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "query" : {
-        "match_phrase": { "message": "number 1" }
-    },
-    "highlight" : {
-        "fields" : {
-            "message" : {
-                "type": "plain",
-                "fragment_size" : 15,
-                "number_of_fragments" : 3,
-                "fragmenter": "simple"
-            }
-        }
+  "query": {
+    "match_phrase": { "message": "number 1" }
+  },
+  "highlight": {
+    "fields": {
+      "message": {
+        "type": "plain",
+        "fragment_size": 15,
+        "number_of_fragments": 3,
+        "fragmenter": "simple"
+      }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 Response:
 
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "hits": {
-        "total" : {
-            "value": 1,
-            "relation": "eq"
+  ...
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.6011951,
+    "hits": [
+      {
+        "_index": "my-index-000001",
+        "_id": "1",
+        "_score": 1.6011951,
+        "_source": {
+          "message": "some message with the number 1"
         },
-        "max_score": 1.6011951,
-        "hits": [
-            {
-                "_index": "twitter",
-                "_id": "1",
-                "_score": 1.6011951,
-                "_source": {
-                    "user": "test",
-                    "message": "some message with the number 1",
-                    "date": "2009-11-15T14:12:12",
-                    "likes": 1
-                },
-                "highlight": {
-                    "message": [
-                        " with the <em>number</em>",
-                        " <em>1</em>"
-                    ]
-                }
-            }
-        ]
-    }
+        "highlight": {
+          "message": [
+            " with the <em>number</em>",
+            " <em>1</em>"
+          ]
+        }
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
-    "query" : {
-        "match_phrase": { "message": "number 1" }
-    },
-    "highlight" : {
-        "fields" : {
-            "message" : {
-                "type": "plain",
-                "fragment_size" : 15,
-                "number_of_fragments" : 3,
-                "fragmenter": "span"
-            }
-        }
+  "query": {
+    "match_phrase": { "message": "number 1" }
+  },
+  "highlight": {
+    "fields": {
+      "message": {
+        "type": "plain",
+        "fragment_size": 15,
+        "number_of_fragments": 3,
+        "fragmenter": "span"
+      }
     }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 Response:
 
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "hits": {
-        "total" : {
-            "value": 1,
-            "relation": "eq"
+  ...
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.6011951,
+    "hits": [
+      {
+        "_index": "my-index-000001",
+        "_id": "1",
+        "_score": 1.6011951,
+        "_source": {
+          "message": "some message with the number 1"
         },
-        "max_score": 1.6011951,
-        "hits": [
-            {
-                "_index": "twitter",
-                "_id": "1",
-                "_score": 1.6011951,
-                "_source": {
-                    "user": "test",
-                    "message": "some message with the number 1",
-                    "date": "2009-11-15T14:12:12",
-                    "likes": 1
-                },
-                "highlight": {
-                    "message": [
-                        " with the <em>number</em> <em>1</em>"
-                    ]
-                }
-            }
-        ]
-    }
+        "highlight": {
+          "message": [
+            " with the <em>number</em> <em>1</em>"
+          ]
+        }
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
@@ -926,4 +926,197 @@ If the `number_of_fragments` option is set to `0`,
 This is useful for highlighting the entire contents of a document or field.
 
 
-include::highlighters-internal.asciidoc[]
+[discrete]
+[[how-es-highlighters-work-internally]]
+== How highlighters work internally
+
+Given a query and a text (the content of a document field), the goal of a
+highlighter is to find the best text fragments for the query, and highlight
+the query terms in the found fragments. For this, a highlighter needs to
+address several questions:
+
+- How break a text into fragments?
+- How to find the best fragments among all fragments?
+- How to highlight the query terms in a fragment?
+
+[discrete]
+=== How to break a text into fragments?
+Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter,
+`boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
+
+Plain highlighter begins with analyzing the text using the given analyzer,
+and creating a token stream from it. Plain highlighter uses a very simple
+algorithm to break the token stream into fragments. It loops through terms in the token stream,
+and every time the current term's end_offset exceeds `fragment_size` multiplied by the number of
+created fragments, a new fragment is created. A little more computation is done with using `span`
+fragmenter to avoid breaking up text between highlighted terms. But overall, since the breaking is
+done only by `fragment_size`, some fragments can be quite odd, e.g. beginning
+with a punctuation mark.
+
+Unified or FVH highlighters do a better job of breaking up a text into
+fragments by utilizing Java's `BreakIterator`. This ensures that a fragment
+is a valid sentence as long as `fragment_size` allows for this.
+
+[discrete]
+=== How to find the best fragments?
+Relevant settings: `number_of_fragments`.
+
+To find the best, most relevant, fragments, a highlighter needs to score
+each fragment in respect to the given query. The goal is to score only those
+terms that participated in generating the 'hit' on the document.
+For some complex queries, this is still work in progress.
+
+The plain highlighter creates an in-memory index from the current token stream,
+and re-runs the original query criteria through Lucene's query execution planner
+to get access to low-level match information for the current text.
+For more complex queries the original query could be converted to a span query,
+as span queries can handle phrases more accurately. Then this obtained low-level match
+information is used to score each individual fragment. The scoring method of the plain
+highlighter is quite simple. Each fragment is scored by the number of unique
+query terms found in this fragment. The score of individual term is equal to its boost,
+which is by default is 1. Thus, by default, a fragment that contains one unique query term,
+will get a score of 1; and a fragment that contains two unique query terms,
+will get a score of 2 and so on. The fragments are then sorted by their scores,
+so the highest scored fragments will be output first.
+
+FVH doesn't need to analyze the text and build an in-memory index, as it uses
+pre-indexed document term vectors, and finds among them terms that correspond to the query.
+FVH scores each fragment by the number of query terms found in this fragment.
+Similarly to plain highlighter, score of individual term is equal to its boost value.
+In contrast to plain highlighter, all query terms are counted, not only unique terms.
+
+Unified highlighter can use pre-indexed term vectors or pre-indexed terms offsets,
+if they are available. Otherwise, similar to Plain Highlighter, it has to create
+an in-memory index from the text. Unified highlighter uses the BM25 scoring model
+to score fragments.
+
+[discrete]
+=== How to highlight the query terms in a fragment?
+Relevant settings:  `pre-tags`, `post-tags`.
+
+The goal is to highlight only those terms that participated in generating the 'hit' on the document.
+For some complex boolean queries, this is still work in progress, as highlighters don't reflect
+the boolean logic of a query and only extract leaf (terms, phrases, prefix etc) queries.
+
+Plain highlighter given the token stream and the original text, recomposes the original text to
+highlight only terms from the token stream that are contained in the low-level match information
+structure from the previous step.
+
+FVH and unified highlighter use intermediate data structures to represent
+fragments in some raw form, and then populate them with actual text.
+
+A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
+
+[discrete]
+=== An example of the work of the unified highlighter
+
+Let's look in more details how unified highlighter works.
+
+First, we create a index with a text field `content`, that will be indexed
+using `english` analyzer, and will be indexed without offsets or term vectors.
+
+[source,js]
+--------------------------------------------------
+PUT test_index
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "text",
+        "analyzer": "english"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+We put the following document into the index:
+
+[source,js]
+--------------------------------------------------
+PUT test_index/_doc/doc1
+{
+  "content" : "For you I'm only a fox like a hundred thousand other foxes. But if you tame me, we'll need each other. You'll be the only boy in the world for me. I'll be the only fox in the world for you."
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+And we ran the following query with a highlight request:
+
+[source,js]
+--------------------------------------------------
+GET test_index/_search
+{
+  "query": {
+    "match_phrase" : {"content" : "only fox"}
+  },
+  "highlight": {
+    "type" : "unified",
+    "number_of_fragments" : 3,
+    "fields": {
+      "content": {}
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+After `doc1` is found as a hit for this query, this hit will be passed to the
+unified highlighter for highlighting the field `content` of the document.
+Since the field `content` was not indexed either with offsets or term vectors,
+its raw field value will be analyzed, and in-memory index will be built from
+the terms that match the query:
+
+    {"token":"onli","start_offset":12,"end_offset":16,"position":3},
+    {"token":"fox","start_offset":19,"end_offset":22,"position":5},
+    {"token":"fox","start_offset":53,"end_offset":58,"position":11},
+    {"token":"onli","start_offset":117,"end_offset":121,"position":24},
+    {"token":"onli","start_offset":159,"end_offset":163,"position":34},
+    {"token":"fox","start_offset":164,"end_offset":167,"position":35}
+
+Our complex phrase query will be converted to the span query:
+`spanNear([text:onli, text:fox], 0, true)`, meaning that we are looking for
+terms "onli: and "fox" within 0 distance from each other, and in the given
+order. The span query will be run against the created before in-memory index,
+to find the following match:
+
+    {"term":"onli", "start_offset":159, "end_offset":163},
+    {"term":"fox", "start_offset":164, "end_offset":167}
+
+In our example, we have got a single match, but there could be several matches.
+Given the matches, the unified highlighter breaks the text of the field into
+so called "passages". Each passage must contain at least one match.
+The unified highlighter with the use of Java's `BreakIterator` ensures that each
+passage represents a full sentence as long as it doesn't exceed `fragment_size`.
+For our example, we have got a single passage with the following properties
+(showing only a subset of the properties here):
+
+    Passage:
+        startOffset: 147
+        endOffset: 189
+        score: 3.7158387
+        matchStarts: [159, 164]
+        matchEnds: [163, 167]
+        numMatches: 2
+
+Notice how a passage has a score, calculated using the BM25 scoring formula
+adapted for passages. Scores allow us to choose the best scoring
+passages if there are more passages available than the requested
+by the user `number_of_fragments`. Scores also let us to sort passages by
+`order: "score"` if requested by the user.
+
+As the final step, the unified highlighter will extract from the field's text
+a string corresponding to each passage:
+
+    "I'll be the only fox in the world for you."
+
+and will format with the tags <em> and </em> all matches in this string
+using the passages's `matchStarts` and `matchEnds` information:
+
+    I'll be the <em>only</em> <em>fox</em> in the world for you.
+
+This kind of formatted strings are the final result of the highlighter returned
+to the user.

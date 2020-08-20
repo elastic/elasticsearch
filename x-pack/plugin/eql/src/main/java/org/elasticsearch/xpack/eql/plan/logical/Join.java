@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,25 +21,37 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class Join extends LogicalPlan {
 
     private final List<KeyedFilter> queries;
     private final KeyedFilter until;
     private final Attribute timestamp;
-    private final Attribute tieBreaker;
+    private final Attribute tiebreaker;
+    private final OrderDirection direction;
 
-    public Join(Source source, List<KeyedFilter> queries, KeyedFilter until, Attribute timestamp, Attribute tieBreaker) {
+    public Join(Source source,
+                List<KeyedFilter> queries,
+                KeyedFilter until,
+                Attribute timestamp,
+                Attribute tiebreaker,
+                OrderDirection direction) {
         super(source, CollectionUtils.combine(queries, until));
         this.queries = queries;
         this.until = until;
         this.timestamp = timestamp;
-        this.tieBreaker = tieBreaker;
+        this.tiebreaker = tiebreaker;
+        this.direction = direction;
     }
 
-    private Join(Source source, List<LogicalPlan> queries, LogicalPlan until, Attribute timestamp, Attribute tieBreaker) {
-        this(source, asKeyed(queries), asKeyed(until), timestamp, tieBreaker);
+    private Join(Source source,
+                 List<LogicalPlan> queries,
+                 LogicalPlan until,
+                 Attribute timestamp,
+                 Attribute tiebreaker,
+                 OrderDirection direction) {
+        this(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
     }
 
     static List<KeyedFilter> asKeyed(List<LogicalPlan> list) {
@@ -59,7 +72,7 @@ public class Join extends LogicalPlan {
 
     @Override
     protected NodeInfo<? extends Join> info() {
-        return NodeInfo.create(this, Join::new, queries, until, timestamp, tieBreaker);
+        return NodeInfo.create(this, Join::new, queries, until, timestamp, tiebreaker, direction);
     }
 
     @Override
@@ -68,7 +81,7 @@ public class Join extends LogicalPlan {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tieBreaker);
+        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tiebreaker, direction);
     }
 
     @Override
@@ -76,8 +89,8 @@ public class Join extends LogicalPlan {
         List<Attribute> out = new ArrayList<>();
 
         out.add(timestamp);
-        if (Expressions.isPresent(tieBreaker)) {
-            out.add(tieBreaker);
+        if (Expressions.isPresent(tiebreaker)) {
+            out.add(tiebreaker);
         }
 
         for (KeyedFilter query : queries) {
@@ -88,7 +101,7 @@ public class Join extends LogicalPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return timestamp.resolved() && tieBreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
+        return timestamp.resolved() && tiebreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
     }
 
     public List<KeyedFilter> queries() {
@@ -103,13 +116,21 @@ public class Join extends LogicalPlan {
         return timestamp;
     }
     
-    public Attribute tieBreaker() {
-        return tieBreaker;
+    public Attribute tiebreaker() {
+        return tiebreaker;
+    }
+
+    public OrderDirection direction() {
+        return direction;
+    }
+
+    public Join with(List<KeyedFilter> queries, KeyedFilter until, OrderDirection direction) {
+        return new Join(source(), queries, until, timestamp, tiebreaker, direction);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tieBreaker, queries, until);
+        return Objects.hash(direction, timestamp, tiebreaker, queries, until);
     }
 
     @Override
@@ -123,14 +144,14 @@ public class Join extends LogicalPlan {
 
         Join other = (Join) obj;
 
-        return Objects.equals(queries, other.queries)
+        return Objects.equals(direction, other.direction) && Objects.equals(queries, other.queries)
                 && Objects.equals(until, other.until)
                 && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker);
+                && Objects.equals(tiebreaker, other.tiebreaker);
     }
 
     @Override
     public List<Object> nodeProperties() {
-        return emptyList();
+        return singletonList(direction);
     }
 }

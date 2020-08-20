@@ -44,10 +44,16 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    SumAggregator(String name, ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,  SearchContext context,
-                  Aggregator parent, Map<String, Object> metadata) throws IOException {
+    SumAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             sums = context.bigArrays().newDoubleArray(1, true);

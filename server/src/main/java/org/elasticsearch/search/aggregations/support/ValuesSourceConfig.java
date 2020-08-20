@@ -30,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -51,8 +52,6 @@ public class ValuesSourceConfig {
      * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
      *               See https://github.com/elastic/elasticsearch/issues/47469
      * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
-     * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
-     *                          {@link ValuesSourceRegistry}
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static ValuesSourceConfig resolve(QueryShardContext context,
@@ -62,8 +61,7 @@ public class ValuesSourceConfig {
                                              Object missing,
                                              ZoneId timeZone,
                                              String format,
-                                             ValuesSourceType defaultValueSourceType,
-                                             String aggregationName) {
+                                             ValuesSourceType defaultValueSourceType) {
 
         return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType,
             ValuesSourceConfig::getMappingFromRegistry
@@ -154,10 +152,18 @@ public class ValuesSourceConfig {
         if (valuesSourceType == null) {
             valuesSourceType = defaultValueSourceType;
         }
-        config = new ValuesSourceConfig(valuesSourceType, fieldContext, unmapped, aggregationScript, scriptValueType, context::nowInMillis);
-        config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
-        config.missing(missing);
-        config.timezone(timeZone);
+        DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
+        config = new ValuesSourceConfig(
+            valuesSourceType,
+            fieldContext,
+            unmapped,
+            aggregationScript,
+            scriptValueType,
+            missing,
+            timeZone,
+            docValueFormat,
+            context::nowInMillis
+        );
         return config;
     }
 
@@ -231,6 +237,9 @@ public class ValuesSourceConfig {
             false,
             null,
             null,
+            null,
+            null,
+            null,
             queryShardContext::nowInMillis
         );
     }
@@ -239,19 +248,22 @@ public class ValuesSourceConfig {
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext::nowInMillis);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, queryShardContext::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
-    private FieldContext fieldContext;
-    private AggregationScript.LeafFactory script;
-    private ValueType scriptValueType;
-    private boolean unmapped;
-    private DocValueFormat format = DocValueFormat.RAW;
-    private Object missing;
-    private ZoneId timeZone;
-    private LongSupplier nowSupplier;
+    private final FieldContext fieldContext;
+    private final AggregationScript.LeafFactory script;
+    private final ValueType scriptValueType;
+    private final boolean unmapped;
+    private final DocValueFormat format;
+    private final Object missing;
+    private final ZoneId timeZone;
+    private final ValuesSource valuesSource;
 
+    private ValuesSourceConfig() {
+        throw new UnsupportedOperationException();
+    }
 
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
@@ -259,6 +271,9 @@ public class ValuesSourceConfig {
         boolean unmapped,
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
+        Object missing,
+        ZoneId timeZone,
+        DocValueFormat format,
         LongSupplier nowSupplier
     ) {
         if (unmapped && fieldContext != null) {
@@ -269,83 +284,22 @@ public class ValuesSourceConfig {
         this.unmapped = unmapped;
         this.script = script;
         this.scriptValueType = scriptValueType;
-        this.nowSupplier = nowSupplier;
-
-    }
-
-    public ValuesSourceType valueSourceType() {
-        return valuesSourceType;
-    }
-
-    public FieldContext fieldContext() {
-        return fieldContext;
-    }
-
-    public AggregationScript.LeafFactory script() {
-        return script;
-    }
-
-    public boolean unmapped() {
-        return unmapped;
-    }
-
-    public boolean valid() {
-        return fieldContext != null || script != null || unmapped;
-    }
-
-    public ValueType scriptValueType() {
-        return this.scriptValueType;
-    }
-
-    private ValuesSourceConfig format(final DocValueFormat format) {
-        this.format = format;
-        return this;
-    }
-
-    private ValuesSourceConfig missing(final Object missing) {
         this.missing = missing;
-        return this;
-    }
-
-    public Object missing() {
-        return this.missing;
-    }
-
-    private ValuesSourceConfig timezone(final ZoneId timeZone) {
         this.timeZone = timeZone;
-        return this;
-    }
+        this.format = format == null ? DocValueFormat.RAW : format;
 
-    public ZoneId timezone() {
-        return this.timeZone;
-    }
-
-    public DocValueFormat format() {
-        return format;
-    }
-
-    /**
-     * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @return - A {@link ValuesSource} ready to be read from by an aggregator
-     */
-    @Nullable
-    public ValuesSource toValuesSource() {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }
+        valuesSource = ConstructValuesSource(missing, format, nowSupplier);
+    }
 
+    private ValuesSource ConstructValuesSource(Object missing, DocValueFormat format, LongSupplier nowSupplier) {
         final ValuesSource vs;
-        if (unmapped()) {
-            if (missing() == null) {
-                /* Null values source signals to the AggregationBuilder to use the createUnmapped method, which aggregator factories can
-                 * override to provide an aggregator optimized to return empty values
-                 */
-                vs = null;
-            } else {
-                vs = valueSourceType().getEmpty();
-            }
+        if (this.unmapped) {
+            vs = valueSourceType().getEmpty();
         } else {
             if (fieldContext() == null) {
                 // Script case
@@ -356,9 +310,98 @@ public class ValuesSourceConfig {
             }
         }
 
-        if (missing() == null) {
+        if (missing() != null) {
+            return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+        } else {
             return vs;
         }
-        return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+    }
+
+    public ValuesSourceType valueSourceType() {
+        return valuesSourceType;
+    }
+
+    public FieldContext fieldContext() {
+        return fieldContext;
+    }
+
+    /**
+     * Convenience method for looking up the mapped field type backing this values source, if it exists.
+     */
+    @Nullable
+    public MappedFieldType fieldType() {
+        return fieldContext == null ? null : fieldContext.fieldType();
+    }
+
+    public AggregationScript.LeafFactory script() {
+        return script;
+    }
+
+    /**
+     * Returns true if the values source configured by this object can yield values.  We might not be able to yield values if, for example,
+     * the specified field does not exist on this index.
+     */
+    public boolean hasValues() {
+        return fieldContext != null || script != null || missing != null;
+    }
+
+    public boolean valid() {
+        return fieldContext != null || script != null || unmapped;
+    }
+
+    public ValueType scriptValueType() {
+        return this.scriptValueType;
+    }
+
+    public Object missing() {
+        return this.missing;
+    }
+
+    public ZoneId timezone() {
+        return this.timeZone;
+    }
+
+    public DocValueFormat format() {
+        return format;
+    }
+
+    public ValuesSource getValuesSource() {
+        return valuesSource;
+    }
+
+    public boolean hasGlobalOrdinals() {
+        return valuesSource.hasGlobalOrdinals();
+    }
+
+    /**
+     * This method is used when an aggregation can optimize by using the indexed data instead of the doc values.  We check to see if the
+     * indexed data will match the values source output (meaning there isn't a script or a missing value, since both could modify the
+     * value at read time).  If the settings allow for it, we then ask the {@link ValuesSourceType} to build the actual point reader
+     * based on the field type.  This allows for a point of extensibility in plugins.
+     *
+     * @return null if we cannot apply the optimization, otherwise the point reader function.
+     */
+    @Nullable
+    public Function<byte[], Number> getPointReaderOrNull() {
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null && script() == null && missing() == null) {
+            return fieldType.pointReaderIfPossible();
+        }
+        return null;
+    }
+
+    /**
+     * Returns a human readable description of this values source, for use in error messages and similar.
+     */
+    public String getDescription() {
+        if (script != null) {
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
+        }
+
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null) {
+            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+        }
+        return "unmapped field";
     }
 }

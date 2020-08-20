@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.stringContains;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
 import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
@@ -140,14 +142,36 @@ public class StringUtilsTests extends ESTestCase {
     }
 
     public void testStringContainsWithNullOrEmpty() {
-        assertFalse(stringContains(null, null));
-        assertFalse(stringContains(null, ""));
-        assertFalse(stringContains("", null));
+        assertFalse(stringContains(null, null, true));
+        assertFalse(stringContains(null, "", true));
+        assertFalse(stringContains("", null, true));
+
+        assertFalse(stringContains(null, null, false));
+        assertFalse(stringContains(null, "", false));
+        assertFalse(stringContains("", null, false));
     }
 
-    public void testStringContainsWithRandom() throws Exception {
+    public void testStringContainsWithRandomCaseSensitive() throws Exception {
         String substring = randomAlphaOfLength(10);
-        String string = randomAlphaOfLength(10) + substring + randomAlphaOfLength(10);
-        assertTrue(stringContains(string, substring));
+        String string = randomValueOtherThan(substring, () -> randomAlphaOfLength(10))
+            + substring
+            + randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, true));
+    }
+
+    public void testStringContainsWithRandomCaseInsensitive() throws Exception {
+        String substring = randomAlphaOfLength(10);
+        String subsChanged = substring.toUpperCase(Locale.ROOT);
+        String string = randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10))
+            + subsChanged
+            + randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, false));
+
+        substring = randomAlphaOfLength(10);
+        subsChanged = substring.toLowerCase(Locale.ROOT);
+        string = randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10))
+            + subsChanged
+            + randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, false));
     }
 }

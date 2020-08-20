@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition.T
 
 public class InferenceDefinition {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
 
     public static final String NAME = "inference_model_definition";
     private final InferenceModel trainedModel;
@@ -41,7 +41,7 @@ public class InferenceDefinition {
             (p, c, n) -> p.namedObject(InferenceModel.class, n, null),
             TRAINED_MODEL);
         PARSER.declareNamedObjects(InferenceDefinition.Builder::setPreProcessors,
-            (p, c, n) -> p.namedObject(LenientlyParsedPreProcessor.class, n, null),
+            (p, c, n) -> p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> {},
             PREPROCESSORS);
     }
@@ -95,6 +95,7 @@ public class InferenceDefinition {
                 return decoderMap;
             }
             this.decoderMap = preProcessors.stream()
+                .filter(p -> p.isCustom() == false)
                 .map(PreProcessor::reverseLookup)
                 .collect(HashMap::new, Map::putAll, Map::putAll);
             return decoderMap;

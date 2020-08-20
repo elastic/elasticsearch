@@ -48,7 +48,7 @@ public class ProcessResultsParser<T> {
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
-            return new ResultIterator(in, parser);
+            return new ResultIterator(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
@@ -56,12 +56,10 @@ public class ProcessResultsParser<T> {
 
     private class ResultIterator implements Iterator<T> {
 
-        private final InputStream in;
         private final XContentParser parser;
         private XContentParser.Token token;
 
-        private ResultIterator(InputStream in, XContentParser parser) {
-            this.in = in;
+        private ResultIterator(XContentParser parser) {
             this.parser = parser;
             token = parser.currentToken();
         }

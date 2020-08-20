@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -66,6 +69,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private IndicesAdminClient indicesAdminClient;
+    private ClusterAdminClient clusterAdminClient;
     private AdminClient adminClient;
     private Client client;
     private ActionListener<Boolean> listener;
@@ -85,8 +89,17 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
         doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).aliases(any(), any());
 
+        clusterAdminClient = mock(ClusterAdminClient.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new ClusterHealthResponse());
+            return null;
+        }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
+
         adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
+        when(adminClient.cluster()).thenReturn(clusterAdminClient);
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

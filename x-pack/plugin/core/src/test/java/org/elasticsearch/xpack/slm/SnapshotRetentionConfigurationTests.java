@@ -227,7 +227,6 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
     }
 
-
     public void testMostRecentSuccessfulTimestampIsUsed() {
         boolean failureBeforePartial = randomBoolean();
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, 2, 2);
@@ -243,12 +242,25 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
     }
 
+    public void testFewerSuccessesThanMinWithPartial() {
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, TimeValue.timeValueSeconds(5), 10, 20);
+        SnapshotInfo s1 = makeInfo(1);
+        SnapshotInfo sP = makePartialInfo(2);
+        SnapshotInfo s2 = makeInfo(3);
+
+        List<SnapshotInfo> infos = Arrays.asList(s1 , sP, s2);
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(sP), equalTo(false));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
+    }
+
     private SnapshotInfo makeInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
             Collections.singletonList("foo"),
+            Collections.singletonList("bar"),
             startTime,
             null,
             startTime + between(1, 10000),
@@ -280,6 +292,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
+            Collections.singletonList("bar-fail"),
             startTime,
             "forced-failure",
             startTime + between(1, 10000),
@@ -303,6 +316,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
+            Collections.singletonList("bar-fail"),
             startTime,
             null,
             startTime + between(1, 10000),

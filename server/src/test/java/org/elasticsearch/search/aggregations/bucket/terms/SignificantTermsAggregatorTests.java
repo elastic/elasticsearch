@@ -27,7 +27,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -41,13 +40,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -56,7 +55,6 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,18 +68,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
-
-    private MappedFieldType fieldType;
-
-    @Before
-    public void setUpTest() throws Exception {
-        super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("field");
-    }
-
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new SignificantTermsAggregationBuilder("foo").field(fieldName);
@@ -120,8 +106,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * Uses the significant terms aggregation to find the keywords in text fields
      */
     public void testSignificance() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setFielddata(true);
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
@@ -130,7 +115,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text");
             sigAgg.executionHint(randomExecutionHint());
@@ -207,12 +192,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * fields
      */
     public void testNumericSignificance() throws IOException {
-        NumberFieldType longFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        longFieldType.setName("long_field");
+        NumberFieldType longFieldType
+            = new NumberFieldMapper.NumberFieldType("long_field", NumberFieldMapper.NumberType.LONG);
 
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+        TextFieldType textFieldType = new TextFieldType("text");
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -227,10 +210,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 Document doc = new Document();
                 if (i % 2 == 0) {
                     addFields(doc, NumberType.LONG.createFields("long_field", ODD_VALUE, true, true, false));
-                    doc.add(new Field("text", "odd", textFieldType));
+                    doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
                     addFields(doc, NumberType.LONG.createFields("long_field", EVEN_VALUE, true, true, false));
-                    doc.add(new Field("text", "even", textFieldType));
+                    doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
                 addFields(doc, NumberType.LONG.createFields("long_field", COMMON_VALUE, true, true, false));
                 w.addDocument(doc);
@@ -268,8 +251,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * Uses the significant terms aggregation on an index with unmapped field
      */
     public void testUnmapped() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setFielddata(true);
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
@@ -277,7 +259,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             // Attempt aggregation on unmapped field
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("unmapped_field");
@@ -307,8 +289,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
         final String fieldName = "rangeField";
-        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
-        fieldType.setName(fieldName);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -338,8 +319,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setFielddata(true);
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
@@ -348,7 +328,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            addMixedTextDocs(textFieldType, w);
+            addMixedTextDocs(w);
 
             SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
             SignificantTermsAggregationBuilder aliasAgg = significantTerms("sig_text").field("text-alias");
@@ -409,7 +389,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -429,7 +409,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, longField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -461,7 +441,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -483,7 +463,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, longField("f"));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -515,14 +495,17 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder kRequest = new SignificantTermsAggregationBuilder("k").field("k")
+                        .minDocCount(0)
                         .executionHint(executionHint);
                     SignificantTermsAggregationBuilder jRequest = new SignificantTermsAggregationBuilder("j").field("j")
+                        .minDocCount(0)
                         .executionHint(executionHint)
                         .subAggregation(kRequest);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i")
+                        .minDocCount(0)
                         .executionHint(executionHint)
                         .subAggregation(jRequest);
-                    SignificantStringTerms result = search(
+                    SignificantStringTerms result = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
                         request,
@@ -569,10 +552,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 }
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
-                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i")
-                        .subAggregation(new SignificantTermsAggregationBuilder("j").field("j")
-                            .subAggregation(new SignificantTermsAggregationBuilder("k").field("k")));
-                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i").minDocCount(0)
+                        .subAggregation(new SignificantTermsAggregationBuilder("j").field("j").minDocCount(0)
+                            .subAggregation(new SignificantTermsAggregationBuilder("k").field("k").minDocCount(0)));
+                    SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request,
                         longField("i"), longField("j"), longField("k"));
                     assertThat(result.getSubsetSize(), equalTo(1000L));
                     for (int i = 0; i < 10; i++) {
@@ -596,7 +579,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {
+    private void addMixedTextDocs(IndexWriter w) throws IOException {
         for (int i = 0; i < 10; i++) {
             Document doc = new Document();
             StringBuilder text = new StringBuilder("common ");
@@ -606,7 +589,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 text.append("even ");
             }
 
-            doc.add(new Field("text", text.toString(), textFieldType));
+            doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
             String json = "{ \"text\" : \"" + text.toString() + "\" }";
             doc.add(new StoredField("_source", new BytesRef(json)));
 

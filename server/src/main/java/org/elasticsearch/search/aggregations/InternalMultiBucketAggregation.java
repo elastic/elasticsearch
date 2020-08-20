@@ -192,7 +192,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
                 aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
             }
-            reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
+            reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
         }
         return reducedBuckets;
     }

@@ -298,9 +298,8 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType
+            = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Collections.emptyMap());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

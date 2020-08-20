@@ -28,6 +28,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,17 +63,29 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
-    private final ExtendedBounds extendedBounds;
+    private final LongBounds extendedBounds;
+    private final LongBounds hardBounds;
 
     private final LongKeyedBucketOrds bucketOrds;
 
-    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
-            BucketOrder order, boolean keyed,
-            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
-            DocValueFormat formatter, SearchContext aggregationContext,
-            Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+    DateHistogramAggregator(
+        String name,
+        AggregatorFactories factories,
+        Rounding rounding,
+        Rounding.Prepared preparedRounding,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
         this.order = order;
@@ -79,10 +93,12 @@ class DateHistogramAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
-        this.formatter = formatter;
+        this.hardBounds = hardBounds;
+        // TODO: Stop using null here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.formatter = valuesSourceConfig.format();
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -113,12 +129,14 @@ class DateHistogramAggregator extends BucketsAggregator {
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                        if (hardBounds == null || hardBounds.contain(rounded)) {
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
                         }
                         previousRounded = rounded;
                     }
@@ -129,10 +147,10 @@ class DateHistogramAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, 
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
             (bucketValue, docCount, subAggregationResults) -> {
                 return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            }, buckets -> {
+            }, (owningBucketOrd, buckets) -> {
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 

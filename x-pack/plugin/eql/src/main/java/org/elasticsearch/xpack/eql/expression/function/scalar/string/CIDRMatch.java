@@ -40,17 +40,17 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class CIDRMatch extends ScalarFunction {
 
-    private final Expression field;
+    private final Expression input;
     private final List<Expression> addresses;
 
-    public CIDRMatch(Source source, Expression field, List<Expression> addresses) {
-        super(source, CollectionUtils.combine(singletonList(field), addresses == null ? emptyList() : addresses));
-        this.field = field;
+    public CIDRMatch(Source source, Expression input, List<Expression> addresses) {
+        super(source, CollectionUtils.combine(singletonList(input), addresses == null ? emptyList() : addresses));
+        this.input = input;
         this.addresses = addresses == null ? emptyList() : addresses;
     }
 
-    public Expression field() {
-        return field;
+    public Expression input() {
+        return input;
     }
 
     public List<Expression> addresses() {
@@ -63,15 +63,13 @@ public class CIDRMatch extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isIPAndExact(field, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isIPAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
         int index = 1;
-
         for (Expression addr : addresses) {
-
             resolution = isFoldable(addr, sourceText(), ParamOrdinal.fromIndex(index));
             if (resolution.unresolved()) {
                 break;
@@ -90,31 +88,27 @@ public class CIDRMatch extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        ArrayList<Pipe> arr = new ArrayList<>(addresses.size());
-        for (Expression address : addresses) {
-            arr.add(Expressions.pipe(address));
-        }
-        return new CIDRMatchFunctionPipe(source(), this, Expressions.pipe(field), arr);
+        return new CIDRMatchFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(addresses));
     }
 
     @Override
     public boolean foldable() {
-        return field.foldable() && Expressions.foldable(addresses);
+        return input.foldable() && Expressions.foldable(addresses);
     }
 
     @Override
     public Object fold() {
-        return doProcess(field.fold(), Expressions.fold(addresses));
+        return doProcess(input.fold(), Expressions.fold(addresses));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CIDRMatch::new, field, addresses);
+        return NodeInfo.create(this, CIDRMatch::new, input, addresses);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate leftScript = asScript(field);
+        ScriptTemplate leftScript = asScript(input);
 
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(Expressions.fold(addresses)));
         return new ScriptTemplate(

@@ -10,17 +10,19 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.SIZE;
 
 public class ParserParams {
 
     private final ZoneId zoneId;
     private String fieldEventCategory = FIELD_EVENT_CATEGORY;
     private String fieldTimestamp = FIELD_TIMESTAMP;
-    private String fieldTieBreaker = null;
-    private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
+    private String fieldTiebreaker = null;
+    private int size = SIZE;
+    private int fetchSize = FETCH_SIZE;
     private List<Object> queryParams = emptyList();
 
     public ParserParams(ZoneId zoneId) {
@@ -45,21 +47,30 @@ public class ParserParams {
         return this;
     }
 
-    public String fieldTieBreaker() {
-        return fieldTieBreaker;
+    public String fieldTiebreaker() {
+        return fieldTiebreaker;
     }
 
-    public ParserParams fieldTieBreaker(String fieldTieBreaker) {
-        this.fieldTieBreaker = fieldTieBreaker;
+    public ParserParams fieldTiebreaker(String fieldTiebreaker) {
+        this.fieldTiebreaker = fieldTiebreaker;
         return this;
     }
 
-    public String implicitJoinKey() {
-        return implicitJoinKey;
+    public int size() {
+        return size;
     }
 
-    public ParserParams implicitJoinKey(String implicitJoinKey) {
-        this.implicitJoinKey = implicitJoinKey;
+    public ParserParams size(int size) {
+        this.size = size;
+        return this;
+    }
+
+    public int fetchSize() {
+        return fetchSize;
+    }
+
+    public ParserParams fetchSize(int fetchSize) {
+        this.fetchSize = fetchSize;
         return this;
     }
 

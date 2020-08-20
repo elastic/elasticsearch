@@ -8,18 +8,18 @@ Returns search hits that match the query defined in the request.
 
 [source,console]
 ----
-GET /twitter/_search
+GET /my-index-000001/_search
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[search-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search`
+`GET /<target>/_search`
 
 `GET /_search`
 
-`POST /<index>/_search`
+`POST /<target>/_search`
 
 `POST /_search`
 
@@ -33,7 +33,13 @@ query string parameter>> or <<search-request-body,request body>>.
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [role="child_attributes"]
 [[search-search-api-query-params]]
@@ -95,13 +101,13 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
 
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
-ignored when frozen. Defaults to `false`.
+ignored when frozen. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -147,17 +153,15 @@ level settings.
 (Optional, boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
-`routing`::
-(Optional, <<time-units, time units>>) Specifies how long a consistent view of
-the index should be maintained for scrolled search.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
-By default, this value cannot must be less than `1d` (one day). You can change
+By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
@@ -181,8 +185,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -270,6 +274,35 @@ If `true`, returns document version as part of a hit. Defaults to `false`.
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
+[[search-docvalue-fields-param]]
+`docvalue_fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The request returns doc values for field names
+matching these patterns in the `hits.fields` property of the response.
++
+You can specify items in the array as a string or object.
+See <<docvalue-fields>>.
++
+.Properties of `docvalue_fields` objects
+[%collapsible]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns doc values for field names matching this
+pattern.
+
+`format`::
+(Optional, string)
+Format in which the doc values are returned.
++
+For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+`format`>>. For <<number,numeric fields>> fields, you can specify a
+https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+pattern].
++
+For other field data types, this parameter is not supported.
+====
+
 [[request-body-search-explain]]
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -289,9 +322,15 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
+
+[[search-api-min-score]]
+`min_score`::
+(Optional, float)
+Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
+lower `_score` are not included in the search results.
 
 [[request-body-search-query]]
 `query`::
@@ -318,8 +357,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -395,7 +434,7 @@ Identifier for the search and its <<scroll-search-context,search context>>.
 +
 You can use this scroll ID with the <<scroll-api,scroll API>> to retrieve the
 next batch of search results for the request. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.
@@ -528,6 +567,28 @@ Original JSON body passed for the document at index time.
 +
 You can use the `_source` parameter to exclude this property from the response
 or specify which source fields to return.
+
+`fields`::
++
+--
+(object)
+Contains field values for the documents. These fields must be specified in the
+request using one or more of the following request parameters:
+
+* <<search-docvalue-fields-param,`docvalue_fields`>>
+* <<script-fields,`script_fields`>>
+* <<stored-fields,`stored_fields`>>
+
+This property is returned only if one or more of these parameters are set.
+--
++
+.Properties of `fields`
+[%collapsible%open]
+======
+`<field>`::
+(array)
+Key is the field name. Value is the value for the field.
+======
 =====
 ====
 
@@ -535,13 +596,13 @@ or specify which source fields to return.
 ==== {api-examples-title}
 
 [[search-api-specific-ex]]
-===== Search an index using the `q` query parameter
+===== Search a single data stream or index using the `q` query parameter
 
 [source,console]
 ----
-GET /twitter/_search?q=user:kimchy
+GET /my-index-000001/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -564,14 +625,28 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "date": "2009-11-15T14:12:12",
-          "likes": 0,
-          "message": "trying out Elasticsearch",
-          "user": "kimchy"
+          "@timestamp": "2099-11-15T14:12:12",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 1070000
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "127.0.0.1"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "user": {
+            "id": "kimchy"
+          }
         }
       }
     ]
@@ -581,63 +656,64 @@ The API returns the following response:
 // TESTRESPONSE[s/"took": 5/"took": $body.took/]
 
 [[search-multi-index]]
-===== Search several indices using the `q` query parameter
+===== Search several data streams and indices using the `q` query parameter
 
 [source,console]
 ----
-GET /kimchy,elasticsearch/_search?q=user:kimchy
+GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
 
 [[search-api-all-ex]]
-===== Search all indices using the `q` query parameter
+===== Search a cluster using the `q` query parameter
 
-To search all indices in a cluster,
-omit the `<index>` parameter.
+To search all data streams and indices in a cluster,
+omit the `<target>` parameter.
 
 [source,console]
 ----
-GET /_search?q=user:kimchy
+GET /_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 Alternatively,
-you can use the `_all` or `*` value in the `<index>` parameter.
+you can use the `_all` or `*` value in the `<target>` parameter.
 
 [source,console]
 ----
-GET /_all/_search?q=user:kimchy
+GET /_all/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 [source,console]
 ----
-GET /*/_search?q=user:kimchy
+GET /*/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 [[search-request-body-api-example]]
-===== Search an index using the `query` request body parameter
+===== Search using the `query` request body parameter
 
 [source,console]
---------------------------------------------------
-GET /twitter/_search
+----
+GET /my-index-000001/_search
 {
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
---------------------------------------------------
-// TEST[setup:twitter]
+----
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "took": 1,
+  "took": 5,
   "timed_out": false,
   "_shards": {
     "total": 1,
@@ -653,18 +729,32 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "date": "2009-11-15T14:12:12",
-          "likes": 0
+          "@timestamp": "2099-11-15T14:12:12",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 1070000
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "127.0.0.1"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "user": {
+            "id": "kimchy"
+          }
         }
       }
     ]
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"took": 1/"took": $body.took/]
+----
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]

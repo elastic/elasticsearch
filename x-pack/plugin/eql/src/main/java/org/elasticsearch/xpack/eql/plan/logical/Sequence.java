@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.plan.logical;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -16,27 +17,37 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
 
 public class Sequence extends Join {
 
     private final TimeValue maxSpan;
 
-    public Sequence(Source source, List<KeyedFilter> queries, KeyedFilter until, TimeValue maxSpan, Attribute timestamp,
-                    Attribute tieBreaker) {
-        super(source, queries, until, timestamp, tieBreaker);
+    public Sequence(Source source, 
+                    List<KeyedFilter> queries, 
+                    KeyedFilter until, 
+                    TimeValue maxSpan, 
+                    Attribute timestamp,
+                    Attribute tiebreaker, 
+                    OrderDirection direction) {
+        super(source, queries, until, timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
 
-    private Sequence(Source source, List<LogicalPlan> queries, LogicalPlan until, TimeValue maxSpan, Attribute timestamp,
-                     Attribute tieBreaker) {
-        super(source, asKeyed(queries), asKeyed(until), timestamp, tieBreaker);
+    private Sequence(Source source, 
+                     List<LogicalPlan> queries, 
+                     LogicalPlan until, 
+                     TimeValue maxSpan, 
+                     Attribute timestamp,
+                     Attribute tiebreaker, 
+                     OrderDirection direction) {
+        super(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
 
     @Override
     protected NodeInfo<Sequence> info() {
-        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan, timestamp(), tieBreaker());
+        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan, timestamp(), tiebreaker(), direction());
     }
 
     @Override
@@ -45,11 +56,17 @@ public class Sequence extends Join {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tieBreaker());
+        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tiebreaker(),
+                direction());
     }
 
     public TimeValue maxSpan() {
         return maxSpan;
+    }
+
+    @Override
+    public Join with(List<KeyedFilter> queries, KeyedFilter until, OrderDirection direction) {
+        return new Sequence(source(), queries, until, maxSpan, timestamp(), tiebreaker(), direction);
     }
 
     @Override
@@ -68,6 +85,6 @@ public class Sequence extends Join {
 
     @Override
     public List<Object> nodeProperties() {
-        return singletonList(maxSpan);
+        return asList(maxSpan, direction());
     }
 }

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_node_changes]]
 === Node changes
 

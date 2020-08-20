@@ -24,17 +24,23 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
     @Override
@@ -44,13 +50,15 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class);
+        return List.of(LocalStateSearchableSnapshots.class);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        final Settings.Builder builder = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none");
         if (randomBoolean()) {
             builder.put(
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
@@ -70,5 +78,31 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
             );
         }
         return builder.build();
+    }
+
+    protected void createRepo(String fsRepoName) {
+        final Path repo = randomRepoPath();
+        assertAcked(
+            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
+        );
+    }
+
+    protected void createAndPopulateIndex(String indexName, Settings.Builder settings) throws InterruptedException {
+        assertAcked(prepareCreate(indexName, settings));
+        ensureGreen(indexName);
+        populateIndex(indexName, 100);
+    }
+
+    protected void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
+        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = between(10, maxIndexRequests); i >= 0; i--) {
+            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+        }
+        indexRandom(true, true, indexRequestBuilders);
+        refresh(indexName);
+        assertThat(
+            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
+        );
     }
 }

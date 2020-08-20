@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -29,14 +29,34 @@ public interface ExtendedStats extends Stats {
     double getSumOfSquares();
 
     /**
-     * The variance of the collected values.
+     * The population variance of the collected values.
      */
     double getVariance();
 
     /**
-     * The standard deviation of the collected values.
+     * The population variance of the collected values.
+     */
+    double getVariancePopulation();
+
+    /**
+     * The sampling variance of the collected values.
+     */
+    double getVarianceSampling();
+
+    /**
+     * The population standard deviation of the collected values.
      */
     double getStdDeviation();
+
+    /**
+     * The population standard deviation of the collected values.
+     */
+    double getStdDeviationPopulation();
+
+    /**
+     * The sampling standard deviation of the collected values.
+     */
+    double getStdDeviationSampling();
 
     /**
      * The upper or lower bounds of the stdDeviation
@@ -44,9 +64,19 @@ public interface ExtendedStats extends Stats {
     double getStdDeviationBound(Bounds bound);
 
     /**
-     * The standard deviation of the collected values as a String.
+     * The population standard deviation of the collected values as a String.
      */
     String getStdDeviationAsString();
+
+    /**
+     * The population standard deviation of the collected values as a String.
+     */
+    String getStdDeviationPopulationAsString();
+
+    /**
+     * The sampling standard deviation of the collected values as a String.
+     */
+    String getStdDeviationSamplingAsString();
 
     /**
      * The upper or lower bounds of stdDev of the collected values as a String.
@@ -60,13 +90,22 @@ public interface ExtendedStats extends Stats {
     String getSumOfSquaresAsString();
 
     /**
-     * The variance of the collected values as a String.
+     * The population variance of the collected values as a String.
      */
     String getVarianceAsString();
 
+    /**
+     * The population variance of the collected values as a String.
+     */
+    String getVariancePopulationAsString();
+
+    /**
+     * The sampling variance of the collected values as a String.
+     */
+    String getVarianceSamplingAsString();
 
     enum Bounds {
-        UPPER, LOWER
+        UPPER, LOWER, UPPER_POPULATION, LOWER_POPULATION, UPPER_SAMPLING, LOWER_SAMPLING
     }
 
 }

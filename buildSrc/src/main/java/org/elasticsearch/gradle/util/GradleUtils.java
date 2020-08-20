@@ -21,12 +21,11 @@ package org.elasticsearch.gradle.util;
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
@@ -43,9 +42,9 @@ import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 public abstract class GradleUtils {
@@ -56,28 +55,6 @@ public abstract class GradleUtils {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name);
-            action.execute(result);
-            return result;
-        });
-
-    }
-
-    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name, type);
-            action.execute(result);
-            return result;
-        });
-
     }
 
     public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
@@ -163,6 +140,15 @@ public abstract class GradleUtils {
 
         extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourceSetName);
 
+        setupIdeForTestSourceSet(project, testSourceSet);
+
+        // add to the check task
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
+
+        return testTask;
+    }
+
+    public static void setupIdeForTestSourceSet(Project project, SourceSet testSourceSet) {
         // setup IDEs
         String runtimeClasspathName = testSourceSet.getRuntimeClasspathConfigurationName();
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
@@ -178,14 +164,9 @@ public abstract class GradleUtils {
                 eclipseSourceSets.add(old);
             }
             eclipseSourceSets.add(testSourceSet);
-            eclipse.getClasspath().setSourceSets(sourceSets);
+            eclipse.getClasspath().setSourceSets(project.getExtensions().getByType(SourceSetContainer.class));
             eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
-
-        // add to the check task
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
-
-        return testTask;
     }
 
     /**
@@ -213,5 +194,15 @@ public abstract class GradleUtils {
         // tie this new test source set to the main and test source sets
         child.setCompileClasspath(project.getObjects().fileCollection().from(child.getCompileClasspath(), parent.getOutput()));
         child.setRuntimeClasspath(project.getObjects().fileCollection().from(child.getRuntimeClasspath(), parent.getOutput()));
+    }
+
+    public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
+        if (project.findProject(projectPath) == null) {
+            throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
+        }
+        Map<String, Object> depConfig = new HashMap<>();
+        depConfig.put("path", projectPath);
+        depConfig.put("configuration", projectConfig);
+        return project.getDependencies().project(depConfig);
     }
 }

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[hashing-settings]]
 ==== User cache and password hash algorithms
 

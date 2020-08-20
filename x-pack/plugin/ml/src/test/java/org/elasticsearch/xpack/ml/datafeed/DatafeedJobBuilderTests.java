@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +34,7 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -212,7 +212,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     }
 
     public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {
-        Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
         datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
@@ -224,7 +223,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 jobResultsProvider,
                 datafeedConfigProvider,
                 jobResultsPersister,
-                settings,
+                nonRemoteClusterClientNode(),
                 "test_node");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");

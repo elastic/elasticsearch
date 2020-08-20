@@ -18,13 +18,19 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
@@ -33,13 +39,22 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store");
+    }
 
     @Override
     protected GeoShapeFieldMapper.Builder newBuilder() {
@@ -74,7 +89,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType.hasDocValues(), equalTo(false));
+        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
     /**
@@ -245,10 +260,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
-        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("shape").field("type", "geo_shape")
-            .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         // verify nothing changed
         Mapper fieldMapper = docMapper.mappers().getMapper("shape");
@@ -258,7 +269,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
 
         // change mapping; orientation
-        stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("shape").field("type", "geo_shape")
             .field("orientation", "cw").endObject().endObject().endObject().endObject());
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -300,6 +311,41 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         }
     }
 
+    public void testGeoShapeArrayParsing() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject());
+
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("shape")
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(176.0).value(15.0).endArray()
+            .endObject()
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(76.0).value(-15.0).endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+        );
+
+        SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+        ParsedDocument document = mapper.parse(sourceToParse);
+        assertThat(document.docs(), hasSize(1));
+        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
+        assertThat(fields.length, equalTo(2));
+    }
+
     public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         ToXContent.Params params;
@@ -314,5 +360,38 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
 
     public String toXContentString(GeoShapeFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        GeoShapeFieldMapper mapper = new GeoShapeFieldMapper.Builder("field").build(context);
+
+        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
+            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
+        String wktPoint = "POINT (14.0 15.0)";
+
+        // Test a single shape in geojson format.
+        Object sourceValue = jsonLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in geojson format.
+        sourceValue = List.of(jsonLineString, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single shape in wkt format.
+        sourceValue = wktLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in wkt format.
+        sourceValue = List.of(wktLineString, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

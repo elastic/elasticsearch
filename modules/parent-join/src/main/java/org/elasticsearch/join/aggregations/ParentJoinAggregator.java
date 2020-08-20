@@ -33,12 +33,13 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -68,8 +69,13 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     Query outFilter,
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        /*
+         * We have to use MANY to work around
+         * https://github.com/elastic/elasticsearch/issues/59097
+         */
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +
@@ -81,8 +87,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         this.outFilter = context.searcher().createWeight(context.searcher().rewrite(outFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         this.valuesSource = valuesSource;
         boolean singleAggregator = parent == null;
-        collectionStrategy = singleAggregator ?
-                new DenseCollectionStrategy(maxOrd, context.bigArrays()) : new SparseCollectionStrategy(context.bigArrays());
+        collectionStrategy = singleAggregator && cardinality == CardinalityUpperBound.ONE
+            ? new DenseCollectionStrategy(maxOrd, context.bigArrays())
+            : new SparseCollectionStrategy(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -95,19 +102,18 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), inFilter.scorerSupplier(ctx));
         return new LeafBucketCollector() {
             @Override
-            public void collect(int docId, long bucket) throws IOException {
-                assert bucket == 0;
+            public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
                     assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
-                    collectionStrategy.addGlobalOrdinal(globalOrdinal);
+                    collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
         };
     }
 
     @Override
-    protected final void doPostCollection() throws IOException {
+    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
         IndexReader indexReader = context().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
@@ -137,11 +143,21 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 if (liveDocs != null && liveDocs.get(docId) == false) {
                     continue;
                 }
-                if (globalOrdinals.advanceExact(docId)) {
-                    int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
-                    if (collectionStrategy.existsGlobalOrdinal(globalOrdinal)) {
-                        collectBucket(sub, docId, 0);
+                if (false == globalOrdinals.advanceExact(docId)) {
+                    continue;
+                }
+                int globalOrdinal = (int) globalOrdinals.nextOrd();
+                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                /*
+                 * Check if we contain every ordinal. It's almost certainly be
+                 * faster to replay all the matching ordinals and filter them down
+                 * to just those listed in ordsToCollect, but we don't have a data
+                 * structure that maps a primitive long to a list of primitive
+                 * longs. 
+                 */
+                for (long owningBucketOrd: ordsToCollect) {
+                    if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
+                        collectBucket(sub, docId, owningBucketOrd);
                     }
                 }
             }
@@ -160,8 +176,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      * {@code ParentJoinAggregator#outFilter} also have the ordinal.
      */
     protected interface CollectionStrategy extends Releasable {
-        void addGlobalOrdinal(int globalOrdinal);
-        boolean existsGlobalOrdinal(int globalOrdinal);
+        void add(long owningBucketOrd, int globalOrdinal);
+        boolean exists(long owningBucketOrd, int globalOrdinal);
     }
 
     /**
@@ -178,12 +194,14 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         }
 
         @Override
-        public void addGlobalOrdinal(int globalOrdinal) {
+        public void add(long owningBucketOrd, int globalOrdinal) {
+            assert owningBucketOrd == 0;
             ordsBits.set(globalOrdinal);
         }
 
         @Override
-        public boolean existsGlobalOrdinal(int globalOrdinal) {
+        public boolean exists(long owningBucketOrd, int globalOrdinal) {
+            assert owningBucketOrd == 0;
             return ordsBits.get(globalOrdinal);
         }
 
@@ -200,20 +218,20 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      * when only some docs might match.
      */
     protected class SparseCollectionStrategy implements CollectionStrategy {
-        private final LongHash ordsHash;
+        private final LongKeyedBucketOrds ordsHash;
 
-        public SparseCollectionStrategy(BigArrays bigArrays) {
-            ordsHash = new LongHash(1, bigArrays);
+        public SparseCollectionStrategy(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+            ordsHash = LongKeyedBucketOrds.build(bigArrays, cardinality);
         }
 
         @Override
-        public void addGlobalOrdinal(int globalOrdinal) {
-            ordsHash.add(globalOrdinal);
+        public void add(long owningBucketOrd, int globalOrdinal) {
+            ordsHash.add(owningBucketOrd, globalOrdinal);
         }
 
         @Override
-        public boolean existsGlobalOrdinal(int globalOrdinal) {
-            return ordsHash.find(globalOrdinal) >= 0;
+        public boolean exists(long owningBucketOrd, int globalOrdinal) {
+            return ordsHash.find(owningBucketOrd, globalOrdinal) >= 0;
         }
 
         @Override

@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -1084,7 +1084,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                             .dateHistogramInterval(DateHistogramInterval.days(interval))
                             .minDocCount(0)
                                     // when explicitly specifying a format, the extended bounds should be defined by the same format
-                            .extendedBounds(new ExtendedBounds(format(boundsMin, pattern), format(boundsMax, pattern)))
+                            .extendedBounds(new LongBounds(format(boundsMin, pattern), format(boundsMax, pattern)))
                             .format(pattern))
                     .get();
 
@@ -1152,7 +1152,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .from("now/d").to("now/d").includeLower(true).includeUpper(true).timeZone(timezone.getId()))
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.hours(1))
-                                .timeZone(timezone).minDocCount(0).extendedBounds(new ExtendedBounds("now/d", "now/d+23h"))
+                                .timeZone(timezone).minDocCount(0).extendedBounds(new LongBounds("now/d", "now/d+23h"))
                 ).get();
         assertSearchResponse(response);
 
@@ -1205,7 +1205,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.days(1))
                                 .offset("+6h").minDocCount(0)
-                                .extendedBounds(new ExtendedBounds("2016-01-01T06:00:00Z", "2016-01-08T08:00:00Z"))
+                                .extendedBounds(new LongBounds("2016-01-01T06:00:00Z", "2016-01-08T08:00:00Z"))
                 ).get();
         assertSearchResponse(response);
 
@@ -1377,7 +1377,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(indexDateUnmapped)
                 .addAggregation(
                         dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("yyyy-MM")
-                                .minDocCount(0).extendedBounds(new ExtendedBounds("2018-01", "2018-01")))
+                                .minDocCount(0).extendedBounds(new LongBounds("2018-01", "2018-01")))
                 .get();
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
@@ -1433,7 +1433,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .setQuery(new MatchNoneQueryBuilder())
                 .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
                         .calendarInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
-                                new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+                                new LongBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
                 .get();
 
         Histogram histo = response.getAggregations().get("histo");
@@ -1450,7 +1450,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .setQuery(new MatchNoneQueryBuilder())
             .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
                 .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
-                    new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+                    new LongBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
             .get();
 
         histo = response.getAggregations().get("histo");
@@ -1647,4 +1647,23 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-01T00:00:00.000-07:00"));
         assertThat(buckets.get(2).getKeyAsString(), equalTo("2012-03-01T00:00:00.000-07:00"));
     }
+
+    public void testHardBoundsOnDates() {
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(dateHistogram("histo")
+                .field("date")
+                .calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2012-02-01T00:00:00.000", "2012-03-03T00:00:00.000"))
+            )
+            .get();
+
+        assertSearchResponse(response);
+
+        InternalDateHistogram histogram = response.getAggregations().get("histo");
+        List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+        assertThat(buckets.size(), equalTo(30));
+        assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-03T00:00:00.000Z"));
+        assertThat(buckets.get(29).getKeyAsString(), equalTo("2012-03-02T00:00:00.000Z"));
+    }
+
 }

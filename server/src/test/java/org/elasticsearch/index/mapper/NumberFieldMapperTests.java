@@ -22,11 +22,14 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,6 +45,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +56,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -395,6 +404,21 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         }
     }
 
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER).build(context);
+        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
+
+        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT)
+            .nullValue(2.71f)
+            .build(context);
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
+    }
+
     @Timeout(millis = 30000)
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
@@ -470,6 +494,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         String doc = "{\"number\" : 9223372036854775808}";
         IndexResponse response = client().index(new IndexRequest("test57287").source(doc, XContentType.JSON)).get();
         assertTrue(response.status() == RestStatus.CREATED);
+    }
+
+    public void testDeprecatedSimilarityParameter() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("field")
+            .field("type", "long")
+            .field("similarity", "bm25")
+            .endObject().endObject().endObject().endObject());
+
+        parser.parse("type", new CompressedXContent(mapping));
+        assertWarnings("The [similarity] parameter has no effect on field [field] and will be removed in 8.0");
     }
 
     private void parseRequest(NumberType type, BytesReference content) throws IOException {

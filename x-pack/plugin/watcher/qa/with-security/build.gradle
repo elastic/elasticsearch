@@ -1,10 +1,11 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
-  testCompile project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
+  testImplementation project(':x-pack:qa')
+  testImplementation project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
   restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
 }
 

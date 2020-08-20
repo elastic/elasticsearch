@@ -1,0 +1,186 @@
+[role="xpack"]
+[[data-streams]]
+= Data streams
+++++
+<titleabbrev>Data streams</titleabbrev>
+++++
+
+A _data stream_ is a convenient, scalable way to ingest, search, and manage
+continuously generated time-series data.
+
+Time-series data, such as logs, tends to grow over time. While storing an entire
+time series in a single {es} index is simpler, it is often more efficient and
+cost-effective to store large volumes of data across multiple, time-based
+indices. Multiple indices let you move indices containing older, less frequently
+queried data to less expensive hardware and delete indices when they're no
+longer needed, reducing overhead and storage costs.
+
+A data stream is designed to give you the best of both worlds:
+
+* The simplicity of a single named resource you can use for requests
+* The storage, scalability, and cost-saving benefits of multiple indices
+
+You can submit indexing and search requests directly to a data stream. The
+stream automatically routes the requests to a collection of hidden
+_backing indices_ that store the stream's data.
+
+You can use <<index-lifecycle-management,{ilm} ({ilm-init})>> to automate the
+management of these backing indices. {ilm-init} lets you automatically spin up
+new backing indices, allocate indices to different hardware, delete old indices,
+and take other automatic actions based on age or size criteria you set. Use data
+streams and {ilm-init} to seamlessly scale your data storage based on your
+budget, performance, resiliency, and retention needs.
+
+
+[discrete]
+[[when-to-use-data-streams]]
+== When to use data streams
+
+We recommend using data streams if you:
+
+* Use {es} to ingest, search, and manage large volumes of time-series data
+* Want to scale and reduce costs by using {ilm-init} to automate the management
+  of your indices
+* Index large volumes of time-series data in {es} but rarely delete or update
+  individual documents
+
+
+[discrete]
+[[backing-indices]]
+== Backing indices
+A data stream consists of one or more _backing indices_. Backing indices are
+<<index-hidden,hidden>>, auto-generated indices used to store a stream's
+documents.
+
+image::images/data-streams/data-streams-diagram.svg[align="center"]
+
+To create backing indices, each data stream requires a matching
+<<indices-templates,index template>>. This template acts as a blueprint for the
+stream's backing indices. It specifies:
+
+* One or more wildcard (`*`) patterns that match the name of the stream.
+
+* The mappings and settings for the stream's backing indices.
+
+* That the template is used exclusively for data streams.
+
+Every document indexed to a data stream must have a `@timestamp` field. This
+field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
+data type by the stream's index template. If the template does not specify a
+mapping, the `@timestamp` field is mapped as a `date` field  with default
+options.
+
+The same index template can be used to create multiple data streams.
+
+
+[discrete]
+[[data-streams-generation]]
+== Generation
+
+Each data stream tracks its _generation_: a six-digit, zero-padded integer
+that acts as a cumulative count of the data stream's backing indices. This count
+includes any deleted indices for the stream. The generation is incremented
+whenever a new backing index is added to the stream.
+
+When a backing index is created, the index is named using the following
+convention:
+
+[source,text]
+----
+.ds-<data-stream>-<generation>
+----
+
+For example, the `web-server-logs` data stream has a generation of `34`. The
+most recently created backing index for this data stream is named
+`.ds-web-server-logs-000034`.
+
+Because the generation increments with each new backing index, backing indices
+with a higher generation contain more recent data. Backing indices with a lower
+generation contain older data.
+
+A backing index's name can change after its creation due to a
+<<indices-shrink-index,shrink>>, <<snapshots-restore-snapshot,restore>>, or
+other operations. However, renaming a backing index does not detach it from a
+data stream.
+
+[discrete]
+[[data-stream-read-requests]]
+== Read requests
+
+When a read request is sent to a data stream, it routes the request to all its
+backing indices. For example, a search request sent to a data stream would query
+all its backing indices.
+
+image::images/data-streams/data-streams-search-request.svg[align="center"]
+
+[discrete]
+[[data-stream-write-index]]
+== Write index
+
+The most recently created backing index is the data stream’s only
+_write index_. The data stream routes all indexing requests for new documents to
+this index.
+
+image::images/data-streams/data-streams-index-request.svg[align="center"]
+
+You cannot add new documents to a stream's other backing indices, even by
+sending requests directly to the index.
+
+Because it's the only index capable of ingesting new documents, you cannot
+perform operations on a write index that might hinder indexing. These
+prohibited operations include:
+
+* <<indices-clone-index,Clone>>
+* <<indices-close,Close>>
+* <<indices-delete-index,Delete>>
+* <<freeze-index-api,Freeze>>
+* <<indices-shrink-index,Shrink>>
+* <<indices-split-index,Split>>
+
+[discrete]
+[[data-streams-rollover]]
+== Rollover
+
+When a data stream is created, one backing index is automatically created.
+Because this single index is also the most recently created backing index, it
+acts as the stream's write index.
+
+A <<indices-rollover-index,rollover>> creates a new backing index for a data
+stream. This new backing index becomes the stream's write index, replacing
+the current one, and increments the stream's generation.
+
+In most cases, we recommend using <<index-lifecycle-management,{ilm}
+({ilm-init})>> to automate rollovers for data streams. This lets you
+automatically roll over the current write index when it meets specified
+criteria, such as a maximum age or size.
+
+However, you can also use the <<indices-rollover-index,rollover API>> to
+manually perform a rollover. See <<manually-roll-over-a-data-stream>>.
+
+[discrete]
+[[data-streams-append-only]]
+== Append-only
+
+For most time-series use cases, existing data is rarely, if ever, updated.
+Because of this, data streams are designed to be append-only.
+
+You can send <<add-documents-to-a-data-stream,indexing requests for new
+documents>> directly to a data stream. However, you cannot send the update or
+deletion requests for existing documents directly to a data stream.
+
+Instead, you can use the <<docs-update-by-query,update by query>> and
+<<docs-delete-by-query,delete by query>> APIs to update or delete existing
+documents in a data stream. See <<update-docs-in-a-data-stream-by-query>> and <<delete-docs-in-a-data-stream-by-query>>.
+
+If needed, you can update or delete a document by submitting requests to the
+backing index containing the document. See
+<<update-delete-docs-in-a-backing-index>>.
+
+TIP: If you frequently update or delete existing documents,
+we recommend using an <<indices-add-alias,index alias>> and
+<<indices-templates,index template>> instead of a data stream. You can still
+use <<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.
+
+include::set-up-a-data-stream.asciidoc[]
+include::use-a-data-stream.asciidoc[]
+include::change-mappings-and-settings.asciidoc[]

@@ -39,10 +39,12 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -64,12 +66,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
-    // TODO: cache the acceptedglobalValues per aggregation definition.
-    // We can't cache this yet in ValuesSource, since ValuesSource is reused per field for aggs during the execution.
-    // If aggs with same field, but different include/exclude are defined, then the last defined one will override the
-    // first defined one.
-    // So currently for each instance of this aggregator the acceptedglobalValues will be computed, this is unnecessary
-    // especially if this agg is on a second layer or deeper.
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
@@ -95,7 +91,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         boolean remapGlobalOrds,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
@@ -108,9 +104,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
         if (remapGlobalOrds) {
-            this.collectionStrategy = new RemapGlobalOrds(collectsFromSingleBucket);
+            this.collectionStrategy = new RemapGlobalOrds(cardinality);
         } else {
-            if (false == collectsFromSingleBucket) {
+            if (cardinality == CardinalityUpperBound.MANY) {
                 throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
             }
             this.collectionStrategy = new DenseGlobalOrds();
@@ -289,7 +285,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             Map<String, Object> metadata
         ) throws IOException {
             super(name, factories, a -> a.new StandardTermsResults(), valuesSource, order, format, bucketCountThresholds, null,
-                context, parent, remapGlobalOrds, collectionMode, showTermDocCountError, true, metadata);
+                context, parent, remapGlobalOrds, collectionMode, showTermDocCountError, CardinalityUpperBound.ONE, metadata);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
@@ -472,8 +468,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private class RemapGlobalOrds extends CollectionStrategy {
         private final LongKeyedBucketOrds bucketOrds;
 
-        private RemapGlobalOrds(boolean collectsFromSingleBucket) {
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        private RemapGlobalOrds(CardinalityUpperBound cardinality) {
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         }
 
         @Override
@@ -565,7 +561,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
                 collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
                     TB spare = null;
-    
+
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
@@ -578,7 +574,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                     }
                 });
-    
+
                 // Get the top buckets
                 topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
                 for (int i = ordered.size() - 1; i >= 0; --i) {
@@ -753,14 +749,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SignificantStringTerms.Bucket,
         SignificantStringTerms.Bucket> {
 
-        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
-        private final SignificantTermsAggregatorFactory termsAggFactory;
+        private final BackgroundFrequencyForBytes backgroundFrequencies;
+        private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
         private LongArray subsetSizes = context.bigArrays().newLongArray(1, true);
 
-        SignificantTermsResults(SignificantTermsAggregatorFactory termsAggFactory, SignificanceHeuristic significanceHeuristic) {
-            this.termsAggFactory = termsAggFactory;
+        SignificantTermsResults(
+            SignificanceLookup significanceLookup,
+            SignificanceHeuristic significanceHeuristic,
+            CardinalityUpperBound cardinality
+        ) {
+            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), cardinality);
+            supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }
 
@@ -796,16 +797,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
         }
 
+        private long subsetSize(long owningBucketOrd) {
+            // if the owningBucketOrd is not in the array that means the bucket is empty so the size has to be 0
+            return owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
+        }
+
         @Override
         BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) throws IOException {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
+            long subsetSize = subsetSize(owningBucketOrd);
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
                 oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
                 spare.subsetDf = docCount;
                 spare.subsetSize = subsetSize;
-                spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
-                spare.supersetSize = termsAggFactory.getSupersetNumDocs();
+                spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
+                spare.supersetSize = supersetSize;
                 /*
                  * During shard-local down-selection we use subset/superset stats
                  * that are for this shard only. Back at the central reducer these
@@ -838,8 +844,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSizes.get(owningBucketOrd),
-                termsAggFactory.getSupersetNumDocs(),
+                subsetSize(owningBucketOrd),
+                supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)
             );
@@ -857,7 +863,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public void close() {
-            Releasables.close(termsAggFactory, subsetSizes);
+            Releasables.close(backgroundFrequencies, subsetSizes);
         }
 
         /**

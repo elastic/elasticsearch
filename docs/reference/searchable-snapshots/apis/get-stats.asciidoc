@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-api-stats]]
 === Searchable snapshot statistics API
 ++++
@@ -15,7 +15,7 @@ Retrieve various statistics about searchable snapshots.
 
 `GET /_searchable_snapshots/stats`
 
-`GET /<index>/_searchable_snapshots/stats`
+`GET /<target>/_searchable_snapshots/stats`
 
 [[searchable-snapshots-api-stats-prereqs]]
 ==== {api-prereq-title}
@@ -32,9 +32,9 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-stats-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Optional, string)
-A comma-separated list of index names for which the
+A comma-separated list of data streams and indices for which the
 statistics must be retrieved.
 
 
@@ -45,16 +45,16 @@ statistics must be retrieved.
 -----------------------------------
 PUT /docs
 {
-    "settings" : {
-        "index.number_of_shards" : 1,
-        "index.number_of_replicas" : 0
-    }
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
-    "include_global_state": false,
-    "indices": "docs"
+  "include_global_state": false,
+  "indices": "docs"
 }
 
 DELETE /docs

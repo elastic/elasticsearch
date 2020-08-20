@@ -6,15 +6,15 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
 String ephemeralOpPort
 String ephemeralProxyPort
-task setupPorts {
+tasks.register("setupPorts") {
   // Don't attempt to get ephemeral ports when Docker is not available
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
   dependsOn idpFixtureProject.postProcessFixture
@@ -24,8 +24,8 @@ task setupPorts {
   }
 }
 
-integTest.runner {
-  dependsOn setupPorts
+integTest {
+  dependsOn "setupPorts"
 }
 
 testClusters.integTest {

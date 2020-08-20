@@ -21,16 +21,20 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -203,6 +207,43 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertIndices(response1, "old_index", "new_index");
         FieldCapabilitiesResponse response2 = client().prepareFieldCaps("current", "old_index", "new_index").setFields("*").get();
         assertEquals(response1, response2);
+    }
+
+    public void testWithIndexFilter() throws InterruptedException {
+        assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
+        assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
+        indexRandom(true, reqs);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*").setFields("*").get();
+        assertIndices(response, "index-1", "index-2");
+        Map<String, FieldCapabilities> newField = response.getField("field1");
+        assertEquals(2, newField.size());
+        assertTrue(newField.containsKey("long"));
+        assertTrue(newField.containsKey("keyword"));
+
+        response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+            .get();
+        assertIndices(response, "index-2");
+        newField = response.getField("field1");
+        assertEquals(1, newField.size());
+        assertTrue(newField.containsKey("long"));
+
+        response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").lte("2017-01-01"))
+            .get();
+        assertIndices(response, "index-1");
+        newField = response.getField("field1");
+        assertEquals(1, newField.size());
+        assertTrue(newField.containsKey("keyword"));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

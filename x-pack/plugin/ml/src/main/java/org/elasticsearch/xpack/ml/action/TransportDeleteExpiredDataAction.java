@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
+import org.elasticsearch.xpack.ml.job.retention.UnusedStatsRemover;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.WrappedBatchedJobsIterator;
@@ -114,8 +115,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    List<MlDataRemover> dataRemovers,
                                    ActionListener<DeleteExpiredDataAction.Response> listener,
                                    Supplier<Boolean> isTimedOutSupplier) {
-
-
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         // If there is no throttle provided, default to none
         float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
@@ -171,7 +170,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             new ExpiredForecastsRemover(client, threadPool),
             new ExpiredModelSnapshotsRemover(client, new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool),
             new UnusedStateRemover(client, clusterService),
-            new EmptyStateIndexRemover(client));
+            new EmptyStateIndexRemover(client),
+            new UnusedStatsRemover(client));
     }
 
     private List<MlDataRemover> createDataRemovers(List<Job> jobs, AnomalyDetectionAuditor auditor) {
@@ -180,7 +180,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             new ExpiredForecastsRemover(client, threadPool),
             new ExpiredModelSnapshotsRemover(client, new VolatileCursorIterator<>(jobs), threadPool),
             new UnusedStateRemover(client, clusterService),
-            new EmptyStateIndexRemover(client));
+            new EmptyStateIndexRemover(client),
+            new UnusedStatsRemover(client));
     }
 
 }

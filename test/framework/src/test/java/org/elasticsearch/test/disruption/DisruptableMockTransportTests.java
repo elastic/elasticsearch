@@ -57,6 +57,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisruptableMockTransportTests extends ESTestCase {
 
@@ -103,7 +104,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
 
-        final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger) {
+        final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger, deterministicTaskQueue) {
             @Override
             protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                 return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
@@ -120,7 +121,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
         };
 
-        final DisruptableMockTransport transport2 = new DisruptableMockTransport(node2, logger) {
+        final DisruptableMockTransport transport2 = new DisruptableMockTransport(node2, logger, deterministicTaskQueue) {
             @Override
             protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                 return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
@@ -318,13 +319,16 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        send(service1, node2, responseHandlerShouldNotBeCalled());
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
+        send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerChannel.get());
+        assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runAllTasks();
+        assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
     public void testDisconnectedOnExceptionalResponse() throws IOException {
@@ -332,13 +336,16 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        send(service1, node2, responseHandlerShouldNotBeCalled());
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
+        send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerChannel.get());
+        assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runAllTasks();
+        assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
     public void testUnavailableOnSuccessfulResponse() throws IOException {

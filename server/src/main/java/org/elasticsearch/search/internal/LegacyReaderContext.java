@@ -104,4 +104,9 @@ public class LegacyReaderContext extends ReaderContext {
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
         this.rescoreDocIds = rescoreDocIds;
     }
+
+    @Override
+    public boolean singleSession() {
+        return scrollContext == null || scrollContext.scroll == null;
+    }
 }

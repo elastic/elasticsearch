@@ -20,9 +20,6 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -248,36 +245,36 @@ public class RBACEngine implements AuthorizationEngine {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
             authorizeIndexActionName(action, authorizationInfo, null, listener);
-        } else if (isMultiSessionsSearchRelatedRequest(request, action)) {
-            // scroll is special
-            // some APIs are indices requests that are not actually associated with indices. For example,
-            // search scroll request, is categorized under the indices context, but doesn't hold indices names
-            // (in this case, the security check on the indices was done on the search request that initialized
-            // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
-            // piggyback on it and enhance the context with the original authentication. This serves as our method
-            // to validate the scroll id only stays with the same user!
-            // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-            // indices permission as it's categorized under cluster. This is why the scroll check is performed
-            // even before checking if the user has any indices permission.
-
-            // if the action is a search scroll action, we first authorize that the user can execute the action for some
-            // index and if they cannot, we can fail the request early before we allow the execution of the action and in
-            // turn the shard actions
-            if (SearchScrollAction.NAME.equals(action) || SearchAction.NAME.equals(action)) {
-                authorizeIndexActionName(action, authorizationInfo, null, listener);
-            } else {
-                // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
-                // Scroll related actions have special security logic, where the security context of the initial search
-                // request is attached to the scroll context upon creation in {@code SecuritySearchOperationListener#onNewScrollContext}
-                // and it is then verified, before every use of the scroll, in
-                // {@code SecuritySearchOperationListener#validateSearchContext}.
-                // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
-                // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
-                // the originating search request are attached to the thread context upon validating the scroll.
-                listener.onResponse(new IndexAuthorizationResult(true, null));
-            }
         } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
-            if (isAsyncRelatedAction(action)) {
+            if (isScrollRelatedAction(action)) {
+                // scroll is special
+                // some APIs are indices requests that are not actually associated with indices. For example,
+                // search scroll request, is categorized under the indices context, but doesn't hold indices names
+                // (in this case, the security check on the indices was done on the search request that initialized
+                // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+                // piggyback on it and enhance the context with the original authentication. This serves as our method
+                // to validate the scroll id only stays with the same user!
+                // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                // indices permission as it's categorized under cluster. This is why the scroll check is performed
+                // even before checking if the user has any indices permission.
+
+                // if the action is a search scroll action, we first authorize that the user can execute the action for some
+                // index and if they cannot, we can fail the request early before we allow the execution of the action and in
+                // turn the shard actions
+                if (SearchScrollAction.NAME.equals(action)) {
+                    authorizeIndexActionName(action, authorizationInfo, null, listener);
+                } else {
+                    // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
+                    // Scroll related actions have special security logic, where the security context of the initial search
+                    // request is attached to the scroll context upon creation in {@code SecuritySearchOperationListener#onNewScrollContext}
+                    // and it is then verified, before every use of the scroll, in
+                    // {@code SecuritySearchOperationListener#validateSearchContext}.
+                    // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
+                    // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
+                    // the originating search request are attached to the thread context upon validating the scroll.
+                    listener.onResponse(new IndexAuthorizationResult(true, null));
+                }
+            } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
@@ -600,8 +597,8 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private static boolean isMultiSessionsSearchRelatedRequest(TransportRequest request, String action) {
-        final boolean scrollRequest = action.equals(SearchScrollAction.NAME) ||
+    private static boolean isScrollRelatedAction(String action) {
+        return action.equals(SearchScrollAction.NAME) ||
             action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
             action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
             action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
@@ -609,11 +606,6 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(ClearScrollAction.NAME) ||
             action.equals("indices:data/read/sql/close_cursor") ||
             action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-
-        final boolean pointInTimeRequest =
-            (request instanceof SearchRequest && ((SearchRequest) request).pointInTimeBuilder() != null) ||
-                (request instanceof ShardSearchRequest && ((ShardSearchRequest) request).readerId() != null);
-        return scrollRequest || pointInTimeRequest;
     }
 
     private static boolean isAsyncRelatedAction(String action) {

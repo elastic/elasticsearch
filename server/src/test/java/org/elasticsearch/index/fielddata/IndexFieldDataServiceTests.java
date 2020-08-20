@@ -28,8 +28,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -42,10 +44,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -56,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -99,6 +105,72 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper);
         assertTrue(fd instanceof SortedNumericIndexFieldData);
+    }
+
+    public void testGetForFieldRuntimeField() {
+        final IndexService indexService = createIndex("test");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+        {
+            MappedFieldType field = new MappedFieldType("test", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                @Override
+                public String typeName() {
+                    return "test";
+                }
+
+                @Override
+                public Query termQuery(Object value, QueryShardContext context) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Query existsQuery(QueryShardContext context) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+                    searchLookup.get();
+                    return null;
+                }
+            };
+            //we call getForField for a field that is not a runtime field, yet it requires the search lookup
+            expectThrows(UnsupportedOperationException.class, () -> ifdService.getForField(field));
+        }
+        {
+            final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
+            MappedFieldType runtimeField = new MappedFieldType("test", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                @Override
+                public String typeName() {
+                    return "runtie";
+                }
+
+                @Override
+                public boolean isRuntimeField() {
+                    return true;
+                }
+
+                @Override
+                public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+                    searchLookupSetOnce.set(searchLookup);
+                    return (cache, breakerService, mapperService) -> null;
+                }
+
+                @Override
+                public Query termQuery(Object value, QueryShardContext context) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Query existsQuery(QueryShardContext context) {
+                    throw new UnsupportedOperationException();
+                }
+            };
+            SearchLookup searchLookup = new SearchLookup(null, null);
+            ifdService.getForField(runtimeField, "qualified", () -> searchLookup);
+            assertSame(searchLookup, searchLookupSetOnce.get().get());
+        }
     }
 
     public void testClearField() throws Exception {
@@ -284,4 +356,32 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, Collections.emptyMap()));
     }
 
+    private static class RuntimeField extends MappedFieldType {
+        private final SetOnce<Supplier<SearchLookup>> searchLookup = new SetOnce<>();
+
+        RuntimeField(String name) {
+            super(name, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return "runtime";
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            this.searchLookup.set(searchLookup);
+            return super.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+        }
+    }
 }

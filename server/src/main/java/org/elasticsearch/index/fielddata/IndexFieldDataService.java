@@ -113,7 +113,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * the index name and the search lookup supplier as arguments. Does not support runtime fields.
      */
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        assert fieldType.isRuntimeField() == false;
+        assert fieldType.isRuntimeField() == false : "runtime fields are not supported";
         return getForField(fieldType, index().getName(), () ->  {
             throw new UnsupportedOperationException("SearchLookup not available");
         });

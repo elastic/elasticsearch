@@ -166,9 +166,9 @@ results for a long-running search now and get complete results later.
 To protect against hardware failure and increase search capacity, {es} can store
 copies of an index's data across multiple shards in multiple nodes. When running
 a search request, {es} first determines which nodes contains copies of an
-index's data. {es} then select an eligible node and forwards the search request
+index's data. {es} then selects an eligible node and forwards the search request
 to the node and its shard copies. This process is known as _search shard
-routing_ or _routing_.
+routing_, or _routing_.
 
 [discrete]
 [[search-adaptive-replica]]
@@ -186,9 +186,9 @@ and the node containing the index data
 Adaptive replica selection is designed to decrease search latency. However, you
 can disable adaptive replica selection by setting
 `cluster.routing.use_adaptive_replica_selection` to `false` in
-`elasticsearch.yml`or using the <<cluster-update-settings,cluster settings
-API>>. If disabled, searches are routed using a round-robin selection method,
-which may result in slower searches.
+`elasticsearch.yml` or using the <<cluster-update-settings,cluster settings
+API>>. If disabled, searches are routed to all eligible nodes using a
+round-robin selection method, which may result in slower searches.
 
 [discrete]
 [[shard-and-node-preference]]
@@ -204,7 +204,7 @@ To limit the set of eligible nodes and shards for a search request, use
 the search API's <<search-preference,`preference`>> query parameter.
 
 For example, the following request searches `my-index-000001` with a
-`preference` of `_local`. This argument restricts the search to shards on the
+`preference` of `_local`. This restricts the search to shards on the
 local node. If the local node contains no copies of the index's data, the
 request uses adaptive replica selection to pick another eligible node as a
 fallback.
@@ -223,7 +223,7 @@ GET /my-index-000001/_search?preference=_local
 // TEST[setup:my_index]
 
 You can also use the `preference` parameter to route searches to specific shards
-based on the hash of a provided string. If the cluster state and selected shards
+based on a provided string. If the cluster state and selected shards
 do not change, searches using the same `preference` string are routed to the
 same shards in the same order.
 
@@ -233,9 +233,9 @@ session ID. This string cannot start with a `_`.
 TIP: You can use this option to serve cached results for frequently-used or
 resource-intensive searches. If the shard's data doesn't change, repeated
 searches with the same `preference` string retrieve results from the same
-<<shard-request-cache,shard request cache>>. For most logging and time-series
-use cases, data in older indices is rarely updated and can be served directly
-from this cache.
+<<shard-request-cache,shard request cache>>. For time-series use cases, such as
+logs, data in older indices is rarely updated and can be served directly from
+this cache.
 
 The following request searches `my-index-000001` with a `preference` string of
 `my-custom-shard-string`.

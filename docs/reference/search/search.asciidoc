@@ -162,16 +162,9 @@ other `preference` values, but this value must come first. For example:
 `_shards:2,3|_local`
 
 <custom-string>::
-Any string that does not start with `_`. We recommend using a unique
-value, such as a user name or web session ID.
-+
-If the cluster state and selected shards do not change, searches using the same
-`<custom-string>` value are routed to the same shards in the same order.
-+
-However, if the cluster state or selected shards change, the same shards may not
-be used. This can occur for a number of reasons, including shard relocations and
-shard failures. A node can also reject a search request, which {es} would
-re-route to another node.
+Any string that does not start with `_`. If the cluster state and selected
+shards do not change, searches using the same `<custom-string>` value are routed
+to the same shards in the same order.
 ====
 
 

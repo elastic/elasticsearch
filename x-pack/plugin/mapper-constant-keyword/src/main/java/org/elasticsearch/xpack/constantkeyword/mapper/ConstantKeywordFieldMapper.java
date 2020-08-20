@@ -34,11 +34,12 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -264,19 +265,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public List<String> lookupValues(SourceLookup lookup, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
         return fieldType().value == null
-            ? List.of()
-            : List.of(fieldType().value);
-    }
-
-    @Override
-    protected Object parseSourceValue(Object value, String format) {
-        throw new UnsupportedOperationException("This should never be called, since lookupValues is implemented directly.");
+            ? lookup -> List.of()
+            : lookup -> List.of(fieldType().value);
     }
 
     @Override

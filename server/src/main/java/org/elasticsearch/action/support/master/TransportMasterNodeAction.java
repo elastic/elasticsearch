@@ -114,12 +114,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         private final ActionListener<Response> listener;
         private final Request request;
         private ClusterStateObserver observer;
+        private final long startTime;
         private final Task task;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
             this.request = request;
             this.listener = listener;
+            this.startTime = threadPool.relativeTimeInMillis();
         }
 
         protected void doStart(ClusterState clusterState) {
@@ -199,8 +201,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
-                this.observer =
-                    new ClusterStateObserver(state, clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
+                final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+                if (remainingTimeoutMS <= 0) {
+                    logger.debug(() -> new ParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
+                    listener.onFailure(new MasterNotDiscoveredException(failure));
+                    return;
+                }
+                this.observer = new ClusterStateObserver(
+                        state, clusterService, TimeValue.timeValueMillis(remainingTimeoutMS), logger, threadPool.getThreadContext());
             }
             observer.waitForNextChange(
                 new ClusterStateObserver.Listener() {

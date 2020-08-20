@@ -38,14 +38,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -489,26 +487,24 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
             .build(context);
-        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
-        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
-        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

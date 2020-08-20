@@ -241,7 +241,7 @@ Field used to sort events with the same
 Schema (ECS)].
 +
 By default, matching events in the search response are sorted by timestamp,
-converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
+converted to milliseconds since the {wikipedia}/Unix_time[Unix
 epoch], in ascending order. If two or more events share the same timestamp, this
 field is used to sort the events in ascending, lexicographic order.
 
@@ -257,7 +257,7 @@ Defaults to `@timestamp`, as defined in the
 does not contain the `@timestamp` field, this value is required.
 
 Events in the API response are sorted by this field's value, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
 The timestamp field is typically mapped as a <<date,`date`>> or
@@ -405,7 +405,7 @@ a <<eql-sequences,sequence>>.
 [%collapsible%open]
 =====
 `join_keys`::
-(array of strings)
+(array of values)
 Shared field values used to constrain matches in the sequence. These are defined
 using the <<eql-sequences,`by` keyword>> in the EQL query syntax.
 
@@ -490,9 +490,9 @@ Original JSON body passed for the event at index time.
 ===== Basic query example
 
 The following EQL search request searches for events with an `event.category` of
-`file` that meet the following conditions:
+`process` that meet the following conditions:
 
-* A `file.name` of `cmd.exe`
+* A `process.name` of `cmd.exe`
 * An `process.pid` other than `2013`
 
 [source,console]
@@ -500,7 +500,7 @@ The following EQL search request searches for events with an `event.category` of
 GET /my-index-000001/_eql/search
 {
   "query": """
-    file where (file.name == "cmd.exe" and process.pid != 2013)
+    process where (process.name == "cmd.exe" and process.pid != 2013)
   """
 }
 ----
@@ -509,7 +509,7 @@ GET /my-index-000001/_eql/search
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
-to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
+to milliseconds since the {wikipedia}/Unix_time[Unix epoch],
 in ascending order.
 
 If two or more events share the same timestamp, the
@@ -531,51 +531,37 @@ the events in ascending, lexicographic order.
     "events": [
       {
         "_index": "my-index-000001",
-        "_id": "fwGeywNsBl8Y9Ys1x51b",
+        "_id": "babI3XMBI9IjHuIqU0S_",
         "_score": null,
         "_source": {
-          "@timestamp": "2020-12-06T11:04:07.000Z",
+          "@timestamp": "2099-12-06T11:04:05.000Z",
           "event": {
-            "category": "file",
-            "id": "dGCHwoeS",
-            "sequence": 2,
-          },
-          "file": {
-            "accessed": "2020-12-07T11:07:08.000Z",
-            "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe",
-            "type": "file",
-            "size": 16384
+            "category": "process",
+            "id": "edwCRnyD",
+            "sequence": 1
           },
           "process": {
+            "pid": 2012,
             "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe",
-            "pid": 2012
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
         }
       },
       {
         "_index": "my-index-000001",
-        "_id": "AtOJ4UjUBAAx3XR5kcCM",
+        "_id": "b6bI3XMBI9IjHuIqU0S_",
         "_score": null,
         "_source": {
-          "@timestamp": "2020-12-07T11:07:08.000Z",
+          "@timestamp": "2099-12-07T11:06:07.000Z",
           "event": {
-            "category": "file",
-            "id": "bYA7gPay",
-            "sequence": 4
-          },
-          "file": {
-            "accessed": "2020-12-07T11:07:08.000Z",
-            "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe",
-            "type": "file",
-            "size": 16384
+            "category": "process",
+            "id": "cMyt5SZ2",
+            "sequence": 3
           },
           "process": {
+            "pid": 2012,
             "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe",
-            "pid": 2012
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
         }
       }
@@ -584,8 +570,8 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
-// TESTRESPONSE[s/"_id": "fwGeywNsBl8Y9Ys1x51b"/"_id": $body.hits.events.0._id/]
-// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.events.1._id/]
+// TESTRESPONSE[s/"_id": "babI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "b6bI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.1._id/]
 
 [[eql-search-api-sequence-ex]]
 ===== Sequence query example
@@ -641,55 +627,56 @@ shared `process.pid` value for each matching event.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {
             "_index": "my-index-000001",
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
             "_version": 1,
-            "_seq_no": 3,
+            "_seq_no": 1,
             "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "@timestamp": "2099-12-06T11:04:07.000Z",
               "event": {
                 "category": "file",
-                "id": "bYA7gPay",
-                "sequence": 4
+                "id": "dGCHwoeS",
+                "sequence": 2
               },
               "file": {
-                "accessed": "2020-12-07T11:07:08.000Z",
+                "accessed": "2099-12-07T11:07:08.000Z",
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe",
                 "type": "file",
                 "size": 16384
               },
-              "process": { 
+              "process": {
+                "pid": 2012,
                 "name": "cmd.exe",
-                "executable": "C:\\Windows\\System32\\cmd.exe",
-                "pid": 2012
+                "executable": "C:\\Windows\\System32\\cmd.exe"
               }
             }
           },
           {
             "_index": "my-index-000001",
-            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_id": "OQmfCaduce8zoHT93o4H",
             "_version": 1,
-            "_seq_no": 4,
+            "_seq_no": 3,
             "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
                 "category": "process",
                 "id": "aR3NWVOs",
-                "sequence": 5
+                "sequence": 4
               },
-              "process": { 
+              "process": {
+                "pid": 2012,
                 "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe",
-                "pid": 2012
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
             }
           }
@@ -701,4 +688,4 @@ shared `process.pid` value for each matching event.
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
 // TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.1._id/]

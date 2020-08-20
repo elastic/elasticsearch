@@ -604,7 +604,7 @@ Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
 information about shrinkage, see
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 

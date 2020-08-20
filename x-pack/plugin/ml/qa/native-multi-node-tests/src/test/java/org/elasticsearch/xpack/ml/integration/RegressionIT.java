@@ -14,23 +14,34 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +75,15 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(entries);
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60340")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
@@ -74,6 +94,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Regression(
                 DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -216,7 +237,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null, null, null));
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -343,7 +364,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null, null, null));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null, null, null, null));
         putAnalytics(firstJob);
 
         String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
@@ -351,7 +372,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Regression) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed, null, null));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed, null, null, null));
 
         putAnalytics(secondJob);
 
@@ -412,7 +433,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null, null, null));
+                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -435,6 +456,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Regression(
                 DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -535,6 +557,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             90.0,
             null,
             null,
+            null,
             null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(jobId)
@@ -588,6 +611,73 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analyzing",
             "Started writing results",
             "Finished analysis");
+    }
+
+    public void testWithCustomFeatureProcessors() throws Exception {
+        initialize("regression_with_custom_feature_processors");
+        String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
+        indexData(sourceIndex, 300, 50);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Regression(
+                DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                Arrays.asList(
+                    new OneHotEncoding(DISCRETE_NUMERICAL_FEATURE_FIELD,
+                        Collections.singletonMap(DISCRETE_NUMERICAL_FEATURE_VALUES.get(0).toString(), "tenner"), true)
+                ))
+        );
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        // for debugging
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+
+            assertThat(resultsObject.containsKey(predictedClassField), is(true));
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+        GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE,
+            new GetTrainedModelsAction.Request(jobId + "*", true, Collections.emptyList())).actionGet();
+        assertThat(response.getResources().results().size(), equalTo(1));
+        TrainedModelConfig modelConfig = response.getResources().results().get(0);
+        modelConfig.ensureParsedDefinition(xContentRegistry());
+        assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
+        for (int i = 0; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+            PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
+            assertThat(preProcessor.isCustom(), equalTo(i == 0));
+        }
     }
 
     private void initialize(String jobId) {

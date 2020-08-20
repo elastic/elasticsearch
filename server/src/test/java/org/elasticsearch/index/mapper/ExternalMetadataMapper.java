@@ -20,14 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 
 public class ExternalMetadataMapper extends MetadataFieldMapper {
 
@@ -36,7 +34,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     static final String FIELD_VALUE = "true";
 
     protected ExternalMetadataMapper() {
-        super(new FieldType(), new BooleanFieldMapper.BooleanFieldType(FIELD_NAME));
+        super(new BooleanFieldMapper.BooleanFieldType(FIELD_NAME));
     }
 
     @Override
@@ -47,11 +45,6 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(CONTENT_TYPE).endObject();
     }
 
     @Override
@@ -68,10 +61,15 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    public static class Builder extends MetadataFieldMapper.Builder {
 
         protected Builder() {
-            super(FIELD_NAME, new FieldType());
+            super(FIELD_NAME);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
         }
 
         @Override
@@ -81,19 +79,6 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            return new Builder();
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new ExternalMetadataMapper();
-        }
-
-    }
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new ExternalMetadataMapper(), c -> new Builder());
 
 }

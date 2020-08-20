@@ -20,7 +20,7 @@ parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
 data streams, indices, or index aliases: `test1,test2,test3`. You can also use
-https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
+{wikipedia}/Glob_(programming)[glob-like] wildcard (`*`)
 expressions to target any
 resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
 
@@ -85,19 +85,10 @@ You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
 [source,console]
-----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
-{
-  "query" : {
-    "match": {
-      "test": "data"
-    }
-  }
-}
-----------------------------------------------------------------------
-// TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20%7C%7C/]
+----
+# PUT /<my-index-{now/d}>
+PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
+----
 
 [NOTE]
 .Percent encoding of date math characters

@@ -5,7 +5,7 @@
 ++++
 
 Returns documents that contain terms matching a
-https://en.wikipedia.org/wiki/Regular_expression[regular expression].
+{wikipedia}/Regular_expression[regular expression].
 
 A regular expression is a way to match patterns in data using placeholder
 characters, called operators. For a list of operators supported by the
@@ -71,7 +71,7 @@ expression syntax>>.
 +
 --
 (Optional, integer) Maximum number of
-https://en.wikipedia.org/wiki/Deterministic_finite_automaton[automaton states]
+{wikipedia}/Deterministic_finite_automaton[automaton states]
 required for the query. Default is `10000`.
 
 {es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
@@ -87,6 +87,7 @@ regular expressions.
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+[[regexp-query-notes]]
 ==== Notes
 ===== Allow expensive queries
 Regexp queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>

@@ -73,6 +73,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasSize;
@@ -221,6 +222,37 @@ public class DataStreamIT extends ESIntegTestCase {
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
+        {
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new IndexRequest(dataStreamName).source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
+            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems(), arrayWithSize(1));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(dataStreamName, "_id"));
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems(), arrayWithSize(1));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
+            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems(), arrayWithSize(1));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+        }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON);
             Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());

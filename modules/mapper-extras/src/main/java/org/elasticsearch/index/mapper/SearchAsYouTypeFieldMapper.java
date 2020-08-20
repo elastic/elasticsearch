@@ -419,7 +419,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -465,7 +465,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -588,11 +588,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return value.toString();
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

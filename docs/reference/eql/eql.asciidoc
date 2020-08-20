@@ -8,7 +8,7 @@
 
 experimental::[]
 
-{eql-ref}/index.html[Event Query Language (EQL)] is a query language used for
+{eql-ref}/index.html[Event Query Language (EQL)] is a query language for
 event-based, time-series data, such as logs.
 
 [discrete]
@@ -32,15 +32,18 @@ makes it easy to describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 == Required fields
 
-EQL assumes each document in a data stream or index corresponds to an event. To
-search using EQL, each document in the searched data stream or index must
-include a _timestamp_ field and an _event category_ field.
+TIP: While no schema is required to use EQL in {es}, we recommend using the
+{ecs-ref}[Elastic Common Schema (ECS)]. EQL search is designed to work
+with core ECS fields by default.
 
-{es} EQL uses the `@timestamp` and `event.category` fields from the
-{ecs-ref}[Elastic Common Schema (ECS)] as the default timestamp and event
-category fields. If your searched documents use a different timestamp or event
-category field, you must specify it in the search request. See
-<<specify-a-timestamp-or-event-category-field>>.
+EQL assumes each document in a data stream or index corresponds to an event. To
+run an EQL search, each document must contain a _timestamp_ and _event category_
+field.
+
+EQL uses the `@timestamp` and `event.category` fields from the {ecs-ref}[ECS] as
+the default timestamp and event category fields. If your documents use a
+different timestamp or event category field, you must specify it in the search
+request. See <<specify-a-timestamp-or-event-category-field>>.
 
 [discrete]
 [[run-an-eql-search]]
@@ -49,15 +52,16 @@ category field, you must specify it in the search request. See
 You can use the <<eql-search-api,EQL search API>> to run an EQL search.
 
 The following request searches `my-index-000001` for events with an
-`event.category` of `process` and a `process.name` of `cmd.exe`. Each document
-in `my-index-000001` includes a `@timestamp` and `event.category` field.
+`event.category` of `process` and a `process.name` of `regsvr32.exe`. Each
+document in `my-index-000001` includes a `@timestamp` and `event.category`
+field.
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.name == "cmd.exe"
+    process where process.name == "regsvr32.exe"
   """
 }
 ----
@@ -66,7 +70,7 @@ GET /my-index-000001/_eql/search
 
 The API returns the following response. Matching events are included in the
 `hits.events` property. These events are sorted by timestamp, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
 [source,console-result]
@@ -82,21 +86,22 @@ ascending order.
       "relation": "eq"
     },
     "events": [
-       {
+      {
         "_index": "my-index-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
         "_score": null,
         "_source": {
-          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "@timestamp": "2099-12-07T11:07:09.000Z",
           "event": {
             "category": "process",
-            "id": "edwCRnyD",
-            "sequence": 1
+            "id": "aR3NWVOs",
+            "sequence": 4
           },
           "process": {
-            "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe",
-            "pid": 2012
+            "pid": 2012,
+            "name": "regsvr32.exe",
+            "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe"
           }
         }
       },
@@ -105,16 +110,17 @@ ascending order.
         "_id": "xLkCaj4EujzdNSxfYLbO",
         "_score": null,
         "_source": {
-          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "@timestamp": "2099-12-07T11:07:10.000Z",
           "event": {
             "category": "process",
-            "id": "cMyt5SZ2",
-            "sequence": 3
+            "id": "GTSmSqgz0U",
+            "sequence": 6,
+            "type": "termination"
           },
           "process": {
-            "name": "cmd.exe",
-            "executable": "C:\\Windows\\System32\\cmd.exe",
-            "pid": 2012
+            "pid": 2012,
+            "name": "regsvr32.exe",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe"
           }
         }
       }
@@ -138,14 +144,14 @@ The following EQL search request matches a sequence that:
 . Starts with an event with:
 +
 --
-* An `event.category` of `file`
-* A `file.name` of `cmd.exe`
+* An `event.category` of `process`
+* A `process.name` of `regsvr32.exe`
 --
 . Followed by an event with:
 +
 --
-* An `event.category` of `process`
-* A `process.name` that contains the substring `regsvr32`
+* An `event.category` of `file`
+* A `file.name` that contains the substring `scrobj.dll`
 --
 
 [source,console]
@@ -154,8 +160,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence
-      [ file where file.name == "cmd.exe" ]
-      [ process where stringContains(process.name, "regsvr32") ]
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
   """
 }
 ----
@@ -181,50 +187,48 @@ The API returns the following response. Matching sequences are included in the
         "events": [
           {
             "_index": "my-index-000001",
-            "_id": "AtOJ4UjUBAAx3XR5kcCM",
-            "_version" : 1,
-            "_seq_no" : 3,
-            "_primary_term" : 1,
+            "_id": "OQmfCaduce8zoHT93o4H",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
-                "category": "file",
-                "id": "bYA7gPay",
+                "category": "process",
+                "id": "aR3NWVOs",
                 "sequence": 4
               },
-              "file": {
-                "accessed": "2020-12-07T11:07:08.000Z",
-                "name": "cmd.exe",
-                "path": "C:\\Windows\\System32\\cmd.exe",
-                "type": "file",
-                "size": 16384
-              },
               "process": {
-                "name": "cmd.exe",
-                "executable": "C:\\Windows\\System32\\cmd.exe",
-                "pid": 2012
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
             }
           },
           {
             "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version" : 1,
-            "_seq_no" : 4,
-            "_primary_term" : 1,
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {
-                "category": "process",
-                "id": "aR3NWVOs",
+                "category": "file",
+                "id": "tZ1NWVOs",
                 "sequence": 5
               },
               "process": {
+                "pid": 2012,
                 "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe",
-                "pid": 2012
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
               }
             }
           }
@@ -235,7 +239,7 @@ The API returns the following response. Matching sequences are included in the
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
 You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
@@ -251,8 +255,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence with maxspan=1h
-      [ file where file.name == "cmd.exe" ]
-      [ process where stringContains(process.name, "regsvr32") ]
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
   """
 }
 ----
@@ -270,8 +274,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence with maxspan=1h
-      [ file where file.name == "cmd.exe" ] by process.pid
-      [ process where stringContains(process.name, "regsvr32") ] by process.pid
+      [ process where process.name == "regsvr32.exe" ] by process.pid
+      [ file where stringContains(file.name, "scrobj.dll") ] by process.pid
   """
 }
 ----
@@ -287,8 +291,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
-      [ file where file.name == "cmd.exe" ]
-      [ process where stringContains(process.name, "regsvr32") ]
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
   """
 }
 ----
@@ -312,34 +316,28 @@ contains the shared `process.pid` value for each matching event.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {
             "_index": "my-index-000001",
-            "_id": "AtOJ4UjUBAAx3XR5kcCM",
+            "_id": "OQmfCaduce8zoHT93o4H",
             "_version": 1,
             "_seq_no": 3,
             "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
-                "category": "file",
-                "id": "bYA7gPay",
+                "category": "process",
+                "id": "aR3NWVOs",
                 "sequence": 4
               },
-              "file": {
-                "accessed": "2020-12-07T11:07:08.000Z",
-                "name": "cmd.exe",
-                "path": "C:\\Windows\\System32\\cmd.exe",
-                "type": "file",
-                "size": 16384
-              },
               "process": {
-                "name": "cmd.exe",
-                "executable": "C:\\Windows\\System32\\cmd.exe",
-                "pid": 2012
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
             }
           },
@@ -351,16 +349,20 @@ contains the shared `process.pid` value for each matching event.
             "_primary_term": 1,
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {
-                "category": "process",
-                "id": "aR3NWVOs",
+                "category": "file",
+                "id": "tZ1NWVOs",
                 "sequence": 5
               },
               "process": {
+                "pid": 2012,
                 "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe",
-                "pid": 2012
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
               }
             }
           }
@@ -371,7 +373,7 @@ contains the shared `process.pid` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
 You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
@@ -387,8 +389,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
-      [ file where file.name == "cmd.exe" ]
-      [ process where stringContains(process.name, "regsvr32") ]
+      [ process where process.name == "regsvr32.exe" ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
     until [ process where event.type == "termination" ]
   """
 }
@@ -399,10 +401,12 @@ GET /my-index-000001/_eql/search
 [[specify-a-timestamp-or-event-category-field]]
 === Specify a timestamp or event category field
 
-By default, the EQL search API uses `@timestamp` and `event.category` as the
-required timestamp and event category fields. If your searched documents use
-a different timestamp or event category field, you must specify it in the search
-request using the `timestamp_field` or `event_category_field` parameters.
+To run an EQL search, each searched document must contain a timestamp and event
+category field. The EQL search API uses the `@timestamp` and `event.category`
+fields from the {ecs-ref}[Elastic Common Schema (ECS)] by default. If your
+documents use a different timestamp or event category field, you must specify it
+in the search request using the `timestamp_field` or `event_category_field`
+parameters.
 
 The event category field is typically mapped as a <<keyword,`keyword`>> or
 <<constant-keyword,constant keyword>> field. The timestamp field is typically
@@ -712,3 +716,4 @@ You can also manually delete saved synchronous searches using the
 include::syntax.asciidoc[]
 include::functions.asciidoc[]
 include::pipes.asciidoc[]
+include::detect-threats-with-eql.asciidoc[]

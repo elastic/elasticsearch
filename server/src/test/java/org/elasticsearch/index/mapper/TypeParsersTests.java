@@ -184,15 +184,18 @@ public class TypeParsersTests extends ESTestCase {
             .endObject()
         .endObject();
 
-        Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
+        Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
         // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
         Map<String, Object> fieldNode = XContentHelper.convertToMap(
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, olderVersion, null, null);
+            null, mapperService, type -> typeParser, olderVersion, null, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -207,7 +210,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, version, null, null);
+            null, mapperService, type -> typeParser, version, null, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TypeParsers.parseField(builder, "some-field", fieldNodeCopy, context));
@@ -232,45 +235,40 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testParseMeta() {
-        FieldMapper.Builder<?> builder = new KeywordFieldMapper.Builder("foo");
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null, null);
-
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", 3));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                    () -> TypeParsers.parseMeta("foo", 3));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("veryloooooooooooongkey", 3L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                    () -> TypeParsers.parseMeta("foo", Map.of("veryloooooooooooongkey", 3L)));
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
                     e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of(
-                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L)));
+            Map<String, Object> mapping = Map.of(
+                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L);
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", mapping));
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
                     e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", Map.of("bar", "baz"))));
+            Map<String, Object> mapping = Map.of("foo", Map.of("bar", "baz"));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", mapping));
             assertEquals("[meta] values can only be strings, but got Map1[{bar=baz}] for field [foo]",
                     e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("bar", "baz", "foo", 3)));
+            Map<String, Object> mapping = Map.of("bar", "baz", "foo", 3);
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", mapping));
             assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
                     e.getMessage());
         }
@@ -278,9 +276,8 @@ public class TypeParsersTests extends ESTestCase {
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", meta));
             assertEquals("[meta] values can't be null (field [foo])",
                     e.getMessage());
         }
@@ -289,9 +286,9 @@ public class TypeParsersTests extends ESTestCase {
             String longString = IntStream.range(0, 51)
                     .mapToObj(Integer::toString)
                     .collect(Collectors.joining());
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", longString)));
+            Map<String, Object> mapping = Map.of("foo", longString);
             MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+                () -> TypeParsers.parseMeta("foo", mapping));
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
         }
     }

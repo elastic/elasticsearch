@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
@@ -42,7 +41,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -515,19 +513,17 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
             new String[] {"Hello", "World"});
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         Map<String, Object> sourceValue = Map.of("key", "value");
         FlatObjectFieldMapper mapper = new FlatObjectFieldMapper.Builder("field").build(context);
-        assertEquals(sourceValue, mapper.parseSourceValue(sourceValue, null));
+        assertEquals(List.of(sourceValue), fetchSourceValue(mapper, sourceValue));
 
         FlatObjectFieldMapper nullValueMapper = new FlatObjectFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

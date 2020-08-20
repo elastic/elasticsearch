@@ -105,7 +105,7 @@ public class IndicesModule extends AbstractModule {
 
         // builtin mappers
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
+            mappers.put(type.typeName(), type.parser());
         }
         for (RangeType type : RangeType.values()) {
             mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));

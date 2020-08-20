@@ -78,3 +78,103 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 `prediction_field_type`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+
+
+[[inference-bucket-agg-example]]
+==== Example 
+
+The following snippet aggregates a web log by `client_ip` and extracts a number 
+of features via metric and bucket sub-aggregations as input to the {infer} 
+aggregation configured with a model trained to identify suspicious client IPs:
+
+[source,console]
+-------------------------------------------------
+GET kibana_sample_data_logs/_search
+{
+  "size": 0,
+  "aggs": {
+    "client_ip": { <1>
+      "composite": {
+        "sources": [
+          {
+            "client_ip": {
+              "terms": {
+                "field": "clientip"
+              }
+            }
+          }
+        ]
+      },
+      "aggs": { <2>
+        "url_dc": {
+          "cardinality": {
+            "field": "url.keyword"
+          }
+        },
+        "bytes_sum": {
+          "sum": {
+            "field": "bytes"
+          }
+        },
+        "geo_src_dc": {
+          "cardinality": {
+            "field": "geo.src"
+          }
+        },
+        "geo_dest_dc": {
+          "cardinality": {
+            "field": "geo.dest"
+          }
+        },
+        "responses_total": {
+          "value_count": {
+            "field": "timestamp"
+          }
+        },
+        "success": {
+          "filter": {
+            "term": {
+              "response": "200"
+            }
+          }
+        },
+        "error404": {
+          "filter": {
+            "term": {
+              "response": "404"
+            }
+          }
+        },
+        "error503": {
+          "filter": {
+            "term": {
+              "response": "503"
+            }
+          }
+        },
+        "malicious_client_ip": { <3>
+          "inference": {
+            "model_id": "malicious_clients_model",
+            "buckets_path": {
+              "response_count": "responses_total",
+              "url_dc": "url_dc",
+              "bytes_sum": "bytes_sum",
+              "geo_src_dc": "geo_src_dc",
+              "geo_dest_dc": "geo_dest_dc",
+              "success": "success._count",
+              "error404": "error404._count",
+              "error503": "error503._count"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> A composite bucket aggregation that aggregates the data by `client_ip`.
+<2> A series of metrics and bucket sub-aggregations.
+<3> {infer-cap} bucket aggregation that contains the model ID and maps the 
+aggregation names to the model's input fields.

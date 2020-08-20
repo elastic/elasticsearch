@@ -316,7 +316,7 @@ contains the shared `process.pid` value for each matching event.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {

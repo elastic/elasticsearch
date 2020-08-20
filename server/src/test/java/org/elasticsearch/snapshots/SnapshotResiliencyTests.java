@@ -776,8 +776,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         if (partialSnapshot) {
+            assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
             // Single shard for each index so we either get all indices or all except for the deleted index
             assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
             if (snapshotInfo.successfulShards() == indices + 1) {
@@ -787,6 +787,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 assertEquals(indexMetadata.getIndex(), firstIndex.get());
             }
         } else {
+            assertEquals(snapshotInfo.state(), SnapshotState.SUCCESS);
             // Index delete must be blocked for non-partial snapshots and we get a snapshot for every index
             assertEquals(snapshotInfo.successfulShards(), indices + 1);
         }

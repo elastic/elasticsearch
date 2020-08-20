@@ -34,6 +34,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -328,4 +332,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         xContentBuilder.endObject();
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return requests.stream()
+                    .map(SearchRequest::buildDescription)
+                    .collect(Collectors.joining(action + "[", ",", "]"));
+            }
+
+            @Override
+            public boolean shouldCancelChildrenOnCancellation() {
+                return true;
+            }
+        };
+    }
 }

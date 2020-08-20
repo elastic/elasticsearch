@@ -327,7 +327,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runAllTasks();
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
@@ -344,7 +344,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runAllTasks();
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 

@@ -205,12 +205,9 @@ public abstract class DisruptableMockTransport extends MockTransport {
                                 break;
 
                             case BLACK_HOLE:
-                                logger.trace("blackholed during response to {}: channel is {}", requestDescription, connectionStatus);
-                                onBlackholedDuringSend(requestId, action, destinationTransport);
-                                break;
                             case DISCONNECTED:
-                                logger.trace("disconnected during response to {}: channel is {}", requestDescription, connectionStatus);
-                                onDisconnectedDuringSend(requestId, action, destinationTransport);
+                                logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
+                                onBlackholedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:
@@ -239,14 +236,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
                                 break;
 
                             case BLACK_HOLE:
-                                logger.trace("blackholed during exception response to {}: channel is {}",
+                            case DISCONNECTED:
+                                logger.trace("delaying exception response to {}: channel is {}",
                                         requestDescription, connectionStatus);
                                 onBlackholedDuringSend(requestId, action, destinationTransport);
-                                break;
-                            case DISCONNECTED:
-                                logger.trace("disconnected during exception response to {}: channel is {}",
-                                        requestDescription, connectionStatus);
-                                onDisconnectedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:

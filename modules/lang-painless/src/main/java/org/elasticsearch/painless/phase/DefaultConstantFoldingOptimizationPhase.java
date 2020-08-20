@@ -571,7 +571,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                     if (operation == Operation.NE) {
                         irLeftConstantNode.setConstant(irLeftConstantNode.getConstant().equals(irRightConstantNode.getConstant()) == false);
                     } else {
-                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant() == irRightConstantNode.getConstant());
+                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant() != irRightConstantNode.getConstant());
                     }
                 }
 

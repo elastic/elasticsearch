@@ -22,8 +22,8 @@ package org.elasticsearch.http;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -88,33 +88,39 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         });
 
         // now try without `allow_system_index_access`
-        assertAccessBlocked(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        assertDeprecationWarningOnAccess(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // And with a partial wildcard
-        assertAccessBlocked(".test-*");
+        assertDeprecationWarningOnAccess(".test-*", SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // And with a total wildcard
-        assertAccessBlocked(randomFrom("*", "_all"));
+        assertDeprecationWarningOnAccess(randomFrom("*", "_all"), SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // Try to index a doc directly
         {
+            String expectedWarning = "this request accesses system indices: [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "], but in a " +
+                "future major version, direct access to system indices will be prevented by default";
+            RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(expectedWarning::equals).build();
             Request putDocDirectlyRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_doc/43");
             putDocDirectlyRequest.setJsonEntity("{\"some_field\":  \"some_other_value\"}");
-            ResponseException exception = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest(putDocDirectlyRequest));
-            logger.info("{}", entityAsMap(exception.getResponse()));
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            putDocDirectlyRequest.setOptions(expectWarningOptions);
+            Response response = getRestClient().performRequest(putDocDirectlyRequest);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
     }
 
-    private void assertAccessBlocked(String s) {
-        Request searchRequest = new Request("GET", "/" + s + randomFrom("/_count", "/_search"));
+    private void assertDeprecationWarningOnAccess(String queryPattern, String warningIndexName) throws IOException {
+        String expectedWarning = "this request accesses system indices: [" + warningIndexName + "], but in a " +
+            "future major version, direct access to system indices will be prevented by default";
+        RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(expectedWarning::equals).build();
+        Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices (as we expect)
         searchRequest.addParameter("allow_no_indices", "false");
+        searchRequest.setOptions(expectWarningOptions);
 
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchRequest));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        Response response = getRestClient().performRequest(searchRequest);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

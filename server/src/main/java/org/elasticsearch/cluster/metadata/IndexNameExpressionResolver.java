@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -62,6 +63,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class IndexNameExpressionResolver {
+    public static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
@@ -296,13 +298,22 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
+        if (context.isSystemIndexAccessAllowed() == false) {
+            final List<String> resolvedSystemIndices = concreteIndices.stream()
+                .map(metadata::index)
+                .filter(IndexMetadata::isSystem)
+                .map(i -> i.getIndex().getName())
+                .sorted() // reliable order for testing
+                .collect(Collectors.toList());
+            if (resolvedSystemIndices.isEmpty() == false) {
+                deprecationLogger.deprecate("open_system_index_access", "this request accesses system indices: {}, but in a future" +
+                    " major version, direct access to system indices will be prevented by default", resolvedSystemIndices);
+            }
+        }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
-        if (context.isSystemIndexAccessAllowed() == false && index.isSystem()) {
-            return false;
-        }
 
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
@@ -752,6 +763,9 @@ public class IndexNameExpressionResolver {
             return preserveDataStreams;
         }
 
+        /**
+         * Used to determine if it is allowed to access system indices in this context (e.g. for this request).
+         */
         public boolean isSystemIndexAccessAllowed() {
             return isSystemIndexAccessAllowed;
         }
@@ -850,8 +864,6 @@ public class IndexNameExpressionResolver {
                             throw aliasesNotSupportedException(expression);
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                             context.includeDataStreams() == false) {
-                            throw indexNotFoundException(expression);
-                        } else if (indexAbstraction.isSystem() && context.isSystemIndexAccessAllowed() == false) {
                             throw indexNotFoundException(expression);
                         }
                     }
@@ -986,9 +998,6 @@ public class IndexNameExpressionResolver {
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
                 String aliasOrIndexName = entry.getKey();
                 IndexAbstraction indexAbstraction = entry.getValue();
-                if (context.isSystemIndexAccessAllowed() == false && indexAbstraction.isSystem()) {
-                    continue;
-                }
 
                 if (indexAbstraction.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

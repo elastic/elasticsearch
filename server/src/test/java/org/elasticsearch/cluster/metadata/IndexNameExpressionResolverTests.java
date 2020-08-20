@@ -1902,7 +1902,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .stream(indexNameExpressionResolver.concreteIndices(state, request))
                 .map(i -> i.getName())
                 .collect(Collectors.toList());
-            assertThat(indexNames, empty());
+            assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
+            assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, direct access " +
+                "to system indices will be prevented by default");
         }
 
         // Wilcard that might match a single index
@@ -1913,7 +1915,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .stream(indexNameExpressionResolver.concreteIndices(state, request))
                 .map(i -> i.getName())
                 .collect(Collectors.toList());
-            assertThat(indexNames, empty());
+            assertThat(indexNames, containsInAnyOrder(".watches"));
+            assertWarnings("this request accesses system indices: [.watches], but in a future major version, direct access " +
+                "to system indices will be prevented by default");
         }
 
         // A specific index name
@@ -1924,7 +1928,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .stream(indexNameExpressionResolver.concreteIndices(state, request))
                 .map(i -> i.getName())
                 .collect(Collectors.toList());
-            assertThat(indexNames, empty());
+            assertThat(indexNames, containsInAnyOrder(".ml-meta"));
+            assertWarnings("this request accesses system indices: [.ml-meta], but in a future major version, direct access " +
+                "to system indices will be prevented by default");
         }
 
         // Full wildcard
@@ -1935,7 +1941,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .stream(indexNameExpressionResolver.concreteIndices(state, request))
                 .map(i -> i.getName())
                 .collect(Collectors.toList());
-            assertThat(indexNames, containsInAnyOrder("some-other-index"));
+            assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
+            assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff, .watches], but in a future major version, direct " +
+                "access to system indices will be prevented by default");
         }
     }
 

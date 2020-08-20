@@ -36,7 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.shard.IndexCreationListener;
+import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
@@ -45,7 +45,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.IndexLifecyclePlugin;
+import org.elasticsearch.plugins.IndexSettingsProviderPlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -98,7 +98,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class XPackPlugin extends XPackClientPlugin
-    implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin, IndexLifecyclePlugin {
+    implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin, IndexSettingsProviderPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
@@ -383,8 +383,8 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<IndexCreationListener> getIndexCreationListeners() {
-        return Collections.singleton(new DataTier.DefaultHotAllocationListener());
+    public Collection<ExplicitIndexSettingProvider> getExplicitSettingProviders() {
+        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 
     /**

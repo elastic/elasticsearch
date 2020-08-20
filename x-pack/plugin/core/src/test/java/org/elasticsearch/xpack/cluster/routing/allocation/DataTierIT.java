@@ -7,8 +7,11 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -73,7 +76,7 @@ public class DataTierIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
-    public void testNullDefaultAllocation() {
+    public void testRequestSettingOverridesAllocation() {
         startWarmNode();
         startColdNode();
         ensureGreen();
@@ -88,6 +91,25 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
         // Even the key shouldn't exist if it has been nulled out
         assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
+
+        // index should be yellow
+        logger.info("--> waiting for {} to be yellow", index);
+        ensureYellow(index);
+
+        client().admin().indices().prepareDelete(index).get();
+
+        // Now test it overriding the "require" setting, in which case the include should be skipped
+        client().admin().indices().prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(Settings.builder()
+                .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
+            .get();
+
+        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
+        // The key should not be put in place since it was overridden
+        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -130,6 +152,41 @@ public class DataTierIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.blocks.read_only", false))
             .get();
+    }
+
+    public void testTemplateOverridesDefaults() {
+        startWarmNode();
+
+        Template t = new Template(Settings.builder()
+            .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
+            .build(), null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null);
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+
+        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
+
+        // index should be yellow
+        ensureYellow(index);
+
+        client().admin().indices().prepareDelete(index).get();
+
+        t = new Template(Settings.builder()
+            .putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)
+            .build(), null, null);
+        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null);
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+
+        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+
+        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
+
+        ensureYellow(index);
     }
 
     public void startHotNode() {

@@ -17,20 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.index.shard;
 
-import org.elasticsearch.index.shard.IndexCreationListener;
+import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 /**
- * An {@code IndexLifecyclePlugin} is a plugin that allows hooking in to parts of an index
- * lifecycle before settings are initialized, allowing modification of these settings for newly
- * created indices.
+ * An {@link ExplicitIndexSettingProvider} is a provider for index level settings that can be set
+ * explicitly as a default value (so they show up as "set" for newly created indices)
  */
-public interface IndexLifecyclePlugin {
-    default Collection<IndexCreationListener> getIndexCreationListeners() {
-        return Collections.emptyList();
+public interface ExplicitIndexSettingProvider {
+    /**
+     * Returns a map of explicitly set default index settings for the given index.
+     */
+    default Map<String, String> getExplicitIndexSettings(String indexName, Settings templateAndRequestSettings) {
+        return Collections.emptyMap();
     }
 }

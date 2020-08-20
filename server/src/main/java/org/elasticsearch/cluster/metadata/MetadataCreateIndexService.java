@@ -68,7 +68,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.IndexCreationListener;
+import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -129,7 +129,7 @@ public class MetadataCreateIndexService {
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
-    private final Set<IndexCreationListener> indexCreationListeners = new HashSet<>();
+    private final Set<ExplicitIndexSettingProvider> explicitIndexSettingProviders = new HashSet<>();
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -159,17 +159,16 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Add a listener to be invoked when a new index is created, prior to finalizing the new
-     * index's settings.
+     * Add a provider to be invoked to get explicit index settings prior to an index being created
      */
-    public void addIndexCreationListener(IndexCreationListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
+    public void addExplicitIndexSettingProvider(ExplicitIndexSettingProvider provider) {
+        if (provider == null) {
+            throw new IllegalArgumentException("provider must not be null");
         }
-        if (indexCreationListeners.contains(listener)) {
-            throw new IllegalArgumentException("listener already added");
+        if (explicitIndexSettingProviders.contains(provider)) {
+            throw new IllegalArgumentException("provider already added");
         }
-        this.indexCreationListeners.add(listener);
+        this.explicitIndexSettingProviders.add(provider);
     }
 
     /**
@@ -481,7 +480,7 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
+                null, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -507,7 +506,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
+                null, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -553,7 +552,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexCreationListeners);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -612,15 +611,65 @@ public class MetadataCreateIndexService {
      * @return the aggregated settings for the new index
      */
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
-                                           Settings templateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
+                                           Settings combinedTemplateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
-                                           Set<IndexCreationListener> indexCreationListeners) {
-        Settings.Builder indexSettingsBuilder = Settings.builder();
+                                           Set<ExplicitIndexSettingProvider> explicitIndexSettingProviders) {
+        // Create builders for the template and request settings. We transform these into builders
+        // because we may want settings to be "removed" from these prior to being set on the new
+        // index (see more comments below)
+        final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
+        final Settings.Builder requestSettings = Settings.builder().put(request.settings());
+
+        final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            indexSettingsBuilder.put(templateSettings);
+            final Map<String, String> explicitDefaultSettings = new HashMap<>();
+            final Settings templateAndRequestSettings = Settings.builder()
+                .put(combinedTemplateSettings)
+                .put(request.settings())
+                .build();
+
+            // Loop through all the explicit index setting providers, adding them to the
+            // explicitDefaultSettings map
+            for (ExplicitIndexSettingProvider listener : explicitIndexSettingProviders) {
+                try {
+                    listener.getExplicitIndexSettings(request.index(), templateAndRequestSettings).forEach(explicitDefaultSettings::put);
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("failed invoking explicit setting provider for creation of [{}] index",
+                        request.index()), e);
+                }
+            }
+
+            // For all the explicit settings, we go through the template and request level settings
+            // and see if either a template or the request has "cancelled out" an explicit default
+            // setting. For example, if a plugin had as an explicit setting:
+            // "index.mysetting": "blah
+            // And either a template or create index request had:
+            // "index.mysetting": null
+            // We want to remove the explicit setting not only from the explicitly set settings, but
+            // also from the template and request settings, so that from the newly create index's
+            // perspective it is as though the setting has not been set at all (using the default
+            // value).
+            for (String explicitSetting : explicitDefaultSettings.keySet()) {
+                if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
+                    explicitDefaultSettings.remove(explicitSetting);
+                    templateSettings.remove(explicitSetting);
+                }
+                if (requestSettings.keys().contains(explicitSetting) && requestSettings.get(explicitSetting) == null) {
+                    explicitDefaultSettings.remove(explicitSetting);
+                    requestSettings.remove(explicitSetting);
+                }
+            }
+
+            // Finally, we actually add the explicit defaults prior to the template settings and the
+            // request settings, so that the precedence goes:
+            // Explicit Defaults -> Template -> Request -> Necessary Settings (# of shards, uuid, etc)
+            explicitDefaultSettings.forEach(indexSettingsBuilder::put);
+            indexSettingsBuilder.put(templateSettings.build());
         }
+
         // now, put the request settings, so they override templates
-        indexSettingsBuilder.put(request.settings());
+        indexSettingsBuilder.put(requestSettings.build());
+
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
             final DiscoveryNodes nodes = currentState.nodes();
             final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
@@ -652,18 +701,6 @@ public class MetadataCreateIndexService {
                 request.resizeType(),
                 request.copySettings(),
                 indexScopedSettings);
-        } else {
-            // The index creation listeners are only invoked if we are not recovering from an
-            // existing source metadata, as we don't want a shrunk (or other) index's settings to
-            // be inconsistent. They should always inherit the settings from its originator.
-            for (IndexCreationListener listener : indexCreationListeners) {
-                try {
-                    listener.beforeIndexCreated(request.index(), indexSettingsBuilder);
-                } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("failed invoking index creation listener for creation of [{}] index",
-                        request.index()), e);
-                }
-            }
         }
 
         Settings indexSettings = indexSettingsBuilder.build();

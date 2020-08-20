@@ -17,19 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
+
+import java.util.Collection;
+import java.util.Collections;
 
 /**
- * An {@code IndexCreationListener} is a callback called prior to the final creation of a new
- * index's settings
+ * An {@link IndexSettingsProviderPlugin} is a plugin that allows hooking in to parts of an index
+ * lifecycle to provide explicit default settings for newly created indices. Rather than changing
+ * the default values for an index-level setting, these act as though the setting has been set
+ * explicitly, but still allow the setting to be overridden by a template or creation request body.
  */
-public interface IndexCreationListener {
-    /**
-     * Method called prior to the index settings being created. The settings may be changed using
-     * the builder if desired. This handler is only called for new indexes if they are *not*
-     * inheriting an existing index's metadata (for example, indices created from a shrink request)
-     */
-    default void beforeIndexCreated(String indexName, Settings.Builder indexSettings) { }
+public interface IndexSettingsProviderPlugin {
+    default Collection<ExplicitIndexSettingProvider> getExplicitSettingProviders() {
+        return Collections.emptyList();
+    }
 }

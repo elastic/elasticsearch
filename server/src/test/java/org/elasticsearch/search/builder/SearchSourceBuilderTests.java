@@ -20,7 +20,6 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -107,9 +106,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testShallowCopy() {
-        SearchSourceBuilder original = createSearchSourceBuilder();
-        SearchSourceBuilder copy = original.shallowCopy();
-        assertEquals(original, copy);
+        for (int i = 0; i < 10; i++) {
+            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder copy = original.shallowCopy();
+            assertEquals(original, copy);
+        }
     }
 
     public void testEqualsAndHashcode() throws IOException {

@@ -249,6 +249,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
 
     @Override
     protected boolean supportsMeta() {
-        return true;
+        return false;
     }
 }

@@ -307,11 +307,16 @@ public class MetadataUpdateSettingsService {
             final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
                 if (updateBlock) {
-                    blocks.addIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(index, block) == false) {
+                        blocks.addIndexBlock(index, block);
+                        changed = true;
+                    }
                 } else {
-                    blocks.removeIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(index, block)) {
+                        blocks.removeIndexBlock(index, block);
+                        changed = true;
+                    }
                 }
-                changed = true;
             }
         }
         return changed;

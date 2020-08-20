@@ -694,17 +694,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)));
-        client().admin().cluster().prepareHealth()
-            .setWaitForNoInitializingShards(true)
-            .setWaitForEvents(Priority.LANGUID)
-            .setTimeout(TimeValue.MAX_VALUE)
-            .get();
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
 
         ClusterState currentState = clusterService.state();
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
         assertNotSame(currentState, clusterService.state());
+        client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus()
+            .setWaitForNoInitializingShards(true)
+            .setWaitForEvents(Priority.LANGUID)
+            .setTimeout(TimeValue.MAX_VALUE)
+            .get();
         currentState = clusterService.state();
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
@@ -717,6 +718,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Settings.builder()
+                .putNull(SETTING_BLOCKS_READ)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
                 .put(SETTING_BLOCKS_READ, true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
         assertNotSame(currentState, clusterService.state());
@@ -724,6 +731,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(SETTING_BLOCKS_READ, true)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(SETTING_BLOCKS_READ)));
         assertNotSame(currentState, clusterService.state());
     }
+
 }

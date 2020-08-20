@@ -18,7 +18,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
-import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -66,8 +65,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testUnlicensed() {
-        try (ReaderContext readerContext =
-                 new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        try (LegacyReaderContext readerContext =
+                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(false);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -77,7 +78,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
             SecuritySearchOperationListener listener =
                 new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-            listener.onNewReaderContext(readerContext);
+            listener.onNewScrollContext(readerContext);
             listener.validateSearchContext(readerContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isSecurityEnabled();
             verifyZeroInteractions(auditTrailService, searchContext);
@@ -85,8 +86,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testOnNewContextSetsAuthentication() throws Exception {
-        try (ReaderContext readerContext =
-                 new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        try (LegacyReaderContext readerContext =
+                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -99,7 +102,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
             SecuritySearchOperationListener listener =
                 new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
-            listener.onNewReaderContext(readerContext);
+            listener.onNewScrollContext(readerContext);
 
             Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
             assertEquals(authentication, contextAuth);

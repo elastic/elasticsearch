@@ -197,10 +197,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         final User user;
         if (randomBoolean()) {
             user = new User(
-                new User("hulk", new String[]{"superuser"}, "hulk", "hulk@test.com", Map.of(), true),
+                new User("hulk", new String[]{"superuser"}, "Bruce Banner", "hulk@test.com", Map.of(), true),
                 new User("authenticated_user", new String[]{"other"}));
         } else {
-            user = new User("hulk", new String[]{"superuser"}, "hulk", "hulk@test.com", Map.of(), true);
+            user = new User("hulk", new String[]{"superuser"}, "Bruce Banner", "hulk@test.com", Map.of(), true);
         }
         mockKeyDocument(service, id, key, user);
 
@@ -208,7 +208,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth.getUser(), notNullValue());
         assertThat(auth.getUser().principal(), is("hulk"));
-        assertThat(auth.getUser().fullName(), is("hulk"));
+        assertThat(auth.getUser().fullName(), is("Bruce Banner"));
         assertThat(auth.getUser().email(), is("hulk@test.com"));
         assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE), is("native"));

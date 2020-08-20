@@ -133,8 +133,8 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
 `preference`::
 (Optional, string)
 Nodes and shards used for the search. By default, {es} selects from eligible
-shards using <<search-adaptive-replica,adaptive replica selection>>, accounting
-for <<shard-allocation-awareness,allocation awareness>>.
+nodes and shard using <<search-adaptive-replica,adaptive replica selection>>,
+accounting for <<shard-allocation-awareness,allocation awareness>>.
 +
 .Valid values for `preference`
 [%collapsible%open]

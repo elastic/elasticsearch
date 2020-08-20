@@ -64,6 +64,14 @@ public class EndsWith extends CaseSensitiveScalarFunction {
         return isStringAndExact(pattern, sourceText(), ParamOrdinal.SECOND);
     }
 
+    public Expression input() {
+        return input;
+    }
+
+    public Expression pattern() {
+        return pattern;
+    }
+
     @Override
     protected Pipe makePipe() {
         return new EndsWithFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern), isCaseSensitive());

@@ -109,6 +109,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     @Override
+    protected void init(PersistentTasksService persistentTasksService,
+                        TaskManager taskManager,
+                        String persistentTaskId,
+                        long allocationId) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+    }
+
+    @Override
     protected void onCancelled() {
         stop(getReasonCancelled(), StopDataFrameAnalyticsAction.DEFAULT_TIMEOUT);
         markAsCompleted();
@@ -378,17 +386,5 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
         }
         return StartingState.RESUMING_ANALYZING;
-    }
-
-
-
-    @Override
-    protected void init(
-        PersistentTasksService persistentTasksService,
-        TaskManager taskManager,
-        String persistentTaskId,
-        long allocationId
-    ) {
-        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 }

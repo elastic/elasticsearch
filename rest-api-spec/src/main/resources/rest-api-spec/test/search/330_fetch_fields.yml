@@ -218,6 +218,10 @@ setup:
 
 ---
 "Test search rewrite":
+  - skip:
+      version: " - 7.99.99"
+      reason: "the corresponding bug fix isn't yet backported"
+
   - do:
       indices.create:
         index:  test

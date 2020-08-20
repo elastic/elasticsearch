@@ -12,9 +12,9 @@ or if an index mapping contains a large number of fields.
 
 [source,console]
 ----
-GET /twitter/_mapping/field/user
+GET /my-index-000001/_mapping/field/user
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[get-field-mapping-api-request]]
@@ -216,14 +216,14 @@ retrieve mappings for all fields in the targeted data streams or indices.
 However, the `<field>` parameter does not support the `_all` value.
 
 For example, the following request retrieves mappings for the `message` field in
-any data stream or index named `twitter` or `kimchy`.
+any data stream or index named `my-index-000001` or `my-index-000002`.
 
 [source,console]
 ----
-GET /twitter,kimchy/_mapping/field/message
+GET /my-index-000001,my-index-000002/_mapping/field/message
 ----
-// TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
 
 The following request retrieves mappings for the `message` and `user.id` fields
 in any data stream or index in the cluster.
@@ -232,7 +232,7 @@ in any data stream or index in the cluster.
 ----
 GET /_all/_mapping/field/message
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The following request retrieves mappings for fields with an `id` property in any
 data stream or index in the cluster.
@@ -241,4 +241,4 @@ data stream or index in the cluster.
 ----
 GET /_all/_mapping/field/*.id
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]

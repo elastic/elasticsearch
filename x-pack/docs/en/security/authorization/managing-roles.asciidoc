@@ -35,7 +35,7 @@ A role is defined by the following JSON structure:
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 1024 characters. They can
       contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces,
-      punctuation, and printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
+      punctuation, and printable symbols in the {wikipedia}/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
       Leading or trailing whitespace is not allowed.
 
 [[roles-indices-priv]]
@@ -190,14 +190,14 @@ custom roles providers.  If you need to integrate with another system to retriev
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-authorization>>.
 
-[float]
+[discrete]
 [[roles-management-ui]]
 === Role management UI
 
 You can manage users and roles easily in {kib}. To
 manage roles, log in to {kib} and go to *Management / Security / Roles*. 
 
-[float]
+[discrete]
 [[roles-management-api]]
 === Role management API
 
@@ -206,7 +206,7 @@ dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
 see <<security-role-apis>>. 
 
-[float]
+[discrete]
 [[roles-management-file]]
 === File-based role management
 

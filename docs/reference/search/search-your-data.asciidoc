@@ -1,0 +1,245 @@
+[[search-your-data]]
+= Search your data
+
+[[search-query]]
+A _search query_, or _query_, is a request for information about data in 
+{es} data streams or indices.
+
+You can think of a query as a question, written in a way {es} understands.
+Depending on your data, you can use a query to get answers to questions like:
+
+* What processes on my server take longer than 500 milliseconds to respond?
+* What users on my network ran `regsvr32.exe` within the last week?
+* What pages on my website contain a specific word or phrase?
+
+A _search_ consists of one or more queries that are combined and sent to {es}.
+Documents that match a search's queries are returned in the _hits_, or
+_search results_, of the response.
+
+A search may also contain additional information used to better process its
+queries. For example, a search may be limited to a specific index or only return
+a specific number of results.
+
+[discrete]
+[[run-an-es-search]]
+== Run a search
+
+You can use the <<search-search,search API>> to search data stored in
+{es} data streams or indices.
+
+The API can run two types of searches, depending on how you provide
+queries:
+
+<<run-uri-search,URI searches>>::
+  Queries are provided through a query parameter. URI searches tend to be
+  simpler and best suited for testing.
+
+<<run-request-body-search,Request body searches>>::
+  Queries are provided through the JSON body of the API request. These queries
+  are written in <<query-dsl,Query DSL>>. We recommend using request body
+  searches in most production use cases.
+
+[WARNING]
+====
+If you specify a query in both the URI and request body, the search API request
+runs only the URI query.
+====
+
+[discrete]
+[[run-uri-search]]
+=== Run a URI search
+
+You can use the search API's <<search-api-query-params-q,`q` query string
+parameter>> to run a search in the request's URI. The `q` parameter only accepts
+queries written in Lucene's <<query-string-syntax,query string syntax>>.
+
+The following URI search matches documents with a `user.id` value of `kimchy`.
+
+[source,console]
+----
+GET /my-index-000001/_search?q=user.id:kimchy
+----
+// TEST[setup:my_index]
+
+The API returns the following response.
+
+By default, the `hits.hits` property returns the top 10 documents matching the
+query. To retrieve more documents, see <<paginate-search-results>>.
+
+The response sorts documents in `hits.hits` by `_score`, a
+<<relevance-scores,relevance score>> that measures how well each document
+matches the query.
+
+The `hit.hits` property also includes the <<mapping-source-field,`_source`>> for
+each matching document. To retrieve only a subset of the `_source` or other
+fields, see <<search-fields>>.
+
+[source,console-result]
+----
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.3862942,
+    "hits": [
+      {
+        "_index": "my-index-000001",
+        "_id": "kxWFcnMByiguvud1Z8vC",
+        "_score": 1.3862942,
+        "_source": {
+          "@timestamp": "2099-11-15T14:12:12",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "bytes": 1070000,
+              "status_code": 200
+            },
+            "version": "1.1"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "source": {
+            "ip": "127.0.0.1"
+          },
+          "user": {
+            "id": "kimchy"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 5/"took": "$body.took"/]
+// TESTRESPONSE[s/"_id": "kxWFcnMByiguvud1Z8vC"/"_id": "$body.hits.hits.0._id"/]
+
+[discrete]
+[[run-request-body-search]]
+=== Run a request body search
+
+You can use the search API's <<request-body-search-query,`query` request
+body parameter>> to provide a query as a JSON object, written in
+<<query-dsl,Query DSL>>.
+
+The following request body search uses the <<query-dsl-match-query,`match`>>
+query to match documents with a `user.id` value of `kimchy`.
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+[discrete]
+[[search-multiple-indices]]
+=== Search multiple data streams and indices
+
+To search multiple data streams and indices, add them as comma-separated values
+in the search API request path.
+
+The following request searches the `my-index-000001` and `my-index-000002`
+indices.
+
+[source,console]
+----
+GET /my-index-000001,my-index-000002/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
+
+You can also search multiple data streams and indices using a wildcard (`*`)
+pattern.
+
+The following request targets the wildcard pattern `my-index-*`. The request
+searches any data streams or indices in the cluster that start with `my-index-`.
+
+[source,console]
+----
+GET /my-index-*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+To search all data streams and indices in a cluster, omit the target from the
+request path. Alternatively, you can use `_all` or `*`.
+
+The following requests are equivalent and search all data streams and indices in the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+
+GET /_all/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+
+GET /*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+include::request/index-boost.asciidoc[]
+include::request/preference.asciidoc[]
+include::request/search-type.asciidoc[]
+include::request/track-total-hits.asciidoc[]
+include::quickly-check-for-matching-docs.asciidoc[]
+
+include::request/collapse.asciidoc[]
+include::filter-search-results.asciidoc[]
+include::request/highlighting.asciidoc[]
+include::{es-repo-dir}/async-search.asciidoc[]
+include::{es-repo-dir}/search/near-real-time.asciidoc[]
+include::paginate-search-results.asciidoc[]
+include::request/inner-hits.asciidoc[]
+include::search-fields.asciidoc[]
+include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]
+include::request/sort.asciidoc[]

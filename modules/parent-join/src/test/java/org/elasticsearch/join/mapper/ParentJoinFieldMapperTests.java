@@ -400,9 +400,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject());
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
+            MapperParsingException exc = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice."));
+            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined more than once"));
         }
 
         {
@@ -426,9 +426,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject());
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
+            MapperParsingException exc = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge("type",
                 new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice."));
+            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined more than once"));
         }
     }
 

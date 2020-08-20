@@ -370,7 +370,7 @@ Chi square behaves like mutual information and can be configured with the same p
 
 
 ===== Google normalized distance
-Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (https://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 
 [source,js]
 --------------------------------------------------

@@ -87,8 +87,19 @@ public class MapInitializationNode extends ExpressionNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitMapInitialization(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitMapInitialization(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode keyNode : keyNodes) {
+            keyNode.visit(irTreeVisitor, scope);
+        }
+
+        for (ExpressionNode valueNode : valueNodes) {
+            valueNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

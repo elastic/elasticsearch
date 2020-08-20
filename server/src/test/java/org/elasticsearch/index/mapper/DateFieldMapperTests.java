@@ -21,14 +21,18 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
@@ -42,7 +46,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -167,9 +175,10 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]");
         testIgnoreMalfomedForValue("-2147483648",
                 "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
+        testIgnoreMalfomedForValue("-522000000", "long overflow");
     }
 
-    private void testIgnoreMalfomedForValue(String value, String expectedException) throws IOException {
+    private void testIgnoreMalfomedForValue(String value, String expectedCause) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject());
@@ -185,7 +194,9 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString(expectedException));
+        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [date]"));
+        assertThat(e.getMessage(), containsString("Preview of field's value: '" + value + "'"));
+        assertThat(e.getCause().getMessage(), containsString(expectedCause));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
@@ -446,4 +457,65 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
+    public void testFetchSourceValue() {
+        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, null);
+        String date = "2020-05-15T21:33:02.000Z";
+        assertEquals(List.of(date), fetchSourceValue(mapper, date));
+        assertEquals(List.of(date), fetchSourceValue(mapper, 1589578382000L));
+
+        DateFieldMapper mapperWithFormat = createMapper(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis");
+        String dateInFormat = "1990/12/29";
+        assertEquals(List.of(dateInFormat), fetchSourceValue(mapperWithFormat, dateInFormat));
+        assertEquals(List.of(dateInFormat), fetchSourceValue(mapperWithFormat, 662428800000L));
+
+        DateFieldMapper mapperWithMillis = createMapper(Resolution.MILLISECONDS, "epoch_millis");
+        String dateInMillis = "662428800000";
+        assertEquals(List.of(dateInMillis), fetchSourceValue(mapperWithMillis, dateInMillis));
+        assertEquals(List.of(dateInMillis), fetchSourceValue(mapperWithMillis, 662428800000L));
+
+        String nullValueDate = "2020-05-15T21:33:02.000Z";
+        DateFieldMapper nullValueMapper = createMapper(Resolution.MILLISECONDS, null, nullValueDate);
+        assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testParseSourceValueWithFormat() {
+        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
+        String date = "1990-12-29T00:00:00.000Z";
+        assertEquals(List.of("1990/12/29"), fetchSourceValue(mapper, date, "yyyy/MM/dd"));
+        assertEquals(List.of("662428800000"), fetchSourceValue(mapper, date, "epoch_millis"));
+        assertEquals(List.of("1970/12/29"), fetchSourceValue(mapper, null, "yyyy/MM/dd"));
+    }
+
+    public void testParseSourceValueNanos() {
+        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals(List.of("2020-05-15T21:33:02.123456789Z"), fetchSourceValue(mapper, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchSourceValue(mapper, 1589578382123L));
+
+        String nullValueDate = "2020-05-15T21:33:02.123456789Z";
+        DateFieldMapper nullValueMapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
+        assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    }
+
+    private DateFieldMapper createMapper(Resolution resolution, String format) {
+        return createMapper(resolution, format, null);
+    }
+
+    private DateFieldMapper createMapper(Resolution resolution, String format, String nullValue) {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("type", "date_nanos");
+        if (format != null) {
+            mapping.put("format", format);
+        }
+        if (nullValue != null) {
+            mapping.put("null_value", nullValue);
+        }
+
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("field", resolution, null, false);
+        builder.parse("field", null, mapping);
+        return builder.build(context);
+    }
 }

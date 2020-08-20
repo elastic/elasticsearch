@@ -33,9 +33,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,7 +54,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
@@ -293,4 +300,19 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
     }
 
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
+        assertEquals(List.of(true), fetchSourceValue(mapper, true));
+        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
+        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
+
+        Map<String, Object> mapping = Map.of("type", "boolean", "null_value", true);
+        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
+        builder.parse("field", null, new HashMap<>(mapping));
+        BooleanFieldMapper nullValueMapper = builder.build(context);
+        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
+    }
 }

@@ -2,7 +2,7 @@
 [[ilm-unfollow]]
 === Unfollow
 
-Phases allowed: hot, warm, cold.
+Phases allowed: hot, warm, cold, frozen.
 
 Converts a {ref}/ccr-apis.html[{ccr-init}] follower index into a regular index. 
 This enables the shrink, rollover, and searchable snapshot actions

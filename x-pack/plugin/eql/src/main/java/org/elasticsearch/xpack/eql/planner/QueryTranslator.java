@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.LinkedHashSet;
@@ -38,9 +42,7 @@ final class QueryTranslator {
             new ExpressionTranslators.Nots(),
             new ExpressionTranslators.Likes(),
             new ExpressionTranslators.InComparisons(),
-            new ExpressionTranslators.StringQueries(),
-            new ExpressionTranslators.Matches(),
-            new ExpressionTranslators.MultiMatches(),
+            new CaseSensitiveScalarFunctions(),
             new Scalars()
     );
 
@@ -110,6 +112,41 @@ final class QueryTranslator {
             }
 
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+        }
+    }
+
+    public static class CaseSensitiveScalarFunctions extends ExpressionTranslator<CaseSensitiveScalarFunction> {
+
+        @Override
+        protected Query asQuery(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            return f.isCaseSensitive() ? doTranslate(f, handler) : null;
+        }
+
+        public static Query doTranslate(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            Expression field = null;
+            Expression constant = null;
+
+            if (f instanceof StringContains) {
+                StringContains sc = (StringContains) f;
+                field = sc.string();
+                constant = sc.substring();
+            } else if (f instanceof EndsWith) {
+                EndsWith ew = (EndsWith) f;
+                field = ew.input();
+                constant = ew.pattern();
+            } else {
+                return null;
+            }
+
+            if (field instanceof FieldAttribute && constant.foldable()) {
+                String targetFieldName = handler.nameOf(((FieldAttribute) field).exactAttribute());
+                String substring = (String) constant.fold();
+                String query = "*" + substring + (f instanceof StringContains ? "*" : "");
+
+                return new WildcardQuery(f.source(), targetFieldName, query);
+            }
+
+            return null;
         }
     }
 }

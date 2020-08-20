@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -144,13 +142,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
-
-        RequestBuilder(ElasticsearchClient client, StartDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class TaskParams implements PersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
@@ -193,16 +184,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                progressOnStart = in.readList(PhaseProgress::new);
-            } else {
-                progressOnStart = Collections.emptyList();
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                allowLazyStart = in.readBoolean();
-            } else {
-                allowLazyStart = false;
-            }
+            progressOnStart = in.readList(PhaseProgress::new);
+            allowLazyStart = in.readBoolean();
         }
 
         public String getId() {
@@ -231,12 +214,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeList(progressOnStart);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeBoolean(allowLazyStart);
-            }
+            out.writeList(progressOnStart);
+            out.writeBoolean(allowLazyStart);
         }
 
         @Override

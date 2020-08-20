@@ -12,7 +12,7 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -21,25 +21,37 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The fields the datafeed has to extract
+ * The fields the data[feed|frame] has to extract
  */
 public class ExtractedFields {
 
     private final List<ExtractedField> allFields;
     private final List<ExtractedField> docValueFields;
+    private final List<ProcessedField> processedFields;
     private final String[] sourceFields;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    public ExtractedFields(List<ExtractedField> allFields, Map<String, Long> cardinalitiesForFieldsWithConstraints) {
-        this.allFields = Collections.unmodifiableList(allFields);
+    public ExtractedFields(List<ExtractedField> allFields,
+                           List<ProcessedField> processedFields,
+                           Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+        this.allFields = new ArrayList<>(allFields);
         this.docValueFields = filterFields(ExtractedField.Method.DOC_VALUE, allFields);
         this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
             .toArray(String[]::new);
         this.cardinalitiesForFieldsWithConstraints = Collections.unmodifiableMap(cardinalitiesForFieldsWithConstraints);
+        this.processedFields = processedFields == null ? Collections.emptyList() : processedFields;
+    }
+
+    public List<ProcessedField> getProcessedFields() {
+        return processedFields;
     }
 
     public List<ExtractedField> getAllFields() {
         return allFields;
+    }
+
+    public Set<String> getProcessedFieldInputs() {
+        return processedFields.stream().map(ProcessedField::getInputFieldNames).flatMap(List::stream).collect(Collectors.toSet());
     }
 
     public String[] getSourceFields() {
@@ -58,11 +70,15 @@ public class ExtractedFields {
         return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }
 
-    public static ExtractedFields build(Collection<String> allFields, Set<String> scriptFields,
+    public static ExtractedFields build(Set<String> allFields,
+                                        Set<String> scriptFields,
                                         FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+                                        List<ProcessedField> processedFields) {
         ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
-        return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()),
+        return new ExtractedFields(
+            allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
+            processedFields,
             cardinalitiesForFieldsWithConstraints);
     }
 

@@ -10,12 +10,12 @@ to a limited number of nodes in that remote cluster. There are two modes for
 remote cluster connections: <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>.
 
-All the communication required between different clusters
-goes through the <<modules-transport,transport layer>>. Remote cluster
-connections consist of uni-directional connections from the coordinating
-node to the remote remote connections.
+Communication with a remote cluster uses the <<modules-transport,transport
+layer>> to establish a number of <<long-lived-connections,long-lived>> TCP
+connections from the coordinating nodes of the local cluster to the chosen
+nodes in the remote cluster.
 
-[float]
+[discrete]
 [[sniff-mode]]
 === Sniff mode
 
@@ -27,7 +27,7 @@ are accessible by the local cluster.
 
 Sniff mode is the default connection mode.
 
-[float]
+[discrete]
 [[gateway-nodes-selection]]
 ==== Gateway nodes selection
 
@@ -46,14 +46,15 @@ communicate with 6.7. The matrix below summarizes compatibility as described abo
 // tag::remote-cluster-compatibility-matrix[]
 [cols="^,^,^,^,^,^,^,^"]
 |====
-| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
-| 5.0->5.5      |    Yes   | Yes |    No    | No  | No  | No  |    No
-| 5.6           |    Yes   | Yes |    Yes   | Yes | Yes | No  |    No
-| 6.0->6.6      |    No    | Yes |    Yes   | Yes | Yes | No  |    No
-| 6.7           |    No    | Yes |    Yes   | Yes | Yes | Yes |    No
-| 6.8           |    No    | Yes |    Yes   | Yes | Yes | Yes |    Yes
-| 7.0           |    No    | No  |    No    | Yes | Yes | Yes |    Yes
-| 7.1->7.x      |    No    | No  |    No    | No  | Yes | Yes |    Yes
+| 7+^h| Local cluster
+h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
+| 5.0->5.5      | {yes-icon} | {yes-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon} | {no-icon}
+| 5.6           | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
+| 6.0->6.6      | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
+| 6.7           | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 6.8           | {no-icon} | {yes-icon} |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 7.0           | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
 |====
 // end::remote-cluster-compatibility-matrix[]
 
@@ -62,7 +63,7 @@ communicate with 6.7. The matrix below summarizes compatibility as described abo
 (see <<remote-cluster-settings>>), though such tagged nodes still have
 to satisfy the two above requirements.
 
-[float]
+[discrete]
 [[proxy-mode]]
 === Proxy mode
 
@@ -77,7 +78,7 @@ to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
 
-[float]
+[discrete]
 [[configuring-remote-clusters]]
 ==== Configuring remote clusters
 
@@ -229,7 +230,7 @@ PUT _cluster/settings
 <1> `cluster_two` would be removed from the cluster settings, leaving
 `cluster_one` and `cluster_three` intact.
 
-[float]
+[discrete]
 [[remote-cluster-settings]]
 === Remote cluster settings for all modes
 
@@ -279,7 +280,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
 
-[float]
+[discrete]
 [[remote-cluster-sniff-settings]]
 === Remote cluster settings for sniff mode
 
@@ -299,7 +300,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   `node.attr.gateway: true` such that only nodes with this attribute will be
   connected to if `cluster.remote.node.attr` is set to `gateway`.
 
-[float]
+[discrete]
 [[remote-cluster-proxy-settings]]
 === Remote cluster settings for proxy mode
 
@@ -321,7 +322,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   remote connections if this field is not a valid hostname as defined by the
   TLS SNI specification.
 
-[float]
+[discrete]
 [[retrieve-remote-clusters-info]]
 === Retrieving remote clusters info
 

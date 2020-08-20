@@ -49,7 +49,9 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -83,6 +85,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -1008,9 +1011,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
                 .endObject().endObject()
                 .endObject().endObject());
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            MapperParsingException e = expectThrows(MapperParsingException.class, () ->
                 indexService.mapperService().merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE));
-            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice."));
+            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined more than once"));
 
         }
 
@@ -1330,5 +1333,17 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        FieldMapper fieldMapper = newBuilder().build(context);
+        TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
+
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
     }
 }

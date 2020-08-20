@@ -125,7 +125,7 @@ configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
 }
-task testJar(type: Jar) {
+def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }
@@ -136,15 +136,17 @@ artifacts {
   testArtifacts testJar
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  //commons-logging provided dependencies
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          //commons-logging optional dependencies
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          //commons-logging provided dependencies
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener'
+  )
+}
 
 restResources {
   restApi {
@@ -160,5 +162,5 @@ testClusters.yamlRestTest {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
 
-testingConventions.enabled = false
+tasks.named("testingConventions").configure { enabled = false }
 

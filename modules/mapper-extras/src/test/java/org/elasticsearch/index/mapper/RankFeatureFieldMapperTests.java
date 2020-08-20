@@ -23,9 +23,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -36,6 +39,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeatureFieldMapper.Builder> {
@@ -186,4 +190,12 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
                 e.getCause().getMessage());
     }
 
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
+
+        assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
+    }
 }

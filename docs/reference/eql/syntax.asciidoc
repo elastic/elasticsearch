@@ -8,10 +8,7 @@
 
 experimental::[]
 
-[IMPORTANT]
-====
-{es} supports a subset of EQL syntax. See <<eql-limitations>>.
-====
+[IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>.
 
 [discrete]
 [[eql-basic-syntax]]
@@ -683,3 +680,43 @@ You can pass the output of a pipe to another pipe. This lets you use multiple
 pipes with a single query.
 
 For a list of supported pipes, see <<eql-pipe-ref>>.
+
+[discrete]
+[[eql-syntax-limitations]]
+=== Limitations
+
+{es} EQL does not support the following features and syntax.
+
+[discrete]
+[[eql-nested-fields]]
+==== EQL search on nested fields
+
+You cannot use EQL to search the values of a <<nested,`nested`>> field or the
+sub-fields of a `nested` field. However, data streams and indices containing
+`nested` field mappings are otherwise supported.
+
+[discrete]
+[[eql-unsupported-syntax]]
+==== Unsupported syntax
+
+{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
+queries that contain:
+
+* Array functions:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+
+* {eql-ref}/joins.html[Joins]
+
+* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+** `child of`
+** `descendant of`
+** `event of`
+
+* The following {eql-ref}/pipes.html[pipes]:
+** {eql-ref}/pipes.html#count[`count`]
+** {eql-ref}/pipes.html#filter[`filter`]
+** {eql-ref}/pipes.html#sort[`sort`]
+** {eql-ref}/pipes.html#unique[`unique`]
+** {eql-ref}/pipes.html#unique-count[`unique_count`]

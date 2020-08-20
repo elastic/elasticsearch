@@ -34,9 +34,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -214,10 +213,11 @@ public class TypeParsers {
                         value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
-        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
-        final Function<Object, String> stringCast = String.class::cast;
-        return meta.entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast)));
+        Map<String, String> sortedMeta = new TreeMap<>();
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            sortedMeta.put(entry.getKey(), (String) entry.getValue());
+        }
+        return Collections.unmodifiableMap(sortedMeta);
     }
 
 

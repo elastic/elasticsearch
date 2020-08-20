@@ -1,5 +1,9 @@
 [[json-processor]]
-=== JSON Processor
+=== JSON processor
+++++
+<titleabbrev>JSON</titleabbrev>
+++++
+
 Converts a JSON string into a structured JSON object.
 
 [[json-options]]

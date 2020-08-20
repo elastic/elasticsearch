@@ -65,8 +65,10 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -772,6 +774,28 @@ public class WildcardFieldMapperTests extends ESTestCase {
         assertTrue("[" + result.toString() + "]should match [" + randomValue + "]" + substitutionPoint + "-" + substitutionLength + "/"
                 + randomValue.length(), bytesMatcher.run(br.bytes, br.offset, br.length));
         return result.toString();
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        WildcardFieldMapper mapper = new WildcardFieldMapper.Builder("field").build(context);
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
+
+        WildcardFieldMapper ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
+
+        WildcardFieldMapper nullValueMapper = new WildcardFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 
     protected MappedFieldType provideMappedFieldType(String name) {

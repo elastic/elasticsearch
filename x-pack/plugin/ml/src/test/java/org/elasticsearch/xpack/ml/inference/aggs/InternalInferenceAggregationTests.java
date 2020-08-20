@@ -67,7 +67,9 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
                 randomResults.getClassificationLabel(),
                 randomResults.getTopClasses(),
                 randomResults.getFeatureImportance(),
-                new ClassificationConfig(null, "value", null, null, randomResults.getPredictionFieldType())
+                new ClassificationConfig(null, "value", null, null, randomResults.getPredictionFieldType()),
+                randomResults.getPredictionProbability(),
+                randomResults.getPredictionScore()
             );
         } else if (randomBoolean()) {
             // build a random result with the result field set to `value`

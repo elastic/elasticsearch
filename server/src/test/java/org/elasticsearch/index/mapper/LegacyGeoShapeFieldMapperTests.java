@@ -25,6 +25,8 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
@@ -47,6 +51,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
@@ -838,5 +844,39 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
 
     public String toXContentString(LegacyGeoShapeFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        LegacyGeoShapeFieldMapper mapper = new LegacyGeoShapeFieldMapper.Builder("field").build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+
+        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
+            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
+        String wktPoint = "POINT (14.0 15.0)";
+
+        // Test a single shape in geojson format.
+        Object sourceValue = jsonLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in geojson format.
+        sourceValue = List.of(jsonLineString, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single shape in wkt format.
+        sourceValue = wktLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in wkt format.
+        sourceValue = List.of(wktLineString, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

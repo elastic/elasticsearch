@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-variablewidthhistogram-aggregation]]
 === Variable Width Histogram Aggregation
 
-experimental::["We're evaluating the request and response format for this new aggregation.",https://github.com/elastic/elasticsearch/issues/58573]
+experimental::["This functionality is experimental and may be changed or removed completely in a future release. Elastic will take a best effort approach to fix any issues, but experimental features are not subject to the support SLA of official GA features. We're evaluating the request and response format for this new aggregation.",https://github.com/elastic/elasticsearch/issues/58573]
 
 This is a multi-bucket aggregation similar to <<search-aggregations-bucket-histogram-aggregation>>.
 However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals
@@ -67,7 +67,7 @@ from all the existing ones. At most `shard_size` total buckets are created.
 
 In the reduce step, the coordinating node sorts the buckets from all shards by their centroids. Then, the two buckets
 with the nearest centroids are repeatedly merged until the target number of buckets is achieved.
-This merging procedure is a form of https://en.wikipedia.org/wiki/Hierarchical_clustering[agglomerative hierarchical clustering].
+This merging procedure is a form of {wikipedia}/Hierarchical_clustering[agglomerative hierarchical clustering].
 
 TIP: A shard can return fewer than `shard_size` buckets, but it cannot return more.
 

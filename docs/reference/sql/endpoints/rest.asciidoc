@@ -15,7 +15,7 @@
 === Overview
 
 The SQL REST API accepts SQL in a JSON document, executes it,
-and returns the results. 
+and returns the results.
 For example:
 
 [source,console]
@@ -76,7 +76,7 @@ s|Description
 
 |csv
 |text/csv
-|https://en.wikipedia.org/wiki/Comma-separated_values[Comma-separated values]
+|{wikipedia}/Comma-separated_values[Comma-separated values]
 
 |json
 |application/json
@@ -84,7 +84,7 @@ s|Description
 
 |tsv
 |text/tab-separated-values
-|https://en.wikipedia.org/wiki/Tab-separated_values[Tab-separated values]
+|{wikipedia}/Tab-separated_values[Tab-separated values]
 
 |txt
 |text/plain
@@ -92,19 +92,23 @@ s|Description
 
 |yaml
 |application/yaml
-|https://en.wikipedia.org/wiki/YAML[YAML] (YAML Ain't Markup Language) human-readable format
+|{wikipedia}/YAML[YAML] (YAML Ain't Markup Language) human-readable format
 
 3+h| Binary Formats
 
 |cbor
 |application/cbor
-|http://cbor.io/[Concise Binary Object Representation]
+|https://cbor.io/[Concise Binary Object Representation]
 
 |smile
 |application/smile
-|https://en.wikipedia.org/wiki/Smile_(data_interchange_format)[Smile] binary data format similar to CBOR
+|{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar to CBOR
 
 |===
+
+The `CSV` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV
+values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`).
+The tab (`\t`) can also not be used, the `tsv` format needs to be used instead.
 
 Here are some examples for the human readable formats:
 
@@ -120,7 +124,7 @@ POST /_sql?format=csv
 --------------------------------------------------
 // TEST[setup:library]
 
-Which returns:
+which returns:
 
 [source,text]
 --------------------------------------------------
@@ -130,6 +134,31 @@ Vernor Vinge,A Fire Upon the Deep,613,1992-06-01T00:00:00.000Z
 Frank Herbert,Dune,604,1965-06-01T00:00:00.000Z
 Alastair Reynolds,Revelation Space,585,2000-03-15T00:00:00.000Z
 James S.A. Corey,Leviathan Wakes,561,2011-06-02T00:00:00.000Z
+--------------------------------------------------
+// TESTRESPONSE[non_json]
+
+or:
+
+[source,console]
+--------------------------------------------------
+POST /_sql?format=csv&delimiter=%3b
+{
+    "query": "SELECT * FROM library ORDER BY page_count DESC",
+    "fetch_size": 5
+}
+--------------------------------------------------
+// TEST[setup:library]
+
+which returns:
+
+[source,text]
+--------------------------------------------------
+author;name;page_count;release_date
+Peter F. Hamilton;Pandora's Star;768;2004-03-02T00:00:00.000Z
+Vernor Vinge;A Fire Upon the Deep;613;1992-06-01T00:00:00.000Z
+Frank Herbert;Dune;604;1965-06-01T00:00:00.000Z
+Alastair Reynolds;Revelation Space;585;2000-03-15T00:00:00.000Z
+James S.A. Corey;Leviathan Wakes;561;2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[non_json]
 
@@ -210,7 +239,7 @@ Which returns:
 
 [source,text]
 --------------------------------------------------
-     author      |        name        |  page_count   |      release_date      
+     author      |        name        |  page_count   |      release_date
 -----------------+--------------------+---------------+------------------------
 Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00.000Z
 Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00.000Z
@@ -275,8 +304,8 @@ cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmB
 === Paginating through a large response
 
 Using the example from the <<sql-rest-format,previous section>>, one can
-continue to the next page by sending back the cursor field. In case of text
-format, the cursor is returned as `Cursor` http header.
+continue to the next page by sending back the cursor field. In the case of CSV, TSV and TXT
+formats, the cursor is returned in the `Cursor` HTTP header.
 
 [source,console]
 --------------------------------------------------
@@ -308,7 +337,7 @@ Which looks like:
 Note that the `columns` object is only part of the first page.
 
 You've reached the last page when there is no `cursor` returned
-in the results. Like Elasticsearch's <<request-body-search-scroll,scroll>>,
+in the results. Like Elasticsearch's <<scroll-search-results,scroll>>,
 SQL may keep state in Elasticsearch to support the cursor. Unlike
 scroll, receiving the last page is enough to guarantee that the
 Elasticsearch state is cleared.

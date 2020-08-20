@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -222,6 +224,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    public MultiFields multiFields() {
+        return multiFields;
+    }
+
     /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
@@ -269,6 +275,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     */
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, @Nullable String format);
+
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
@@ -289,6 +300,49 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return (FieldMapper) super.clone();
         } catch (CloneNotSupportedException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    @Override
+    public final void validate(MappingLookup mappers) {
+        if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
+            if (mappers.isMultiField(this.name())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            }
+
+            final String sourceScope = mappers.getNestedScope(this.name());
+            for (String copyTo : this.copyTo().copyToFields()) {
+                if (mappers.isMultiField(copyTo)) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                }
+                if (mappers.isObjectField(copyTo)) {
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                final String targetScope = mappers.getNestedScope(copyTo);
+                checkNestedScopeCompatibility(sourceScope, targetScope);
+            }
+        }
+        for (Mapper multiField : multiFields()) {
+            multiField.validate(mappers);
+        }
+        doValidate(mappers);
+    }
+
+    protected void doValidate(MappingLookup mappers) { }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                    "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                    source + "] to [" + target + "]");
         }
     }
 

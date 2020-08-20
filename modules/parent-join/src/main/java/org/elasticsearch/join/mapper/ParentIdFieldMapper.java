@@ -36,9 +36,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -183,6 +185,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
     }
 
     @Override

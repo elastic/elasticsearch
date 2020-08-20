@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,11 +27,11 @@ public final class InferenceHelpers {
     /**
      * @return Tuple of the highest scored index and the top classes
      */
-    public static Tuple<Integer, List<TopClassEntry>> topClasses(double[] probabilities,
-                                                                 List<String> classificationLabels,
-                                                                 @Nullable double[] classificationWeights,
-                                                                 int numToInclude,
-                                                                 PredictionFieldType predictionFieldType) {
+    public static Tuple<TopClassificationValue, List<TopClassEntry>> topClasses(double[] probabilities,
+                                                                                List<String> classificationLabels,
+                                                                                @Nullable double[] classificationWeights,
+                                                                                int numToInclude,
+                                                                                PredictionFieldType predictionFieldType) {
 
         if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
             throw ExceptionsHelper
@@ -55,8 +54,11 @@ public final class InferenceHelpers {
             .mapToInt(i -> i)
             .toArray();
 
+        final TopClassificationValue topClassificationValue = new TopClassificationValue(sortedIndices[0],
+            probabilities[sortedIndices[0]],
+            scores[sortedIndices[0]]);
         if (numToInclude == 0) {
-            return Tuple.tuple(sortedIndices[0], Collections.emptyList());
+            return Tuple.tuple(topClassificationValue, Collections.emptyList());
         }
 
         List<String> labels = classificationLabels == null ?
@@ -74,7 +76,7 @@ public final class InferenceHelpers {
                 scores[idx]));
         }
 
-        return Tuple.tuple(sortedIndices[0], topClassEntries);
+        return Tuple.tuple(topClassificationValue, topClassEntries);
     }
 
     public static String classificationLabel(Integer inferenceValue, @Nullable List<String> classificationLabels) {
@@ -136,11 +138,13 @@ public final class InferenceHelpers {
             if (v.length == 1) {
                 importances.add(FeatureImportance.forRegression(k, v[0]));
             } else {
-                Map<String, Double> classImportance = new LinkedHashMap<>(v.length, 1.0f);
+                List<FeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
-                    classImportance.put(classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i), v[i]);
+                    classImportance.add(new FeatureImportance.ClassImportance(
+                        classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i),
+                        v[i]));
                 }
                 importances.add(FeatureImportance.forClassification(k, classImportance));
             }
@@ -154,5 +158,29 @@ public final class InferenceHelpers {
             sumTo[i] += inc[i];
         }
         return sumTo;
+    }
+
+    public static class TopClassificationValue {
+        private final int value;
+        private final double probability;
+        private final double score;
+
+        TopClassificationValue(int value, double probability, double score) {
+            this.value = value;
+            this.probability = probability;
+            this.score = score;
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public double getProbability() {
+            return probability;
+        }
+
+        public double getScore() {
+            return score;
+        }
     }
 }

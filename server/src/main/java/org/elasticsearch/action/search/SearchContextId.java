@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,14 +32,17 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
@@ -94,5 +98,19 @@ public class SearchContextId {
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    public String[] getActualIndices() {
+        final Set<String> indices = new HashSet<>();
+        for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
+            final String indexName = entry.getKey().getIndexName();
+            final String clusterAlias = entry.getValue().getClusterAlias();
+            if (Strings.isEmpty(clusterAlias)) {
+                indices.add(indexName);
+            } else {
+                indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
+            }
+        }
+        return indices.toArray(String[]::new);
     }
 }

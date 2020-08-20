@@ -116,6 +116,35 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(2));
     }
 
+    public void testNestedArrays() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startArray("field")
+                .startArray().value("first").value("second").endArray()
+            .endArray()
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field");
+        DocumentField field = fields.get("field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), hasItems("first", "second"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startArray("object")
+                .startObject().array("field", "first", "second").endObject()
+                .startObject().array("field", "third").endObject()
+                .startObject().field("field", "fourth").endObject()
+            .endArray()
+            .endObject();
+
+        fields = retrieveFields(mapperService, source, "object.field");
+        field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(4));
+        assertThat(field.getValues(), hasItems("first", "second", "third", "fourth"));
+    }
+
     public void testArrayValueMappers() throws IOException {
         MapperService mapperService = createMapperService();
 
@@ -280,7 +309,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         DocumentField field = fields.get("field.keyword");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(1));
-        assertThat(field.getValues(), hasItems(42));
+        assertThat(field.getValues(), hasItems("42"));
 
         fields = retrieveFields(mapperService, source, "field*");
         assertThat(fields.size(), equalTo(2));
@@ -315,7 +344,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         DocumentField field = fields.get("field");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(6));
-        assertThat(field.getValues(), hasItems("one", "two", "three", 1, 2, 3));
+        assertThat(field.getValues(), hasItems("one", "two", "three", "1", "2", "3"));
     }
 
     public void testObjectFields() throws IOException {

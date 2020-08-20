@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
@@ -89,6 +88,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -590,7 +590,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (concreteIndex == null) {
                 try {
                     concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException ex) {
+                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                     addFailure(request, idx, ex);
                     return true;
                 }
@@ -636,8 +636,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
-                    false, includeDataStreams);
+                try {
+                    concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(),
+                        request.indices()[0], false, includeDataStreams);
+                } catch (IndexNotFoundException e) {
+                    if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    } else {
+                        throw e;
+                    }
+                }
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;
@@ -705,8 +713,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
-
-        private static final Logger logger = LogManager.getLogger(BulkRequestModifier.class);
 
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
@@ -788,9 +794,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
-                indexRequest.getPipeline(), indexRequest.index(), indexRequest.id()), e);
-
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request

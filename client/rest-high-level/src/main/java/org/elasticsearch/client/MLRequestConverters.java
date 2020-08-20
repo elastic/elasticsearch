@@ -120,8 +120,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
+        if (getJobRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getJobRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -137,8 +137,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobStatsRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
+        if (getJobStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getJobStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -266,9 +266,9 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
-            params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                    Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
+        if (getDatafeedRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
+                    Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -323,8 +323,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
-            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
+        if (getDatafeedStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getDatafeedStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;

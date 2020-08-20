@@ -1,6 +1,8 @@
-[discrete]
 [[search-fields]]
-=== Retrieve selected fields
+== Retrieve selected fields from a search
+++++
+<titleabbrev>Retrieve selected fields</titleabbrev>
+++++
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
@@ -9,18 +11,18 @@ response, you can use the `fields` parameter:
 
 [source,console]
 ----
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "message": "foo"
     }
   },
-  "fields": ["user", "date"],
+  "fields": ["user.id", "@timestamp"],
   "_source": false
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `fields` parameter consults both a document's `_source` and the index
 mappings to load and return values. Because it makes use of the mappings,
@@ -41,6 +43,11 @@ such as keywords and dates.
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 
+If needed, you can use the <<script-fields,`script_field`>> parameter to
+transform field values in the response using a script. However, scripts can’t
+make use of {es}'s index structures or related optimizations. This can sometimes
+result in slower search speeds.
+
 You can find more detailed information on each of these methods in the
 following sections:
 
@@ -48,6 +55,7 @@ following sections:
 * <<docvalue-fields>>
 * <<stored-fields>>
 * <<source-filtering>>
+* <<script-fields>>
 
 [discrete]
 [[search-fields-param]]
@@ -60,30 +68,30 @@ type. By default, date fields are formatted according to the
 <<mapping-date-format,date format>> parameter in their mappings.
 
 The following search request uses the `fields` parameter to retrieve values
-for the `user` field, all fields starting with `location.`, and the
-`date` field:
+for the `user.id` field, all fields starting with `http.response.`, and the
+`@timestamp` field:
 
 [source,console]
 ----
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "user.id": "kimchy"
     }
   },
   "fields": [
-    "user",
-    "location.*", <1>
+    "user.id",
+    "http.response.*", <1>
     {
-      "field": "date",
+      "field": "@timestamp",
       "format": "epoch_millis" <2>
     }
   ],
   "_source": false
 }
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
@@ -92,7 +100,7 @@ POST twitter/_search
     <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
     accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
-    https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].
+    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
     Other field types do not support the `format` parameter.
 
 The values are returned as a flat list in the `fields` section in each hit:
@@ -116,21 +124,21 @@ The values are returned as a flat list in the `fields` section in each hit:
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "twitter",
+        "_index" : "my-index-000001",
         "_id" : "0",
         "_score" : 1.0,
         "fields" : {
-          "user" : [
+          "user.id" : [
             "kimchy"
           ],
-          "date" : [
-            "1258294332000"
+          "@timestamp" : [
+            "4098435132000"
           ],
-          "location.city": [
-            "Amsterdam"
+          "http.response.bytes": [
+            1070000
           ],
-          "location.country": [
-            "Netherlands"
+          "http.response.status_code": [
+            200
           ]
         }
       }
@@ -177,21 +185,21 @@ not supported for <<text,`text`>> or
 {plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
 
 The following search request uses the `docvalue_fields` parameter to retrieve
-doc values for the `user` field, all fields starting with `location.`, and the
-`date` field:
+doc values for the `user.id` field, all fields starting with `http.response.`, and the
+`@timestamp` field:
 
 [source,console]
 ----
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
-      "message": "elasticsearch"
+      "user.id": "kimchy"
     }
   },
   "docvalue_fields": [
-    "user",
-    "location.*", <1>
+    "user.id",
+    "http.response.*", <1>
     {
       "field": "date",
       "format": "epoch_millis" <2>
@@ -199,7 +207,7 @@ GET twitter/_search
   ]
 }
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
@@ -211,7 +219,7 @@ GET twitter/_search
 TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty
 array (`[ ]`) for the field. To access nested fields, use the
-<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+<<inner-hits, `inner_hits`>> parameter's `docvalue_fields`
 property.
 
 [discrete]
@@ -220,8 +228,9 @@ property.
 
 It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to include
-these stored values in the search response.
+`stored_fields` parameter to include these stored values in the search response.
+
+include::request/stored-fields.asciidoc[]
 
 [discrete]
 [[source-filtering]]
@@ -308,3 +317,5 @@ GET /_search
   }
 }
 ----
+
+include::request/script-fields.asciidoc[]

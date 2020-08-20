@@ -18,19 +18,19 @@ the following:
 ////
 [source,console]
 ----
-PUT /_index_template/logs_data_stream
+PUT /_index_template/my-data-stream-template
 {
-  "index_patterns": [ "logs*" ],
+  "index_patterns": [ "my-data-stream*" ],
   "data_stream": { }
 }
 
-PUT /_data_stream/logs
+PUT /_data_stream/my-data-stream
 
-POST /logs/_rollover/
+POST /my-data-stream/_rollover/
 
-POST /logs/_rollover/
+POST /my-data-stream/_rollover/
 
-PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
+PUT /my-data-stream/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -39,7 +39,7 @@ PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
   "message": "Login successful"
 }
 
-PUT /_data_stream/logs_alt
+PUT /_data_stream/my-data-stream-alt
 ----
 // TESTSETUP
 
@@ -84,12 +84,11 @@ to a data stream.
 
 NOTE: The `op_type` parameter defaults to `create` when adding new documents.
 
-The following index API request adds a new document to the `logs` data
-stream.
+The following index API request adds a new document to `my-data-stream`.
 
 [source,console]
 ----
-POST /logs/_doc/
+POST /my-data-stream/_doc/
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -115,11 +114,11 @@ stream in a single request. Each action in the bulk request must use the
 NOTE: Data streams do not support other bulk actions, such as `index`.
 
 The following bulk API request adds several new documents to
-the `logs` data stream. Note that only the `create` action is used.
+`my-data-stream`. Only the `create` action is used.
 
 [source,console]
 ----
-PUT /logs/_bulk?refresh
+PUT /my-data-stream/_bulk?refresh
 {"create":{ }}
 { "@timestamp": "2020-12-08T11:04:05.000Z", "user": { "id": "vlb44hny" }, "message": "Login attempt failed" }
 {"create":{ }}
@@ -156,7 +155,7 @@ PUT /_ingest/pipeline/lowercase_message_field
 ----
 // TEST[continued]
 
-The following index API request adds a new document to the `logs` data stream.
+The following index API request adds a new document to `my-data-stream`.
 
 The request includes a `?pipeline=lowercase_message_field` query parameter.
 This parameter indicates {es} should use the `lowercase_message_field` pipeline
@@ -167,7 +166,7 @@ During pre-processing, the pipeline changes the letter case of the document's
 
 [source,console]
 ----
-POST /logs/_doc?pipeline=lowercase_message_field
+POST /my-data-stream/_doc?pipeline=lowercase_message_field
 {
   "@timestamp": "2020-12-08T11:12:01.000Z",
   "user": {
@@ -199,13 +198,13 @@ The following search APIs support data streams:
 * <<search-field-caps, Field capabilities>>
 * <<eql-search-api, EQL search>>
 
-The following <<search-search,search API>> request searches the `logs` data
-stream for documents with a timestamp between today and yesterday that also have
+The following <<search-search,search API>> request searches `my-data-stream`
+for documents with a timestamp between today and yesterday that also have
 `message` value of `login successful`.
 
 [source,console]
 ----
-GET /logs/_search
+GET /my-data-stream/_search
 {
   "query": {
     "bool": {
@@ -227,15 +226,15 @@ GET /logs/_search
 }
 ----
 
-You can use a comma-separated list or wildcard (`*`) expression to search
+You can use a comma-separated list to search
 multiple data streams, indices, and index aliases in the same request.
 
-The following request searches the `logs` and `logs_alt` data streams, which are
-specified as a comma-separated list in the request path.
+The following request searches `my-data-stream` and `my-data-stream-alt`,
+which are specified as a comma-separated list in the request path.
 
 [source,console]
 ----
-GET /logs,logs_alt/_search
+GET /my-data-stream,my-data-stream-alt/_search
 {
   "query": {
     "match": {
@@ -244,12 +243,15 @@ GET /logs,logs_alt/_search
   }
 }
 ----
-The following request uses the `logs*` wildcard expression to search any data
-stream, index, or index alias beginning with `logs`.
+
+Index patterns are also supported.
+
+The following request uses the `my-data-stream*` index pattern to search any
+data stream, index, or index alias beginning with `my-data-stream`.
 
 [source,console]
 ----
-GET /logs*/_search
+GET /my-data-stream*/_search
 {
   "query": {
     "match": {
@@ -288,12 +290,12 @@ statistics for one or more data streams. These statistics include:
 .*Example*
 [%collapsible]
 ====
-The following data stream stats API request retrieves statistics for the
-`logs` data stream.
+The following data stream stats API request retrieves statistics for
+`my-data-stream`.
 
 [source,console]
 ----
-GET /_data_stream/logs/_stats?human=true
+GET /_data_stream/my-data-stream/_stats?human=true
 ----
 
 The API returns the following response.
@@ -312,7 +314,7 @@ The API returns the following response.
   "total_store_size_bytes": 624,
   "data_streams": [
     {
-      "data_stream": "logs",
+      "data_stream": "my-data-stream",
       "backing_indices": 3,
       "store_size": "624b",
       "store_size_bytes": 624,
@@ -346,11 +348,11 @@ manually perform a rollover. This can be useful if you want to
 to the stream's write index after updating a data stream's template.
 
 The following <<indices-rollover-index,rollover API>> request submits a manual
-rollover request for the `logs` data stream.
+rollover request for `my-data-stream`.
 
 [source,console]
 ----
-POST /logs/_rollover/
+POST /my-data-stream/_rollover/
 ----
 
 [discrete]
@@ -370,50 +372,50 @@ You also can conveniently re-open all closed backing indices for a data stream
 by sending an open request directly to the stream.
 
 The following <<cat-indices,cat indices>> API request retrieves the status for
-the `logs` data stream's backing indices.
+`my-data-stream`'s backing indices.
 
 ////
 [source,console]
 ----
-POST /.ds-logs-000001,.ds-logs-000002/_close/
+POST /.ds-my-data-stream-000001,.ds-my-data-stream-000002/_close/
 ----
 ////
 
 [source,console]
 ----
-GET /_cat/indices/logs?v&s=index&h=index,status
+GET /_cat/indices/my-data-stream?v&s=index&h=index,status
 ----
 // TEST[continued]
 
-The API returns the following response. The response indicates the `logs` data
-stream contains two closed backing indices: `.ds-logs-000001` and
-`.ds-logs-000002`.
+The API returns the following response. The response indicates
+`my-data-stream` contains two closed backing indices:
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
 
 [source,txt]
 ----
-index           status
-.ds-logs-000001 close
-.ds-logs-000002 close
-.ds-logs-000003 open
+index                     status
+.ds-my-data-stream-000001 close
+.ds-my-data-stream-000002 close
+.ds-my-data-stream-000003 open
 ----
 // TESTRESPONSE[non_json]
 
 The following <<indices-open-close,open API>> request re-opens any closed
-backing indices for the `logs` data stream, including `.ds-logs-000001` and
-`.ds-logs-000002`.
+backing indices for `my-data-stream`, including
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
 
 [source,console]
 ----
-POST /logs/_open/
+POST /my-data-stream/_open/
 ----
 // TEST[continued]
 
-You can resubmit the original cat indices API request to verify the
-`.ds-logs-000001` and `.ds-logs-000002` backing indices were re-opened.
+You can resubmit the original cat indices API request to verify
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002` were re-opened.
 
 [source,console]
 ----
-GET /_cat/indices/logs?v&s=index&h=index,status
+GET /_cat/indices/my-data-stream?v&s=index&h=index,status
 ----
 // TEST[continued]
 
@@ -421,10 +423,10 @@ The API returns the following response.
 
 [source,txt]
 ----
-index           status
-.ds-logs-000001 open
-.ds-logs-000002 open
-.ds-logs-000003 open
+index                     status
+.ds-my-data-stream-000001 open
+.ds-my-data-stream-000002 open
+.ds-my-data-stream-000003 open
 ----
 // TESTRESPONSE[non_json]
 
@@ -461,8 +463,8 @@ write index, we recommend you update the <<create-a-data-stream-template,data
 stream's template>> and perform a <<manually-roll-over-a-data-stream,rollover>>.
 
 The following reindex request copies documents from the `archive` index alias to
-the existing `logs` data stream. Because the destination is a data stream, the
-request's `op_type` is `create`.
+`my-data-stream`. Because the destination is a data
+stream, the request's `op_type` is `create`.
 
 ////
 [source,console]
@@ -495,7 +497,7 @@ POST /_reindex
     "index": "archive"
   },
   "dest": {
-    "index": "logs",
+    "index": "my-data-stream",
     "op_type": "create"
   }
 }
@@ -505,16 +507,16 @@ POST /_reindex
 You can also reindex documents from a data stream to an index, index
 alias, or data stream.
 
-The following reindex request copies documents from the `logs` data stream
-to the existing `archive` index alias. Because the destination is not a data
-stream, the `op_type` does not need to be specified.
+The following reindex request copies documents from `my-data-stream`
+to the existing `archive` index alias. Because the destination is not a
+data stream, the `op_type` does not need to be specified.
 
 [source,console]
 ----
 POST /_reindex
 {
   "source": {
-    "index": "logs"
+    "index": "my-data-stream"
   },
   "dest": {
     "index": "archive"
@@ -540,14 +542,14 @@ data stream. These prohibited requests include:
 Instead, you can use the <<docs-update-by-query,update by query API>> to update
 documents in a data stream that matches a provided query.
 
-The following update by query request updates documents in the `logs` data
-stream with a `user.id` of `l7gk7f82`. The request uses a
+The following update by query request updates documents in `my-data-stream`
+with a `user.id` of `l7gk7f82`. The request uses a
 <<modules-scripting-using,script>> to assign matching documents a new `user.id`
 value of `XgdX0NoX`.
 
 [source,console]
 ----
-POST /logs/_update_by_query
+POST /my-data-stream/_update_by_query
 {
   "query": {
     "match": {
@@ -577,12 +579,12 @@ prohibited requests include:
 Instead, you can use the <<docs-delete-by-query,delete by query API>> to delete
 documents in a data stream that matches a provided query.
 
-The following delete by query request deletes documents in the `logs` data
-stream with a `user.id` of `vlb44hny`.
+The following delete by query request deletes documents in `my-data-stream`
+with a `user.id` of `vlb44hny`.
 
 [source,console]
 ----
-POST /logs/_delete_by_query
+POST /my-data-stream/_delete_by_query
 {
   "query": {
     "match": {
@@ -609,9 +611,9 @@ If you want to update a document, you must also get its current
 You can use a <<search-a-data-stream,search request>> to retrieve this
 information.
 
-The following search request retrieves documents in the `logs` data stream with
-a `user.id` of `yWIumJd7`. By default, this search returns the document ID and
-backing index for any matching documents.
+The following search request retrieves documents in `my-data-stream`
+with a `user.id` of `yWIumJd7`. By default, this search returns the
+document ID and backing index for any matching documents.
 
 The request includes a `"seq_no_primary_term": true` argument. This means the
 search also returns the sequence number and primary term for any matching
@@ -619,7 +621,7 @@ documents.
 
 [source,console]
 ----
-GET /logs/_search
+GET /my-data-stream/_search
 {
   "seq_no_primary_term": true,
   "query": {
@@ -652,7 +654,7 @@ information for any documents matching the search.
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": ".ds-logs-000003",                <1>
+        "_index": ".ds-my-data-stream-000003",      <1>
         "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
         "_seq_no": 0,                               <3>
         "_primary_term": 1,                         <4>
@@ -682,9 +684,9 @@ You can use an <<docs-index_,index API>> request to update an individual
 document. To prevent an accidental overwrite, this request must include valid
 `if_seq_no` and `if_primary_term` arguments.
 
-The following index API request updates an existing document in the `logs` data
-stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000003` backing index.
+The following index API request updates an existing document in
+`my-data-stream`. The request targets document ID
+`bfspvnIBr7VVZlfp2lqX` in the `.ds-my-data-stream-000003` backing index.
 
 The request also includes the current sequence number and primary term in the
 respective `if_seq_no` and `if_primary_term` query parameters. The request body
@@ -692,7 +694,7 @@ contains a new JSON source for the document.
 
 [source,console]
 ----
-PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_term=1
+PUT /.ds-my-data-stream-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_term=1
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -705,13 +707,13 @@ PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_term=1
 You use the <<docs-delete,delete API>> to delete individual documents. Deletion
 requests do not require a sequence number or primary term.
 
-The following index API request deletes an existing document in the `logs` data
-stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000003` backing index.
+The following index API request deletes an existing document in
+`my-data-stream`. The request targets document ID
+`bfspvnIBr7VVZlfp2lqX` in the `.ds-my-data-stream-000003` backing index.
 
 [source,console]
 ----
-DELETE /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX
+DELETE /.ds-my-data-stream-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
 
 You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
@@ -722,17 +724,17 @@ If the action type is `index`, the action must include valid
 arguments.
 
 The following bulk API request uses an `index` action to update an existing
-document in the `logs` data stream.
+document in `my-data-stream`.
 
 The `index` action targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000003` backing index. The action also includes the current sequence
-number and primary term in the respective `if_seq_no` and `if_primary_term`
-parameters.
+`.ds-my-data-stream-000003` backing index. The action also includes the current
+sequence number and primary term in the respective `if_seq_no` and
+`if_primary_term` parameters.
 
 [source,console]
 ----
 PUT /_bulk?refresh
-{ "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
+{ "index": { "_index": ".ds-my-data-stream-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
 { "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
 

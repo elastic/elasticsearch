@@ -41,8 +41,15 @@ public class ReturnNode extends StatementNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitReturn(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitReturn(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

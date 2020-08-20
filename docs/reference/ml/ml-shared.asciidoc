@@ -604,7 +604,7 @@ Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
 information about shrinkage, see
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
@@ -1229,7 +1229,7 @@ Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
 {ml-docs}/ml-configuring-transform.html[Transforming data with script fields]
-and <<request-body-search-script-fields,Script fields>>.
+and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]

@@ -1702,10 +1702,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> execution was blocked on node [{}], trying to delete repository", blockedNode);
 
         try {
-            client.admin().cluster().prepareDeleteRepository("test-repo").execute().get();
+            client.admin().cluster().prepareDeleteRepository(randomFrom("test-repo", "test-*", "*")).execute().actionGet();
             fail("shouldn't be able to delete in-use repository");
         } catch (Exception ex) {
             logger.info("--> in-use repository deletion failed");
+            assertThat(ex.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
         }
 
         logger.info("--> trying to move repository to another location");
@@ -1824,10 +1825,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        if (throttleRestoreViaRecoverySettings) {
-            client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "10k").build()).get();
-        }
+        client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        throttleRestoreViaRecoverySettings ? "10k" : "0").build()).get();
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -2032,38 +2032,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
-        logger.info("--> done");
-    }
-
-    public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
-        final String repoName = "test-repo";
-        createRepository(repoName, "fs");
-
-        // Create index on two nodes and make sure each node has a primary by setting no replicas
-        final String indexName = "test-idx";
-        assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
-        ensureGreen(indexName);
-        indexRandomDocs(indexName, 100);
-
-        logger.info("--> start relocations");
-        allowNodes(indexName, 1);
-
-        logger.info("--> wait for relocations to start");
-
-        assertBusy(() -> assertThat(
-                client().admin().cluster().prepareHealth(indexName).execute().actionGet().getRelocatingShards(), greaterThan(0)),
-                1L, TimeUnit.MINUTES);
-
-        logger.info("--> snapshot");
-        client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
-                .setWaitForCompletion(false).setPartial(true).setIndices(indexName).get();
-
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-
-        logger.info("--> wait for snapshot to complete");
-        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
     }
 

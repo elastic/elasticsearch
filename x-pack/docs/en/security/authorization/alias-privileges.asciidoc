@@ -17,37 +17,38 @@ to control access to a data stream. Any role or user granted privileges to a
 data stream are automatically granted the same privileges to its backing
 indices.
 
-`logs` is a data stream that consists of two backing indices: `.ds-logs-000001`
-and `.ds-logs-000002`.
+For example, `my-data-stream` consists of two backing indices:
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
 
-A user is granted the `read` privilege to the `logs` data stream.
+A user is granted the `read` privilege to `my-data-stream`.
 
 [source,js]
 --------------------------------------------------
 {
-  "names" : [ "logs" ],
+  "names" : [ "my-data-stream" ],
   "privileges" : [ "read" ]
 }
 --------------------------------------------------
 // NOTCONSOLE
 
 Because the user is automatically granted the same privileges to the stream's
-backing indices, the user can retrieve a document directly from `.ds-logs-000002`:
+backing indices, the user can retrieve a document directly from
+`.ds-my-data-stream-000002`:
 
 ////
 [source,console]
 ----
-PUT /_index_template/logs_data_stream
+PUT /_index_template/my-data-stream-template
 {
-  "index_patterns": [ "logs*" ],
+  "index_patterns": [ "my-data-stream*" ],
   "data_stream": { }
 }
 
-PUT /_data_stream/logs
+PUT /_data_stream/my-data-stream
 
-POST /logs/_rollover/
+POST /my-data-stream/_rollover/
 
-PUT /logs/_create/2?refresh=wait_for
+PUT /my-data-stream/_create/2?refresh=wait_for
 {
   "@timestamp": "2020-12-07T11:06:07.000Z"
 }
@@ -56,21 +57,21 @@ PUT /logs/_create/2?refresh=wait_for
 
 [source,console]
 ----
-GET /.ds-logs-000002/_doc/2
+GET /.ds-my-data-stream-000002/_doc/2
 ----
 // TEST[continued]
 
-Later the `logs` data stream <<manually-roll-over-a-data-stream,rolls over>>.
-This creates a new backing index: `.ds-logs-000003`. Because the user still has
-the `read` privilege for the `logs` data stream, the user can retrieve documents
-directly from `.ds-logs-000003`:
+Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
+creates a new backing index: `.ds-my-data-stream-000003`. Because the user still
+has the `read` privilege for `my-data-stream`, the user can retrieve
+documents directly from `.ds-my-data-stream-000003`:
 
 ////
 [source,console]
 ----
-POST /logs/_rollover/
+POST /my-data-stream/_rollover/
 
-PUT /logs/_create/2?refresh=wait_for
+PUT /my-data-stream/_create/2?refresh=wait_for
 {
   "@timestamp": "2020-12-07T11:06:07.000Z"
 }
@@ -80,7 +81,7 @@ PUT /logs/_create/2?refresh=wait_for
 
 [source,console]
 ----
-GET /.ds-logs-000003/_doc/2
+GET /.ds-my-data-stream-000003/_doc/2
 ----
 // TEST[continued]
 

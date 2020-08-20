@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
@@ -393,6 +394,9 @@ public final class InternalTestCluster extends TestCluster {
             RandomNumbers.randomIntBetween(random, 1, 5));
         builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(),
             RandomNumbers.randomIntBetween(random, 1, 4));
+        // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
+        // and fails shards when a master abdicates, which breaks many tests.
+        builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random,"write", "metadata_write"));
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
@@ -720,11 +724,11 @@ public final class InternalTestCluster extends TestCluster {
             if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
                 suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
             }
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)) {
+            if (DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
-                && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) == false) {
+                && DiscoveryNode.isDataNode(settings) == false) {
                 suffix = suffix + "c";
             }
         }

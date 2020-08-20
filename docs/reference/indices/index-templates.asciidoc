@@ -20,6 +20,19 @@ specify settings, mappings, and aliases.
 
 If a new data stream or index matches more than one index template, the index template with the highest priority is used.
 
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
+patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
+templates to create data streams. If you use {agent}, assign your index
+templates a priority lower than `100` to avoid an override of the built-in
+templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern, or assign your templates a `priority` higher or
+lower than `100`.
+====
+
 When a composable template matches a given index
 it always takes precedence over a legacy template. If no composable template matches, a legacy
 template may still match and be applied.
@@ -80,7 +93,7 @@ PUT _index_template/template_1
       "mydata": { }
     }
   },
-  "priority": 10,
+  "priority": 200,
   "composed_of": ["component_template1", "other_component_template"],
   "version": 3,
   "_meta": {

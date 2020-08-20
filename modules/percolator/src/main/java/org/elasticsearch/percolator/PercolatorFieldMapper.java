@@ -170,10 +170,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         static NumberFieldMapper createMinimumShouldMatchField(BuilderContext context) {
             NumberFieldMapper.Builder builder =
-                    new NumberFieldMapper.Builder(MINIMUM_SHOULD_MATCH_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
-            builder.index(false);
-            builder.store(false);
-            builder.docValues(true);
+                    NumberFieldMapper.Builder.docValuesOnly(MINIMUM_SHOULD_MATCH_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
             return builder.build(context);
         }
 

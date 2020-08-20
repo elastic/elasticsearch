@@ -92,4 +92,3 @@ include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
-

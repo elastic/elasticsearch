@@ -41,7 +41,6 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -593,7 +592,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
@@ -606,24 +605,24 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
         String otherWktPoint = "POINT (30.0 50.0)";
 
         // Test a single point in [lon, lat] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(42.0, 27.1)));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        Object sourceValue = List.of(42.0, 27.1);
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a single point in "lat, lon" string format.
-        sourceLookup.setSource(Collections.singletonMap("field", "27.1,42.0"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        sourceValue = "27.1,42.0";
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of points in [lon, lat] array format.
-        sourceLookup.setSource(Collections.singletonMap("field", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0))));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint, otherWktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a single point in well-known text format.
-        sourceLookup.setSource(Collections.singletonMap("field", "POINT (42.0 27.1)"));
-        assertEquals(List.of(jsonPoint), mapper.lookupValues(sourceLookup, null));
-        assertEquals(List.of(wktPoint), mapper.lookupValues(sourceLookup, "wkt"));
+        sourceValue = "POINT (42.0 27.1)";
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
     @Override

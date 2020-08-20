@@ -519,11 +519,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String nullValue() {
-        return nullValueAsString;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -546,7 +541,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
+            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;
@@ -570,16 +565,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public String parseSourceValue(Object value, String format) {
-        String date = value.toString();
-        long timestamp = fieldType().parse(date);
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
 
-        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
-        return dateTimeFormatter.format(dateTime);
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValueAsString) {
+            @Override
+            public String parseSourceValue(Object value) {
+                String date = value.toString();
+                long timestamp = fieldType().parse(date);
+                ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+                return formatter.format(dateTime);
+            }
+        };
     }
 
     public boolean getIgnoreMalformed() {

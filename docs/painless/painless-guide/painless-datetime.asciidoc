@@ -24,7 +24,7 @@ milliseconds since an epoch of 1970-01-01 00:00:00 Zulu Time
 string:: a datetime representation as a sequence of characters defined by
 a standard format or a custom format; in Painless this is typically a
 <<string-type, String>> of the standard format
-https://en.wikipedia.org/wiki/ISO_8601[ISO 8601]
+{wikipedia}/ISO_8601[ISO 8601]
 complex:: a datetime representation as a complex type
 (<<reference-types, object>>) that abstracts away internal details of how the
 datetime is stored and often provides utilities for modification and

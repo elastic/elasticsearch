@@ -52,8 +52,12 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param path       the path to the translog
      * @param header     the header of the translog file
      */
-    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
-        super(checkpoint.generation, channel, path, header);
+    TranslogReader(final Checkpoint checkpoint,
+                   final FileChannel channel,
+                   final Path path,
+                   final TranslogHeader header,
+                   final long createdAtInNanos) {
+        super(checkpoint.generation, channel, path, header, createdAtInNanos);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
@@ -66,13 +70,17 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param path the path to the translog
      * @param checkpoint the translog checkpoint
      * @param translogUUID the tranlog UUID
+     * @param createdAtInNanos relative time creation in nanos
      * @return a new TranslogReader
      * @throws IOException if any of the file operations resulted in an I/O exception
      */
-    public static TranslogReader open(
-            final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
+    public static TranslogReader open(final FileChannel channel,
+                                      final Path path,
+                                      final Checkpoint checkpoint,
+                                      final String translogUUID,
+                                      final long createdAtInNanos) throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
-        return new TranslogReader(checkpoint, channel, path, header);
+        return new TranslogReader(checkpoint, channel, path, header, createdAtInNanos);
     }
 
     /**
@@ -94,9 +102,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                     IOUtils.fsync(checkpointFile, false);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
-                    newReader = new TranslogReader(newCheckpoint, channel, path, header);
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header, createdAtInNanos);
                 } else {
-                    newReader = new TranslogReader(checkpoint, channel, path, header);
+                    newReader = new TranslogReader(checkpoint, channel, path, header, createdAtInNanos);
                 }
                 toCloseOnFailure = null;
                 return newReader;

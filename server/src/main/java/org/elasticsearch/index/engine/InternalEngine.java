@@ -2450,10 +2450,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long getOldestUncommittedTranslogAgeInMillis() {
+    public long getOldestUncommittedTranslogAgeInNanos() {
         ensureOpen();
         final long translogGenerationAfterLastCommit = getTranslogGenerationAfterLastCommit();
-        return translog.getOldestTranslogAgeInMillisByMinGen(translogGenerationAfterLastCommit);
+        return translog.getOldestTranslogAgeByMinGenInNanos(translogGenerationAfterLastCommit);
     }
 
     private long getTranslogGenerationAfterLastCommit() {

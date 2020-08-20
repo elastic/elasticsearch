@@ -711,7 +711,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the age of the oldest uncommitted translog file.
      */
-    public abstract long getOldestUncommittedTranslogAgeInMillis();
+    public abstract long getOldestUncommittedTranslogAgeInNanos();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

@@ -37,8 +37,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final FileChannel channel;
     protected final Path path;
     protected final TranslogHeader header;
+    protected final long createdAtInNanos;
 
-    public BaseTranslogReader(long generation, FileChannel channel, Path path, TranslogHeader header) {
+    public BaseTranslogReader(long generation, FileChannel channel, Path path, TranslogHeader header, long createdAtInNanos) {
         assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " +
             Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
@@ -46,6 +47,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         this.path = path;
         this.channel = channel;
         this.header = header;
+        this.createdAtInNanos = createdAtInNanos;
     }
 
     public long getGeneration() {
@@ -57,6 +59,10 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     public abstract int totalOperations();
 
     abstract Checkpoint getCheckpoint();
+
+    public long createdAtInNanos() {
+        return createdAtInNanos;
+    }
 
     public final long getFirstOperationOffset() {
         return header.sizeInBytes();

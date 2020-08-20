@@ -142,7 +142,9 @@ public class FlushIT extends ESIntegTestCase {
         final String indexName = "flush_on_old_translog";
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
             .put(IndexingMemoryController.SHARD_UNCOMMITTED_TRANSLOG_MAX_AGE_SETTING.getKey(), TimeValue.timeValueSeconds(3))
-            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueDays(1)).build());
+            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueDays(1))
+            .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            .build());
         ByteSizeValue translogGenerationThreshold =
             new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES);
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()

@@ -1795,21 +1795,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void flushOnIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
-            flush();
+            flushOnIdleOrOldTranslogAge();
         }
     }
 
     /**
      * Called by {@link IndexingMemoryController} to check whether
      */
-    public void flushIfUncommittedTranslogIsOlderThanMaxAge(long maxUncommittedTranslogAgeInMillis) {
+    public void flushIfUncommittedTranslogIsOlderThanMaxAge(long maxUncommittedTranslogAgeInNanos) {
         Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null && engineOrNull.getOldestUncommittedTranslogAgeInMillis() >= maxUncommittedTranslogAgeInMillis) {
-            flush();
+        if (engineOrNull != null && engineOrNull.getOldestUncommittedTranslogAgeInNanos() >= maxUncommittedTranslogAgeInNanos) {
+            flushOnIdleOrOldTranslogAge();
         }
     }
 
-    private void flush() {
+    private void flushOnIdleOrOldTranslogAge() {
         boolean wasActive = active.getAndSet(false);
         if (wasActive) {
             logger.debug("flushing shard on inactive");

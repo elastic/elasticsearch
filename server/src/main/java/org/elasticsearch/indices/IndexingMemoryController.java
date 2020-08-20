@@ -422,7 +422,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     protected void checkUncommittedTranslogAge(IndexShard shard) {
         try {
-            shard.flushIfUncommittedTranslogIsOlderThanMaxAge(uncommittedTranslogMaxAge.millis());
+            threadPool.absoluteTimeInMillis();
+            shard.flushIfUncommittedTranslogIsOlderThanMaxAge(uncommittedTranslogMaxAge.nanos());
         } catch (AlreadyClosedException e) {
             logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }

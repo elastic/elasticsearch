@@ -87,10 +87,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
         TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer)
+        final LongConsumer persistedSequenceNumberConsumer,
+        final long createdAtInNanos)
             throws
             IOException {
-        super(initialCheckpoint.generation, channel, path, header);
+        super(initialCheckpoint.generation, channel, path, header, createdAtInNanos);
         assert initialCheckpoint.offset == channel.position() :
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
                 + channel.position() + "]";
@@ -115,7 +116,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
                                         ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
-                                        final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
+                                        final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer,
+                                        LongSupplier relativeTimeSupplier)
         throws IOException {
         final FileChannel channel = channelFactory.open(file);
         try {
@@ -136,7 +138,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
-                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
+                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer,
+                relativeTimeSupplier.getAsLong());
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
@@ -314,7 +317,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     throw ex;
                 }
                 if (closed.compareAndSet(false, true)) {
-                    return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header);
+                    return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header, createdAtInNanos);
                 } else {
                     throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]",
                             tragedy.get());
@@ -445,6 +448,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     protected final boolean isClosed() {
         return closed.get();
     }
+
 
     private final class BufferedChannelOutputStream extends BufferedOutputStream {
 

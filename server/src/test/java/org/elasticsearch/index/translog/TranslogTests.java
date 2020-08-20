@@ -202,6 +202,11 @@ public class TranslogTests extends ESTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, getPersistedSeqNoConsumer());
     }
 
+    protected Translog openTranslog(TranslogConfig config, String translogUUID, LongSupplier clock) throws IOException {
+        return new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, getPersistedSeqNoConsumer(), clock);
+    }
+
 
     @Override
     @Before
@@ -1228,7 +1233,7 @@ public class TranslogTests extends ESTestCase {
 
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
         try (TranslogReader reader =
-                 translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
+                 translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint, 1)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
             TranslogSnapshot snapshot = reader.newSnapshot();
 
@@ -1277,7 +1282,7 @@ public class TranslogTests extends ESTestCase {
         assertEquals(seenSeqNos, persistedSeqNos);
 
         final BaseTranslogReader reader = randomBoolean() ? writer :
-            translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
+            translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)), 1);
         for (int i = 0; i < numOps; i++) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
             reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
@@ -1331,7 +1336,7 @@ public class TranslogTests extends ESTestCase {
             try {
                 if (randomBoolean()) {
                     reader.close();
-                    reader = translog.openReader(reader.path(), writerCheckpoint);
+                    reader = translog.openReader(reader.path(), writerCheckpoint, 1);
                 }
                 for (int i = 0; i < numOps; i++) {
                     final ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -2287,6 +2292,43 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testGetOldestTranslogAgeByMinGenInNanos() throws Exception {
+        Path tempDir = createTempDir();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        String translogUUID =
+            Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+
+        AtomicLong fakeClock = new AtomicLong(0);
+        try (Translog translog = openTranslog(config, translogUUID, fakeClock::get)) {
+            // generation #2 will have createdAt == 0
+            translog.add(new Translog.Index("" + 0, 0, primaryTerm.get(), "test".getBytes(StandardCharsets.UTF_8)));
+            fakeClock.set(100);
+            // roll to generation #3 with createdAt == 100
+            translog.rollGeneration();
+            fakeClock.set(300);
+            long translogAgeInNanos = translog.getOldestTranslogAgeByMinGenInNanos(3);
+            assertThat(translogAgeInNanos, equalTo(200L));
+        }
+
+        // Simulate a restart, where all the readers will have the same createdAt value since we
+        // want to rely on relative times.
+        fakeClock.set(0);
+        try (Translog translog = openTranslog(config, translogUUID, fakeClock::get)) {
+            fakeClock.set(100);
+            // All generations will have the same age
+            for (int generation = 0; generation < 4; generation++) {
+                long translogAgeInNanos = translog.getOldestTranslogAgeByMinGenInNanos(generation);
+                assertThat(translogAgeInNanos, equalTo(100L));
+            }
+
+            // Unknown generations will return an age == 0
+            long translogAge = translog.getOldestTranslogAgeByMinGenInNanos(5);
+            assertThat(translogAge, equalTo(0L));
+        }
+
+        IOUtils.rm(tempDir);
+    }
+
     private Translog getFailableTranslog(FailSwitch fail, final TranslogConfig config) throws IOException {
         return getFailableTranslog(fail, config, randomBoolean(), false, null, new TranslogDeletionPolicy());
     }
@@ -2910,7 +2952,7 @@ public class TranslogTests extends ESTestCase {
                     final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
                     int opCount = 0;
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
-                    try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
+                    try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint, 1)) {
                         TranslogSnapshot snapshot = reader.newSnapshot();
                         Translog.Operation operation;
                         while ((operation = snapshot.next()) != null) {

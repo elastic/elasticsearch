@@ -111,7 +111,7 @@ public class TranslogHeaderTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED,
                 SequenceNumbers.NO_OPS_PERFORMED, 1, SequenceNumbers.NO_OPS_PERFORMED);
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogReader.open(channel, translogFile, checkpoint, null);
+                TranslogReader.open(channel, translogFile, checkpoint, null, 1L);
             }
         });
         assertThat(error.getMessage(), containsString(expectedMessage));

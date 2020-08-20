@@ -318,7 +318,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getOldestUncommittedTranslogAgeInMillis() {
+    public long getOldestUncommittedTranslogAgeInNanos() {
         return 0;
     }
 

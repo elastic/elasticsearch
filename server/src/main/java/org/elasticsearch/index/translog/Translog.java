@@ -59,6 +59,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -132,6 +133,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final LongSupplier relativeTimeSupplier;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -156,6 +158,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer) throws IOException {
+        this(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier,
+            persistedSequenceNumberConsumer, System::nanoTime);
+    }
+
+    /**
+     * @see #Translog(TranslogConfig, String, TranslogDeletionPolicy, LongSupplier, LongSupplier, LongConsumer)
+     * @param relativeTimeSupplier     a relative time supplier in nanos
+     */
+    public Translog(
+        final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final LongSupplier relativeTimeSupplier) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
@@ -163,6 +178,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
+        this.relativeTimeSupplier = relativeTimeSupplier;
         bigArrays = config.getBigArrays();
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
@@ -226,6 +242,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final long minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
             assert minGenerationToRecoverFrom >= 0 : "minTranslogGeneration should be non-negative";
 
+            // We supply the same creation time to all readers since we want to rely on relative times to compute
+            // the translog segment age taken care of in IndexingMemoryController#checkUncommittedTranslogAge.
+            // This won't correspond to the real segment creation time but relying on the FileSystem modification time
+            // can be problematic and the only consequence of using a new creation time is that it will take longer to
+            // flush uncommitted translog segments.
+            long createdAtInNanos = relativeTimeSupplier.getAsLong();
             // we open files in reverse order in order to validate the translog uuid before we start traversing the translog based on
             // the generation id we found in the lucene commit. This gives for better error messages if the wrong
             // translog was found.
@@ -238,7 +260,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
                 final Checkpoint readerCheckpoint = i == checkpoint.generation ? checkpoint
                     : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
-                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
+                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint, createdAtInNanos);
                 assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() :
                     "Primary terms go backwards; current term [" + primaryTermSupplier.getAsLong() + "] translog path [ "
                         + committedTranslogFile + ", existing term [" + reader.getPrimaryTerm() + "]";
@@ -297,12 +319,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
+    TranslogReader openReader(Path path, Checkpoint checkpoint, long createdAtInNanos) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " +
                 Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
-            TranslogReader reader = TranslogReader.open(channel, path, checkpoint, translogUUID);
+            TranslogReader reader = TranslogReader.open(channel, path, checkpoint, translogUUID, createdAtInNanos);
             channel = null;
             return reader;
         } finally {
@@ -475,20 +497,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the age of the oldest translog file with at least the given generation
      */
-    public long getOldestTranslogAgeInMillisByMinGen(long minGeneration) {
+    public long getOldestTranslogAgeByMinGenInNanos(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
 
-            if (current.getGeneration() < minGeneration) {
-                return 0;
-            }
-
-            List<TranslogReader> readersWithAtLeastMinGeneration = readers.stream()
+            long oldestTranslogCreationTimeInNanos = Stream.concat(readers.stream(), Stream.of(current))
                 .filter(r -> r.getGeneration() >= minGeneration)
-                .collect(Collectors.toList());
-            return findEarliestLastModifiedAge(System.currentTimeMillis(), readersWithAtLeastMinGeneration, current);
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "Unable to get the earliest last modified time for the transaction log");
+                .min(Comparator.comparing(BaseTranslogReader::getGeneration))
+                .map(BaseTranslogReader::createdAtInNanos)
+                .orElse(relativeTimeSupplier.getAsLong());
+
+            return relativeTimeSupplier.getAsLong() - oldestTranslogCreationTimeInNanos;
         }
     }
 
@@ -529,7 +548,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
-                persistedSequenceNumberConsumer);
+                persistedSequenceNumberConsumer,
+                relativeTimeSupplier);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -1919,7 +1939,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> {
                 throw new UnsupportedOperationException();
-            });
+            },
+            System::nanoTime);
         writer.close();
         return uuid;
     }

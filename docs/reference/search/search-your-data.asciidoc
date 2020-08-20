@@ -201,7 +201,7 @@ you may want to send repeated searches to the same shards to take advantage of
 caching.
 
 To limit the set of eligible nodes and shards for a search request, use
-the search API's <<search-preference,`preference` parameter>>.
+the search API's <<search-preference,`preference`>> query parameter.
 
 For example, the following request searches `my-index-000001` with a
 `preference` of `_local`. This argument restricts the search to shards on the
@@ -211,9 +211,8 @@ fallback.
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?preference=_local
 {
-  "preference": "_local",
   "query": {
     "match": {
       "user.id": "kimchy"
@@ -243,9 +242,8 @@ The following request searches `my-index-000001` with a `preference` string of
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?preference=my-custom-shard-string
 {
-  "preference": "my-custom-shard-string",
   "query": {
     "match": {
       "user.id": "kimchy"

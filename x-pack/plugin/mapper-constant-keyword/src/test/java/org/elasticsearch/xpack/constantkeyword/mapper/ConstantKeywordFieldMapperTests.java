@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
@@ -27,6 +28,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -108,16 +110,23 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
         b.field("type", "constant_keyword");
     }
 
-    public void testLookupValues() throws Exception {
+    public void testFetchValue() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
         FieldMapper fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        List<?> values = fieldMapper.lookupValues(new SourceLookup(), null);
-        assertTrue(values.isEmpty());
-        merge(mapperService, fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        ValueFetcher fetcher = fieldMapper.valueFetcher(mapperService, null);
 
+        SourceLookup missingValueLookup = new SourceLookup();
+        SourceLookup nullValueLookup = new SourceLookup();
+        nullValueLookup.setSource(Collections.singletonMap("field", null));
+
+        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+
+        merge(mapperService, fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        values = fieldMapper.lookupValues(new SourceLookup(), null);
-        assertEquals(1, values.size());
-        assertEquals("foo", values.get(0));
+        fetcher = fieldMapper.valueFetcher(mapperService, null);
+
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
     }
 }

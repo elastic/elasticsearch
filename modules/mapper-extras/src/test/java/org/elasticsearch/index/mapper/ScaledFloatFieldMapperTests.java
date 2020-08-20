@@ -31,31 +31,17 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
-public class ScaledFloatFieldMapperTests extends FieldMapperTestCase2<ScaledFloatFieldMapper.Builder> {
-    @Before
-    public void setup() {
-        addModifier("scaling_factor", false, (a, b) -> {
-            a.scalingFactor(10);
-            b.scalingFactor(100);
-        });
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
-    }
+public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -63,13 +49,8 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase2<ScaledFloa
     }
 
     @Override
-    protected ScaledFloatFieldMapper.Builder newBuilder() {
-        return new ScaledFloatFieldMapper.Builder("scaled-float").scalingFactor(1);
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "scaled_float").field("scaling_factor", 10.0); 
+        b.field("type", "scaled_float").field("scaling_factor", 10.0);
     }
 
     public void testDefaults() throws Exception {
@@ -96,15 +77,15 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase2<ScaledFloa
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testMissingScalingFactor() throws IOException {
+    public void testMissingScalingFactor() {
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float")))
         );
-        assertThat(e.getMessage(), containsString("Field [field] misses required parameter [scaling_factor]"));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
     }
 
-    public void testIllegalScalingFactor() throws IOException {
+    public void testIllegalScalingFactor() {
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", -1)))
@@ -270,26 +251,28 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase2<ScaledFloa
     /**
      * `index_options` was deprecated and is rejected as of 7.0
      */
-    public void testRejectIndexOptions() throws IOException {
+    public void testRejectIndexOptions() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("index_options", randomIndexOptions())))
         );
-        assertThat(e.getMessage(), containsString("index_options not allowed in field [field] of type [scaled_float]"));
+        assertThat(e.getMessage(),
+            containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
+        assertWarnings("Parameter [index_options] has no effect on type [scaled_float] and will be removed in future");
     }
 
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field")
+        ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
             .build(context);
         assertEquals(3.14, mapper.parseSourceValue(3.1415926, null), 0.00001);
         assertEquals(3.14, mapper.parseSourceValue("3.1415", null), 0.00001);
         assertNull(mapper.parseSourceValue("", null));
 
-        ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field")
+        ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
             .nullValue(2.71)
             .build(context);

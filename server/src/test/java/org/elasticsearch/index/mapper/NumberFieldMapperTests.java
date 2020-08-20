@@ -31,38 +31,31 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
-public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<NumberFieldMapper.Builder> {
+public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -274,12 +267,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
      */
     public void testIgnoreMalformedWithObject() throws Exception {
         for (String type : TYPES) {
-            Object malformedValue = new ToXContentObject() {
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return builder.startObject().field("foo", "bar").endObject();
-                }
-            };
+            Object malformedValue = (ToXContentObject) (builder, params) -> builder.startObject().field("foo", "bar").endObject();
             for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
                 String mapping = Strings.toString(
                         jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field").field("type", type)
@@ -294,42 +282,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
                 assertThat(e.getCause().getMessage(), containsString("Current token"));
                 assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
             }
-        }
-    }
-
-    public void testRejectNorms() throws IOException {
-        // not supported as of 5.0
-        for (String type : TYPES) {
-            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", type)
-                        .field("norms", random().nextBoolean())
-                    .endObject()
-                .endObject().endObject().endObject());
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
-        }
-    }
-
-    /**
-     * `index_options` was deprecated and is rejected as of 7.0
-     */
-    public void testRejectIndexOptions() throws IOException {
-        for (String type : TYPES) {
-            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", type)
-                    .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
-                    .endObject()
-                .endObject().endObject().endObject());
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertThat(e.getMessage(), containsString("index_options not allowed in field [foo] of type [" + type +"]"));
         }
     }
 
@@ -406,22 +358,19 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         }
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER).build(context);
-        assertEquals(3, mapper.parseSourceValue(3.14, null));
-        assertEquals(42, mapper.parseSourceValue("42.9", null));
+        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true).build(context);
+        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
 
-        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT)
+        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)
             .build(context);
-        assertEquals(2.71f, (float) nullValueMapper.parseSourceValue("", null), 0.00001);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of(2.71f), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     @Timeout(millis = 30000)
@@ -498,18 +447,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         client().admin().indices().preparePutMapping("test57287").setSource(mapping, XContentType.JSON).get();
         String doc = "{\"number\" : 9223372036854775808}";
         IndexResponse response = client().index(new IndexRequest("test57287").source(doc, XContentType.JSON)).get();
-        assertTrue(response.status() == RestStatus.CREATED);
-    }
-
-    public void testDeprecatedSimilarityParameter() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("field")
-            .field("type", "long")
-            .field("similarity", "bm25")
-            .endObject().endObject().endObject().endObject());
-
-        parser.parse("type", new CompressedXContent(mapping));
-        assertWarnings("The [similarity] parameter has no effect on field [field] and will be removed in 8.0");
+        assertSame(response.status(), RestStatus.CREATED);
     }
 
     private void parseRequest(NumberType type, BytesReference content) throws IOException {
@@ -536,15 +474,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         if (value instanceof BigInteger) {
             return BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
-                    .rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON)
+                    .rawField("field", new ByteArrayInputStream(value.toString().getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
                 .endObject());
         } else {
             return BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject());
         }
     }
 
-    @Override
-    protected NumberFieldMapper.Builder newBuilder() {
-        return new NumberFieldMapper.Builder("number", NumberType.LONG);
-    }
 }

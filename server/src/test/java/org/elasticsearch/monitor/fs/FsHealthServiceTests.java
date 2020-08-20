@@ -42,8 +42,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -231,6 +234,132 @@ public class FsHealthServiceTests extends ESTestCase {
         }
     }
 
+    public void testFailsHealthOnMissingLockFile() throws IOException {
+        final Settings settings = Settings.EMPTY;
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
+
+            //Deleting Lock file
+            Path[] paths = env.nodeDataPaths();
+            Path deletedPath = randomFrom(paths);
+            deletedPath = deletedPath.resolve(NodeEnvironment.NODE_LOCK_FILENAME);
+            Files.deleteIfExists(deletedPath);
+
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on node due to broken locks"));
+        } finally {
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testFailsHealthOnMissingLockFileWithDisruptedPath() throws IOException {
+        FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        FileSystemIOExceptionProvider disruptWritesFileSystemProvider = new FileSystemIOExceptionProvider(fileSystem);
+        fileSystem = disruptWritesFileSystemProvider.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem);
+        final Settings settings = Settings.EMPTY;
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            Path[] paths = env.nodeDataPaths();
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
+
+            //disrupt file system writes on single path
+            disruptWritesFileSystemProvider.injectIOException.set(true);
+            String disruptedPath = randomFrom(paths).toString();
+            disruptWritesFileSystemProvider.restrictPathPrefix(disruptedPath);
+
+            //Deleting Lock file
+            Path deletedPath = randomFrom(paths);
+            deletedPath = deletedPath.resolve(NodeEnvironment.NODE_LOCK_FILENAME);
+            Files.deleteIfExists(deletedPath);
+
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on node due to broken locks"));
+            assertEquals(0, disruptWritesFileSystemProvider.getInjectedPathCount());
+
+        } finally {
+            disruptWritesFileSystemProvider.injectIOException.set(false);
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testFailsHealthOnUnexpectedLockFileSize() throws IOException {
+        FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        final Settings settings = Settings.EMPTY;
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        FileSystemUnexpectedLockFileSizeProvider unexpectedLockFileSizeFileSystemProvider = new FileSystemUnexpectedLockFileSizeProvider(
+            fileSystem, 1, testThreadPool);
+        fileSystem = unexpectedLockFileSizeFileSystemProvider.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
+
+            // enabling unexpected file size injection
+            unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(true);
+
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on node due to broken locks"));
+            assertEquals(1, unexpectedLockFileSizeFileSystemProvider.getInjectedPathCount());
+
+        } finally {
+            unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(false);
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testFailsHealthOnIncorrectCreationTime() throws IOException {
+        FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        final Settings settings = Settings.EMPTY;
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        FileSystemIncorrectCreationTimeProvider incorrectCreationTimeFileSystemProvider = new FileSystemIncorrectCreationTimeProvider(
+            fileSystem, System.currentTimeMillis()-100000, testThreadPool);
+        fileSystem = incorrectCreationTimeFileSystemProvider.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
+
+            // enabling incorrect file creation time injection
+            incorrectCreationTimeFileSystemProvider.injectIncorrectCreationTime.set(true);
+
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on node due to broken locks"));
+            assertEquals(1, incorrectCreationTimeFileSystemProvider.getInjectedPathCount());
+
+        } finally {
+            incorrectCreationTimeFileSystemProvider.injectIncorrectCreationTime.set(false);
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
     private static class FileSystemIOExceptionProvider extends FilterFileSystemProvider {
 
         AtomicBoolean injectIOException = new AtomicBoolean();
@@ -254,7 +383,8 @@ public class FsHealthServiceTests extends ESTestCase {
         public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
             if (injectIOException.get()){
                 assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                if (path.toString().startsWith(pathPrefix) && path.toString().
+                    endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                     injectedPaths.incrementAndGet();
                     throw new IOException("fake IOException");
                 }
@@ -289,7 +419,8 @@ public class FsHealthServiceTests extends ESTestCase {
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
                         assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                        if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                        if (path.toString().startsWith(pathPrefix) && path.toString().
+                            endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             throw new IOException("fake IOException");
                         }
@@ -339,6 +470,71 @@ public class FsHealthServiceTests extends ESTestCase {
                     super.force(metaData);
                 }
             };
+        }
+    }
+
+    private static class FileSystemUnexpectedLockFileSizeProvider extends FilterFileSystemProvider {
+
+        AtomicBoolean injectUnexpectedFileSize = new AtomicBoolean();
+        AtomicInteger injectedPaths = new AtomicInteger();
+
+        private final long size;
+        private final ThreadPool threadPool;
+
+        FileSystemUnexpectedLockFileSizeProvider(FileSystem inner, long size, ThreadPool threadPool) {
+            super("disrupt_fs_health://", inner);
+            this.size = size;
+            this.threadPool = threadPool;
+        }
+
+        public int getInjectedPathCount(){
+            return injectedPaths.get();
+        }
+
+        @Override
+        public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
+                @Override
+                public long size() throws IOException {
+                    if (injectUnexpectedFileSize.get()) {
+                        if (path.getFileName().toString().equals(NodeEnvironment.NODE_LOCK_FILENAME)) {
+                            injectedPaths.incrementAndGet();
+                            return size;
+                        }
+                    }
+                    return super.size();
+                }
+            };
+        }
+    }
+
+    private static class FileSystemIncorrectCreationTimeProvider extends FilterFileSystemProvider {
+
+        AtomicBoolean injectIncorrectCreationTime = new AtomicBoolean();
+        AtomicInteger injectedPaths = new AtomicInteger();
+
+        private final long time;
+        private final ThreadPool threadPool;
+
+        FileSystemIncorrectCreationTimeProvider(FileSystem inner, long time, ThreadPool threadPool) {
+            super("disrupt_fs_health://", inner);
+            this.time = time;
+            this.threadPool = threadPool;
+        }
+
+        public int getInjectedPathCount(){
+            return injectedPaths.get();
+        }
+
+        @Override
+        public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options) throws IOException {
+            if (injectIncorrectCreationTime.get()) {
+                if (path.getFileName().toString().equals(NodeEnvironment.NODE_LOCK_FILENAME)) {
+                    injectedPaths.incrementAndGet();
+                    path.toFile().setLastModified(time);
+                }
+            }
+            return super.readAttributes(path, type, options);
         }
     }
 }

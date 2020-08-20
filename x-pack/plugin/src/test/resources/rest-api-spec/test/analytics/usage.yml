@@ -271,6 +271,5 @@ setup:
   - match: {analytics.stats.t_test_usage: $t_test_usage}
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
-  - match: { analytics.stats.rate_usage: $rate_usage }
   - gt: { analytics.stats.rate_usage: $rate_usage }
   - set: {analytics.stats.rate_usage: rate_usage}

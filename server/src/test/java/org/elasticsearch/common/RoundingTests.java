@@ -873,15 +873,15 @@ public class RoundingTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTH_OF_YEAR));
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with non-month based calendar interval " +
-            "histogram [HOUR_OF_DAY] only week, day, hour, minute and second are supported for this histogram"));
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
         ex = expectThrows(IllegalArgumentException.class,
             () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.QUARTER_OF_YEAR));
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with non-month based calendar interval " +
-            "histogram [HOUR_OF_DAY] only week, day, hour, minute and second are supported for this histogram"));
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
         ex = expectThrows(IllegalArgumentException.class,
             () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEAR_OF_CENTURY));
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with non-month based calendar interval " +
-            "histogram [HOUR_OF_DAY] only week, day, hour, minute and second are supported for this histogram"));
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
     }
 
     public void testNonMillisecondsBasedUnitCalendarRoundingSize() {

@@ -122,7 +122,7 @@ Update the previous EQL query as follows:
 
 * Change the `any` keyword to `process`. This limits matches to events with an
 `event.category` of `process`.
-* Add the `and process.command_line != null` condition to match only
+* Add the `and process.command_line.keyword != null` condition to match only
 events with a command line value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
@@ -133,7 +133,7 @@ lets you retrieve the document source for any matching events.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.name == "regsvr32.exe" and process.command_line != null
+    process where process.name == "regsvr32.exe" and process.command_line.keyword != null
   """
 }
 ----

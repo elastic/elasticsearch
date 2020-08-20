@@ -56,7 +56,7 @@ If you are looking for a SNAPSHOT version, you should add our snapshot repositor
         <name>elasticsearch snapshot repo</name>
         <url>https://snapshots.elastic.co/maven/</url>
     </repository>
-<repositories>
+</repositories>
 --------------------------------------------------
 
 or in Gradle:

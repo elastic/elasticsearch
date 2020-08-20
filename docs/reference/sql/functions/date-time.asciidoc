@@ -890,7 +890,7 @@ ISO_DAY_OF_WEEK(datetime_exp) <1>
 
 *Output*: integer
 
-*Description*: Extract the day of the week from a date/datetime, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
+*Description*: Extract the day of the week from a date/datetime, following the {wikipedia}/ISO_week_date[ISO 8601 standard].
 Monday is `1`, Tuesday is `2`, etc.
 
 [source, sql]
@@ -913,7 +913,7 @@ ISO_WEEK_OF_YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-*Description*: Extract the week of the year from a date/datetime, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
+*Description*: Extract the week of the year from a date/datetime, following {wikipedia}/ISO_week_date[ISO 8601 standard]. The first week
 of a year is the first week with a majority (4 or more) of its days in January.
 
 [source, sql]

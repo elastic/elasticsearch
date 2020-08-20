@@ -51,8 +51,15 @@ public class InvokeCallNode extends ArgumentsNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitInvokeCall(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitInvokeCall(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

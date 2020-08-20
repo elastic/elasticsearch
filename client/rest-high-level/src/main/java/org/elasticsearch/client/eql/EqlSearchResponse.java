@@ -24,7 +24,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
@@ -146,20 +148,21 @@ public class EqlSearchResponse {
             new ConstructingObjectParser<>("eql/search_response_sequence", true,
                 args -> {
                     int i = 0;
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     @SuppressWarnings("unchecked") List<SearchHit> events = (List<SearchHit>) args[i];
                     return new EqlSearchResponse.Sequence(joinKeys, events);
                 });
 
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOIN_KEYS);
+            PARSER.declareFieldArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                JOIN_KEYS, ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p), EVENTS);
         }
 
-        private final List<String> joinKeys;
+        private final List<Object> joinKeys;
         private final List<SearchHit> events;
 
-        public Sequence(List<String> joinKeys, List<SearchHit> events) {
+        public Sequence(List<Object> joinKeys, List<SearchHit> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
@@ -186,7 +189,7 @@ public class EqlSearchResponse {
             return Objects.hash(joinKeys, events);
         }
 
-        public List<String> joinKeys() {
+        public List<Object> joinKeys() {
             return joinKeys;
         }
 
@@ -204,7 +207,7 @@ public class EqlSearchResponse {
         }
 
         private final int count;
-        private final List<String> keys;
+        private final List<Object> keys;
         private final float percent;
 
         private static final ParseField COUNT = new ParseField(Fields.COUNT);
@@ -216,18 +219,19 @@ public class EqlSearchResponse {
                 args -> {
                     int i = 0;
                     int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     float percent = (float) args[i];
                     return new EqlSearchResponse.Count(count, joinKeys, percent);
                 });
 
         static {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), COUNT);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), KEYS);
+            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
+                ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), PERCENT);
         }
 
-        public Count(int count, List<String> keys, float percent) {
+        public Count(int count, List<Object> keys, float percent) {
             this.count = count;
             this.keys = keys == null ? Collections.emptyList() : keys;
             this.percent = percent;
@@ -260,7 +264,7 @@ public class EqlSearchResponse {
             return count;
         }
 
-        public List<String> keys() {
+        public List<Object> keys() {
             return keys;
         }
 

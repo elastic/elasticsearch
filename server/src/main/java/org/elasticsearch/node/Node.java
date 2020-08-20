@@ -185,6 +185,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -332,8 +333,11 @@ public class Node implements Closeable {
             this.environment = new Environment(settings, initialEnvironment.configFile());
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info("node name [{}], node ID [{}], cluster name [{}]",
-                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value());
+            logger.info("node name [{}], node ID [{}], cluster name [{}], roles {}",
+                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+                DiscoveryNode.getRolesFromSettings(settings).stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 

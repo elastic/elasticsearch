@@ -173,7 +173,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             if (canBeFullyCached || isStartOfFile) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
 
-                if (cachedBlob == CachedBlob.CACHE_MISS) {
+                if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
                     // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested so
                     // we compute the regions of the file we would like to have the next time. The regions are expressed as tuples of
                     // {start, end} ranges where positions are relative to the whole file.
@@ -184,9 +184,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         // the index input is too large to fully cache, so just cache the initial range
                         indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
                     }
-                } else if (cachedBlob == CachedBlob.CACHE_NOT_READY) {
-                    // No point in trying to populate the cache if it wasn't even ready yet
-                    indexCacheMiss = null;
+
+                    // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
+                    // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
                 } else {
                     logger.trace(
                         "reading [{}] bytes of file [{}] at position [{}] using index cache",

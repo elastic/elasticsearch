@@ -20,6 +20,9 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -245,6 +248,13 @@ public class RBACEngine implements AuthorizationEngine {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
             authorizeIndexActionName(action, authorizationInfo, null, listener);
+        } else if (isPointInTimeRequestRelated(request)) {
+            if (SearchAction.NAME.equals(action)) {
+                authorizeIndexActionName(action, authorizationInfo, null, listener);
+            } else {
+                // RBACEngine simply authorizes point in time related requests without filling in any DLS/FLS permissions.
+                listener.onResponse(new IndexAuthorizationResult(true, null));
+            }
         } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
             if (isScrollRelatedAction(action)) {
                 // scroll is special
@@ -613,5 +623,15 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(GetAsyncSearchAction.NAME) ||
             action.equals(DeleteAsyncResultAction.NAME) ||
             action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    private static boolean isPointInTimeRequestRelated(TransportRequest request) {
+        if (request instanceof SearchRequest && ((SearchRequest) request).pointInTimeBuilder() != null) {
+            return true;
+        }
+        if (request instanceof ShardSearchRequest && ((ShardSearchRequest) request).readerId() != null) {
+            return true;
+        }
+        return false;
     }
 }

@@ -98,7 +98,8 @@ You can configure and update dynamic settings on a running cluster using the
 <<cluster-update-settings,cluster update settings API>>.
 +
 You can also configure dynamic settings locally on an unstarted or shut down
-node using `elasticsearch.yml`.
+node using `elasticsearch.yml`. However, any changes made using the cluster
+update settings API will override this file.
 +
 TIP: It’s best to set dynamic, cluster-wide settings with the cluster update
 settings API and use `elasticsearch.yml` only for local configurations. Using

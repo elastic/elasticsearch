@@ -51,6 +51,11 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return restHandler.allowSystemIndexAccessByDefault();
+    }
+
+    @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request

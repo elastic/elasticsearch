@@ -106,6 +106,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testShallowCopy() {
+        SearchSourceBuilder original = createSearchSourceBuilder();
+        SearchSourceBuilder copy = original.shallowCopy();
+        assertEquals(original, copy);
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);

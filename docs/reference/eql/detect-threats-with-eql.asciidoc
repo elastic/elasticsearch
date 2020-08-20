@@ -213,7 +213,7 @@ malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
 Modify the previous EQL query as follows:
 
 * Change the `process` keyword to `library`.
-* Replace the `process.command_line != null` condition with
+* Replace the `process.command_line.keyword != null` condition with
 `dll.name == "scrobj.dll`.
 
 [source,console]

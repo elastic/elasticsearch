@@ -195,7 +195,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[routing] cannot be used with search context", validationErrors.validationErrors().get(0));
+            assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
     }
 

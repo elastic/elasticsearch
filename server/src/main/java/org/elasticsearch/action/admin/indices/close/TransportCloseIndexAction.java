@@ -84,8 +84,9 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     protected void doExecute(Task task, CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
-            throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() +
-                ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
+            throw new IllegalStateException("closing indices is forbidden since data in closed indices may be lost during migrations and " +
+                    "upgrades, and they also consume significant disk space; set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey()
+                    + ": true] to permit indices to be closed");
         }
         super.doExecute(task, request, listener);
     }

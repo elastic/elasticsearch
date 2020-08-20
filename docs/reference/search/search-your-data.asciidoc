@@ -117,13 +117,17 @@ engines
 * <<geo-queries,Geo>> and <<shape-queries,spatial queries>>
 
 *Aggregations* +
-
 You can use <<search-aggregations,search aggregations>> to get statistics and
 other summaries of your search results. Aggregation help you
 answer questions like:
 
 * What's the average response time for my servers?
 * What are the top IP addresses hit by users on my network?
+
+*Search multiple data streams and indices* +
+You can use comma-separated values and grep-like index patterns to search
+several data streams and indices in the same request. You can even boost search
+results from specific indices. See <<search-multiple-indices>>.
 
 *Paginate search results* +
 By default, searches return only the top 10 matching hits. To retrieve
@@ -194,8 +198,8 @@ which may slow searches.
 
 By default, adaptive replica selection chooses from all nodes and shards
 containing the index's data. However, you may only want data from a local node
-or route searches to a specific node based on its hardware. To limit the set of
-eligible nodes and shards for a search request, use the search API's
+or want to route searches to a specific node based on its hardware. To limit the
+set of eligible nodes and shards for a search request, use the search API's
 <<search-preference,`preference` parameter>>.
 
 For example, the following request searches `my-index-000001` with a

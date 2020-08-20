@@ -105,8 +105,8 @@ The API response returns the top 10 documents matching the query in the
 You can use the following options to customize your searches.
 
 *Query DSL* +
-Query DSL supports a variety of query types you can mix and match to get the
-results you want, including:
+<<query-dsl,Query DSL>> supports a variety of query types you can mix and match
+to get the results you want, including:
 
 * <<query-dsl-bool-query,Boolean>> and other <<compound-queries,compound
 queries>>, which let you combine queries and match results based on multiple

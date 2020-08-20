@@ -21,10 +21,9 @@ GET /my-index-000001,my-index-000002/_search
 // TEST[setup:my_index]
 // TEST[s/^/PUT my-index-000002\n/]
 
-You can also search multiple data streams and indices using a wildcard (`*`)
-pattern.
+You can also search multiple data streams and indices using an index.
 
-The following request targets the wildcard pattern `my-index-*`. The request
+The following request targets the index pattern `my-index-*`. The request
 searches any data streams or indices in the cluster that start with `my-index-`.
 
 [source,console]
@@ -43,7 +42,8 @@ GET /my-index-*/_search
 To search all data streams and indices in a cluster, omit the target from the
 request path. Alternatively, you can use `_all` or `*`.
 
-The following requests are equivalent and search all data streams and indices in the cluster.
+The following requests are equivalent and search all data streams and indices in
+the cluster.
 
 [source,console]
 ----

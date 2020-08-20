@@ -118,7 +118,7 @@ engines
 
 *Aggregations* +
 You can use <<search-aggregations,search aggregations>> to get statistics and
-other summaries of your search results. Aggregation help you
+other summaries of your search results. Aggregations help you
 answer questions like:
 
 * What's the average response time for my servers?
@@ -163,25 +163,23 @@ results for a long-running search now and get complete results later.
 [[search-shard-routing]]
 === Search shard routing
 
-Copies of an index's data are distributed across one or more primary shards and
-replica shards. These shards may be distributed across multiple nodes. When you
-search an index, a coordinating node receives the search request. The
-coordinating node then determines which nodes contains copies of the index's
-data and selects a node to search. The coordinating node then routes the search
-request to the selected node and its shard copies.
-
+To protect against hardware failure and increase search capacity, {es} can store
+copies of an index's data across multiple shards in multiple nodes. When running
+a search request, {es} first determines which nodes contains copies of an
+index's data. {es} then select an eligible node and forwards the search request
+to the node and its shard copies. This process is known as _search shard
+routing_ or _routing_.
 
 [discrete]
 [[search-adaptive-replica]]
 ==== Adaptive replica selection
 
-Multiple nodes may contain copies of an index's data and be eligible for search
-routing. By default, {es} selects one of these nodes search using _adaptive
-replica selection_. This method chooses the node based on
+By default, {es} uses _adaptive replica selection_ to select and route search
+requests to the best eligible node. This node is chosen based on
 <<allocation-awareness,allocation awareness>> and the following criteria:
 
-* Response time of prior requests between the coordinating node and the node
-containing the index data
+* Response time of prior requests between the request's coordinating node
+and the node containing the index data
 * How long the node took to run previous searches
 * Queue size of the node's `search` <<modules-threadpool,threadpool>>
 
@@ -190,7 +188,7 @@ can disable adaptive replica selection by setting
 `cluster.routing.use_adaptive_replica_selection` to `false` in
 `elasticsearch.yml`or using the <<cluster-update-settings,cluster settings
 API>>. If disabled, searches are routed using a round-robin selection method,
-which may slow searches.
+which may result in slower searches.
 
 [discrete]
 [[shard-and-node-preference]]
@@ -198,9 +196,12 @@ which may slow searches.
 
 By default, adaptive replica selection chooses from all nodes and shards
 containing the index's data. However, you may only want data from a local node
-or want to route searches to a specific node based on its hardware. To limit the
-set of eligible nodes and shards for a search request, use the search API's
-<<search-preference,`preference` parameter>>.
+or want to route searches to a specific node based on its hardware. Alternately,
+you may want to send repeated searches to the same shards to take advantage of
+caching.
+
+To limit the set of eligible nodes and shards for a search request, use
+the search API's <<search-preference,`preference` parameter>>.
 
 For example, the following request searches `my-index-000001` with a
 `preference` of `_local`. This argument restricts the search to shards on the

@@ -35,7 +35,7 @@ public interface FetchSubPhaseExecutor {
     void setNextReader(LeafReaderContext readerContext) throws IOException;
 
     /**
-     * Called in doc order for each hit in a leaf reader
+     * Called in doc id order for each hit in a leaf reader
      */
     void execute(HitContext hitContext) throws IOException;
 

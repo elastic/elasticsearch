@@ -58,6 +58,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -106,7 +107,13 @@ public class FetchPhase implements SearchPhase {
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
             Map<String, Object> sharedCache = new HashMap<>();
 
-            FetchPhaseExecutor executor = new FetchPhaseExecutor(fetchSubPhases, context);
+            List<FetchSubPhaseExecutor> executors = new ArrayList<>();
+            for (FetchSubPhase fsp : fetchSubPhases) {
+                FetchSubPhaseExecutor executor = fsp.getExecutor(context);
+                if (executor != null) {
+                    executors.add(executor);
+                }
+            }
 
             int currentReaderIndex = -1;
             LeafReaderContext currentReaderContext = null;
@@ -119,16 +126,17 @@ public class FetchPhase implements SearchPhase {
                 if (currentReaderIndex != readerIndex) {
                     currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                     currentReaderIndex = readerIndex;
-                    executor.setNextReader(currentReaderContext);
+                    for (FetchSubPhaseExecutor executor : executors) {
+                        executor.setNextReader(currentReaderContext);
+                    }
                 }
                 assert currentReaderContext != null;
-                int subDocId = docId - currentReaderContext.docBase;
 
-                int rootDocId = findRootDocumentIfNested(context, currentReaderContext, subDocId);
-
-                HitContext hit = prepareHitContext(context, fieldsVisitor, docId, subDocId, rootDocId,
-                    storedToRequestedFields, currentReaderContext, sharedCache);
-                executor.execute(hit);
+                HitContext hit
+                    = prepareHitContext(context, fieldsVisitor, docId, storedToRequestedFields, currentReaderContext, sharedCache);
+                for (FetchSubPhaseExecutor executor : executors) {
+                    executor.execute(hit);
+                }
                 hits[docs[index].index] = hit.hit();
             }
             if (context.isCancelled()) {
@@ -218,13 +226,13 @@ public class FetchPhase implements SearchPhase {
     }
 
     private HitContext prepareHitContext(SearchContext context, FieldsVisitor fieldsVisitor, int docId,
-                                         int subDocId, int rootDocId, Map<String, Set<String>> storedToRequestedFields,
+                                         Map<String, Set<String>> storedToRequestedFields,
                                          LeafReaderContext subReaderContext, Map<String, Object> sharedCache) throws IOException {
+        int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
-            return prepareHitContext(context, fieldsVisitor, docId, subDocId, storedToRequestedFields, subReaderContext, sharedCache);
+            return prepareNonNestedHitContext(context, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, sharedCache);
         } else {
-            return prepareNestedHitContext(context, docId, subDocId, rootDocId,
-                storedToRequestedFields, subReaderContext, sharedCache);
+            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, sharedCache);
         }
     }
 
@@ -235,13 +243,13 @@ public class FetchPhase implements SearchPhase {
      *   - Loading the document source and setting it on {@link SourceLookup}. This allows
      *     fetch subphases that use the hit context to access the preloaded source.
      */
-    private HitContext prepareHitContext(SearchContext context,
+    private HitContext prepareNonNestedHitContext(SearchContext context,
                                    FieldsVisitor fieldsVisitor,
                                    int docId,
-                                   int subDocId,
                                    Map<String, Set<String>> storedToRequestedFields,
                                    LeafReaderContext subReaderContext,
                                    Map<String, Object> sharedCache) {
+        int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
             return new HitContext(hit, subReaderContext, subDocId, context.searcher(), sharedCache);
@@ -276,11 +284,10 @@ public class FetchPhase implements SearchPhase {
      */
     @SuppressWarnings("unchecked")
     private HitContext prepareNestedHitContext(SearchContext context,
-                                         int nestedTopDocId,
-                                         int nestedSubDocId,
-                                         int rootSubDocId,
-                                         Map<String, Set<String>> storedToRequestedFields,
-                                         LeafReaderContext subReaderContext,
+                                               int nestedTopDocId,
+                                               int nestedSubDocId,
+                                               Map<String, Set<String>> storedToRequestedFields,
+                                               LeafReaderContext subReaderContext,
                                                Map<String, Object> sharedCache) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
@@ -302,7 +309,8 @@ public class FetchPhase implements SearchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, rootFieldsVisitor, rootSubDocId);
+            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, rootFieldsVisitor,
+                nestedTopDocId - subReaderContext.docBase);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {

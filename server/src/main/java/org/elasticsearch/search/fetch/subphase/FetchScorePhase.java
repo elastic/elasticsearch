@@ -50,7 +50,7 @@ public class FetchScorePhase implements FetchSubPhase {
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
                 ScorerSupplier scorerSupplier = weight.scorerSupplier(readerContext);
                 if (scorerSupplier == null) {
-                    scorer = null;
+                    throw new IllegalStateException("Can't compute score on document as it doesn't match the query");
                 } else {
                     scorer = scorerSupplier.get(1L); // random-access
                 }
@@ -59,7 +59,7 @@ public class FetchScorePhase implements FetchSubPhase {
             @Override
             public void execute(HitContext hitContext) throws IOException {
                 if (scorer == null || scorer.iterator().advance(hitContext.docId()) != hitContext.docId()) {
-                    return;
+                    throw new IllegalStateException("Can't compute score on document " + hitContext + " as it doesn't match the query");
                 }
                 hitContext.hit().score(scorer.score());
             }

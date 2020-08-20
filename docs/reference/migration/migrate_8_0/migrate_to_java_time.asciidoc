@@ -6,13 +6,14 @@ formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
 
-
+[discrete]
 [[java-time-convert-date-formats]]
 === Convert date formats
 
 To upgrade to {es} 8, you'll need to convert any joda-time date formats
 to their java-time equivalents.
 
+[discrete]
 [[java-time-migration-impacted-features]]
 === Impacted features
 The switch to java time only impacts custom <<date,`date`>> and
@@ -31,6 +32,7 @@ an update.
 To see if your date format is impacted, use the <<migration-api-deprecation,deprecation info API>>
 or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant].
 
+[discrete]
 [[java-time-migration-incompatible-date-formats]]
 === Incompatible date formats
 Custom date formats containing the following joda-time literals should be
@@ -201,6 +203,7 @@ test formats containing these patterns carefully before upgrading.
 In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
 --
 
+[discrete]
 [[java-time-migration-test]]
 === Test with your data
 
@@ -210,6 +213,7 @@ deploying in production.
 For help with date debugging, consider using
 https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
 
+[discrete]
 [[java-time-migrate-update-mappings]]
 === Update index mappings
 To update joda-time date formats in index mappings, you must create a new index
@@ -311,5 +315,4 @@ POST /_aliases
 }
 --------------------------------------------------
 // TEST[continued]
-
 

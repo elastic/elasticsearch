@@ -196,7 +196,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final User user;
         if (randomBoolean()) {
-            user = new User(new User("hulk", new String[]{"superuser"}, "hulk", "hulk@test.com", Map.of(), true), new User("authenticated_user", new String[]{"other"}));
+            user = new User(
+                new User("hulk", new String[]{"superuser"}, "hulk", "hulk@test.com", Map.of(), true),
+                new User("authenticated_user", new String[]{"other"}));
         } else {
             user = new User("hulk", new String[]{"superuser"}, "hulk", "hulk@test.com", Map.of(), true);
         }
@@ -961,7 +963,14 @@ public class ApiKeyServiceTests extends ESTestCase {
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
-            Map.of("principal", "test_user", "full_name", "test user", "email", "test@user.com", "realm", "realm1", "realm_type", "realm_type1", "metadata", Map.of())
+            Map.of(
+                "principal", "test_user",
+                "full_name", "test user",
+                "email", "test@user.com",
+                "realm", "realm1",
+                "realm_type", "realm_type1",
+                "metadata", Map.of()
+            )
         );
     }
 }

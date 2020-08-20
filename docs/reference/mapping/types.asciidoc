@@ -16,185 +16,90 @@ Currently, the only type family is `keyword`, which consists of the `keyword`,
 single field type. For example, the `boolean` type family consists of one field
 type: `boolean`.
 
-The following sections organize the available field types based on their
-intended use. Except where noted, the type family is the same as the field type.
+[discrete]
+[[_core_datatypes]]
+==== Core types
 
-<<binary,`binary`>>::
-Binary value encoded as a {wikipedia}/Base64[Base64] string.
-
-<<boolean,`boolean`>>::
-`true` or `false` value. Also accepts the `"true"` or `"false"` string
-equivalents.
-
-<<ip,`ip`>>::
-IPv4 or IPv6 address.
+<<binary>>::          `binary`
+<<boolean>>::         `boolean`
+keyword::             <<keyword,`keyword`>>,
+                      <<constant-keyword,`constant_keyword`>>, and
+                      <<wildcard,`wildcard`>>
+<<number,Numbers>>::  `long`, `integer`, `short`, `byte`, `double`, `float`,
+                      `half_float`, `scaled_float`
+Dates::               <<date,`date`>>, <<date_nanos,`date_nanos`>>
+<<alias,Alias>>::     `alias`. Defines an alias to an existing field.
 
 
 [discrete]
-[[date-field-types]]
-==== Dates
+[[object-types]]
+==== Objects and relational types
 
-<<date_nanos,`date_nanos`>>::
-Date with a nanosecond resolution.
-
-<<date,`date`>>::
-Date with a millisecond resolution.
-
-
-[discrete]
-[[full-text-field-types]]
-==== Full-text search
-
-<<text,`text`>>::
-<<analysis,Analyzed>> string used for full-text searches.
-
-{plugins}/mapper-annotated-text.html[`annotated_text`]::
-Used for text containing special markup. Often used for identifying named
-entities.
-
-<<completion-suggester,`completion`>>::
-Used for query auto-completion using <<search-suggesters,suggesters>>.
-
-<<search-as-you-type,`search_as_you_type`>>::
-Used for query auto-completion without suggesters.
-
-<<dense-vector,`dense_vector`>>::
-Dense vectors of float values. Often used for document scoring.
-
-{plugins}/mapper-murmur3.html[`murmur3`]::
-Computes and stores a hash of a provided value.
-
-<<percolator,`percolator`>>::
-Stores queries written in <<query-dsl,Query DSL>>. Often used to find queries
-that match a specific set of documents.
-
-<<rank-feature,`rank_feature`>>::
-Numeric value used to boost specific search results.
-
-<<rank-features,`rank_features`>>::
-Multiple numeric values used to boost specific search results.
-
-<<token-count,`token_count`>>::
-Token count for a `text` field.
+<<object>>::      `object` for single JSON objects
+<<flattened>>::   `flattened`. Allows an entire JSON object to be indexed as a
+                  single field.
+<<nested>>::      `nested` for arrays of JSON objects
+<<parent-join>>:: `join`. Defines parent/child relation for documents within the
+                  same index
 
 
 [discrete]
-[[keyword-field-types]]
-==== Keywords
+[[structured-data-types]]
+==== Structured data types
 
-These field types are in the `keyword` type family.
-
-<<keyword,`keyword`>>::
-String used for filtering, sorting, aggregations, and exact matches.
-
-<<constant-keyword,`constant_keyword`>>::
-Used when all documents have a `keyword` field with the same value.
-
-<<wildcard,`wildcard`>>::
-Optimizes `keyword` field values for grep-like wildcard queries.
+<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`,
+                `date_range`, `ip_range`
+<<ip>>::        `ip` for IPv4 and IPv6 addresses
+{plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of
+values at index-time and store them in the index
 
 
 [discrete]
-[[numeric-field-types]]
-==== Numbers
+[[aggregated-data-types]]
+==== Aggregated data types
 
-<<number,`long`>>::
-Signed 64-bit integer with a minimum value of +-2^63^+ and a maximum value of
-+2^63^-1+.
-
-<<number,`integer`>>::
-Signed 32-bit integer with a minimum value of +-2^31^+ and a maximum value of
-+2^31^-1+.
-
-<<number,`short`>>::
-Signed 16-bit integer with a minimum value of +-32,768+ and a maximum value of
-+32,767+.
-
-<<number,`byte`>>::
-Signed 8-bit integer with a minimum value of +-128+ and a maximum value of
-+127+.
-
-<<number,`double`>>::
-Double-precision 64-bit IEEE 754 floating point number, restricted to finite
-values.
-
-<<number,`float`>>::
-Single-precision 32-bit IEEE 754 floating point number, restricted to finite
-values.
-
-<<number,`half_float`>>::
-Half-precision 16-bit IEEE 754 floating point number, restricted to finite
-values.
-
-<<number,`scaled_float`>>::
-Floating point number that is backed by a `long`, scaled by a fixed `double`
-scaling factor.
-
-<<histogram,`histogram`>>::
-Pre-aggregated numerical values for
-<<search-aggregations-metrics-percentile-aggregation,percentiles aggregations>>.
+<<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles
+                aggregations.
 
 
 [discrete]
-[[object-field-types]]
-==== Objects and relational data
+[[text-search--types]]
+==== Text search types
 
-<<alias,`alias`>>::
-Used to create an alias for an existing field.
-
-<<flattened,`flattened`>>::
-Indexes an entire JSON object as a single field value.
-
-<<parent-join,`join`>>::
-Creates parent-child relationship between documents in the same index.
-
-<<nested,`nested`>>::
-Array of JSON objects.
-
-<<object,`object`>>::
-Single JSON object.
+<<text,Text>>::   `text` for analyzed, unstructured content
+{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
+<<completion-suggester,Completion>>:: `completion` to provide auto-complete suggestions
+<<search-as-you-type>>:: `search_as_you_type`. A `text`-like field optimized for
+queries to implement as-you-type completion
+<<token-count>>::        `token_count` to count the number of tokens in a string
 
 
 [discrete]
-[[range-field-types]]
-==== Ranges
+[[document-ranking-types]]
+==== Document ranking types
 
-<<range,`date_range`>>::
-Range of date values.
-
-<<range,`ip_range`>>::
-Range of IPv4 or IPv6 (or mixed) addresses.
-
-<<range,`long_range`>>::
-Range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum
-of +2^63^-1+.
-
-<<range,`integer_range`>>::
-Range of signed 32-bit integers with a minimum value of +-2^31^+ and maximum
-of +2^31^-1+.
-
-<<range,`double_range`>>::
-Range of double-precision 64-bit IEEE 754 floating point values.
-
-<<range,`float_range`>>::
-Range of single-precision 32-bit IEEE 754 floating point values.
+<<dense-vector>>::   `dense_vector`. Records dense vectors of float values.
+<<rank-feature>>::   `rank_feature`. Records a numeric feature to boost hits at
+                      query time.
+<<rank-features>>::  `rank_features`. Records numeric features to boost hits at
+                      query time.
 
 
 [discrete]
 [[spatial_datatypes]]
-==== Spatial data
+==== Spatial data types
 
-<<geo-point,`geo_point`>>::
-Latitudinal and longitudinal points.
+<<geo-point>>::     `geo_point` for lat/lon points
+<<geo-shape>>::     `geo_shape` for complex shapes like polygons
+<<point>>::         `point` for arbitrary cartesian points.
+<<shape>>::         `shape` for arbitrary cartesian geometries.
 
-<<geo-shape,`geo_shape`>>::
-Complex shapes, such as polygons.
 
-<<point,`point`>>::
-Arbitrary cartesian points.
-
-<<shape,`shape`>>::
-Arbitrary cartesian geometries.
+[discrete]
+[[other-types]]
+==== Other
+<<percolator>>::    `percolator`. Accepts queries from the <<query-dsl,Query
+                    DSL>>.
 
 
 [discrete]

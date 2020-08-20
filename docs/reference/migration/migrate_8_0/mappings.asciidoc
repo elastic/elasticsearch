@@ -64,7 +64,7 @@ Disabling _field_names is not necessary because it no longer carries a large ind
 ====
 
 //tag::notable-breaking-changes[]
-Java-time date formats replace joda-time formats
+.Java-time date formats replace joda-time formats
 [%collapsible]
 ====
 *Details* +
@@ -74,6 +74,6 @@ already required to use mappings with java-time date formats. However,
 earlier indices using joda-time formats must be reindexed to use
 mappings with java-time formats.
 *Impact* +
-For a detailed migration guide, see {ref}/migrate-to-java-time.html.
+For a detailed migration guide, see {ref}/migrate-to-java-time.html[Java time migration guide].
 ====
 // end::notable-breaking-changes[]

@@ -89,7 +89,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings,
+                                                                        RestCompatibility restCompatibleFunction) {
         return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry,
                 dispatcher, getNioGroupFactory(settings), clusterSettings, restCompatibleFunction));

@@ -205,7 +205,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testBindUnavailableAddress() {
         Settings initialSettings = createSettings();
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(initialSettings, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY), RestCompatibility.CURRENT_VERSION)) {
+                xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY),
+                RestCompatibility.CURRENT_VERSION)) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder()
@@ -213,7 +214,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 .put("network.host", remoteAddress.getAddress())
                 .build();
             try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(settings), RestCompatibility.CURRENT_VERSION)) {
+                    xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(settings),
+                    RestCompatibility.CURRENT_VERSION)) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
                 assertEquals(
                     "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),

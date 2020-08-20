@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -140,7 +141,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         try (AbstractHttpServerTransport transport =
                  new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher,
-                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), restCompatibleFunction) {
+                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), RestCompatibility.CURRENT_VERSION) {
 
                      @Override
                      protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -199,7 +200,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                          public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                              channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                          }
-                     }, clusterSettings, restCompatibleFunction) {
+                     }, clusterSettings,  RestCompatibility.CURRENT_VERSION) {
                      @Override
                      protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                          return null;

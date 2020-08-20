@@ -313,10 +313,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings,
+                                                                        RestCompatibility restCompatibleFunction) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings, restCompatibleFunction)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings,
+            restCompatibleFunction)));
         return transports;
     }
 

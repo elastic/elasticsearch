@@ -120,7 +120,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                                ClusterSettings clusterSettings,
+                                                                                RestCompatibility restCompatibleFunction) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -158,7 +159,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                                ClusterSettings clusterSettings,
+                                                                                RestCompatibility restCompatibleFunction) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -194,7 +196,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                                ClusterSettings clusterSettings,
+                                                                                RestCompatibility restCompatibleFunction) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);

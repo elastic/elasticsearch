@@ -978,7 +978,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings,
+                                                                        RestCompatibility restCompatibleFunction) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }

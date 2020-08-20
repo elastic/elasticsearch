@@ -84,13 +84,16 @@ public class RestRequest implements ToXContent.Params {
 
     // for testing
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,RestCompatibility restCompatibilityFunction) {
-        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet(), restCompatibilityFunction);
+                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
+                          RestCompatibility restCompatibilityFunction) {
+        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet(),
+            restCompatibilityFunction);
     }
 
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId(),restRequest.getRestCompatibilityFunction());
+            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId(),
+            restRequest.getRestCompatibilityFunction());
     }
 
     private RestCompatibility getRestCompatibilityFunction() {
@@ -98,7 +101,8 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId, RestCompatibility restCompatibilityFunction) {
+                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId,
+                        RestCompatibility restCompatibilityFunction) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));

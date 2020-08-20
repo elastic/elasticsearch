@@ -366,7 +366,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, trace);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel, restCompatibleFunction);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel,
+                    restCompatibleFunction);
                 innerChannel =
                     new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, trace);
             }
@@ -382,7 +383,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel, restCompatibleFunction);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel, restCompatibleFunction);
+            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel,
+                restCompatibleFunction);
         }
     }
 }

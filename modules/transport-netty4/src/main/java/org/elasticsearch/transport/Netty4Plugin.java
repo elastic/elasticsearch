@@ -91,7 +91,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings, RestCompatibility restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings,
+                                                                        RestCompatibility restCompatibleFunction) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher,
                 clusterSettings, getSharedGroupFactory(settings), restCompatibleFunction));

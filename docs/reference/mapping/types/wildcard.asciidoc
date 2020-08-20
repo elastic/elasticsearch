@@ -41,8 +41,10 @@ POST my-index-000001/_doc/_search
 {
   "query": {
       "wildcard" : {
+      "my_wildcard": {
           "value": "*quite*lengthy"
         }
+     }   
   }
 }
 

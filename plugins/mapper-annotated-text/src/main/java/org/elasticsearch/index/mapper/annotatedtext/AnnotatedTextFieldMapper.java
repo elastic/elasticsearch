@@ -39,8 +39,11 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -584,11 +587,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value.toString();
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     @Override

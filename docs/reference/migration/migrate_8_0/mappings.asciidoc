@@ -73,7 +73,9 @@ formatting, and calculations. Indices created in 7.0 and later versions are
 already required to use mappings with java-time date formats. However,
 earlier indices using joda-time formats must be reindexed to use
 mappings with java-time formats.
+
 *Impact* +
-For a detailed migration guide, see {ref}/migrate-to-java-time.html[Java time migration guide].
+For a detailed migration guide, see the {ref}/migrate-to-java-time.html[Java
+time migration guide].
 ====
 // end::notable-breaking-changes[]

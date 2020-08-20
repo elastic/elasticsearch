@@ -70,8 +70,13 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.painless.Operation.NE;
-
+/**
+ * This optimization pass will perform the specified operation on two leafs nodes if they are both
+ * constants. The additional overrides for visiting ir nodes in this class are required whenever
+ * there is a child node that is an expression. The structure of the tree does not have a way
+ * for a child node to introspect into its parent node, so to replace itself the parent node
+ * must pass the child node's particular set method as method reference.
+ */
 public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<Consumer<ExpressionNode>> {
 
     @Override
@@ -543,7 +548,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
                 irLeftConstantNode.setExpressionType(boolean.class);
                 scope.accept(irLeftConstantNode);
-            } else if (operation == NE || operation == Operation.NER) {
+            } else if (operation == Operation.NE || operation == Operation.NER) {
                 if (type == boolean.class) {
                     irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() != (boolean)irRightConstantNode.getConstant());
                 } else if (type == int.class) {

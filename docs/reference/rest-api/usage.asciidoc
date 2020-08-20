@@ -275,6 +275,7 @@ GET /_xpack/usage
       "normalize_usage" : 0,
       "cumulative_cardinality_usage" : 0,
       "t_test_usage" : 0,
+      "rate_usage" : 0,
       "string_stats_usage" : 0,
       "moving_percentiles_usage" : 0
     }

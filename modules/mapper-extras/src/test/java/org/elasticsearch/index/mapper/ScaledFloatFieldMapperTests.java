@@ -82,7 +82,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float")))
         );
-        assertThat(e.getMessage(), containsString("Failed to parse mapping: Field [scaling_factor] is required"));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
     }
 
     public void testIllegalScalingFactor() {
@@ -257,7 +257,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("index_options", randomIndexOptions())))
         );
         assertThat(e.getMessage(),
-            containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]"));
+            containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
+        assertWarnings("Parameter [index_options] has no effect on type [scaled_float] and will be removed in future");
     }
 
     public void testParseSourceValue() {

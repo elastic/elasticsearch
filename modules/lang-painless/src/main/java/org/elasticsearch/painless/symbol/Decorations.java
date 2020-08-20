@@ -601,6 +601,17 @@ public class Decorations {
         }
     }
 
+    public static class Converter implements Decoration {
+        private final LocalFunction converter;
+        public Converter(LocalFunction converter) {
+            this.converter = converter;
+        }
+
+        public LocalFunction getConverter() {
+            return converter;
+        }
+    }
+
     // collect additional information about where doc is used
 
     public interface IsDocument extends Condition {

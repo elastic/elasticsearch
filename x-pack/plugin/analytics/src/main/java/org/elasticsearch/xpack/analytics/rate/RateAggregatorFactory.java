@@ -44,7 +44,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             RateAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             RateAggregator::new,
             true
         );

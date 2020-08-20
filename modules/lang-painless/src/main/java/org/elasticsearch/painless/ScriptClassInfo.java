@@ -107,9 +107,6 @@ public class ScriptClassInfo {
                         throw new IllegalStateException("convertFromDef must take a single Object as an argument, " +
                             "not [" + m.getParameterTypes()[0] + "]");
                     }
-                    if (defConverter != null) {
-                        throw new IllegalStateException("duplicate convertFromDef converters");
-                    }
                     defConverter = new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()),
                                                                    true, true);
                 } else {

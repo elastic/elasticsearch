@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
@@ -42,6 +43,7 @@ public class FactoryTests extends ScriptTestCase {
         contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(FactoryTestConverterScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(DocFieldsTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
         return contexts;
@@ -451,6 +453,45 @@ public class FactoryTests extends ScriptTestCase {
                 "return true;",
                 FactoryTestConverterScript.CONTEXT, Collections.emptyMap()));
         assertEquals(cce.getMessage(), "Cannot cast from [boolean] to [long[]].");
+    }
+
+    public abstract static class FactoryTestConverterScriptBadDef {
+        private final Map<String, Object> params;
+
+        public FactoryTestConverterScriptBadDef(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public static final String[] PARAMETERS = new String[] {"test"};
+        public abstract long[] execute(int test);
+
+        public interface Factory {
+            FactoryTestConverterScriptBadDef newInstance(Map<String, Object> params);
+        }
+
+        public static final ScriptContext<FactoryTestConverterScriptBadDef.Factory> CONTEXT =
+            new ScriptContext<>("test", FactoryTestConverterScriptBadDef.Factory.class);
+
+        public static long[] convertFromDef(int def) {
+            return new long[]{def};
+        }
+    }
+
+    public void testConverterFactoryBadDef() {
+        IllegalStateException ise = null;
+        try {
+            scriptEngine.compile("converter_def",
+                "return test;",
+                FactoryTestConverterScriptBadDef.CONTEXT, Collections.emptyMap());
+        } catch (ScriptException e) {
+            ise = (IllegalStateException) e.getCause();
+        }
+        assertNotNull(ise);
+        assertEquals("convertFromDef must take a single Object as an argument, not [int]", ise.getMessage());
     }
 
     public abstract static class DocFieldsTestScript {

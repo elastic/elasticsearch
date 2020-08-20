@@ -30,15 +30,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -261,25 +260,21 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertWarnings("Parameter [index_options] has no effect on type [scaled_float] and will be removed in future");
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
             .build(context);
-        assertEquals(3.14, mapper.parseSourceValue(3.1415926, null), 0.00001);
-        assertEquals(3.14, mapper.parseSourceValue("3.1415", null), 0.00001);
-        assertNull(mapper.parseSourceValue("", null));
+        assertEquals(org.elasticsearch.common.collect.List.of(3.14), fetchSourceValue(mapper, 3.1415926));
+        assertEquals(org.elasticsearch.common.collect.List.of(3.14), fetchSourceValue(mapper, "3.1415"));
+        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(mapper, ""));
 
         ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
             .nullValue(2.71)
             .build(context);
-        assertEquals(2.71, nullValueMapper.parseSourceValue("", null), 0.00001);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(org.elasticsearch.common.collect.List.of(2.71), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(org.elasticsearch.common.collect.List.of(2.71), fetchSourceValue(nullValueMapper, ""));
     }
 }

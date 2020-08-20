@@ -151,7 +151,6 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
-    @Override
     public ParsedPoint nullValue() {
         return nullValue;
     }

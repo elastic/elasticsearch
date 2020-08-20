@@ -312,11 +312,6 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Double nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
 
         XContentParser parser = context.parser();
@@ -401,24 +396,29 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Double parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Double parseSourceValue(Object value) {
+                double doubleValue;
+                if (value.equals("")) {
+                    if (nullValue == null) {
+                        return null;
+                    }
+                    doubleValue = nullValue;
+                } else {
+                    doubleValue = objectToDouble(value);
+                }
 
-        double doubleValue;
-        if (value.equals("")) {
-            if (nullValue == null) {
-                return null;
+                double scalingFactor = fieldType().getScalingFactor();
+                return Math.round(doubleValue * scalingFactor) / scalingFactor;
             }
-            doubleValue = nullValue;
-        } else {
-            doubleValue = objectToDouble(value);
-        }
-
-        double scalingFactor = fieldType().getScalingFactor();
-        return Math.round(doubleValue * scalingFactor) / scalingFactor;
+        };
     }
+
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
 

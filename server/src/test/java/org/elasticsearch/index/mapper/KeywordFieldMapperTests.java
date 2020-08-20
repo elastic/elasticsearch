@@ -31,8 +31,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -49,18 +52,17 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -169,9 +171,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // used by TermVectorsService
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
-
-        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        assertEquals("1234", fieldMapper.parseSourceValue("1234", null));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -505,31 +504,34 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testParseSourceValue() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(getIndexSettings(), new ContentPath());
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(mapper, true));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field").ignoreAbove(4).build(context);
-        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
-        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
-        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
         KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers()).normalizer("lowercase")
             .build(context);
-        assertEquals("value", normalizerMapper.parseSourceValue("VALUE", null));
-        assertEquals("42", normalizerMapper.parseSourceValue(42L, null));
-        assertEquals("value", normalizerMapper.parseSourceValue("value", null));
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(normalizerMapper, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field").nullValue("NULL").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(org.elasticsearch.common.collect.List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
+        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        assertEquals(org.elasticsearch.common.collect.List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

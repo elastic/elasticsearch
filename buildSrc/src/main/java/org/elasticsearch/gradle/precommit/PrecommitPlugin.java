@@ -57,7 +57,7 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
 
     public abstract TaskProvider<? extends Task> createTask(Project project);
 
-    static class PrecommitTaskPlugin implements Plugin<Project> {
+    public static class PrecommitTaskPlugin implements Plugin<Project> {
 
         @Override
         public void apply(Project project) {
@@ -71,8 +71,15 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
                     "lifecycle-base",
                     p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
                 );
-            project.getPluginManager()
-                .withPlugin("java", p -> project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit)));
+            project.getPluginManager().withPlugin("java", p -> {
+                // run compilation as part of precommit
+                for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
+                    precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()));
+                }
+
+                // make sure tests run after all precommit tasks
+                project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
+            });
         }
     }
 }

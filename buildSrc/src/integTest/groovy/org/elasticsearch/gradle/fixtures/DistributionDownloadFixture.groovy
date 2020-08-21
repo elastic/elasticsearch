@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.fixtures
 
-import org.elasticsearch.gradle.DistributionDownloadPluginFuncTest
 import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.BuildResult
@@ -54,6 +53,6 @@ class DistributionDownloadFixture {
 
     private static byte[] filebytes(String urlPath) throws IOException {
         String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
-        return DistributionDownloadPluginFuncTest.getResourceAsStream("fake_elasticsearch." + suffix).getBytes()
+        return DistributionDownloadFixture.getResourceAsStream("fake_elasticsearch." + suffix).getBytes()
     }
 }

@@ -29,11 +29,6 @@ You can use the <<search-search,search API>> to search and
 The API's `query` request body parameter accepts queries written in
 <<query-dsl,Query DSL>>.
 
-TIP: You can also use the search API to run <<search-aggregations,search
-aggregations>>. Aggregations let you retrieve statistics other analytics on your
-data or search results.
-
-
 The following request searches `my-index-000001` using a
 <<query-dsl-match-query,`match`>> query. This query matches documents with a
 `user.id` value of `kimchy`.

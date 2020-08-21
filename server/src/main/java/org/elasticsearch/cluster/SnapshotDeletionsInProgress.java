@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -231,13 +229,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.snapshots = in.readList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
-            if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                this.state = State.readFrom(in);
-                this.uuid = in.readString();
-            } else {
-                this.state = State.STARTED;
-                this.uuid = IndexMetadata.INDEX_UUID_NA_VALUE;
-            }
+            this.state = State.readFrom(in);
+            this.uuid = in.readString();
         }
 
         public Entry started() {
@@ -309,10 +302,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             out.writeCollection(snapshots);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
-            if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                state.writeTo(out);
-                out.writeString(uuid);
-            }
+            state.writeTo(out);
+            out.writeString(uuid);
         }
 
         @Override

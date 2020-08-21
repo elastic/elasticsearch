@@ -26,8 +26,7 @@ import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.with
 
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
-    def "test cluster distribution is configured and started"() {
-        given:
+    def setup() {
         buildFile << """
             import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
             plugins {
@@ -39,7 +38,12 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                     println 'SomeClusterAwareTask executed'
                 }
             }
+        """
+    }
 
+    def "test cluster distribution is configured and started"() {
+        given:
+        buildFile << """
             testClusters {
               myCluster {
                 testDistribution = 'default'
@@ -60,10 +64,52 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("elasticsearch-keystore script executed!")
         assertEsStdoutContains("myCluster","Starting Elasticsearch process")
         assertEsStdoutContains("myCluster","Stopping node")
+        assertNoCustomDistro('myCluster')
+    }
+
+    def "custom distro folder created for tweaked cluster distribution"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+                extraJarFile(file('${someJar().absolutePath}'))
+              }
+            }
+            
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) { GradleRunner runner ->
+            return runner.build()
+        }
+
+        then:
+        result.output.contains("elasticsearch-keystore script executed!")
+        assertEsStdoutContains("myCluster","Starting Elasticsearch process")
+        assertEsStdoutContains("myCluster","Stopping node")
+        assertCustomDistro('myCluster')
     }
 
     boolean assertEsStdoutContains(String testCluster, String expectedOutput) {
         assert new File(testProjectDir.root, "build/testclusters/${testCluster}-0/logs/es.stdout.log").text.contains(expectedOutput)
         true
+    }
+
+    boolean assertCustomDistro(String clusterName) {
+        assert customDistroFolder(clusterName).exists()
+        true
+    }
+
+    boolean assertNoCustomDistro(String clusterName) {
+        assert !customDistroFolder(clusterName).exists()
+        true
+    }
+
+    private File customDistroFolder(String clusterName){
+        new File(testProjectDir.root, "build/testclusters/${clusterName}-0/distro")
     }
 }

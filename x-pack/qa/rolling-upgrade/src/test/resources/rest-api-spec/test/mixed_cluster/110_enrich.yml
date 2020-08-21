@@ -1,8 +1,8 @@
 ---
 "Enrich stats query smoke test for mixed cluster":
   - skip:
-      version: " - 7.4.99"
-      reason: enrich not available before 7.5.0
+      version: " - 7.99.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/61421"
       features: node_selector
 
   - do:

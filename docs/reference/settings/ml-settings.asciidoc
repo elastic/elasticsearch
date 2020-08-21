@@ -14,11 +14,6 @@ IMPORTANT: {ml-cap} uses SSE4.2 instructions, so it works only on machines whose
 CPUs {wikipedia}/SSE4#Supporting_CPUs[support] SSE4.2. If you run {es} on older
 hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
 
-All of these settings can be added to the `elasticsearch.yml` configuration 
-file. The dynamic settings can also be updated across a cluster with the
-<<cluster-update-settings,cluster update settings API>>. Dynamic settings take 
-precedence over settings in the `elasticsearch.yml` file.
-
 // end::ml-settings-description-tag[]
 
 [discrete]

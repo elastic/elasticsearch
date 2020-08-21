@@ -477,7 +477,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
                     connection.ensureConnected(plainActionFuture);
-                    plainActionFuture.actionGet(5000);
+                    plainActionFuture.get(10, TimeUnit.SECONDS);
 
                     for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
                         if (type != TransportRequestOptions.Type.REG) {

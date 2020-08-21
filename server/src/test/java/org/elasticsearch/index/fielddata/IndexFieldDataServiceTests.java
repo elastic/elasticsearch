@@ -143,7 +143,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             MappedFieldType runtimeField = new MappedFieldType("test", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
-                    return "runtie";
+                    return "runtime";
                 }
 
                 @Override

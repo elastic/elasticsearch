@@ -23,7 +23,7 @@ public class VersionFieldPlugin extends Plugin implements ActionPlugin, MapperPl
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(VersionStringFieldMapper.CONTENT_TYPE, new VersionStringFieldMapper.TypeParser());
+        return Map.of(VersionStringFieldMapper.CONTENT_TYPE, VersionStringFieldMapper.PARSER);
     }
 
     @Override

@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -41,15 +40,14 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -72,7 +70,7 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
  */
-public class VersionStringFieldMapper extends FieldMapper {
+public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
     private static byte[] MIN_VALUE = new byte[16];
     private static byte[] MAX_VALUE = new byte[16];
@@ -92,86 +90,55 @@ public class VersionStringFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
-
-        public static final String NULL_VALUE = null;
     }
 
-    static class Builder extends FieldMapper.Builder<Builder> {
+    static class Builder extends ParametrizedFieldMapper.Builder {
 
-        protected String nullValue = Defaults.NULL_VALUE;
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
-        Builder nullValue(String nullValue) {
-            this.nullValue = nullValue;
-            return builder;
-        }
-
-        @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            throw new MapperParsingException("index_options not allowed in field [" + name + "] of type [version]");
-        }
-
-        private VersionStringFieldType buildFieldType(BuilderContext context) {
-            return new VersionStringFieldType(buildFullName(context), indexed, meta, boost, fieldType);
+        private VersionStringFieldType buildFieldType(BuilderContext context, FieldType fieldtype) {
+            return new VersionStringFieldType(buildFullName(context), fieldtype, meta.getValue());
         }
 
         @Override
         public VersionStringFieldMapper build(BuilderContext context) {
+            FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             BooleanFieldMapper.Builder preReleaseSubfield = new BooleanFieldMapper.Builder(name + ".isPreRelease");
             NumberType type = NumberType.INTEGER;
-            NumberFieldMapper.Builder majorVersionSubField = new NumberFieldMapper.Builder(name + ".major", type).nullValue(0);
-            NumberFieldMapper.Builder minorVersionSubField = new NumberFieldMapper.Builder(name + ".minor", type).nullValue(0);
-            NumberFieldMapper.Builder patchVersionSubField = new NumberFieldMapper.Builder(name + ".patch", type).nullValue(0);
+            NumberFieldMapper.Builder majorVersionSubField = new NumberFieldMapper.Builder(name + ".major", type, false, false);
+            NumberFieldMapper.Builder minorVersionSubField = new NumberFieldMapper.Builder(name + ".minor", type, false, false);
+            NumberFieldMapper.Builder patchVersionSubField = new NumberFieldMapper.Builder(name + ".patch", type, false, false);
 
             return new VersionStringFieldMapper(
                 name,
-                fieldType,
-                buildFieldType(context),
-                nullValue,
+                fieldtype,
+                buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo,
+                copyTo.build(),
                 preReleaseSubfield.build(context),
                 majorVersionSubField.build(context),
                 minorVersionSubField.build(context),
                 patchVersionSubField.build(context)
             );
         }
-    }
-
-    public static class TypeParser implements Mapper.TypeParser {
-
-        public TypeParser() {}
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
-            TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    builder.nullValue(propNode.toString());
-                    iterator.remove();
-                }
-            }
-            return builder;
+        protected List<Parameter<?>> getParameters() {
+            return List.of(meta);
         }
     }
 
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        public VersionStringFieldType(String name, boolean isSearchable, Map<String, String> meta, float boost, FieldType fieldType) {
-            super(name, isSearchable, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+        public VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setBoost(boost);
         }
 
         @Override
@@ -375,7 +342,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
     }
 
-    private String nullValue;
+    private final FieldType fieldType;
     private BooleanFieldMapper prereleaseSubField;
     private NumberFieldMapper majorVersionSubField;
     private NumberFieldMapper minorVersionSubField;
@@ -385,7 +352,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        String nullValue,
         MultiFields multiFields,
         CopyTo copyTo,
         BooleanFieldMapper preReleaseMapper,
@@ -393,8 +359,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         NumberFieldMapper minorVersionMapper,
         NumberFieldMapper patchVersionMapper
     ) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        this.nullValue = nullValue;
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.fieldType = fieldType;
         this.prereleaseSubField = preReleaseMapper;
         this.majorVersionSubField = majorVersionMapper;
         this.minorVersionSubField = minorVersionMapper;
@@ -412,7 +378,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), null) {
             @Override
             protected String parseSourceValue(Object value) {
                 return value.toString();
@@ -438,7 +404,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         } else {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                versionString = nullValue;
+                return;
             } else {
                 versionString = parser.textOrNull();
             }
@@ -450,13 +416,10 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         EncodedVersion encoding = encodeVersion(versionString);
         BytesRef encodedVersion = encoding.bytesRef;
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), encodedVersion, fieldType);
-            context.doc().add(field);
-            // encode the first 16 bytes as points for efficient range query
-            byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
-            context.doc().add(new BinaryPoint(fieldType().name(), first16bytes));
-        }
+        context.doc().add(new Field(fieldType().name(), encodedVersion, fieldType));
+        // encode the first 16 bytes as points for efficient range query
+        byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
+        context.doc().add(new BinaryPoint(fieldType().name(), first16bytes));
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
 
         // add additional information extracted from version string
@@ -471,20 +434,6 @@ public class VersionStringFieldMapper extends FieldMapper {
     private void addVersionPartSubfield(ParseContext context, String fieldName, Integer versionPart) {
         if (versionPart != null) {
             context.doc().addAll(NumberType.INTEGER.createFields(fieldName, versionPart, true, true, false));
-        }
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        VersionStringFieldMapper mergeWith = (VersionStringFieldMapper) other;
-        this.nullValue = mergeWith.nullValue;
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (nullValue != null) {
-            builder.field("null_value", nullValue);
         }
     }
 
@@ -525,4 +474,9 @@ public class VersionStringFieldMapper extends FieldMapper {
             return getWriteableName();
         }
     };
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
+    }
 }

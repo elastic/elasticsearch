@@ -171,10 +171,9 @@ results for a long-running search now and get complete results later.
 
 To protect against hardware failure and increase search capacity, {es} can store
 copies of an index's data across multiple shards on multiple nodes. When running
-a search request, {es} first determines which nodes contain a shard copy of the
-index's data. {es} then selects an eligible node and forwards the search request
-to its respective shard. This process is known as _search shard routing_ or
-_routing_.
+a search request, {es} selects a shard containing a copy of the index's data and
+forwards the search request to it. This process is known as _search shard
+routing_ or _routing_.
 
 [discrete]
 [[search-adaptive-replica]]
@@ -199,19 +198,19 @@ search requests using a round-robin method, which may result in slower searches.
 [[shard-and-node-preference]]
 ==== Set a preference
 
-By default, adaptive replica selection chooses from all eligible nodes and
-shards. However, you may only want data from a local node or want to route
+By default, adaptive replica selection chooses from all eligible shards and
+nodes. However, you may only want data from a local node or want to route
 searches to a specific node based on its hardware. Or you may want to send
 repeated searches to the same shard to take advantage of caching.
 
-To limit the set of eligible nodes and shards for a search request, use
+To limit the set of shards and nodes eligible for a search request, use
 the search API's <<search-preference,`preference`>> query parameter.
 
 For example, the following request searches `my-index-000001` with a
 `preference` of `_local`. This restricts the search to shards on the
 local node. If the local node contains no copies of the index's data, the
-request uses adaptive replica selection to pick another eligible node as a
-fallback.
+request uses adaptive replica selection to pick a shard on another eligible node
+as a fallback.
 
 [source,console]
 ----

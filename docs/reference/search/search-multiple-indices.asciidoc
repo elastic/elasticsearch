@@ -21,9 +21,9 @@ GET /my-index-000001,my-index-000002/_search
 // TEST[setup:my_index]
 // TEST[s/^/PUT my-index-000002\n/]
 
-You can also search multiple data streams and indices using an index.
+You can also search multiple data streams and indices using an index pattern.
 
-The following request targets the index pattern `my-index-*`. The request
+The following request targets the `my-index-*` index pattern. The request
 searches any data streams or indices in the cluster that start with `my-index-`.
 
 [source,console]
@@ -82,7 +82,7 @@ GET /*/_search
 
 When searching multiple indices, you can use the `indices_boost` parameter to
 boost results from one or more specified indices. This is useful when hits
-coming from one index matter more than hits coming from another index.
+coming from some indices matter more than hits from other.
 
 NOTE: You cannot use `indices_boost` with data streams.
 
@@ -113,5 +113,5 @@ GET /_search
 // TEST[s/^/PUT my-index-000001\nPUT my-index-000001\/_alias\/my-alias\n/]
 
 If multiple matches are found, the first match will be used. For example, if an
-index is included in `alias1` and matches `my-index*`, a boost value of `1.4` is
-applied.
+index is included in `alias1` and matches the `my-index*` pattern, a boost value
+of `1.4` is applied.

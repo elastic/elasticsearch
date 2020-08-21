@@ -28,6 +28,11 @@ You can use the <<search-search,search API>> to search data stored in {es} data
 streams or indices. The API's `query` request body parameter accepts queries
 written in <<query-dsl,Query DSL>>.
 
+TIP: You can also use the search API to run <<search-aggregations,search
+aggregations>>. Aggregations let you retrieve statistics other analytics on your
+data or search results.
+
+
 The following request searches `my-index-000001` using a
 <<query-dsl-match-query,`match`>> query. This query matches documents with a
 `user.id` value of `kimchy`.
@@ -106,7 +111,7 @@ You can use the following options to customize your searches.
 
 *Query DSL* +
 <<query-dsl,Query DSL>> supports a variety of query types you can mix and match
-to get the results you want, including:
+to get the results you want. Query types include:
 
 * <<query-dsl-bool-query,Boolean>> and other <<compound-queries,compound
 queries>>, which let you combine queries and match results based on multiple
@@ -118,11 +123,12 @@ engines
 
 *Aggregations* +
 You can use <<search-aggregations,search aggregations>> to get statistics and
-other summaries of your search results. Aggregations help you
-answer questions like:
+other analytics for your search results. Aggregations help you answer questions
+like:
 
 * What's the average response time for my servers?
 * What are the top IP addresses hit by users on my network?
+* What is the total transaction revenue by customer?
 
 *Search multiple data streams and indices* +
 You can use comma-separated values and grep-like index patterns to search
@@ -164,41 +170,39 @@ results for a long-running search now and get complete results later.
 === Search shard routing
 
 To protect against hardware failure and increase search capacity, {es} can store
-copies of an index's data across multiple shards in multiple nodes. When running
-a search request, {es} first determines which nodes contain copies of an
+copies of an index's data across multiple shards on multiple nodes. When running
+a search request, {es} first determines which nodes contain a shard copy of the
 index's data. {es} then selects an eligible node and forwards the search request
-to the node and its shard copies. This process is known as _search shard
-routing_ or _routing_.
+to its respective shard. This process is known as _search shard routing_ or
+_routing_.
 
 [discrete]
 [[search-adaptive-replica]]
 ==== Adaptive replica selection
 
-By default, {es} uses _adaptive replica selection_ to select and route search
-requests to the best eligible node. This node is chosen based on
+By default, {es} uses _adaptive replica selection_ to route search requests.
+This method selects a shard based on its node using
 <<allocation-awareness,allocation awareness>> and the following criteria:
 
-* Response time of prior requests between the request's coordinating node
-and the node containing the index data
-* How long the node took to run previous searches
-* Queue size of the node's `search` <<modules-threadpool,threadpool>>
+* Response time of prior requests between the coordinating node
+and the eligible node
+* How long the eligible node took to run previous searches
+* Queue size of the eligible node's `search` <<modules-threadpool,threadpool>>
 
 Adaptive replica selection is designed to decrease search latency. However, you
 can disable adaptive replica selection by setting
-`cluster.routing.use_adaptive_replica_selection` to `false` in
-`elasticsearch.yml` or using the <<cluster-update-settings,cluster settings
-API>>. If disabled, searches are routed to all eligible nodes using a
-round-robin selection method, which may result in slower searches.
+`cluster.routing.use_adaptive_replica_selection` to `false` using the
+<<cluster-update-settings,cluster settings API>>. If disabled, {es} routes
+search requests using a round-robin method, which may result in slower searches.
 
 [discrete]
 [[shard-and-node-preference]]
 ==== Set a preference
 
-By default, adaptive replica selection chooses from all nodes and shards
-containing the index's data. However, you may only want data from a local node
-or want to route searches to a specific node based on its hardware. Or
-you may want to send repeated searches to the same shards to take advantage of
-caching.
+By default, adaptive replica selection chooses from all eligible nodes and
+shards. However, you may only want data from a local node or want to route
+searches to a specific node based on its hardware. Or you may want to send
+repeated searches to the same shard to take advantage of caching.
 
 To limit the set of eligible nodes and shards for a search request, use
 the search API's <<search-preference,`preference`>> query parameter.
@@ -230,11 +234,11 @@ same shards in the same order.
 We recommend using a unique `preference` string, such as a user name or web
 session ID. This string cannot start with a `_`.
 
-TIP: You can use this option to serve cached results for frequently-used or
+TIP: You can use this option to serve cached results for frequently used and
 resource-intensive searches. If the shard's data doesn't change, repeated
 searches with the same `preference` string retrieve results from the same
 <<shard-request-cache,shard request cache>>. For time-series use cases, such as
-logs, data in older indices is rarely updated and can be served directly from
+logging, data in older indices is rarely updated and can be served directly from
 this cache.
 
 The following request searches `my-index-000001` with a `preference` string of
@@ -282,8 +286,8 @@ POST /my-index-000001/_doc?routing=my-routing-value
 }
 ----
 
-You can use the same routing value in the `routing` query parameter of a search
-request. This ensures the search runs only on the shard used to index the
+You can use the same routing value in the search API's `routing` query
+parameter. This ensures the search runs on the same shard used to index the
 document.
 
 [source,console]

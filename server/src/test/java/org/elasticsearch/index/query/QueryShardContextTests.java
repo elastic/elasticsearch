@@ -34,16 +34,20 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -153,7 +157,149 @@ public class QueryShardContextTests extends ESTestCase {
         assertFalse(context.indexSortedOnField("non_sort_field"));
     }
 
+    public void testFielddataLookupSelfReference() {
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null,
+            mapperService -> when(mapperService.fieldType(any())).thenAnswer(inv -> {
+                String name = (String) inv.getArguments()[0];
+                MappedFieldType ft = mock(MappedFieldType.class);
+                when(ft.name()).thenReturn(name);
+                when(ft.fielddataBuilder(any(), any())).thenAnswer(inv2 -> {
+                    @SuppressWarnings("unchecked")
+                    Supplier<SearchLookup> searchLookupSupplier = (Supplier<SearchLookup>) inv2.getArguments()[1];
+                    //simulate a runtime field that depends on itself e.g. field: doc['field']
+                    return searchLookupSupplier.get().doc().getLeafDocLookup(null).get(ft.name());
+                });
+                return ft;
+            }));
+        String expectedMessage = "Cyclic dependency detected while resolving runtime fields: test -> test";
+        MappedFieldType fieldType = queryShardContext.fieldMapper("test");
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> queryShardContext.getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getLeafDocLookup(null).get("test"));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+    }
+
+    public void testFielddataLookupLooseLoop() {
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null,
+            mapperService -> when(mapperService.fieldType(any())).thenAnswer(inv -> {
+                String name = (String) inv.getArguments()[0];
+                MappedFieldType ft = mock(MappedFieldType.class);
+                when(ft.name()).thenReturn(name);
+                when(ft.fielddataBuilder(any(), any())).thenAnswer(inv2 -> {
+                    @SuppressWarnings("unchecked")
+                    Supplier<SearchLookup> searchLookupSupplier = (Supplier<SearchLookup>) inv2.getArguments()[1];
+                    //simulate a runtime field cycle: a: doc['aa'] aa: doc['aaa'] aaa: doc['aaaa'] aaaa: doc['a']
+                    if (ft.name().equals("aaaa")) {
+                        return searchLookupSupplier.get().doc().getLeafDocLookup(null).get("a");
+                    }
+                    return searchLookupSupplier.get().doc().getLeafDocLookup(null).get(ft.name() + "a");
+                });
+                return ft;
+            }));
+        String expectedMessage = "Cyclic dependency detected while resolving runtime fields: a -> aa -> aaa -> aaaa -> a";
+        MappedFieldType fieldType = queryShardContext.fieldMapper("a");
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> queryShardContext.getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getLeafDocLookup(null).get("a"));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+    }
+
+    public void testFielddataLookupTerminatesInLoop() {
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null,
+            mapperService -> when(mapperService.fieldType(any())).thenAnswer(inv -> {
+                String name = (String) inv.getArguments()[0];
+                MappedFieldType ft = mock(MappedFieldType.class);
+                when(ft.name()).thenReturn(name);
+                when(ft.fielddataBuilder(any(), any())).thenAnswer(inv2 -> {
+                    @SuppressWarnings("unchecked")
+                    Supplier<SearchLookup> searchLookupSupplier = (Supplier<SearchLookup>) inv2.getArguments()[1];
+                    //simulate a runtime field cycle: a: doc['aa'] aa: doc['aaa'] aaa: doc['aaaa'] aaaa: doc['aaaa']
+                    if (ft.name().equals("aaaa")) {
+                        return searchLookupSupplier.get().doc().getLeafDocLookup(null).get("aaaa");
+                    }
+                    return searchLookupSupplier.get().doc().getLeafDocLookup(null).get(ft.name() + "a");
+                });
+                return ft;
+            }));
+        String expectedMessage = "Cyclic dependency detected while resolving runtime fields: a -> aa -> aaa -> aaaa -> aaaa";;
+        MappedFieldType fieldType = queryShardContext.fieldMapper("a");
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> queryShardContext.getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getLeafDocLookup(null).get("a"));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+    }
+
+    public void testFielddataLookupTooManyReferences() {
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null,
+            mapperService -> when(mapperService.fieldType(any())).thenAnswer(inv -> {
+                String name = (String) inv.getArguments()[0];
+                MappedFieldType ft = mock(MappedFieldType.class);
+                when(ft.name()).thenReturn(name);
+                when(ft.fielddataBuilder(any(), any())).thenAnswer(inv2 -> {
+                    @SuppressWarnings("unchecked")
+                    Supplier<SearchLookup> searchLookupSupplier = (Supplier<SearchLookup>) inv2.getArguments()[1];
+                    int i = Integer.parseInt(ft.name());
+                    return searchLookupSupplier.get().doc().getLeafDocLookup(null).get(Integer.toString(i + 1));
+                });
+                return ft;
+            }));
+        String expectedMessage = "Field requires resolving too many dependent fields: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> " +
+            "11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 27 -> 28 -> " +
+            "29 -> 30 -> 31 -> 32 -> 33";
+        MappedFieldType fieldType = queryShardContext.fieldMapper("1");
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> queryShardContext.getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getLeafDocLookup(null).get("1"));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+        {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> queryShardContext.lookup().doc().getForField(fieldType));
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
+        return createQueryShardContext(indexUuid, clusterAlias, mapperService -> {});
+    }
+
+    private static QueryShardContext createQueryShardContext(String indexUuid,
+                                                             String clusterAlias,
+                                                             Consumer<MapperService> mapperServiceConsumer) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
@@ -165,8 +311,8 @@ public class QueryShardContextTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
+        mapperServiceConsumer.accept(mapperService);
         final long nowInMillis = randomNonNegativeLong();
-
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null, null),

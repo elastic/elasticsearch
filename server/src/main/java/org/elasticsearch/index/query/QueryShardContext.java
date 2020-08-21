@@ -209,7 +209,8 @@ public class QueryShardContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), this::lookup);
+        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
+            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -291,7 +292,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public SearchLookup lookup() {
         if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(), this::getForField);
+            lookup = new SearchLookup(
+                getMapperService(),
+                (fieldType, lookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), lookup));
         }
         return lookup;
     }

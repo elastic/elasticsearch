@@ -283,7 +283,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.setBox(box);
 
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdkProvider, "", ""));
-        vagrant.vmEnv("JAVA_HOME",""); // make sure any default java on the system is ignored
+        vagrant.vmEnv("JAVA_HOME", ""); // make sure any default java on the system is ignored
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdkProvider, "/bin:$PATH", "\\bin;$Env:PATH"));
         // pass these along to get correct build scans
         if (System.getenv("JENKINS_URL") != null) {
@@ -292,8 +292,13 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.setIsWindowsVM(isWindows(project));
     }
 
-    private static Object convertPath(Project project, VagrantExtension vagrant, TaskProvider<Copy> jdkProvider,
-                                      String additionaLinux, String additionalWindows) {
+    private static Object convertPath(
+        Project project,
+        VagrantExtension vagrant,
+        TaskProvider<Copy> jdkProvider,
+        String additionaLinux,
+        String additionalWindows
+    ) {
         return Util.toStringable(() -> {
             String hostPath = jdkProvider.get().getDestinationDir().toString();
             if (vagrant.isWindowsVM()) {

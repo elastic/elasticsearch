@@ -556,7 +556,7 @@ public class AuthenticationService {
         void handleNullToken() {
             List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
             if (unlicensedRealms.isEmpty() == false) {
-                logger.warn("No authentication token can be extracted using realms [{}]." +
+                logger.warn("No authentication credential could be extracted using realms [{}]." +
                                 " Realms [{}] were skipped because they are not permitted on the current license",
                             Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
                             Strings.collectionToCommaDelimitedString(unlicensedRealms));

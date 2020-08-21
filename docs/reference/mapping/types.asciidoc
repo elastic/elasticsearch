@@ -47,7 +47,7 @@ Dates::                 Date types, including <<date,`date`>> and
 [[structured-data-types]]
 ==== Structured data types
 
-<<range,Range>>::   Range types, including `long_range`, `double_range`,
+<<range,Range>>::   Range types, such as `long_range`, `double_range`,
                     `date_range`, and `ip_range`.
 <<ip,`ip`>>::       IPv4 and IPv6 addresses.
 {plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of

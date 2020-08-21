@@ -407,4 +407,5 @@ Multi searches can be cancelled using standard <<task-cancellation,task cancella
 mechanism and are also automatically cancelled when the http connection used to
 perform the request is closed by the client. It is fundamental that the http
 client sending requests closes connections whenever requests time out or are
-aborted.
+aborted. Cancelling an msearch request will also cancel all of the corresponding
+sub search requests.

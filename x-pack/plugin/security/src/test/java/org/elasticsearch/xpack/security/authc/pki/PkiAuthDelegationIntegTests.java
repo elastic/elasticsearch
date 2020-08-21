@@ -160,6 +160,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 assertThat(authnRealm, is(notNullValue()));
                 assertThat(authnRealm.getName(), is("pki3"));
                 assertThat(authnRealm.getType(), is("pki"));
+                assertThat(resp.getAuthenticationType(), is("token"));
             }
         }
     }
@@ -205,6 +206,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki3"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
             // invalidate
             InvalidateTokenRequest invalidateRequest = new InvalidateTokenRequest(token, null, null, null);
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
@@ -291,6 +293,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki3"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
             // delete role mappings for delegated PKI
             restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_user", RefreshPolicy.IMMEDIATE),
                   testUserOptions);

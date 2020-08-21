@@ -21,9 +21,17 @@ package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
+import spock.lang.IgnoreIf
+import spock.lang.Requires
+import spock.util.environment.OperatingSystem
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
+/**
+ * We do not have coverage for the test cluster startup on windows yet.
+ * One step at a time...
+ * */
+@IgnoreIf({ os.isWindows() })
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
@@ -62,8 +70,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster","Starting Elasticsearch process")
-        assertEsStdoutContains("myCluster","Stopping node")
+        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
+        assertEsStdoutContains("myCluster", "Stopping node")
         assertNoCustomDistro('myCluster')
     }
 
@@ -89,8 +97,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster","Starting Elasticsearch process")
-        assertEsStdoutContains("myCluster","Stopping node")
+        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
+        assertEsStdoutContains("myCluster", "Stopping node")
         assertCustomDistro('myCluster')
     }
 
@@ -109,7 +117,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         true
     }
 
-    private File customDistroFolder(String clusterName){
+    private File customDistroFolder(String clusterName) {
         new File(testProjectDir.root, "build/testclusters/${clusterName}-0/distro")
     }
 }

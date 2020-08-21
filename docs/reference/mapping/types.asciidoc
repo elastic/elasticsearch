@@ -36,9 +36,10 @@ Dates::                 Date types, including <<date,`date`>> and
 [[object-types]]
 ==== Objects and relational types
 
-<<object,`object`>>::         A single JSON object.
+<<object,`object`>>::         A JSON object.
 <<flattened,`flattened`>>::   An entire JSON object as a single field value.
-<<nested,`nested`>>::         An array of JSON objects.
+<<nested,`nested`>>::         A JSON object that preserves the relationship
+                              between its subfields.
 <<parent-join,`join`>>::      Defines a parent/child relationship for documents
                               in the same index.
 
@@ -56,7 +57,7 @@ values.
 
 [discrete]
 [[aggregated-data-types]]
-==== Aggregated data types
+==== Aggregate data types
 
 <<histogram,`histogram`>>:: Pre-aggregated numerical values.
 
@@ -65,7 +66,7 @@ values.
 [[text-search-types]]
 ==== Text search types
 
-<<text,`text`>>:: Analyzed, unstructured content.
+<<text,`text`>>:: Analyzed, unstructured text.
 {plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
 markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.

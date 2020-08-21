@@ -483,6 +483,13 @@ exclude fields from this subset using the `excludes` property.
 =====
 ====
 
+[[stats-groups]]
+`stats`::
+(Optional, array of strings)
+Stats groups to associate with the search. Each group maintains a statistics
+aggregation for its associated searches. You can retrieve these stats using the
+<<indices-stats,indices stats API>>.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.

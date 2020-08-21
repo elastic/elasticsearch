@@ -1,76 +1,51 @@
 [[search]]
 == Search APIs
 
+Search APIs are used to search and aggregate data stored in {es} indices and
+data streams. For an overview and related tutorials, see <<search-your-data>>.
+
 Most search APIs support <<search-multi-index,multi-target syntax>>, with the
-exception of the <<search-explain>> endpoints.
+exception of the <<search-explain,explain API>>.
 
 [discrete]
-[[stats-groups]]
-=== Stats Groups
+[[core-search-apis]]
+=== Core search
 
-A search can be associated with stats groups, which maintains a
-statistics aggregation per group. It can later be retrieved using the
-<<indices-stats,indices stats>> API
-specifically. For example, here is a search body request that associate
-the request with two different groups:
-
-[source,console]
---------------------------------------------------
-POST /_search
-{
-  "query" : {
-    "match_all" : {}
-  },
-  "stats" : ["group1", "group2"]
-}
---------------------------------------------------
-// TEST[setup:my_index]
+* <<search-search>>
+* <<search-multi-search>>
+* <<async-search>>
+* <<scroll-api>>
+* <<clear-scroll-api>>
+* <<search-suggesters>>
 
 [discrete]
-[[global-search-timeout]]
-=== Global Search Timeout
+[[search-testing-apis]]
+=== Search testing
 
-Individual searches can have a timeout as part of the
-<<search-request-body>>. Since search requests can originate from many
-sources, Elasticsearch has a dynamic cluster-level setting for a global
-search timeout that applies to all search requests that do not set a
-timeout in the request body. These requests will be cancelled after
-the specified time using the mechanism described in the following section on
-<<global-search-cancellation>>. Therefore the same caveats about timeout
-responsiveness apply.
-
-The setting key is `search.default_search_timeout` and can be set using the
-<<cluster-update-settings>> endpoints. The default value is no global timeout.
-Setting this value to `-1` resets the global search timeout to no timeout.
+* <<search-explain>>
+* <<search-field-caps>>
+* <<search-profile>>
+* <<search-rank-eval>>
+* <<search-shards>>
+* <<search-validate>>
 
 [discrete]
-[[global-search-cancellation]]
-=== Search Cancellation
+[[search-template-apis]]
+=== Search templates
 
-Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism and are also automatically cancelled when the http connection used to
-perform the request is closed by the client. It is fundamental that the http
-client sending requests closes connections whenever requests time out or are
-aborted.
+* <<search-template>>
+* <<multi-search-template>>
 
 [discrete]
-[[search-concurrency-and-parallelism]]
-=== Search concurrency and parallelism
+[[eql-search-apis]]
+=== EQL search
 
-By default Elasticsearch doesn't reject any search requests based on the number
-of shards the request hits. While Elasticsearch will optimize the search
-execution on the coordinating node a large number of shards can have a
-significant impact CPU and memory wise. It is usually a better idea to organize
-data in such a way that there are fewer larger shards. In case you would like to
-configure a soft limit, you can update the `action.search.shard_count.limit`
-cluster setting in order to reject search requests that hit too many shards.
+For an overview of EQL and related tutorials, see <<eql>>.
 
-The request parameter `max_concurrent_shard_requests` can be used to control the
-maximum number of concurrent shard requests the search API will execute per node
-for the request. This parameter should be used to protect a single request from
-overloading a cluster (e.g., a default request will hit all indices in a cluster
-which could cause shard request rejections if the number of shards per node is
-high). This default value is `5`.
+* <<eql-search-api>>
+* <<get-async-eql-search-api>>
+* <<delete-async-eql-search-api>>
+
 
 include::search/search.asciidoc[]
 

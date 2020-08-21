@@ -250,17 +250,22 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Boolean parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        } else {
-            String textValue = value.toString();
-            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Boolean parseSourceValue(Object value) {
+                if (value instanceof Boolean) {
+                    return (Boolean) value;
+                } else {
+                    String textValue = value.toString();
+                    return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                }
+            }
+        };
     }
 
     @Override
@@ -273,8 +278,4 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected Object nullValue() {
-        return nullValue;
-    }
 }

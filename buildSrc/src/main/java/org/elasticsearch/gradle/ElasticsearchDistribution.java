@@ -225,6 +225,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         switch (getType()) {
             case DEB:
             case DOCKER:
+            case DOCKER_UBI:
             case RPM:
                 throw new UnsupportedOperationException(
                     "distribution type [" + getType() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"

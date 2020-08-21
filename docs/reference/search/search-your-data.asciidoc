@@ -176,23 +176,24 @@ results before returning a response.
 While <<async-search-intro,async search>> is designed for long-running
 searches, you can also use the `timeout` parameter to specify a duration you'd
 like to wait for a search to complete. If no response is received before this
-duration expires, the request fails and returns an error.
+period ends, the request fails and returns an error.
 
-To configure a cluster-wide timeout duration for all search requests, use the
+To set a cluster-wide default timeout for all search requests, configure the
 <<dynamic-cluster-setting,dynamic>> `search.default_search_timeout` cluster
 setting. This global timeout duration is used if no `timeout` argument is passed
-in the request. If the global search timeout expires, the request is cancelled
-using <<task-cancellation,task cancellation>>. The
-`search.default_search_timeout` setting defaults to `-1` (no timeout).
+in the request. If the global search timeout expires before the search request
+finishes, the request is cancelled using <<task-cancellation,task
+cancellation>>. The `search.default_search_timeout` setting defaults to `-1` (no
+timeout).
 
 [discrete]
 [[global-search-cancellation]]
 === Search cancellation
 
-You can cancel a search using the <<task-cancellation,task cancellation API>>.
-{es} also automatically cancels a search when your client's HTTP connection
-closes. We recommend you set up your client to close HTTP connections when a
-search request is aborted or times out.
+You can cancel a search request using the <<task-cancellation,task management
+API>>. {es} also automatically cancels a search request when your client's HTTP
+connection closes. We recommend you set up your client to close HTTP connections
+when a search request is aborted or times out.
 
 include::request/track-total-hits.asciidoc[]
 include::quickly-check-for-matching-docs.asciidoc[]

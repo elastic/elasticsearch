@@ -178,6 +178,7 @@ GET /my-index-000001/_search?max_concurrent_shard_requests=3
 ----
 // TEST[setup:my_index]
 
-You can also configure the <<dynamic-cluster-setting,dynamic>>
-`action.search.shard_count.limit` cluster setting to set a soft limit and
-reject search requests that hit too many shards.
+You can also use the `action.search.shard_count.limit` cluster setting to set a
+search shard limit and reject requests that hit too many shards. You can
+configure `action.search.shard_count.limit` using the
+<<cluster-update-settings,cluster settings API>>.

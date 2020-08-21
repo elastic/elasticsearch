@@ -178,11 +178,11 @@ searches, you can also use the `timeout` parameter to specify a duration you'd
 like to wait for a search to complete. If no response is received before this
 period ends, the request fails and returns an error.
 
-To set a cluster-wide default timeout for all search requests, configure the
-<<dynamic-cluster-setting,dynamic>> `search.default_search_timeout` cluster
-setting. This global timeout duration is used if no `timeout` argument is passed
-in the request. If the global search timeout expires before the search request
-finishes, the request is cancelled using <<task-cancellation,task
+To set a cluster-wide default timeout for all search requests, configure
+`search.default_search_timeout` using the <<cluster-update-settings,cluster
+settings API>>. This global timeout duration is used if no `timeout` argument is
+passed in the request. If the global search timeout expires before the search
+request finishes, the request is cancelled using <<task-cancellation,task
 cancellation>>. The `search.default_search_timeout` setting defaults to `-1` (no
 timeout).
 

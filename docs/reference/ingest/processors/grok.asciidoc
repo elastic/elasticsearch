@@ -1,5 +1,8 @@
 [[grok-processor]]
-=== Grok Processor
+=== Grok processor
+++++
+<titleabbrev>Grok</titleabbrev>
+++++
 
 Extracts structured fields out of a single text field within a document. You choose which field to
 extract matched fields from, as well as the grok pattern you expect will match. A grok pattern is like a regular

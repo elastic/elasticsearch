@@ -74,6 +74,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
+
+        // convenience access to common versions used in dependencies
+        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
     }
 
     /**

@@ -103,11 +103,11 @@ dynamic settings locally on an unstarted or shut down node using
 
 Updates made using the cluster update settings API can be _persistent_, which
 apply across cluster restarts, or _transient_, which reset after a cluster
-restart. You can reset transient and persistent settings by assigning them a
-`null` value using the API.
+restart. You can also reset transient or persistent settings by assigning them
+a `null` value using the API.
 
 If you reset a cluster setting or configure the same setting using multiple
-methods, {es} uses the following order of precedence:
+methods, {es} applies setting changes using following order of precedence:
 
 1. Transient setting
 2. Persistent setting

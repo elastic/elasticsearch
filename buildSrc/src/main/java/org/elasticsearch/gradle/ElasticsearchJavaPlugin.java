@@ -34,6 +34,7 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -74,6 +75,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
+
+        // convenience access to common versions used in dependencies
+        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
     }
 
     /**

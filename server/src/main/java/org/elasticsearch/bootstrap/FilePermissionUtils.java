@@ -72,6 +72,8 @@ public class FilePermissionUtils {
             throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
         }
 
+        // For some file permissions (data.path) we create a Permissions object that only checks the concrete
+        // path. Adding the directory would only create more overhead for this fast path.
         if (recursiveAccessOnly == false) {
             // add access for path itself
             policy.add(new FilePermission(path.toString(), permissions));

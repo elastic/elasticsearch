@@ -1421,6 +1421,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 source.put("version", 0);
                 Map<String, Object> creatorMap = new HashMap<>();
                 creatorMap.put("principal", "johndoe");
+                creatorMap.put("full_name", "john doe");
+                creatorMap.put("email", "john@doe.com");
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
@@ -1439,6 +1441,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             final Authentication authentication = authenticateBlocking("_action", transportRequest, null);
             assertThat(authentication.getUser().principal(), is("johndoe"));
+            assertThat(authentication.getUser().fullName(), is("john doe"));
+            assertThat(authentication.getUser().email(), is("john@doe.com"));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.API_KEY));
         }
     }

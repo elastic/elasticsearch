@@ -41,13 +41,13 @@ public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
         this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
-            new FakeHttpChannel(null));
+            new FakeHttpChannel(null), RestCompatibility.CURRENT_VERSION);
     }
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            HttpChannel httpChannel) {
+                            HttpChannel httpChannel, RestCompatibility currentVersion) {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            RestCompatibility.CURRENT_VERSION);
+            currentVersion);
     }
 
     private static class FakeHttpRequest implements HttpRequest {
@@ -193,6 +193,7 @@ public class FakeRestRequest extends RestRequest {
         private InetSocketAddress address = null;
 
         private Exception inboundException;
+        private RestCompatibility restCompatibility;
 
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
@@ -236,9 +237,13 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
+        public Builder withRestCompatibility(RestCompatibility restCompatibility){
+            this.restCompatibility = restCompatibility;
+            return this;
+        }
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
-            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
+            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address), restCompatibility);
         }
     }
 

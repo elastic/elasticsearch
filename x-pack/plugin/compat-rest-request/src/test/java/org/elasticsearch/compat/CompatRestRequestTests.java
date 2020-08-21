@@ -33,12 +33,12 @@ public class CompatRestRequestTests extends ESTestCase {
     public void testAcceptAndContentTypeCombinations() {
         assertThat(
             requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
 
         assertThat(
             requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
 
         expectThrows(
@@ -49,12 +49,12 @@ public class CompatRestRequestTests extends ESTestCase {
         // no body - content-type is ignored
         assertThat(
             requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
         // no body - content-type is ignored
         assertThat(
             requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         expectThrows(
@@ -64,12 +64,12 @@ public class CompatRestRequestTests extends ESTestCase {
 
         assertThat(
             requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         // tests when body present and one of the headers missing - versioning is required on both when body is present
@@ -94,40 +94,40 @@ public class CompatRestRequestTests extends ESTestCase {
         );
 
         // tests when body NOT present and one of the headers missing
-        assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent()), Matchers.allOf(isCompatible()));
+        assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent()), isCompatible());
 
         assertThat(
             requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         // body not present - accept header is missing - it will default to Current version. Version on content type is ignored
         assertThat(
             requestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
-        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), Matchers.allOf(not(isCompatible())));
+        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), not(isCompatible()));
 
         // Accept header = application/json means current version. If body is provided then accept and content-Type should be the same
         assertThat(
             requestWith(acceptHeader("application/json"), contentTypeHeader(null), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader("application/json"), contentTypeHeader("application/json"), bodyPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
     }
 
@@ -147,23 +147,23 @@ public class CompatRestRequestTests extends ESTestCase {
         // body not present - ignore content-type
         assertThat(
             requestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader("*/*"), contentTypeHeader("application/json"), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         // this is for instance used by SQL
         assertThat(
             requestWith(acceptHeader("application/json"), contentTypeHeader("application/cbor"), bodyPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
@@ -172,7 +172,7 @@ public class CompatRestRequestTests extends ESTestCase {
                 contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=7"),
                 bodyPresent()
             ),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
 
         // different versions on different media types
@@ -189,17 +189,17 @@ public class CompatRestRequestTests extends ESTestCase {
     public void testTextMediaTypes() {
         assertThat(
             requestWith(acceptHeader("text/tab-separated-values"), contentTypeHeader("application/json"), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader("text/plain"), contentTypeHeader("application/json"), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         assertThat(
             requestWith(acceptHeader("text/csv"), contentTypeHeader("application/json"), bodyNotPresent()),
-            Matchers.allOf(not(isCompatible()))
+            not(isCompatible())
         );
 
         // versioned
@@ -209,17 +209,17 @@ public class CompatRestRequestTests extends ESTestCase {
                 contentTypeHeader(7),
                 bodyNotPresent()
             ),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
 
         assertThat(
             requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
 
         assertThat(
             requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
-            Matchers.allOf(isCompatible())
+            isCompatible()
         );
     }
 
@@ -277,6 +277,7 @@ public class CompatRestRequestTests extends ESTestCase {
             // xContentType header is set explicitly in headers
             builder.withContent(new BytesArray(body), null);
         }
+        builder.withRestCompatibility(new CompatRestRequest());
         FakeRestRequest request = builder.build();
         Version version = request.getCompatibleVersion();
         return Tuple.tuple(request, version);

@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
@@ -44,8 +43,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -56,6 +53,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.mockito.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,6 +62,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
@@ -113,62 +113,28 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
         {
-            MappedFieldType field = new MappedFieldType("test", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public String typeName() {
-                    return "test";
-                }
-
-                @Override
-                public Query termQuery(Object value, QueryShardContext context) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Query existsQuery(QueryShardContext context) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-                    searchLookup.get();
-                    return null;
-                }
-            };
+            MappedFieldType ft = mock(MappedFieldType.class);
+            when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>)invocationOnMock.getArguments()[1];
+                searchLookup.get();
+                return null;
+            });
             //we call getForField for a field that is not a runtime field, yet it requires the search lookup
-            expectThrows(UnsupportedOperationException.class, () -> ifdService.getForField(field));
+            expectThrows(UnsupportedOperationException.class, () -> ifdService.getForField(ft));
         }
         {
             final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
-            MappedFieldType runtimeField = new MappedFieldType("test", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public String typeName() {
-                    return "runtime";
-                }
-
-                @Override
-                public boolean isRuntimeField() {
-                    return true;
-                }
-
-                @Override
-                public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-                    searchLookupSetOnce.set(searchLookup);
-                    return (cache, breakerService, mapperService) -> null;
-                }
-
-                @Override
-                public Query termQuery(Object value, QueryShardContext context) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Query existsQuery(QueryShardContext context) {
-                    throw new UnsupportedOperationException();
-                }
-            };
+            MappedFieldType ft = mock(MappedFieldType.class);
+            when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>)invocationOnMock.getArguments()[1];
+                searchLookupSetOnce.set(searchLookup);
+                return (IndexFieldData.Builder) (cache, breakerService, mapperService) -> null;
+            });
+            when(ft.isRuntimeField()).thenReturn(true);
             SearchLookup searchLookup = new SearchLookup(null, null);
-            ifdService.getForField(runtimeField, "qualified", () -> searchLookup);
+            ifdService.getForField(ft, "qualified", () -> searchLookup);
             assertSame(searchLookup, searchLookupSetOnce.get().get());
         }
     }
@@ -354,34 +320,5 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, Collections.emptyMap()));
-    }
-
-    private static class RuntimeField extends MappedFieldType {
-        private final SetOnce<Supplier<SearchLookup>> searchLookup = new SetOnce<>();
-
-        RuntimeField(String name) {
-            super(name, false, false, TextSearchInfo.NONE, Collections.emptyMap());
-        }
-
-        @Override
-        public String typeName() {
-            return "runtime";
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            this.searchLookup.set(searchLookup);
-            return super.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
-        }
     }
 }

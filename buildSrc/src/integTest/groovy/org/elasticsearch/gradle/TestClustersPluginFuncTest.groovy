@@ -58,7 +58,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster","elasticsearch script executed")
+        assertEsStdoutContains("myCluster","Starting Elasticsearch process")
+        assertEsStdoutContains("myCluster","Stopping node")
     }
 
     boolean assertEsStdoutContains(String testCluster, String expectedOutput) {

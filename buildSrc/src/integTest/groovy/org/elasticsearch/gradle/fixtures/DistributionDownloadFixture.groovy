@@ -34,6 +34,7 @@ class DistributionDownloadFixture {
             File initFile = new File(gradleRunner.getProjectDir(), INIT_SCRIPT)
             initFile.text = """allprojects { p ->
                 p.repositories.all { repo ->
+                    repo.allowInsecureProtocol = true
                     repo.setUrl('${server.baseUrl()}')
                 }
             }"""
@@ -53,6 +54,6 @@ class DistributionDownloadFixture {
 
     private static byte[] filebytes(String urlPath) throws IOException {
         String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
-        return DistributionDownloadFixture.getResourceAsStream("fake_elasticsearch." + suffix).getBytes()
+        return DistributionDownloadFixture.getResourceAsStream("/org/elasticsearch/gradle/fake_elasticsearch." + suffix).getBytes()
     }
 }

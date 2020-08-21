@@ -108,7 +108,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
-        assertThat(authenticateResponse.getAuthenticationType(), is("REALM"));
+        assertThat(authenticateResponse.getAuthenticationType(), is("realm"));
 
         // get user
         final GetUsersRequest getUsersRequest =

@@ -763,7 +763,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authenticationRealmType, is("file"));
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
-            assertThat(authenticationType, is("REALM"));
+            assertThat(authenticationType, is("realm"));
         }
 
         {
@@ -2343,7 +2343,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
-            assertThat(resp.getAuthenticationType(), is("TOKEN"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
 
         {
@@ -2387,7 +2387,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
-            assertThat(resp.getAuthenticationType(), is("TOKEN"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
     }
 

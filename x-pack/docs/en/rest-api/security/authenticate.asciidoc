@@ -57,7 +57,7 @@ The following example output provides information about the "rdeniro" user:
     "name" : "file",
     "type" : "file"
   },
-  "authentication_type": "REALM"
+  "authentication_type": "realm"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

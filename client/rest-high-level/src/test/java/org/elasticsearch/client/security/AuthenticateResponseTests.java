@@ -75,7 +75,7 @@ public class AuthenticateResponseTests extends ESTestCase {
         final String authenticationRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         final String lookupRealmName = randomAlphaOfLength(5);
         final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String authenticationType = randomFrom("REALM", "API_KEY", "TOKEN", "ANONYMOUS", "INTERNAL");
+        final String authenticationType = randomFrom("realm", "api_key", "token", "anonymous", "internal");
         return new AuthenticateResponse(
             new User(username, roles, metadata, fullName, email), enabled,
             new AuthenticateResponse.RealmInfo(authenticationRealmName, authenticationRealmType),
@@ -162,7 +162,7 @@ public class AuthenticateResponseTests extends ESTestCase {
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     randomValueOtherThan(response.getAuthenticationType(),
-                                         () -> randomFrom("REALM", "API_KEY", "TOKEN", "ANONYMOUS", "INTERNAL")));
+                                         () -> randomFrom("realm", "api_key", "token", "anonymous", "internal")));
         }
         throw new IllegalStateException("Bad random number");
     }

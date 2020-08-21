@@ -33,12 +33,12 @@ public interface Compressor {
     int headerLength();
 
     /**
-     * Creates a new stream input that decompresses the contents read from teh provided stream input.
+     * Creates a new stream input that decompresses the contents read from the provided stream input.
      * Closing the returned {@link StreamInput} will close the provided stream input.
      * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
      * closed after use
      */
-    StreamInput streamInput(StreamInput in) throws IOException;
+    StreamInput threadLocalStreamInput(StreamInput in) throws IOException;
 
     /**
      * Creates a new stream output that compresses the contents and writes to the provided stream
@@ -46,7 +46,7 @@ public interface Compressor {
      * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
      * closed after use
      */
-    StreamOutput streamOutput(OutputStream out) throws IOException;
+    StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException;
 
     /**
      * Decompress bytes into a newly allocated buffer.

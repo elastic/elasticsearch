@@ -1332,7 +1332,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        try (StreamInput input = CompressorFactory.COMPRESSOR.streamInput(cacheEntry.v2().streamInput())) {
+        try (StreamInput input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
                     XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                             LoggingDeprecationHandler.INSTANCE, input), cacheEntry.v1(), false);

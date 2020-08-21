@@ -93,8 +93,8 @@ public class DeflateCompressor implements Compressor {
 
         private final Releasable releasable;
 
-        // Thread that is currently using this reference
-        private Thread user = null;
+        // Thread that is currently using this reference. Only used for assertions and only assigned if assertions are enabled.
+        private Thread thread = null;
 
         // true if this reference is currently in use and is not available for re-use
         boolean inUse;
@@ -106,8 +106,8 @@ public class DeflateCompressor implements Compressor {
 
         T get() {
             if (Assertions.ENABLED) {
-                assert user == null;
-                user = Thread.currentThread();
+                assert thread == null;
+                thread = Thread.currentThread();
             }
             assert inUse == false;
             inUse = true;
@@ -117,9 +117,9 @@ public class DeflateCompressor implements Compressor {
         @Override
         public void close() {
             if (Assertions.ENABLED) {
-                assert user == Thread.currentThread() :
-                        "Opened on [" + user.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
-                user = null;
+                assert thread == Thread.currentThread() :
+                        "Opened on [" + thread.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
+                thread = null;
             }
             assert inUse;
             inUse = false;
@@ -128,7 +128,21 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public StreamInput streamInput(StreamInput in) throws IOException {
+    public StreamInput threadLocalStreamInput(StreamInput in) throws IOException {
+        return new InputStreamStreamInput(inputStream(in, true));
+    }
+
+    /**
+     * Creates a new input stream that decompresses the contents read from the provided input stream.
+     * Closing the returned stream will close the provided input stream.
+     * Optionally uses thread-local, pooled resources to save off-heap allocations if the stream is guaranteed to not escape the current
+     * thread.
+     *
+     * @param in           input stream to wrap
+     * @param threadLocal  whether this stream will only be used on the current thread or not
+     * @return             decompressing stream
+     */
+    public static InputStream inputStream(InputStream in, boolean threadLocal) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
         int len = 0;
         while (len < headerBytes.length) {
@@ -142,32 +156,38 @@ public class DeflateCompressor implements Compressor {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }
 
-        final ReleasableReference<Inflater> current = inflaterForStreamRef.get();
         final Releasable releasable;
         final Inflater inflater;
-        if (current.inUse) {
-            // Nested de-compression streams should not happen but we still handle them safely by using a fresh Inflater
+        if (threadLocal) {
+            final ReleasableReference<Inflater> current = inflaterForStreamRef.get();
+            if (current.inUse) {
+                // Nested de-compression streams should not happen but we still handle them safely by using a fresh Inflater
+                inflater = new Inflater(true);
+                releasable = inflater::end;
+            } else {
+                inflater = current.get();
+                releasable = current;
+            }
+        } else {
             inflater = new Inflater(true);
             releasable = inflater::end;
-        } else {
-            inflater = current.get();
-            releasable = current;
         }
-        InputStream decompressedIn = new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+        return new BufferedInputStream(new InflaterInputStream(in, inflater, BUFFER_SIZE) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
+                    // We are ensured to only call this once since we wrap this stream in a BufferedInputStream that will only close
+                    // its delegate once
                     releasable.close();
                 }
             }
-        };
-        return new InputStreamStreamInput(new BufferedInputStream(decompressedIn, BUFFER_SIZE));
+        }, BUFFER_SIZE);
     }
 
     @Override
-    public StreamOutput streamOutput(OutputStream out) throws IOException {
+    public StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException {
         out.write(HEADER);
         final ReleasableReference<Deflater> current = deflaterForStreamRef.get();
         final Releasable releasable;
@@ -187,6 +207,8 @@ public class DeflateCompressor implements Compressor {
                 try {
                     super.close();
                 } finally {
+                    // We are ensured to only call this once since we wrap this stream in a BufferedOutputStream that will only close
+                    // its delegate once below
                     releasable.close();
                 }
             }

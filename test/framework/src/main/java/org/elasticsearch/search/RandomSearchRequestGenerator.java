@@ -180,6 +180,13 @@ public class RandomSearchRequestGenerator {
         }
 
         if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+            }
+        }
+
+        if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {

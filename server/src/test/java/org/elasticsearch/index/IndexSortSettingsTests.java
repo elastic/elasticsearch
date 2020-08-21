@@ -19,24 +19,22 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexSortSettingsTests extends ESTestCase {
     private static IndexSettings indexSettings(Settings settings) {
@@ -159,33 +157,9 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(RuntimeField::new, null));
+        MappedFieldType ft = mock(MappedFieldType.class);
+        when(ft.isRuntimeField()).thenReturn(true);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(field -> ft, null));
         assertEquals("index sort on runtime field:[runtime] not supported", iae.getMessage());
-    }
-
-    private static class RuntimeField extends MappedFieldType {
-        RuntimeField(String name) {
-            super(name, false, false, TextSearchInfo.NONE, Collections.emptyMap());
-        }
-
-        @Override
-        public boolean isRuntimeField() {
-            return true;
-        }
-
-        @Override
-        public String typeName() {
-            return "runtime";
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
     }
 }

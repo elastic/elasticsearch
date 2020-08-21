@@ -400,8 +400,9 @@ To ensure fast responses, the multi search API will respond with partial results
 if one or more shards fail. See <<shard-failures, Shard failures>> for more
 information.
 
+
 [[msearch-cancellation]]
-=== Search Cancellation
+==== Search Cancellation
 
 Multi searches can be cancelled using standard <<task-cancellation,task cancellation>>
 mechanism and are also automatically cancelled when the http connection used to

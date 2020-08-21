@@ -36,7 +36,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -161,13 +160,11 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
-                System.err.println("--> done");
                 latch.countDown();
             }
 
             @Override
             public void onFailure(Exception exception) {
-                System.err.println("--> failed" + exception);
                 error.set(exception);
                 latch.countDown();
             }
@@ -287,7 +284,6 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         }
     }
 
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     private static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }

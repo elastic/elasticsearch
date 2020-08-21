@@ -290,7 +290,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "unlicensed realms",
                 AuthenticationService.class.getName(), Level.WARN,
-                "No authentication token can be extracted using realms [file_realm/file]. " +
+                "No authentication credential could be extracted using realms [file_realm/file]. " +
                     "Realms [second_realm/second] were skipped because they are not permitted on the current license"
             ));
 

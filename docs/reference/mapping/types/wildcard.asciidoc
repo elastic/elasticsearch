@@ -41,10 +41,10 @@ GET my-index-000001/_search
 {
   "query": {
     "wildcard": {
-        "my_wildcard": {
-          "value": "*quite*lengthy"
-        }
+      "my_wildcard": {
+        "value": "*quite*lengthy"
       }
+    }
   }
 }
 

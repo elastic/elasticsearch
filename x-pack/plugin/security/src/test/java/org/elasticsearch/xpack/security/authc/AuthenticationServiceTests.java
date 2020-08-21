@@ -295,8 +295,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                     "Realms [second_realm/second] were skipped because they are not permitted on the current license"
             ));
 
-            Mockito.doReturn(List.of(secondRealm)).when(realms).getUnlicensedRealms();
-            Mockito.doReturn(List.of(firstRealm)).when(realms).asList();
+            Mockito.doReturn(org.elasticsearch.common.collect.List.of(secondRealm)).when(realms).getUnlicensedRealms();
+            Mockito.doReturn(org.elasticsearch.common.collect.List.of(firstRealm)).when(realms).asList();
             final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
             PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);

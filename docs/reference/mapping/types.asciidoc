@@ -1,5 +1,5 @@
 [[mapping-types]]
-== Field data types [[_core_datatypes]]
+== Field data types
 
 Each field has a _field data type_, or _field type_. This type indicates the
 kind of data the field contains, such as strings or boolean values, and its
@@ -16,90 +16,90 @@ Currently, the only type family is `keyword`, which consists of the `keyword`,
 single field type. For example, the `boolean` type family consists of one field
 type: `boolean`.
 
+
 [discrete]
 [[_core_datatypes]]
-==== Core types
+==== Common types
 
-<<binary>>::          `binary`
-<<boolean>>::         `boolean`
-keyword::             <<keyword,`keyword`>>,
-                      <<constant-keyword,`constant_keyword`>>, and
-                      <<wildcard,`wildcard`>>
-<<number,Numbers>>::  `long`, `integer`, `short`, `byte`, `double`, `float`,
-                      `half_float`, `scaled_float`
-Dates::               <<date,`date`>>, <<date_nanos,`date_nanos`>>
-<<alias,Alias>>::     `alias`. Defines an alias to an existing field.
+<<binary,`binary`>>::   Binary value encoded as a Base64 string.
+<<boolean,`boolean`>>:: `true` and `false` values.
+Keyword::               The keyword family, including <<keyword, `keyword`>>,
+                        <<constant-keyword,`constant_keyword`>>, and
+                        <<wildcard, `wildcard`>>.
+<<number,Numbers>>::    Numeric types, such as `long` and `double`.
+Dates::                 Date types, including <<date,`date`>> and 
+                        <<date_nanos,`date_nanos`>>.
+<<alias,`alias`>>::     Defines an alias for an existing field.
 
 
 [discrete]
 [[object-types]]
 ==== Objects and relational types
 
-<<object>>::      `object` for single JSON objects
-<<flattened>>::   `flattened`. Allows an entire JSON object to be indexed as a
-                  single field.
-<<nested>>::      `nested` for arrays of JSON objects
-<<parent-join>>:: `join`. Defines parent/child relation for documents within the
-                  same index
+<<object,`object`>>::         A single JSON object.
+<<flattened,`flattened`>>::   An entire JSON object as a single field value.
+<<nested,`nested`>>::         An array of JSON objects.
+<<parent-join,`join`>>::      Defines a parent/child relationship for documents
+                              in the same index.
 
 
 [discrete]
 [[structured-data-types]]
 ==== Structured data types
 
-<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`,
-                `date_range`, `ip_range`
-<<ip>>::        `ip` for IPv4 and IPv6 addresses
-{plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of
-values at index-time and store them in the index
+<<range,Range>>::   Range types, including `long_range`, `double_range`,
+                    `date_range`, and `ip_range`.
+<<ip,`ip`>>::       IPv4 and IPv6 addresses.
+{plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
+values.
 
 
 [discrete]
 [[aggregated-data-types]]
 ==== Aggregated data types
 
-<<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles
-                aggregations.
+<<histogram,`histogram`>>:: Pre-aggregated numerical values.
 
 
 [discrete]
-[[text-search--types]]
+[[text-search-types]]
 ==== Text search types
 
-<<text,Text>>::   `text` for analyzed, unstructured content
-{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
-<<completion-suggester,Completion>>:: `completion` to provide auto-complete suggestions
-<<search-as-you-type>>:: `search_as_you_type`. A `text`-like field optimized for
-queries to implement as-you-type completion
-<<token-count>>::        `token_count` to count the number of tokens in a string
+<<text,`text`>>:: Analyzed, unstructured content.
+{plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
+markup. Used for identifying named entities.
+<<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
+<<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
+as-you-type completion.
+<<token-count,`token_count`>>:: A count of tokens in a text.
 
 
 [discrete]
 [[document-ranking-types]]
 ==== Document ranking types
 
-<<dense-vector>>::   `dense_vector`. Records dense vectors of float values.
-<<rank-feature>>::   `rank_feature`. Records a numeric feature to boost hits at
-                      query time.
-<<rank-features>>::  `rank_features`. Records numeric features to boost hits at
-                      query time.
+<<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
+<<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
+                                    query time.
+<<rank-features,`rank_features`>>:: Records numeric features to boost hits at
+                                    query time.
 
 
 [discrete]
 [[spatial_datatypes]]
 ==== Spatial data types
 
-<<geo-point>>::     `geo_point` for lat/lon points
-<<geo-shape>>::     `geo_shape` for complex shapes like polygons
-<<point>>::         `point` for arbitrary cartesian points.
-<<shape>>::         `shape` for arbitrary cartesian geometries.
+<<geo-point,`geo_point`>>::     Latitude and longitude points.
+<<geo-shape,`geo_shape`>>::     Complex shapes, such as polygons.
+<<point,`point`>>::             Arbitrary cartesian points.
+<<shape,`shape`>>::             Arbitrary cartesian geometries.
 
 
 [discrete]
 [[other-types]]
-==== Other
-<<percolator>>::    `percolator`. Accepts queries from the <<query-dsl,Query
-                    DSL>>.
+==== Other types
+
+<<percolator,`percolator`>>::   Indexes queries written in <<query-dsl,Query DSL>>.
 
 
 [discrete]

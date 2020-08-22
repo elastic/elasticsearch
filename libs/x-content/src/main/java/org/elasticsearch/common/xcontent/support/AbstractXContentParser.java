@@ -280,9 +280,10 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        if (findMapStart(this) || nextToken() != XContentParser.Token.FIELD_NAME) {
+        if (findNonEmptyMapStart(this) == false) {
             return Collections.emptyMap();
         }
+        assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";
         final Map<String, T> map = mapFactory.get();
         do {
             // Must point to field name
@@ -312,15 +313,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
     private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return findMapStart(parser) ? Collections.emptyMap() : readMapUnsafe(parser, mapFactory);
+        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory) : Collections.emptyMap();
     }
 
-    // Read a map without bounds checks from a parser that is assumed to be at a map start token
-    private static Map<String, Object> readMapUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        assert parser.currentToken() == Token.START_OBJECT;
-        if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-            return Collections.emptyMap();
-        }
+    // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
+    private static Map<String, Object> readMapEntries(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        assert parser.currentToken() == Token.FIELD_NAME: "Expected field name but saw [" + parser.currentToken() + "]";
         final Map<String, Object> map = mapFactory.get();
         do {
             // Must point to field name
@@ -328,23 +326,26 @@ public abstract class AbstractXContentParser implements XContentParser {
             // And then the value...
             Object value = readValueUnsafe(parser.nextToken(), parser, mapFactory);
             map.put(fieldName, value);
-        } while (parser.nextToken() == XContentParser.Token.FIELD_NAME);
+        } while (parser.nextToken() == Token.FIELD_NAME);
         return map;
     }
 
     /**
-     * Checks if the next current token in the supplied parser is a map start.
+     * Checks if the next current token in the supplied parser is a map start for a non-empty map.
      * Skips to the next token if the parser does not yet have a current token (i.e. {@link #currentToken()} returns {@code null}) and then
      * checks it.
      *
-     * @return true if a map start is found
+     * @return true if a map start for a non-empty map is found
      */
-    private static boolean findMapStart(XContentParser parser) throws IOException {
+    private static boolean findNonEmptyMapStart(XContentParser parser) throws IOException {
         Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
         }
-        return token != XContentParser.Token.START_OBJECT;
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
+        }
+        return token == Token.FIELD_NAME;
     }
 
     // Skips the current parser to the next array start. Assumes that the parser is either positioned before an array field's name token or
@@ -396,7 +397,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();
             case VALUE_BOOLEAN: return parser.booleanValue();
-            case START_OBJECT: return readMapUnsafe(parser, mapFactory);
+            case START_OBJECT: return parser.nextToken() != Token.FIELD_NAME ? Collections.emptyMap() : readMapEntries(parser, mapFactory);
             case START_ARRAY: return readListUnsafe(parser, mapFactory);
             case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
             case VALUE_NULL:

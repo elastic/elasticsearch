@@ -173,6 +173,20 @@ searches, you can also use the `timeout` parameter to specify a duration you'd
 like to wait for a search to complete. If no response is received before this
 period ends, the request fails and returns an error.
 
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "timeout": "2s",
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
 To set a cluster-wide default timeout for all search requests, configure
 `search.default_search_timeout` using the <<cluster-update-settings,cluster
 settings API>>. This global timeout duration is used if no `timeout` argument is

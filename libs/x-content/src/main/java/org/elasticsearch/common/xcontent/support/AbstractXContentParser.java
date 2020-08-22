@@ -312,13 +312,14 @@ public abstract class AbstractXContentParser implements XContentParser {
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
     private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory) : mapFactory.get();
+        final Map<String, Object> map = mapFactory.get();
+        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory, map) : map;
     }
 
     // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
-    private static Map<String, Object> readMapEntries(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        assert parser.currentToken() == Token.FIELD_NAME: "Expected field name but saw [" + parser.currentToken() + "]";
-        final Map<String, Object> map = mapFactory.get();
+    private static Map<String, Object> readMapEntries(XContentParser parser, Supplier<Map<String, Object>> mapFactory,
+                                                      Map<String, Object> map) throws IOException {
+        assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
         do {
             // Must point to field name
             String fieldName = parser.currentName();
@@ -392,7 +393,10 @@ public abstract class AbstractXContentParser implements XContentParser {
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();
             case VALUE_BOOLEAN: return parser.booleanValue();
-            case START_OBJECT: return parser.nextToken() != Token.FIELD_NAME ? mapFactory.get() : readMapEntries(parser, mapFactory);
+            case START_OBJECT: {
+                final Map<String, Object> map = mapFactory.get();
+                return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map);
+            }
             case START_ARRAY: return readListUnsafe(parser, mapFactory);
             case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
             case VALUE_NULL:

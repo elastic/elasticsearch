@@ -279,9 +279,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        boolean empty = findNonEmptyMapStart(this) == false;
         final Map<String, T> map = mapFactory.get();
-        if (empty) {
+        if (findNonEmptyMapStart(this) == false) {
             return map;
         }
         assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";

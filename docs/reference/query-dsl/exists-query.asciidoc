@@ -31,7 +31,7 @@ GET /_search
 [[exists-query-top-level-params]]
 ==== Top-level parameters for `exists`
 `field`::
-(Required, string) Name of the field you wish to search. Supports
+(Required, string) Name of the field you wish to search. Accepts
 the <<mapping-routing-field,`_routing`>> metadata field.
 +
 While a field is deemed non-existent if the JSON value is `null` or `[]`, these

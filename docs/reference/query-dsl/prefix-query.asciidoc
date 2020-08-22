@@ -29,7 +29,7 @@ GET /_search
 [[prefix-query-top-level-params]]
 ==== Top-level parameters for `prefix`
 `<field>`::
-(Required, object) Field you wish to search. Supports the
+(Required, object) Field you wish to search. Accepts the
 <<mapping-routing-field,`_routing`>> metadata field.
 
 [[prefix-query-field-params]]

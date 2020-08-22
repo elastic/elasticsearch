@@ -36,7 +36,7 @@ GET /_search
 [[wildcard-top-level-params]]
 ==== Top-level parameters for `wildcard`
 `<field>`::
-(Required, object) Field you wish to search. Supports the
+(Required, object) Field you wish to search. Accepts the
 <<mapping-routing-field,`_routing`>> metadata field.
 
 [[wildcard-query-field-params]]

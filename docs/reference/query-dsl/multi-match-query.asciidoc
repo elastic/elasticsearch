@@ -70,7 +70,7 @@ WARNING: There is a limit on the number of fields that can be queried
 at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
 which defaults to 1024.
 
-The `fields` parameter supports the <<mapping-id-field,`_id`>> and
+The `fields` parameter accepts the <<mapping-id-field,`_id`>> and
 <<mapping-routing-field,`_routing`>> metadata fields.
 
 [[multi-match-types]]

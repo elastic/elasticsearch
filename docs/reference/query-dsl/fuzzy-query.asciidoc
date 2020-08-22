@@ -64,7 +64,7 @@ GET /_search
 [[fuzzy-query-top-level-params]]
 ==== Top-level parameters for `fuzzy`
 `<field>`::
-(Required, object) Field you wish to search. Supports the
+(Required, object) Field you wish to search. Accepts the
 <<mapping-routing-field,`_routing`>> metadata field.
 
 [[fuzzy-query-field-params]]

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateFormatter;
@@ -231,7 +233,7 @@ public class RoundingTests extends ESTestCase {
             Rounding.DateTimeUnit unit = randomFrom(Rounding.DateTimeUnit.values());
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
-            long[] bounds = randomDateBounds();
+            long[] bounds = randomDateBounds(unit);
             Rounding.Prepared prepared = rounding.prepare(bounds[0], bounds[1]);
 
             // Check that rounding is internally consistent and consistent with nextRoundingValue
@@ -894,8 +896,13 @@ public class RoundingTests extends ESTestCase {
         return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
     }
 
-    private static long[] randomDateBounds() {
+    private static long[] randomDateBounds(Rounding.DateTimeUnit unit) {
         long b1 = randomDate();
+        if (randomBoolean()) {
+            // Sometimes use a fairly close date
+            return new long[] {b1, b1 + unit.extraLocalOffsetLookup() * between(1, 40)};
+        }
+        // Otherwise use a totally random date
         long b2 = randomValueOtherThan(b1, RoundingTests::randomDate);
         if (b1 < b2) {
             return new long[] {b1, b2};

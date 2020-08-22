@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
@@ -44,8 +45,10 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -401,8 +404,22 @@ public abstract class Rounding implements Writeable {
             }
         }
 
+        /**
+         * Time zones with two midnights get "funny" non-continuous rounding
+         * that isn't compatible with the pre-computed array rounding.
+         */
+        private static final Set<String> HAS_TWO_MIDNIGHTS = Set.of("America/Moncton", "America/St_Johns", "Canada/Newfoundland");
+
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
+            Prepared orig = prepareOffsetRounding(minUtcMillis, maxUtcMillis);
+            if (unitRoundsToMidnight && HAS_TWO_MIDNIGHTS.contains(timeZone.getId())) {
+                return orig;
+            }
+            return maybeUseArray(orig, minUtcMillis, maxUtcMillis, 128);
+        }
+
+        private Prepared prepareOffsetRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
@@ -421,7 +438,6 @@ public abstract class Rounding implements Writeable {
                 // Range too long, just use java.time
                 return prepareJavaTime();
             }
-
             LocalTimeOffset fixedOffset = lookup.fixedInRange(minLookup, maxLookup);
             if (fixedOffset != null) {
                 // The time zone is effectively fixed
@@ -1015,7 +1031,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            return wrapPreparedRounding(delegate.prepare(minUtcMillis, maxUtcMillis));
+            return wrapPreparedRounding(delegate.prepare(minUtcMillis - offset, maxUtcMillis - offset));
         }
 
         @Override
@@ -1083,6 +1099,56 @@ public abstract class Rounding implements Writeable {
                 return new OffsetRounding(in);
             default:
                 throw new ElasticsearchException("unknown rounding id [" + id + "]");
+        }
+    }
+
+    /**
+     * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
+     * "round down" points. If there would be more than {@code max} points then return
+     * the original implementation, otherwise return the new, faster implementation.
+     */
+    static Prepared maybeUseArray(Prepared orig, long minUtcMillis, long maxUtcMillis, int max) {
+        long[] values = new long[1];
+        long rounded = orig.round(minUtcMillis);
+        int i = 0;
+        values[i++] = rounded;
+        while ((rounded = orig.nextRoundingValue(rounded)) <= maxUtcMillis) {
+            if (i >= max) {
+                return orig;
+            }
+            assert values[i - 1] == orig.round(rounded - 1);
+            values = ArrayUtil.grow(values, i + 1);
+            values[i++]= rounded;
+        }
+        return new ArrayRounding(values, i, orig);
+    }
+
+    /**
+     * Implementation of {@link Prepared} using pre-calculated "round down" points.
+     */
+    private static class ArrayRounding implements Prepared {
+        private final long[] values;
+        private int max;
+        private final Prepared delegate;
+
+        private ArrayRounding(long[] values, int max, Prepared delegate) {
+            this.values = values;
+            this.max = max;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long round(long utcMillis) {
+            int idx = Arrays.binarySearch(values, 0, max, utcMillis);
+            if (idx < 0) {
+                idx = -2 - idx;
+            }
+            return values[idx];
+        }
+
+        @Override
+        public long nextRoundingValue(long utcMillis) {
+            return delegate.nextRoundingValue(utcMillis);
         }
     }
 }

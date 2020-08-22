@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -263,70 +264,59 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMap(this);
+        return readMap(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readOrderedMap(this);
+        return readMap(this, ORDERED_MAP_FACTORY);
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
-        return readMapStrings(this);
+        return map(HashMap::new, XContentParser::text);
     }
 
     @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        return readGenericMap(this, mapFactory, mapValueParser);
+        XContentParser.Token token = currentToken();
+        if (token == null) {
+            token = nextToken();
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = nextToken();
+        }
+        if (token == Token.END_OBJECT) {
+            return Collections.emptyMap();
+        }
+        final Map<String, T> map = mapFactory.get();
+        for (; token == XContentParser.Token.FIELD_NAME; token = nextToken()) {
+            // Must point to field name
+            String fieldName = currentName();
+            // And then the value...
+            nextToken();
+            T value = mapValueParser.apply(this);
+            map.put(fieldName, value);
+        }
+        return map;
     }
 
     @Override
     public List<Object> list() throws IOException {
-        return readList(this);
+        return readList(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
-        return readListOrderedMap(this);
+        return readList(this, ORDERED_MAP_FACTORY);
     }
 
-    static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
+    private static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
 
-    static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
+    private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    static final Supplier<Map<String, String>> SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
-
-    static Map<String, Object> readMap(XContentParser parser) throws IOException {
-        return readMap(parser, SIMPLE_MAP_FACTORY);
-    }
-
-    static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
-        return readMap(parser, ORDERED_MAP_FACTORY);
-    }
-
-    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
-        return readGenericMap(parser, SIMPLE_MAP_STRINGS_FACTORY, XContentParser::text);
-    }
-
-    static List<Object> readList(XContentParser parser) throws IOException {
-        return readList(parser, SIMPLE_MAP_FACTORY);
-    }
-
-    static List<Object> readListOrderedMap(XContentParser parser) throws IOException {
-        return readList(parser, ORDERED_MAP_FACTORY);
-    }
-
-    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
-    }
-
-    static <T> Map<String, T> readGenericMap(
-            XContentParser parser,
-            Supplier<Map<String, T>> mapFactory,
-            CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        Map<String, T> map = mapFactory.get();
+    private static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -334,12 +324,16 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
         }
+        if (token == Token.END_OBJECT) {
+            return Collections.emptyMap();
+        }
+        final Map<String, Object> map = mapFactory.get();
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             // Must point to field name
             String fieldName = parser.currentName();
             // And then the value...
             parser.nextToken();
-            T value = mapValueParser.apply(parser);
+            Object value = readValue(parser, mapFactory);
             map.put(fieldName, value);
         }
         return map;
@@ -360,6 +354,9 @@ public abstract class AbstractXContentParser implements XContentParser {
                     + XContentParser.Token.START_ARRAY + " but got " + token);
         }
 
+        if (token == XContentParser.Token.END_ARRAY) {
+            return Collections.emptyList();
+        }
         ArrayList<Object> list = new ArrayList<>();
         for (; token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             list.add(readValue(parser, mapFactory));

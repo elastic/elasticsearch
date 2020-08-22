@@ -1137,7 +1137,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             return xContentBuilder.value(shuffledList);
         }
         //we need a sorted map for reproducibility, as we are going to shuffle its keys and write XContent back
-        Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
+        final Map<String, Object> parsed = parser.mapOrdered();
+        Map<String, Object> shuffledMap = parsed.isEmpty() ? parsed : shuffleMap((LinkedHashMap<String, Object>) parsed,
             new HashSet<>(Arrays.asList(exceptFieldNames)));
         return xContentBuilder.map(shuffledMap);
     }
@@ -1147,7 +1148,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
         List<Object> targetList = new ArrayList<>();
         for(Object value : list) {
-            if (value instanceof Map) {
+            if (value instanceof Map && ((Map<?, ?>) value).isEmpty() == false) {
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetList.add(shuffleMap(valueMap, exceptFields));
             } else if(value instanceof List) {
@@ -1166,7 +1167,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
-            if (value instanceof Map && exceptFields.contains(key) == false) {
+            if (value instanceof Map && exceptFields.contains(key) == false && ((Map<?, ?>) value).isEmpty() == false) {
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetMap.put(key, shuffleMap(valueMap, exceptFields));
             } else if(value instanceof List && exceptFields.contains(key) == false) {

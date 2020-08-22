@@ -31,7 +31,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -280,11 +279,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        if (findNonEmptyMapStart(this) == false) {
-            return Collections.emptyMap();
+        boolean empty = findNonEmptyMapStart(this) == false;
+        final Map<String, T> map = mapFactory.get();
+        if (empty) {
+            return map;
         }
         assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";
-        final Map<String, T> map = mapFactory.get();
         do {
             // Must point to field name
             String fieldName = currentName();
@@ -313,7 +313,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
     private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory) : Collections.emptyMap();
+        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory) : mapFactory.get();
     }
 
     // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
@@ -367,12 +367,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     // read a list without bounds checks, assuming the the current parser is always on an array start
     private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         assert parser.currentToken() == Token.START_ARRAY;
-        Token token = parser.nextToken();
-        if (token == XContentParser.Token.END_ARRAY) {
-            return Collections.emptyList();
-        }
         ArrayList<Object> list = new ArrayList<>();
-        for (; token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+        for (Token token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             list.add(readValueUnsafe(token, parser, mapFactory));
         }
         return list;
@@ -397,7 +393,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();
             case VALUE_BOOLEAN: return parser.booleanValue();
-            case START_OBJECT: return parser.nextToken() != Token.FIELD_NAME ? Collections.emptyMap() : readMapEntries(parser, mapFactory);
+            case START_OBJECT: return parser.nextToken() != Token.FIELD_NAME ? mapFactory.get() : readMapEntries(parser, mapFactory);
             case START_ARRAY: return readListUnsafe(parser, mapFactory);
             case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
             case VALUE_NULL:

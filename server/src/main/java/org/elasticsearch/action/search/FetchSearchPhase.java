@@ -96,6 +96,7 @@ final class FetchSearchPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
+                stopSendingSearchContextHeartbeats(queryResults.asList());
                 context.onPhaseFailure(FetchSearchPhase.this, "", e);
             }
         });
@@ -209,22 +210,32 @@ final class FetchSearchPhase extends SearchPhase {
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
     private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
-        // we only release search context that we did not fetch from if we are not scrolling
-        // and if it has at lease one hit that didn't make it to the global topDocs
-        if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
-            try {
-                SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                context.sendReleaseSearchContext(queryResult.getContextId(), connection, searchShardTarget.getOriginalIndices());
-            } catch (Exception e) {
-                context.getLogger().trace("failed to release context", e);
+        if (queryResult.hasSearchContext()) {
+            context.getSearchTransport().stopSendingSearchContextHeartbeat(queryResult.getContextId());
+            // we only release search context that we did not fetch from if we are not scrolling
+            // and if it has at lease one hit that didn't make it to the global topDocs
+            if (context.getRequest().scroll() == null) {
+                try {
+                    SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                    Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+                    context.sendReleaseSearchContext(queryResult.getContextId(), connection, shardTarget.getOriginalIndices());
+                } catch (Exception e) {
+                    context.getLogger().trace("failed to release context", e);
+                }
             }
+        }
+    }
+
+    private void stopSendingSearchContextHeartbeats(List<SearchPhaseResult> queryResults) {
+        for (SearchPhaseResult queryResult : queryResults) {
+            context.getSearchTransport().stopSendingSearchContextHeartbeat(queryResult.getContextId());
         }
     }
 
     private void moveToNextPhase(SearchPhaseController searchPhaseController,
                                  String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
                                  AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
+        stopSendingSearchContextHeartbeats(queryResults.asList());
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
         context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));

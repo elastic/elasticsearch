@@ -19,6 +19,11 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -30,7 +35,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -45,21 +54,30 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.search.SearchService.SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -78,15 +96,21 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String SEARCH_CONTEXT_HEARTBEAT_ACTION_NAME = "internal:admin/search/context_heartbeat";
+
+    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final SearchContextHeartbeatSender searchContextHeartbeatSender;
 
-    public SearchTransportService(TransportService transportService,
+    public SearchTransportService(Settings settings, TransportService transportService,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         this.transportService = transportService;
         this.responseWrapper = responseWrapper;
+        this.searchContextHeartbeatSender = new SearchContextHeartbeatSender(
+            transportService, logger, transportService.getThreadPool(), SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING.get(settings));
     }
 
     public void sendFreeContext(Transport.Connection connection, final SearchContextId contextId, OriginalIndices originalIndices) {
@@ -358,6 +382,11 @@ public class SearchTransportService {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+
+        transportService.registerRequestHandler(SEARCH_CONTEXT_HEARTBEAT_ACTION_NAME, ThreadPool.Names.SAME,
+            SearchContextHeartbeatRequest::new, new SearchContextHeartbeatRequestHandler(searchService));
+        TransportActionProxy.registerProxyAction(transportService, SEARCH_CONTEXT_HEARTBEAT_ACTION_NAME,
+            in -> TransportResponse.Empty.INSTANCE);
     }
 
 
@@ -416,6 +445,143 @@ public class SearchTransportService {
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;
+        }
+    }
+
+    public void startSendingSearchContextHeartbeat(SearchContextId contextId, Transport.Connection connection) {
+        if (connection.getVersion().onOrAfter(Version.V_8_0_0)) {
+            searchContextHeartbeatSender.addTarget(contextId, connection);
+        }
+    }
+
+    public void stopSendingSearchContextHeartbeat(SearchContextId contextId) {
+        searchContextHeartbeatSender.removeTarget(contextId);
+    }
+
+    static class SearchContextHeartbeatSender extends AbstractAsyncTask {
+        private final Logger logger;
+        private final TransportService transportService;
+        private final ThreadPool threadPool;
+        private final Map<SearchContextIdKey, Transport.Connection> targets = ConcurrentCollections.newConcurrentMap();
+        private final Set<Transport.Connection> ongoingConnections = ConcurrentCollections.newConcurrentSet();
+
+        SearchContextHeartbeatSender(TransportService transportService, Logger logger, ThreadPool threadPool, TimeValue sendInterval) {
+            super(logger, threadPool, sendInterval, true);
+            this.logger = logger;
+            this.transportService = transportService;
+            this.threadPool = threadPool;
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        protected void runInternal() {
+            if (targets.isEmpty()) {
+                return;
+            }
+            final Map<Transport.Connection, Set<SearchContextId>> perConnections = new HashMap<>();
+            for (Map.Entry<SearchContextIdKey, Transport.Connection> entry : targets.entrySet()) {
+                perConnections.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey().id);
+            }
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                for (Map.Entry<Transport.Connection, Set<SearchContextId>> entry : perConnections.entrySet()) {
+                    final Transport.Connection connection = entry.getKey();
+                    final Set<SearchContextId> contextIds = entry.getValue();
+                    if (ongoingConnections.add(connection) == false) {
+                        continue; // let's wait for the next round
+                    }
+                    logger.trace("sending heartbeats {} to connection {}", contextIds, connection);
+                    final SearchContextHeartbeatRequest request = new SearchContextHeartbeatRequest(contextIds);
+                    transportService.sendRequest(connection, SEARCH_CONTEXT_HEARTBEAT_ACTION_NAME, request, TransportRequestOptions.EMPTY,
+                        new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                            @Override
+                            public void handleException(TransportException exp) {
+                                assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                                ongoingConnections.remove(connection);
+                                logger.debug("failed to send heartbeats {} to connection {}", contextIds, connection);
+                            }
+
+                            @Override
+                            public void handleResponse(TransportResponse.Empty response) {
+                                ongoingConnections.remove(connection);
+                            }
+                        });
+                }
+            }
+        }
+
+        void addTarget(SearchContextId contextId, Transport.Connection connection) {
+            targets.put(new SearchContextIdKey(contextId), connection);
+        }
+
+        void removeTarget(SearchContextId contextId) {
+            targets.remove(new SearchContextIdKey(contextId));
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.SAME;
+        }
+
+        private static class SearchContextIdKey {
+            final SearchContextId id;
+
+            SearchContextIdKey(SearchContextId id) {
+                this.id = id;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                SearchContextIdKey that = (SearchContextIdKey) o;
+                return this.id == that.id;
+            }
+
+            @Override
+            public int hashCode() {
+                return System.identityHashCode(id);
+            }
+        }
+    }
+
+    private static class SearchContextHeartbeatRequest extends TransportRequest {
+        private final Collection<SearchContextId> contextIds;
+
+        SearchContextHeartbeatRequest(Collection<SearchContextId> contextIds) {
+            this.contextIds = Objects.requireNonNull(contextIds);
+        }
+
+        SearchContextHeartbeatRequest(StreamInput in) throws IOException {
+            super(in);
+            this.contextIds = in.readList(SearchContextId::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(contextIds);
+        }
+    }
+
+    private static class SearchContextHeartbeatRequestHandler implements TransportRequestHandler<SearchContextHeartbeatRequest> {
+        private final SearchService searchService;
+
+        SearchContextHeartbeatRequestHandler(SearchService searchService) {
+            this.searchService = searchService;
+        }
+
+        @Override
+        public void messageReceived(SearchContextHeartbeatRequest request, TransportChannel channel, Task task) throws Exception {
+            for (SearchContextId contextId : request.contextIds) {
+                searchService.onHeartbeatReceived(contextId);
+            }
         }
     }
 }

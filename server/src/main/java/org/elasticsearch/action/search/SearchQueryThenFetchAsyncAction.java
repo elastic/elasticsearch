@@ -77,9 +77,21 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
-        getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            request, getTask(), listener);
+        final ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
+        final Transport.Connection connection = getConnection(shardIt.getClusterAlias(), shard.currentNodeId());
+        getSearchTransport().sendExecuteQuery(connection, request, getTask(),
+            new SearchActionListener<>(listener.searchShardTarget, listener.requestIndex) {
+                @Override
+                protected void innerOnResponse(SearchPhaseResult response) {
+                    getSearchTransport().startSendingSearchContextHeartbeat(response.getContextId(), connection);
+                    listener.innerOnResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -72,7 +73,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean shard2 = randomBoolean();
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -129,7 +130,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -195,7 +196,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-            new SearchTransportService(null, null) {
+            new SearchTransportService(Settings.EMPTY, null, null) {
                 @Override
                 public void sendCanMatch(
                     Transport.Connection connection,
@@ -213,7 +214,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        SearchTransportService transportService = new SearchTransportService(null, null);
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
             (e) -> { throw new AssertionError("unexpected", e);});
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
@@ -296,7 +297,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List<MinAndMax<?>> minAndMaxes = new ArrayList<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
-            SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                          ActionListener<SearchService.CanMatchResponse> listener) {
@@ -369,7 +370,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List<ShardId> shardIds = new ArrayList<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
-            SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                          ActionListener<SearchService.CanMatchResponse> listener) {

@@ -102,6 +102,7 @@ interface SearchPhaseContext extends Executor {
      *
      */
     default void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+        getSearchTransport().stopSendingSearchContextHeartbeat(contextId);
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

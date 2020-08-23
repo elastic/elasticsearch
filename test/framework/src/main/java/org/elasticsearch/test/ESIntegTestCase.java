@@ -1730,6 +1730,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
+        if (randomBoolean()) {
+            builder
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(between(30, 60)))
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(between(1, 5)))
+                .put(SearchService.SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(between(5, 10)));
+        }
         return builder.build();
     }
 

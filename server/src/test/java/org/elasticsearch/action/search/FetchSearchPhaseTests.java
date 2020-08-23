@@ -26,6 +26,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -118,7 +119,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -179,7 +180,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -234,7 +235,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.setShardIndex(i);
             results.consumeResult(queryResult, () -> {});
         }
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -300,7 +301,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult,  () -> {});
         AtomicInteger numFetches = new AtomicInteger(0);
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -359,7 +360,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

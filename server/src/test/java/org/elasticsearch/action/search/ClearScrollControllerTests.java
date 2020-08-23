@@ -24,6 +24,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -64,7 +65,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         }, latch);
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
@@ -123,7 +124,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         }, latch);
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
 
             @Override
             public void sendFreeContext(Transport.Connection connection, SearchContextId contextId,
@@ -194,7 +195,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
         }, latch);
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null, null) {
 
             @Override
             public void sendFreeContext(Transport.Connection connection, SearchContextId contextId,

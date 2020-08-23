@@ -143,6 +143,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(24), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
+    public static final Setting<TimeValue> SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("search.send_context_heartbeat_interval", timeValueMinutes(1), Property.NodeScope);
     public static final Setting<Boolean> ALLOW_EXPENSIVE_QUERIES =
         Setting.boolSetting("search.allow_expensive_queries", true, Property.NodeScope, Property.Dynamic);
 
@@ -221,7 +223,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
 
-        TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
+        TimeValue keepAliveInterval = SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING,
@@ -607,6 +609,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 cleanContext(context);
             }
         }, listener);
+    }
+
+    public void onHeartbeatReceived(SearchContextId contextId) {
+        logger.trace("received heartbeat for contextId {}", contextId);
+        final SearchContext context = getContext(contextId);
+        if (context != null) {
+            context.accessed(threadPool.relativeTimeInMillis());
+        }
     }
 
     private SearchContext getContext(SearchContextId contextId) {

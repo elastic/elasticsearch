@@ -298,6 +298,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
+            SearchService.SEND_CONTEXT_HEARTBEAT_INTERVAL_SETTING,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,

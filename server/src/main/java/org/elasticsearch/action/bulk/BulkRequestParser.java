@@ -324,6 +324,6 @@ public final class BulkRequestParser {
     private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
         final int offset = array.offset();
         return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
-                offset + from, offset + nextMarker - from);
+                offset + from, nextMarker - from);
     }
 }

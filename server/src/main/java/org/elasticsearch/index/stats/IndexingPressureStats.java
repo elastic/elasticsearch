@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,6 +44,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long coordinatingRejections;
     private final long primaryRejections;
     private final long replicaRejections;
+    private final long memoryLimit;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
@@ -58,12 +60,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         coordinatingRejections = in.readVLong();
         primaryRejections = in.readVLong();
         replicaRejections = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            memoryLimit = in.readVLong();
+        } else {
+            memoryLimit = -1L;
+        }
     }
 
     public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
                                  long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
                                  long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections) {
+                                 long replicaRejections, long memoryLimit) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -75,6 +83,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.coordinatingRejections = coordinatingRejections;
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
+        this.memoryLimit = memoryLimit;
     }
 
     @Override
@@ -92,6 +101,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(coordinatingRejections);
         out.writeVLong(primaryRejections);
         out.writeVLong(replicaRejections);
+
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeVLong(memoryLimit);
+        }
     }
 
     public long getTotalCombinedCoordinatingAndPrimaryBytes() {
@@ -151,6 +164,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
     private static final String PRIMARY_REJECTIONS = "primary_rejections";
     private static final String REPLICA_REJECTIONS = "replica_rejections";
+    private static final String LIMIT = "limit";
+    private static final String LIMIT_IN_BYTES = "limit_in_bytes";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -173,6 +188,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
+        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(memoryLimit));
         builder.endObject();
         return builder.endObject();
     }

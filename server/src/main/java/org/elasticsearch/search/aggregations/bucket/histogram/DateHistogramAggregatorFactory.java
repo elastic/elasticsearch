@@ -21,13 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -41,13 +39,13 @@ import java.util.Map;
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(DateHistogramAggregationBuilder.NAME,
+        builder.register(
+            DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (DateHistogramAggregationSupplier) DateHistogramAggregator::new);
+            DateHistogramAggregator::new,
+                true);
 
-        builder.register(DateHistogramAggregationBuilder.NAME,
-            CoreValuesSourceType.RANGE,
-            (DateHistogramAggregationSupplier) DateRangeHistogramAggregator::new);
+        builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
 
     private final BucketOrder order;
@@ -90,18 +88,13 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config, DateHistogramAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
-            throw new AggregationExecutionException(
-                "Registry miss-match - expected DateHistogramAggregationSupplier, found [" + aggregatorSupplier.getClass().toString() + "]"
-            );
-        }
+        DateHistogramAggregationSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
         // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
         Rounding.Prepared preparedRounding = config.getValuesSource()
             .roundingPreparer(queryShardContext.getIndexReader())
             .apply(rounding);
-        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(
+        return aggregatorSupplier.build(
             name,
             factories,
             rounding,

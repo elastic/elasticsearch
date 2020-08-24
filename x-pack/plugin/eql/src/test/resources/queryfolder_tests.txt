@@ -105,13 +105,8 @@ process where cidrMatch(source_address, "10.0.0.0/8") != false
 twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
 ;
-"bool":{"must":[{"term":{"event.category":{"value":"process"
-"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
-"params":{"v0":"process_path","v1":"x","v2":true}}
-"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
-"params":{"v0":"process_path","v1":"yx","v2":true}}
+{"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-caseInsensitive
@@ -126,12 +121,18 @@ InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),pa
 "params":{"v0":"process_path","v1":"yx","v2":false}}
 ;
 
-endsWithFunction-caseSensitive
+endsWithKeywordFieldFunction-caseSensitive
 process where endsWith(user_name, 'c')
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
-"params":{"v0":"user_name","v1":"c","v2":true}}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"user_name":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
+;
+
+endsWithWildcardSubFieldFunction-caseSensitive
+process where endsWith(hostname, 'c')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"hostname.keyword":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithFunction-caseInsensitive
@@ -189,12 +190,18 @@ process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
-stringContains-caseSensitive
+stringContainsExactField-caseSensitive
 process where stringContains(process_name, "foo")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":true}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
+;
+
+stringContainsExactSubField-caseSensitive
+process where stringContains(hostname, "foo")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"hostname.keyword":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
 ;
 
 stringContains-caseInsensitive

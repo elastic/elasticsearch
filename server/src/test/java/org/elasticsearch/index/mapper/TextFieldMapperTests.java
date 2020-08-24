@@ -85,6 +85,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -1010,9 +1011,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
                 .endObject().endObject()
                 .endObject().endObject());
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            MapperParsingException e = expectThrows(MapperParsingException.class, () ->
                 indexService.mapperService().merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE));
-            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice."));
+            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined more than once"));
 
         }
 
@@ -1334,15 +1335,15 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         FieldMapper fieldMapper = newBuilder().build(context);
         TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
 
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
     }
 }

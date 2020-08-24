@@ -253,6 +253,11 @@ public interface DocValueFormat extends NamedWriteable {
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
+
+        @Override
+        public String toString() {
+            return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
+        }
     }
 
     DocValueFormat GEOHASH = new DocValueFormat() {

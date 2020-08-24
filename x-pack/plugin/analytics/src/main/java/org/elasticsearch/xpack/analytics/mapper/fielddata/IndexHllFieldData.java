@@ -28,9 +28,4 @@ public abstract class IndexHllFieldData implements IndexFieldData<LeafHllFieldDa
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }
-
-    @Override
-    public final void clear() {
-        // can't do
-    }
 }

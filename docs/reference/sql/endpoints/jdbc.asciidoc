@@ -16,7 +16,7 @@ The JDBC driver can be obtained from:
 Dedicated page::
 https://www.elastic.co/downloads/jdbc-client[elastic.co] provides links, typically for manual downloads.
 Maven dependency::
-http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
+https://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
 
 ["source","xml",subs="attributes"]
 ----

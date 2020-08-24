@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -73,11 +72,7 @@ public class TopClassEntry implements Writeable, ToXContentObject {
     }
 
     public TopClassEntry(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.classification = in.readGenericValue();
-        } else {
-            this.classification = in.readString();
-        }
+        this.classification = in.readGenericValue();
         this.probability = in.readDouble();
         this.score = in.readDouble();
     }
@@ -114,11 +109,7 @@ public class TopClassEntry implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeGenericValue(classification);
-        } else {
-            out.writeString(classification.toString());
-        }
+        out.writeGenericValue(classification);
         out.writeDouble(probability);
         out.writeDouble(score);
     }

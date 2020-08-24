@@ -138,6 +138,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -231,8 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
-    private ValuesSourceRegistry valuesSourceRegistry;
-
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     @Override
     protected void doStart() {
@@ -642,7 +642,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -713,7 +713,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
+            directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -1492,9 +1492,10 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
+            try (InputStream inputStream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

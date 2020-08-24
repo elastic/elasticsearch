@@ -101,8 +101,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
 
 `ignore_throttled`::
@@ -159,7 +159,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 `scroll`::
 (Optional, <<time-units,time value>>)
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
@@ -185,8 +185,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -322,9 +322,15 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 --
+
+[[search-api-min-score]]
+`min_score`::
+(Optional, float)
+Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
+lower `_score` are not included in the search results.
 
 [[request-body-search-query]]
 `query`::
@@ -351,8 +357,8 @@ results must then be combined and sorted to ensure that the overall order is
 correct.
 
 As an alternative to deep paging, we recommend using
-<<request-body-search-scroll,scroll>> or the
-<<request-body-search-search-after,`search_after`>> parameter.
+<<scroll-search-results,scroll>> or the
+<<search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
@@ -428,7 +434,7 @@ Identifier for the search and its <<scroll-search-context,search context>>.
 +
 You can use this scroll ID with the <<scroll-api,scroll API>> to retrieve the
 next batch of search results for the request. See
-<<request-body-search-scroll>>.
+<<scroll-search-results>>.
 +
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.
@@ -570,8 +576,8 @@ Contains field values for the documents. These fields must be specified in the
 request using one or more of the following request parameters:
 
 * <<search-docvalue-fields-param,`docvalue_fields`>>
-* <<request-body-search-script-fields,`script_fields`>>
-* <<request-body-search-stored-fields,`stored_fields`>>
+* <<script-fields,`script_fields`>>
+* <<stored-fields,`stored_fields`>>
 
 This property is returned only if one or more of these parameters are set.
 --
@@ -588,106 +594,6 @@ Key is the field name. Value is the value for the field.
 
 [[search-search-api-example]]
 ==== {api-examples-title}
-
-[[search-api-specific-ex]]
-===== Search a single data stream or index using the `q` query parameter
-
-[source,console]
-----
-GET /my-index-000001/_search?q=user.id:kimchy
-----
-// TEST[setup:my_index]
-
-The API returns the following response:
-
-[source,console-result]
-----
-{
-  "took": 5,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 1.3862942,
-    "hits": [
-      {
-        "_index": "my-index-000001",
-        "_id": "0",
-        "_score": 1.3862942,
-        "_source": {
-          "@timestamp": "2099-11-15T14:12:12",
-          "http": {
-            "request": {
-              "method": "get"
-            },
-            "response": {
-              "status_code": 200,
-              "bytes": 1070000
-            },
-            "version": "1.1"
-          },
-          "source": {
-            "ip": "127.0.0.1"
-          },
-          "message": "GET /search HTTP/1.1 200 1070000",
-          "user": {
-            "id": "kimchy"
-          }
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 5/"took": $body.took/]
-
-[[search-multi-index]]
-===== Search several data streams and indices using the `q` query parameter
-
-[source,console]
-----
-GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
-----
-// TEST[setup:my_index]
-// TEST[s/^/PUT my-index-000002\n/]
-
-[[search-api-all-ex]]
-===== Search a cluster using the `q` query parameter
-
-To search all data streams and indices in a cluster,
-omit the `<target>` parameter.
-
-[source,console]
-----
-GET /_search?q=user.id:kimchy
-----
-// TEST[setup:my_index]
-
-Alternatively,
-you can use the `_all` or `*` value in the `<target>` parameter.
-
-[source,console]
-----
-GET /_all/_search?q=user.id:kimchy
-----
-// TEST[setup:my_index]
-
-[source,console]
-----
-GET /*/_search?q=user.id:kimchy
-----
-// TEST[setup:my_index]
-
-[[search-request-body-api-example]]
-===== Search using the `query` request body parameter
 
 [source,console]
 ----

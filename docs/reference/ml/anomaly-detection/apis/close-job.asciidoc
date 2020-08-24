@@ -66,7 +66,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 [[ml-close-job-query-parms]]
 == {api-query-parms-title}
 
-`allow_no_jobs`::
+`allow_no_match`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
@@ -82,7 +82,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 == {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  If `allow_no_match` is `false`, this code indicates that there are no 
   resources that match the request or only partial matches for the request.
 
 [[ml-close-job-example]]

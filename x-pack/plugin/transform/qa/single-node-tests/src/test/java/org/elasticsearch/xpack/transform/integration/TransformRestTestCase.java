@@ -80,14 +80,88 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return super.buildClient(settings, hosts);
     }
 
-    protected void createReviewsIndex(String indexName, int numDocs, String dateType, boolean isDataStream) throws IOException {
-        int[] distributionTable = { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1 };
+    protected void createReviewsIndex(
+        String indexName,
+        int numDocs,
+        String dateType,
+        boolean isDataStream,
+        int userWithMissingBuckets,
+        String missingBucketField
+    ) throws IOException {
+        putReviewsIndex(indexName, dateType, isDataStream);
 
+        int[] distributionTable = { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1 };
+        // create index
+        final StringBuilder bulk = new StringBuilder();
+        int day = 10;
+        int hour = 10;
+        int min = 10;
+        for (int i = 0; i < numDocs; i++) {
+            bulk.append("{\"create\":{\"_index\":\"" + indexName + "\"}}\n");
+            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
+            int stars = distributionTable[(i * 33) % distributionTable.length];
+            long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
+            if (i % 12 == 0) {
+                hour = 10 + (i % 13);
+            }
+            if (i % 5 == 0) {
+                min = 10 + (i % 49);
+            }
+            int sec = 10 + (i % 49);
+            String location = (user + 10) + "," + (user + 15);
+
+            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec;
+            if (dateType.equals("date_nanos")) {
+                String randomNanos = "," + randomIntBetween(100000000, 999999999);
+                date_string += randomNanos;
+            }
+            date_string += "Z";
+
+            bulk.append("{");
+            if ((user == userWithMissingBuckets && missingBucketField.equals("user_id")) == false) {
+                bulk.append("\"user_id\":\"").append("user_").append(user).append("\",");
+            }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("business_id")) == false) {
+                bulk.append("\"business_id\":\"").append("business_").append(business).append("\",");
+            }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("stars")) == false) {
+                bulk.append("\"stars\":").append(stars).append(",");
+            }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("location")) == false) {
+                bulk.append("\"location\":\"").append(location).append("\",");
+            }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("timestamp")) == false) {
+                bulk.append("\"timestamp\":\"").append(date_string).append("\",");
+            }
+
+            // always add @timestamp to avoid complicated logic regarding ','
+            bulk.append("\"@timestamp\":\"").append(date_string).append("\"");
+            bulk.append("}\n");
+
+            if (i % 50 == 0) {
+                bulk.append("\r\n");
+                final Request bulkRequest = new Request("POST", "/_bulk");
+                bulkRequest.addParameter("refresh", "true");
+                bulkRequest.setJsonEntity(bulk.toString());
+                client().performRequest(bulkRequest);
+                // clear the builder
+                bulk.setLength(0);
+                day += 1;
+            }
+        }
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+    }
+
+    protected void putReviewsIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-
                 builder.startObject("mappings").startObject("properties");
                 builder.startObject("@timestamp").field("type", dateType);
                 if (dateType.equals("date_nanos")) {
@@ -118,15 +192,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
                 createCompositeTemplate.setJsonEntity(
-                    "{\n" +
-                        "  \"index_patterns\": [ \"" + indexName + "\" ],\n" +
-                        "  \"data_stream\": {\n" +
-                        "  },\n" +
-                        "  \"template\": \n" + Strings.toString(builder) +
-                        "}"
+                    "{\n"
+                        + "  \"index_patterns\": [ \""
+                        + indexName
+                        + "\" ],\n"
+                        + "  \"data_stream\": {\n"
+                        + "  },\n"
+                        + "  \"template\": \n"
+                        + Strings.toString(builder)
+                        + "}"
                 );
                 client().performRequest(createCompositeTemplate);
-                client().performRequest(new Request("PUT",  "_data_stream/" + indexName));
+                client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {
                 final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
                 Request req = new Request("PUT", indexName);
@@ -134,66 +211,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 client().performRequest(req);
             }
         }
-
-        // create index
-        final StringBuilder bulk = new StringBuilder();
-        int day = 10;
-        int hour = 10;
-        int min = 10;
-        for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"create\":{\"_index\":\"" + indexName + "\"}}\n");
-            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
-            int stars = distributionTable[(i * 33) % distributionTable.length];
-            long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
-            if (i % 12 == 0) {
-                hour = 10 + (i % 13);
-            }
-            if (i % 5 == 0) {
-                min = 10 + (i % 49);
-            }
-            int sec = 10 + (i % 49);
-            String location = (user + 10) + "," + (user + 15);
-
-            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec;
-            if (dateType.equals("date_nanos")) {
-                String randomNanos = "," + randomIntBetween(100000000, 999999999);
-                date_string += randomNanos;
-            }
-            date_string += "Z";
-
-            bulk.append("{\"user_id\":\"")
-                .append("user_")
-                .append(user)
-                .append("\",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"location\":\"")
-                .append(location)
-                .append("\",\"timestamp\":\"")
-                .append(date_string)
-                .append("\",\"@timestamp\":\"")
-                .append(date_string)
-                .append("\"}\n");
-
-            if (i % 50 == 0) {
-                bulk.append("\r\n");
-                final Request bulkRequest = new Request("POST", "/_bulk");
-                bulkRequest.addParameter("refresh", "true");
-                bulkRequest.setJsonEntity(bulk.toString());
-                client().performRequest(bulkRequest);
-                // clear the builder
-                bulk.setLength(0);
-                day += 1;
-            }
-        }
-        bulk.append("\r\n");
-
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
-        client().performRequest(bulkRequest);
     }
 
     /**
@@ -204,7 +221,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndex(String indexName) throws IOException {
-        createReviewsIndex(indexName, 1000, "date", false);
+        createReviewsIndex(indexName, 1000, "date", false, -1, null);
     }
 
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
@@ -217,7 +234,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndexNano() throws IOException {
-        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos", false);
+        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos", false, -1, null);
     }
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
@@ -247,12 +264,14 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void createPivotReviewsTransform(String transformId,
-                                               String transformIndex,
-                                               String query,
-                                               String pipeline,
-                                               String authHeader,
-                                               String sourceIndex) throws IOException {
+    protected void createPivotReviewsTransform(
+        String transformId,
+        String transformIndex,
+        String query,
+        String pipeline,
+        String authHeader,
+        String sourceIndex
+    ) throws IOException {
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{";

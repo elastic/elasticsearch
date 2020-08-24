@@ -97,10 +97,16 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    private void checkBasicLicenseType() throws IOException {
-        Map<String, Object> license = getAsMap("/_license");
-        assertThat(license, notNullValue());
-        assertThat(ObjectPath.evaluate(license, "license.type"), equalTo("basic"));
+    private void checkBasicLicenseType() throws Exception {
+        assertBusy(() -> {
+            try {
+                Map<String, Object> license = getAsMap("/_license");
+                assertThat(license, notNullValue());
+                assertThat(ObjectPath.evaluate(license, "license.type"), equalTo("basic"));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private void checkSecurityStatus(boolean expectEnabled) throws IOException {
@@ -126,7 +132,8 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         final Map<String, Object> auth = getAsMap("/_security/_authenticate");
         // From file realm, configured in build.gradle
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
-        assertThat(ObjectPath.evaluate(auth, "roles"), contains("security_test_role"));
+        // The anonymous role is granted by anonymous access enabled in build.gradle
+        assertThat(ObjectPath.evaluate(auth, "roles"), contains("security_test_role", "anonymous"));
     }
 
     private void checkAllowedWrite(String indexName) throws IOException {

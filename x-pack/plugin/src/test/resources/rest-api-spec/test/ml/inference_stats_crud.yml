@@ -5,12 +5,12 @@ setup:
         - allowed_warnings
   - do:
       allowed_warnings:
-        - "index [.ml-inference-000002] matches multiple legacy templates [.ml-inference-000002, global], composable templates will only match a single template"
+        - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-unused-regression-model1-0
-        index: .ml-inference-000002
+        index: .ml-inference-000003
         body: >
           {
             "model_id": "a-unused-regression-model1",
@@ -27,7 +27,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-unused-regression-model-0
-        index: .ml-inference-000002
+        index: .ml-inference-000003
         body: >
           {
             "model_id": "a-unused-regression-model",
@@ -43,7 +43,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-used-regression-model-0
-        index: .ml-inference-000002
+        index: .ml-inference-000003
         body: >
           {
             "model_id": "a-used-regression-model",

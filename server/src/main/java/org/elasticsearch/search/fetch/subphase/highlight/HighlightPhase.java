@@ -53,10 +53,10 @@ public class HighlightPhase implements FetchSubPhase {
     public void hitExecute(SearchShardTarget shardTarget,
                            QueryShardContext context,
                            Query query,
-                           SearchContextHighlight highlight,
+                           SearchHighlightContext highlight,
                            HitContext hitContext) {
         Map<String, HighlightField> highlightFields = new HashMap<>();
-        for (SearchContextHighlight.Field field : highlight.fields()) {
+        for (SearchHighlightContext.Field field : highlight.fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 fieldNamesToHighlight = context.getMapperService().simpleMatchToFullName(field.field());
@@ -107,14 +107,16 @@ public class HighlightPhase implements FetchSubPhase {
                 if (highlightQuery == null) {
                     highlightQuery = query;
                 }
-                HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
-                    field, fieldType, shardTarget, context, highlight, hitContext, highlightQuery);
+
+                boolean forceSource = highlight.forceSource(field);
+                FieldHighlightContext fieldContext = new FieldHighlightContext(fieldType.name(),
+                    field, fieldType, shardTarget, context, hitContext, highlightQuery, forceSource);
 
                 if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
                     continue;
                 }
-                HighlightField highlightField = highlighter.highlight(highlighterContext);
+                HighlightField highlightField = highlighter.highlight(fieldContext);
                 if (highlightField != null) {
                     // Note that we make sure to use the original field name in the response. This is because the
                     // original field could be an alias, and highlighter implementations may instead reference the

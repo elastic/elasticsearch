@@ -453,10 +453,10 @@ Defaults to `true`.
 end::delayed-data-check-config[]
 
 tag::dependent-variable[]
-Defines which field of the document is to be predicted. 
-This parameter is supplied by field name and must match one of the fields in 
-the index being used to train. If this field is missing from a document, then 
-that document will not be used for training, but a prediction with the trained 
+Defines which field of the document is to be predicted.
+This parameter is supplied by field name and must match one of the fields in
+the index being used to train. If this field is missing from a document, then
+that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
@@ -513,9 +513,17 @@ The value of the downsample factor.
 end::dfas-downsample-factor[]
 
 tag::dfas-eta-growth[]
-Specifies the rate at which the `eta` increases for each new tree that is added to the 
+Specifies the rate at which the `eta` increases for each new tree that is added to the
 forest. For example, a rate of `1.05` increases `eta` by 5%.
 end::dfas-eta-growth[]
+
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
 
 tag::dfas-iteration[]
 The number of iterations on the analysis.
@@ -529,9 +537,9 @@ training stops.
 end::dfas-max-attempts[]
 
 tag::dfas-max-optimization-rounds[]
-A multiplier responsible for determining the maximum number of 
-hyperparameter optimization steps in the Bayesian optimization procedure. 
-The maximum number of steps is determined based on the number of undefined hyperparameters 
+A multiplier responsible for determining the maximum number of
+hyperparameter optimization steps in the Bayesian optimization procedure.
+The maximum number of steps is determined based on the number of undefined hyperparameters
 times the maximum optimization rounds per hyperparameter.
 end::dfas-max-optimization-rounds[]
 
@@ -595,10 +603,10 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
 end::empty-bucket-count[]
 
 tag::eta[]
-Advanced configuration option. The shrinkage applied to the weights. Smaller 
+Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
-information, about shrinkage, see 
+information, about shrinkage, see
 {wikipedia}/Gradient_boosting#Shrinkage[this wiki article]. By
 default, this value is calcuated during hyperparameter optimization.
 end::eta[]
@@ -624,13 +632,13 @@ this value to determine the number of unique categories that were missed.
 end::failed-category-count[]
 
 tag::feature-bag-fraction[]
-Advanced configuration option. Defines the fraction of features that will be 
+Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. By default, this
 value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
 
 tag::feature-influence-threshold[]
-The minimum {olscore} that a document needs to have to calculate its feature 
+The minimum {olscore} that a document needs to have to calculate its feature
 influence score. Value range: 0-1 (`0.1` by default).
 end::feature-influence-threshold[]
 
@@ -675,10 +683,10 @@ The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 end::function[]
 
 tag::gamma[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies a linear penalty associated with the size of 
-individual trees in the forest. The higher the value the more training will 
-prefer smaller trees. The smaller this parameter the larger individual trees 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies a linear penalty associated with the size of
+individual trees in the forest. The higher the value the more training will
+prefer smaller trees. The smaller this parameter the larger individual trees
 will be and the longer training will take. By default, this value is calculated
 during hyperparameter optimization.
 end::gamma[]
@@ -798,8 +806,8 @@ information for all {anomaly-jobs}.
 end::job-id-anomaly-detection-default[]
 
 tag::job-id-anomaly-detection-define[]
-Identifier for the {anomaly-job}. This identifier can contain lowercase 
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start 
+Identifier for the {anomaly-job}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-anomaly-detection-define[]
 
@@ -843,12 +851,12 @@ For more information, see <<ml-jobstats>>.
 end::jobs-stats-anomaly-detection[]
 
 tag::lambda[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies an L2 regularisation term which applies to 
-leaf weights of the individual trees in the forest. The higher the value the 
-more training will attempt to keep leaf weights small. This makes the prediction  
-function smoother at the expense of potentially not being able to capture 
-relevant relationships between the features and the {depvar}. The smaller this 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies an L2 regularisation term which applies to
+leaf weights of the individual trees in the forest. The higher the value the
+more training will attempt to keep leaf weights small. This makes the prediction
+function smoother at the expense of potentially not being able to capture
+relevant relationships between the features and the {depvar}. The smaller this
 parameter the larger individual trees will be and the longer training will take.
 By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
@@ -1098,8 +1106,8 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::outlier-fraction[]
-The proportion of the data set that is assumed to be outlying prior to 
-{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
+The proportion of the data set that is assumed to be outlying prior to
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real
 outliers and 95% are inliers.
 end::outlier-fraction[]
 
@@ -1185,7 +1193,7 @@ tag::randomize-seed[]
 Defines the seed to the random generator that is used to pick
 which documents will be used for training. By default it is randomly generated.
 Set it to a specific value to ensure the same documents are used for training
-assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are 
+assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are
 the same.
 end::randomize-seed[]
 
@@ -1264,8 +1272,8 @@ end::sparse-bucket-count[]
 
 tag::standardization-enabled[]
 If `true`, the following operation is performed on the columns before computing
-{olscores}: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
-more information about this concept, see 
+{olscores}: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For
+more information about this concept, see
 https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
 end::standardization-enabled[]
 
@@ -1340,12 +1348,12 @@ when the mode is set to `manual`. For example: `3h`.
 end::time-span[]
 
 tag::timeout-start[]
-Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 
+Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults
 to 20 seconds.
 end::timeout-start[]
 
 tag::timeout-stop[]
-Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults 
+Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults
 to 20 seconds.
 end::timeout-stop[]
 

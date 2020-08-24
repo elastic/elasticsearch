@@ -1346,15 +1346,15 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         FieldMapper fieldMapper = newBuilder().build(context);
         TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
 
-        assertEquals("value", mapper.parseSourceValue("value", null));
-        assertEquals("42", mapper.parseSourceValue(42L, null));
-        assertEquals("true", mapper.parseSourceValue(true, null));
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(mapper, true));
     }
 }

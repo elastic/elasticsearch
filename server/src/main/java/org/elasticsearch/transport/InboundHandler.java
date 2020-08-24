@@ -22,7 +22,9 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 
 public class InboundHandler {
 
@@ -79,6 +82,9 @@ public class InboundHandler {
         }
     }
 
+    // Empty stream constant to avoid instantiating a new stream for empty messages.
+    private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
+
     private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
@@ -94,8 +100,6 @@ public class InboundHandler {
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
-                final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
-                assertRemoteVersion(streamInput, header.getVersion());
                 final TransportResponseHandler<?> handler;
                 long requestId = header.getRequestId();
                 if (header.isHandshake()) {
@@ -111,17 +115,26 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (handler != null) {
-                    if (header.isError()) {
-                        handlerResponseError(streamInput, handler);
+                    final StreamInput streamInput;
+                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                        streamInput = namedWriteableStream(message.openOrGetStreamInput());
+                        assertRemoteVersion(streamInput, header.getVersion());
+                        if (header.isError()) {
+                            handlerResponseError(streamInput, handler);
+                        } else {
+                            handleResponse(remoteAddress, streamInput, handler);
+                        }
+                        // Check the entire message has been read
+                        final int nextByte = streamInput.read();
+                        // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+                        if (nextByte != -1) {
+                            throw new IllegalStateException("Message not fully read (response) for requestId ["
+                                + requestId + "], handler [" + handler + "], error [" + header.isError()
+                                + "]; resetting");
+                        }
                     } else {
-                        handleResponse(remoteAddress, streamInput, handler);
-                    }
-                    // Check the entire message has been read
-                    final int nextByte = streamInput.read();
-                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                    if (nextByte != -1) {
-                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
-                            + handler + "], error [" + header.isError() + "]; resetting");
+                        assert header.isError() == false;
+                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
             }
@@ -173,12 +186,20 @@ public class InboundHandler {
                         throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
                             + action + "], available [" + stream.available() + "]; resetting");
                     }
-                    threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
+                    final String executor = reg.getExecutor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        try {
+                            reg.processMessageReceived(request, transportChannel);
+                        } catch (Exception e) {
+                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                        }
+                    } else {
+                        threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                    }
                 }
             } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, e);
             }
-
         }
     }
 
@@ -202,17 +223,20 @@ public class InboundHandler {
                     "Failed to deserialize response from handler [" + handler + "]", e));
             return;
         }
-        threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException(e));
-            }
+        final String executor = handler.executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            doHandleResponse(handler, response);
+        } else {
+            threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+        }
+    }
 
-            @Override
-            protected void doRun() {
-                handler.handleResponse(response);
-            }
-        });
+    private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
+        try {
+            handler.handleResponse(response);
+        } catch (Exception e) {
+            handleException(handler, new ResponseHandlerFailureTransportException(e));
+        }
     }
 
     private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {

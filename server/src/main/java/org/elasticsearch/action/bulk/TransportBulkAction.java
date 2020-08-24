@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
@@ -79,6 +78,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -720,8 +720,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
-        private static final Logger logger = LogManager.getLogger(BulkRequestModifier.class);
-
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
         final List<BulkItemResponse> itemResponses;
@@ -802,7 +800,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+            logger.debug(String.format(Locale.ROOT, "failed to execute pipeline [%s] for document [%s/%s/%s]",
                 indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
 
             // We hit a error during preprocessing a request, so we:

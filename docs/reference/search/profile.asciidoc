@@ -302,7 +302,7 @@ by Lucene into a BooleanQuery with two clauses (both holding a TermQuery).  The
 `type` field displays the Lucene class name, and often aligns with the 
 equivalent name in Elasticsearch.  The `description` field displays the Lucene 
 explanation text for the query, and is made available to help differentiating 
-between parts of your query (e.g. both `message:search` and `message:get` are 
+between parts of your query (e.g. both `message:get` and `message:search` are 
 TermQuery's and would appear identical otherwise.
 
 The `time_in_nanos` field shows that this query took ~1.8ms for the entire 

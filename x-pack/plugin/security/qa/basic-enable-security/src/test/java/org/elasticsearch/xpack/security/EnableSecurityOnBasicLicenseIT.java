@@ -132,6 +132,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         final Map<String, Object> auth = getAsMap("/_security/_authenticate");
         // From file realm, configured in build.gradle
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
+        // The anonymous role is granted by anonymous access enabled in build.gradle
         assertThat(ObjectPath.evaluate(auth, "roles"), contains("security_test_role", "anonymous"));
     }
 

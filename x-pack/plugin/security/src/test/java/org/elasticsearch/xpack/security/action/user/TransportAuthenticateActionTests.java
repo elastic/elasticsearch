@@ -143,11 +143,11 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final AnonymousUser anonymousUser = mock(AnonymousUser.class);
         if (randomBoolean()) {
             when(anonymousUser.enabled()).thenReturn(true);
+            when(anonymousUser.roles()).thenReturn(
+                randomList(1, 4, () -> randomAlphaOfLengthBetween(4, 12)).toArray(new String[0]));
         } else {
             when(anonymousUser.enabled()).thenReturn(false);
         }
-        final String[] roleNames = randomList(1, 4, () -> randomAlphaOfLengthBetween(4, 12)).toArray(new String[0]);
-        when(anonymousUser.roles()).thenReturn(roleNames);
         return anonymousUser;
     }
 

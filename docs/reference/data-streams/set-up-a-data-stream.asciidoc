@@ -21,12 +21,9 @@ and its backing indices.
 [[data-stream-prereqs]]
 === Prerequisites
 
-* {es} data streams are intended for time-series data only. Each document
-indexed to a data stream must contain a shared timestamp field.
-+
-TIP: Data streams work well with most common log formats. While no schema is
-required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
-(ECS)].
+* {es} data streams are intended for time series data only. Each document
+indexed to a data stream must contain the `@timestamp` field. This field must be
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type.
 
 * Data streams are best suited for time-based,
 <<data-streams-append-only,append-only>> use cases. If you frequently need to

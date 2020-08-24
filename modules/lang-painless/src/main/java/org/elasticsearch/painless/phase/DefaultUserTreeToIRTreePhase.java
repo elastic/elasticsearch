@@ -103,6 +103,7 @@ import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AExpression;
@@ -393,10 +394,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             return irExpressionNode;
         }
 
+        PainlessCast painlessCast = expressionPainlessCast.getExpressionPainlessCast();
+        Class<?> targetType = painlessCast.targetType;
+
+        if (painlessCast.boxTargetType != null) {
+            targetType = PainlessLookupUtility.typeToBoxedType(painlessCast.boxTargetType);
+        } else if (painlessCast.unboxTargetType != null) {
+            targetType = painlessCast.unboxTargetType;
+        }
+
         CastNode irCastNode = new CastNode();
         irCastNode.setLocation(irExpressionNode.getLocation());
-        irCastNode.setExpressionType(expressionPainlessCast.getExpressionPainlessCast().targetType);
-        irCastNode.setCast(expressionPainlessCast.getExpressionPainlessCast());
+        irCastNode.setExpressionType(targetType);
+        irCastNode.setCast(painlessCast);
         irCastNode.setChildNode(irExpressionNode);
 
         return irCastNode;

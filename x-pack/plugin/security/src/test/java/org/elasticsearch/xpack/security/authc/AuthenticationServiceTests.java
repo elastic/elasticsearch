@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -51,6 +55,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -84,6 +89,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -181,9 +187,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         firstRealm = mock(Realm.class);
         when(firstRealm.type()).thenReturn(FIRST_REALM_TYPE);
         when(firstRealm.name()).thenReturn(FIRST_REALM_NAME);
+        when(firstRealm.toString()).thenReturn(FIRST_REALM_NAME + "/" + FIRST_REALM_TYPE);
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn(SECOND_REALM_TYPE);
         when(secondRealm.name()).thenReturn(SECOND_REALM_NAME);
+        when(secondRealm.toString()).thenReturn(SECOND_REALM_NAME + "/" + SECOND_REALM_TYPE);
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("node.name", "authc_test")
@@ -274,18 +282,37 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
-        PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-        authenticator.extractToken((token) -> {
-            assertThat(token, nullValue());
-            authenticator.handleNullToken();
-        });
+        final Logger unlicensedRealmsLogger = LogManager.getLogger(AuthenticationService.class);
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(unlicensedRealmsLogger, mockAppender);
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "unlicensed realms",
+                AuthenticationService.class.getName(), Level.WARN,
+                "No authentication credential could be extracted using realms [file_realm/file]. " +
+                    "Realms [second_realm/second] were skipped because they are not permitted on the current license"
+            ));
 
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
-        assertThat(e.getMessage(), containsString("missing authentication credentials"));
-        verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
-        verifyNoMoreInteractions(auditTrail);
+            Mockito.doReturn(List.of(secondRealm)).when(realms).getUnlicensedRealms();
+            Mockito.doReturn(List.of(firstRealm)).when(realms).asList();
+            final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+            PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
+            authenticator.extractToken((token) -> {
+                assertThat(token, nullValue());
+                authenticator.handleNullToken();
+            });
+
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+            assertThat(e.getMessage(), containsString("missing authentication credentials"));
+            verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
+            verifyNoMoreInteractions(auditTrail);
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testAuthenticateBothSupportSecondSucceeds() throws Exception {
@@ -1420,6 +1447,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 source.put("version", 0);
                 Map<String, Object> creatorMap = new HashMap<>();
                 creatorMap.put("principal", "johndoe");
+                creatorMap.put("full_name", "john doe");
+                creatorMap.put("email", "john@doe.com");
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
@@ -1438,6 +1467,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             final Authentication authentication = authenticateBlocking("_action", transportRequest, null);
             assertThat(authentication.getUser().principal(), is("johndoe"));
+            assertThat(authentication.getUser().fullName(), is("john doe"));
+            assertThat(authentication.getUser().email(), is("john@doe.com"));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.API_KEY));
         }
     }

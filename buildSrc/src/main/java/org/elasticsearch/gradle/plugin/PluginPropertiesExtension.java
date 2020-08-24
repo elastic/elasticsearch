@@ -43,6 +43,8 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
+    private boolean bootstrapOnly;
+
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
 
@@ -103,6 +105,14 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
+    }
+
+    public boolean isBootstrapOnly() {
+        return bootstrapOnly;
+    }
+
+    public void setBootstrapOnly(boolean bootstrapOnly) {
+        this.bootstrapOnly = bootstrapOnly;
     }
 
     public boolean isRequiresKeystore() {

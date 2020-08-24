@@ -57,6 +57,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final boolean bootstrapOnly;
 
     /**
      * Construct plugin info.
@@ -69,9 +70,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param classname             the entry point to the plugin
      * @param extendedPlugins       other plugins this plugin extends through SPI
      * @param hasNativeController   whether or not the plugin has a native controller
+     * @param bootstrapOnly         whether this plugin applies to the bootstrap process only
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
-                      String classname, List<String> extendedPlugins, boolean hasNativeController) {
+                      String classname, List<String> extendedPlugins, boolean hasNativeController,
+                      boolean bootstrapOnly) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -80,6 +83,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = classname;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.bootstrapOnly = bootstrapOnly;
     }
 
     /**
@@ -97,6 +101,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = in.readString();
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
+        bootstrapOnly = in.readBoolean();
     }
 
     @Override
@@ -109,6 +114,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        out.writeBoolean(bootstrapOnly);
     }
 
     /**
@@ -172,36 +178,37 @@ public class PluginInfo implements Writeable, ToXContentObject {
             extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        final String hasNativeControllerValue = propsMap.remove("has.native.controller");
-        final boolean hasNativeController;
-        if (hasNativeControllerValue == null) {
-            hasNativeController = false;
-        } else {
-            switch (hasNativeControllerValue) {
-                case "true":
-                    hasNativeController = true;
-                    break;
-                case "false":
-                    hasNativeController = false;
-                    break;
-                default:
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                            "has_native_controller",
-                            "true",
-                            "false",
-                            hasNativeControllerValue);
-                    throw new IllegalArgumentException(message);
-            }
-        }
+        final boolean hasNativeController = parseBooleanValue("has.native.controller", propsMap.remove("has.native.controller"));
+        final boolean isBootstrapOnly = parseBooleanValue("bootstrap.only", propsMap.remove("bootstrap.only"));
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController);
+                              classname, extendedPlugins, hasNativeController, isBootstrapOnly);
+    }
+
+    private static boolean parseBooleanValue(String name, String rawValue) {
+        if (rawValue == null) {
+            return false;
+        }
+
+        switch (rawValue) {
+            case "true":
+                return true;
+
+            case "false":
+                return false;
+
+            default:
+                final String message = String.format(
+                    Locale.ROOT,
+                    "property [%s] must be [true], [false], or unspecified but was [%s]",
+                    name,
+                    rawValue);
+                throw new IllegalArgumentException(message);
+        }
     }
 
     /**
@@ -276,6 +283,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return hasNativeController;
     }
 
+    /**
+     * Whether this plugin only applies during the Elasticsearch bootstrap process.
+     *
+     * @return {@code true} if the plugin is a bootstrap-only plugin
+     */
+    public boolean isBootstrapOnly() {
+        return bootstrapOnly;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -288,6 +304,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("classname", classname);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("bootstrap_only", bootstrapOnly);
         }
         builder.endObject();
 
@@ -327,6 +344,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Elasticsearch Version: ").append(elasticsearchVersion).append("\n")
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
+            .append(prefix).append("Bootstrap Only: ").append(bootstrapOnly).append("\n")
             .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
             .append(prefix).append(" * Classname: ").append(classname);
         return information.toString();

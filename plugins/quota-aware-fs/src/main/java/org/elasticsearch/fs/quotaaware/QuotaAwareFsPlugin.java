@@ -22,6 +22,16 @@ package org.elasticsearch.fs.quotaaware;
 import org.elasticsearch.plugins.BootstrapPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+/**
+ * This plugin adds support for passing information to Elasticsearch about
+ * filesystem quotas, so that any mechanisms that need to know about free /
+ * used space can perform accurate calculation with respect to the disk
+ * space that is actually available to Elasticsearch.
+ * <p>
+ * This plugin implements {@link BootstrapPlugin} to signify that it is not
+ * loaded during the normal plugin loading process, but instead takes
+ * effect when the Elasticsearch JVM first runs.
+ */
 public class QuotaAwareFsPlugin extends Plugin implements BootstrapPlugin {
 
 }

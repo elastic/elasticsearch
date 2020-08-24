@@ -19,6 +19,8 @@
 
 package org.elasticsearch.fs.quotaaware;
 
+import org.apache.lucene.util.IOUtils;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -433,6 +435,11 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
                 storesCache.clear();
             }
         }
+    }
+
+    @Override
+    public void createLink(Path link, Path existing) throws IOException {
+        delegate.createLink(link, existing);
     }
 
     void purge(FileSystem delegateFileSystem) {

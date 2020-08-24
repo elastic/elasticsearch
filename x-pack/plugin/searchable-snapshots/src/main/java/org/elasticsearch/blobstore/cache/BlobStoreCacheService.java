@@ -272,8 +272,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
     private static boolean isExpectedCacheGetException(Exception e) {
         return TransportActions.isShardNotAvailableException(e)
-                || e instanceof ConnectTransportException
-                || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
+            || e instanceof ConnectTransportException
+            || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {

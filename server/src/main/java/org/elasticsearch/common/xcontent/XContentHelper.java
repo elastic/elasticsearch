@@ -421,8 +421,13 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        }
         try {
             final InputStream inputStream = bytes.streamInput();
+            assert inputStream.markSupported();
             return XContentFactory.xContentType(inputStream);
         } catch (IOException e) {
             assert false : "Should not happen, we're just reading bytes from memory";

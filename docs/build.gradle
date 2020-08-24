@@ -1455,12 +1455,6 @@ buildRestTests.setups['atomic_red_regsvr32'] = '''
             settings:
               number_of_shards: 5
               number_of_routing_shards: 5
-            mappings:
-              properties:
-                process:
-                  properties:
-                    "command_line":
-                      type: keyword
   - do:
         bulk:
           index: my-index-000001

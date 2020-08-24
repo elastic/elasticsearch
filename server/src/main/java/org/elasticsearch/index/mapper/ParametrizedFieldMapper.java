@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -81,9 +82,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
                 + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
+        String mergeWithContentType = ((FieldMapper)mergeWith).contentType();
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
-                + contentType() + "] to [" + ((FieldMapper) mergeWith).contentType() + "]");
+                + contentType() + "] to [" + mergeWithContentType + "]");
+        }
+        if (Objects.equals(contentType(), mergeWithContentType) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWithContentType + "]");
         }
 
         ParametrizedFieldMapper.Builder builder = getMergeBuilder();
@@ -263,6 +269,35 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public static Parameter<Boolean> boolParam(String name, boolean updateable,
                                                    Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes the values {@code true} or {@code false}, and will always serialize
+         * its value if configured.
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Explicit<Boolean>> explicitBoolParam(String name, boolean updateable,
+                                                                     Function<FieldMapper, Explicit<Boolean>> initializer,
+                                                                     boolean defaultValue) {
+            Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
+            return new Parameter<>(name, updateable, () -> defaultExplicit,
+                (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true), initializer)
+                .setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+        }
+
+        /**
+         * Defines a parameter that takes a double value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Double> doubleParam(String name, boolean updateable,
+                                                  Function<FieldMapper, Double> initializer, double defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeDoubleValue(o), initializer);
         }
 
         /**

@@ -3046,6 +3046,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw ex;
                 }
             }
+
+            @Override
+            protected boolean isAlreadyWritten(Translog.Location location) {
+                try {
+                    return engineSupplier.get().isLocationSynced(location);
+                } catch (AlreadyClosedException ex) {
+                    // that's fine since we already synced everything on engine close - this also is conform with the methods
+                    // documentation
+                    return true;
+                }
+            }
         };
     }
 
@@ -3060,6 +3071,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
+        try {
+            Engine engine = getEngine();
+        } catch (Exception e) {
+            syncListener.accept(e);
+        }
         translogSyncProcessor.put(location, syncListener);
     }
 

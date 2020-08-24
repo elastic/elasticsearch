@@ -542,6 +542,11 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastWriteLocation();
     }
 
+    @Override
+    public boolean isLocationSynced(Translog.Location location) {
+        return getTranslog().isLocationSynced(location);
+    }
+
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
             indexWriter.deleteUnusedFiles();

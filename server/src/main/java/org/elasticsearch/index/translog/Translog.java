@@ -601,6 +601,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public final boolean isLocationSynced(Location location) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            // if we have a new one it's already synced
+            if (location.generation == current.getGeneration()) {
+                return current.getLastSyncedCheckpoint().offset >= (location.translogLocation + location.size);
+            } else {
+                return true;
+            }
+        }
+    }
+
+    public Location getLastSyncedLocation() {
+        // getLastSyncedLocation() acquires the readLock
+        Checkpoint lastSyncedCheckpoint = getLastSyncedCheckpoint();
+        return new Location(lastSyncedCheckpoint.generation, lastSyncedCheckpoint.offset, Integer.MAX_VALUE);
+    }
+
     // for testing
     public Snapshot newSnapshot() throws IOException {
         return newSnapshot(0, Long.MAX_VALUE);

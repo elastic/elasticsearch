@@ -61,6 +61,11 @@ public abstract class NewAsyncIOProcessor<Item> {
         // we try to have only one caller that processes pending items to disc while others just add to the queue but
         // at the same time never overload the node by pushing too many items into the queue.
 
+        if (isAlreadyWritten(item)) {
+            notifyListener(null, listener);
+            return;
+        }
+
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised == false) {
@@ -76,7 +81,7 @@ public abstract class NewAsyncIOProcessor<Item> {
         // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
         // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
         if (promised || promiseSemaphore.tryAcquire()) {
-            threadPool.generic().execute(() -> {
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
                 final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
                 if (promised) {
                     // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
@@ -121,12 +126,15 @@ public abstract class NewAsyncIOProcessor<Item> {
 
     private void notifyList(List<Tuple<Item, Consumer<Exception>>> candidates, Exception exception) {
         for (Tuple<Item, Consumer<Exception>> tuple : candidates) {
-            Consumer<Exception> consumer = tuple.v2();
-            try {
-                consumer.accept(exception);
-            } catch (Exception ex) {
-                logger.warn("failed to notify callback", ex);
-            }
+            notifyListener(exception, tuple.v2());
+        }
+    }
+
+    private void notifyListener(Exception exception, Consumer<Exception> consumer) {
+        try {
+            consumer.accept(exception);
+        } catch (Exception ex) {
+            logger.warn("failed to notify callback", ex);
         }
     }
 
@@ -143,4 +151,6 @@ public abstract class NewAsyncIOProcessor<Item> {
      * Writes or processes the items out or to disk.
      */
     protected abstract void write(List<Tuple<Item, Consumer<Exception>>> candidates) throws IOException;
+
+    protected abstract boolean isAlreadyWritten(Item item);
 }

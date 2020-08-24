@@ -193,7 +193,7 @@ public class FakeRestRequest extends RestRequest {
         private InetSocketAddress address = null;
 
         private Exception inboundException;
-        private RestCompatibility restCompatibility;
+        private RestCompatibility restCompatibility = RestCompatibility.CURRENT_VERSION;
 
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;

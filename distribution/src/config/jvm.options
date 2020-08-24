@@ -45,11 +45,10 @@
 ## Expert settings
 ################################################################
 ##
-## All settings below here are considered expert settings.  Do
-## not tamper with them unless you understand what you are
-## doing. If you want to adjust any of these settings then do
-## not do so by editing this file; instead, create a new file in
-## the jvm.options.d directory to override these settings.
+## All settings below here are considered expert settings. Do
+## not adjust them unless you understand what you are doing. Do
+## not edit them in this file; instead, create a new file in the
+## jvm.options.d directory containing your adjustments.
 ##
 ################################################################
 

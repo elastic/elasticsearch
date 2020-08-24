@@ -466,8 +466,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(readerContext, context, afterQueryTime);
+            } else {
+                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
+                context.queryResult().setRescoreDocIds(rescoreDocIds);
+                readerContext.setRescoreDocIds(rescoreDocIds);
+                return context.queryResult();
             }
-            return context.queryResult();
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
             if (e instanceof ExecutionException) {
@@ -511,9 +517,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 processScroll(request, readerContext, searchContext);
                 queryPhase.execute(searchContext);
                 executor.success();
-                final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
-                searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
-                readerContext.setRescoreDocIds(rescoreDocIds);
+                readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -539,6 +543,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(readerContext.id());
                 }
                 executor.success();
+                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);

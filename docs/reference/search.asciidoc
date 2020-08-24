@@ -1,156 +1,51 @@
 [[search]]
 == Search APIs
 
+Search APIs are used to search and aggregate data stored in {es} indices and
+data streams. For an overview and related tutorials, see <<search-your-data>>.
+
 Most search APIs support <<multi-index,multi-target syntax>>, with the
-exception of the <<search-explain>> endpoints.
+exception of the <<search-explain,explain API>>.
 
 [discrete]
-[[search-routing]]
-=== Routing
+[[core-search-apis]]
+=== Core search
 
-When executing a search, Elasticsearch will pick the "best" copy of the data
-based on the <<search-adaptive-replica,adaptive replica selection>> formula.
-Which shards will be searched on can also be controlled by providing the
-`routing` parameter.
-
-For example, the following indexing request routes documents to shard `1`:
-
-[source,console]
---------------------------------------------------
-POST /my-index-000001/_doc?routing=1
-{
-  "@timestamp": "2099-11-15T13:12:00",
-  "message": "GET /search HTTP/1.1 200 1070000",
-  "user": {
-    "id": "kimchy"
-  }
-}
---------------------------------------------------
-
-Later, you can use the `routing` parameter in a search request to search only
-the specified shard. The following search requests hits only shard `1`.
-
-[source,console]
---------------------------------------------------
-POST /my-index-000001/_search?routing=1
-{
-  "query": {
-    "bool": {
-      "must": {
-        "query_string": {
-          "query": "some query string here"
-        }
-      },
-      "filter": {
-        "term": { "user.id": "kimchy" }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-The routing parameter can be multi valued represented as a comma
-separated string. This will result in hitting the relevant shards where
-the routing values match to.
+* <<search-search>>
+* <<search-multi-search>>
+* <<async-search>>
+* <<scroll-api>>
+* <<clear-scroll-api>>
+* <<search-suggesters>>
 
 [discrete]
-[[search-adaptive-replica]]
-=== Adaptive Replica Selection
+[[search-testing-apis]]
+=== Search testing
 
-By default, Elasticsearch will use what is called adaptive replica selection.
-This allows the coordinating node to send the request to the copy deemed "best"
-based on a number of criteria:
-
-- Response time of past requests between the coordinating node and the node
-  containing the copy of the data
-- Time past search requests took to execute on the node containing the data
-- The queue size of the search threadpool on the node containing the data
-
-This can be turned off by changing the dynamic cluster setting
-`cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
-
-[source,console]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "transient": {
-    "cluster.routing.use_adaptive_replica_selection": false
-  }
-}
---------------------------------------------------
-
-If adaptive replica selection is turned off, searches are sent to the
-index/indices shards in a round robin fashion between all copies of the data
-(primaries and replicas).
+* <<search-explain>>
+* <<search-field-caps>>
+* <<search-profile>>
+* <<search-rank-eval>>
+* <<search-shards>>
+* <<search-validate>>
 
 [discrete]
-[[stats-groups]]
-=== Stats Groups
+[[search-template-apis]]
+=== Search templates
 
-A search can be associated with stats groups, which maintains a
-statistics aggregation per group. It can later be retrieved using the
-<<indices-stats,indices stats>> API
-specifically. For example, here is a search body request that associate
-the request with two different groups:
-
-[source,console]
---------------------------------------------------
-POST /_search
-{
-  "query" : {
-    "match_all" : {}
-  },
-  "stats" : ["group1", "group2"]
-}
---------------------------------------------------
-// TEST[setup:my_index]
+* <<search-template>>
+* <<multi-search-template>>
 
 [discrete]
-[[global-search-timeout]]
-=== Global Search Timeout
+[[eql-search-apis]]
+=== EQL search
 
-Individual searches can have a timeout as part of the
-<<search-request-body>>. Since search requests can originate from many
-sources, Elasticsearch has a dynamic cluster-level setting for a global
-search timeout that applies to all search requests that do not set a
-timeout in the request body. These requests will be cancelled after
-the specified time using the mechanism described in the following section on
-<<global-search-cancellation>>. Therefore the same caveats about timeout
-responsiveness apply.
+For an overview of EQL and related tutorials, see <<eql>>.
 
-The setting key is `search.default_search_timeout` and can be set using the
-<<cluster-update-settings>> endpoints. The default value is no global timeout.
-Setting this value to `-1` resets the global search timeout to no timeout.
+* <<eql-search-api>>
+* <<get-async-eql-search-api>>
+* <<delete-async-eql-search-api>>
 
-[discrete]
-[[global-search-cancellation]]
-=== Search Cancellation
-
-Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism and are also automatically cancelled when the http connection used to
-perform the request is closed by the client. It is fundamental that the http
-client sending requests closes connections whenever requests time out or are
-aborted.
-
-[discrete]
-[[search-concurrency-and-parallelism]]
-=== Search concurrency and parallelism
-
-By default Elasticsearch doesn't reject any search requests based on the number
-of shards the request hits. While Elasticsearch will optimize the search
-execution on the coordinating node a large number of shards can have a
-significant impact CPU and memory wise. It is usually a better idea to organize
-data in such a way that there are fewer larger shards. In case you would like to
-configure a soft limit, you can update the `action.search.shard_count.limit`
-cluster setting in order to reject search requests that hit too many shards.
-
-The request parameter `max_concurrent_shard_requests` can be used to control the
-maximum number of concurrent shard requests the search API will execute per node
-for the request. This parameter should be used to protect a single request from
-overloading a cluster (e.g., a default request will hit all indices in a cluster
-which could cause shard request rejections if the number of shards per node is
-high). This default value is `5`.
 
 include::search/search.asciidoc[]
 

@@ -179,6 +179,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -3003,6 +3004,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setRandomizeSeed(1234L) // <10>
                 .setClassAssignmentObjective(Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY) // <11>
                 .setNumTopClasses(1) // <12>
+                .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
+                    .addOneHot("cat", "cat_column")
+                    .build()))
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3019,6 +3023,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setRandomizeSeed(1234L) // <10>
                 .setLossFunction(Regression.LossFunction.MSE) // <11>
                 .setLossFunctionParameter(1.0) // <12>
+                .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
+                    .addOneHot("cat", "cat_column")
+                    .build()))
                 .build();
             // end::put-data-frame-analytics-regression
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -34,7 +35,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public abstract class AbstractNumericFieldMapperTestCase<T extends FieldMapper.Builder<?>> extends FieldMapperTestCase<T> {
+public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTestCase {
     protected Set<String> TYPES;
     protected Set<String> WHOLE_TYPES;
     protected IndexService indexService;

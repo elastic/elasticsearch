@@ -65,6 +65,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         assertThat(objectPath.evaluate("authentication_realm.type").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
+        assertThat(objectPath.evaluate("authentication_type").toString(), equalTo("realm"));
         List<String> roles = objectPath.evaluate("roles");
         if (anonymousEnabled) {
             assertThat(roles.size(), is(3));

@@ -7,11 +7,9 @@
 package org.elasticsearch.index.store.checksum;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.store.Store;
 
 import java.io.EOFException;
@@ -135,14 +133,13 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
     }
 
     public static byte[] checksumToBytesArray(String checksum) throws IOException {
-        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        try (IndexOutput output = new ByteBuffersIndexOutput(out, "footerChecksumToBytesArray", "tmp")) {
-            // reverse CodecUtil.writeFooter()
-            output.writeInt(CodecUtil.FOOTER_MAGIC);
-            output.writeInt(0);
-            output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
-            output.close();
-            return out.toArrayCopy();
-        }
+        final byte[] result = new byte[CodecUtil.footerLength()];
+        final ByteArrayDataOutput output = new ByteArrayDataOutput(result);
+        // reverse CodecUtil.writeFooter()
+        output.writeInt(CodecUtil.FOOTER_MAGIC);
+        output.writeInt(0);
+        output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
+        assert output.getPosition() == result.length;
+        return result;
     }
 }

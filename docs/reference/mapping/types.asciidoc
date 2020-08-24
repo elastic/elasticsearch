@@ -26,8 +26,8 @@ type: `boolean`.
 Keyword::               The keyword family, including <<keyword, `keyword`>>,
                         <<constant-keyword,`constant_keyword`>>, and
                         <<wildcard, `wildcard`>>.
-<<number,Numbers>>::    Quantifiers and numeric types, such as `long` and
-                        `double`.
+<<number,Numbers>>::    Numeric types, such as `long` and `double` used to
+                        express amounts rather than identifiers.
 Dates::                 Date types, including <<date,`date`>> and 
                         <<date_nanos,`date_nanos`>>.
 <<alias,`alias`>>::     Defines an alias for an existing field.

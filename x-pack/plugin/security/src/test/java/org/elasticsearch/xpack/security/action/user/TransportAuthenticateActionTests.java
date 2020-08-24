@@ -125,8 +125,10 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         if (anonymousUser.enabled()) {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getUser();
-            List.of(authUser.roles()).containsAll(List.of(authentication.getUser().roles()));
-            List.of(authUser.roles()).containsAll(List.of(anonymousUser.roles()));
+            org.elasticsearch.common.collect.List.of(authUser.roles()).containsAll(
+                org.elasticsearch.common.collect.List.of(authentication.getUser().roles()));
+            org.elasticsearch.common.collect.List.of(authUser.roles()).containsAll(
+                org.elasticsearch.common.collect.List.of(anonymousUser.roles()));
             assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));

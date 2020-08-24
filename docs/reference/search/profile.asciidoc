@@ -310,8 +310,8 @@ BooleanQuery to execute.  The recorded time is inclusive of all children.
 
 The `breakdown` field will give detailed stats about how the time was spent, 
 we'll look at that in a moment.  Finally, the `children` array lists any 
-sub-queries that may be present.  Because we searched for two values ("search 
-get"), our BooleanQuery holds two children TermQueries.  They have identical 
+sub-queries that may be present.  Because we searched for two values ("get 
+search"), our BooleanQuery holds two children TermQueries.  They have identical 
 information (type, time, breakdown, etc).  Children are allowed to have their 
 own children.
 

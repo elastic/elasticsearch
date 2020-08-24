@@ -202,6 +202,7 @@ public class ESTestCaseTests extends ESTestCase {
         assertEquals(10300, ESTestCase.getBasePort());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61496")
     public void testRandomDateFormatterPattern() {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
         /*

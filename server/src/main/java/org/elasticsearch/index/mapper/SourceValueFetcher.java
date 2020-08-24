@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -63,7 +64,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             }
 
             if (parsesArrayValue) {
-                values.addAll((List<?>) parseSourceValue(sourceValue));
+                values.addAll((List<?>) tryParseSourceValue(sourceValue));
             } else {
                 // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
                 // So we need to unwrap these arrays before passing them on to be parsed.
@@ -74,7 +75,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                     if (value instanceof List) {
                         queue.addAll((List<?>) value);
                     } else {
-                        Object parsedValue = parseSourceValue(value);
+                        Object parsedValue = tryParseSourceValue(value);
                         if (parsedValue != null) {
                             values.add(parsedValue);
                         }
@@ -83,6 +84,17 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             }
         }
         return values;
+    }
+
+    private Object tryParseSourceValue(Object value) {
+        try {
+            return parseSourceValue(value);
+        } catch (IllegalArgumentException | ElasticsearchParseException e) {
+            // Skip any values that couldn't be parsed instead of failing the entire search
+            // request. It's possible to have malformed values if a field was previously unmapped
+            // and only present in the source, then later a mapping was added for the field.
+            return null;
+        }
     }
 
     /**

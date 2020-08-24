@@ -311,8 +311,6 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         return List.of(new RuntimeFields(), new TestScriptPlugin());
     }
 
-    
-
     private class TestScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {

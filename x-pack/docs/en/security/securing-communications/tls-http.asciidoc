@@ -5,11 +5,11 @@
 When {security-features} are enabled, you can optionally use TLS to ensure that
 communication between HTTP clients and the cluster is encrypted.
 
-IMPORTANT: You must enable TLS on the HTTP layer to use certain {es} features
-in a production environment, such as tokens and API keys.
+Enabling TLS on the HTTP layer is strongly recommended, but is not required.
 
-Enabling TLS on the HTTP layer is strongly recommended for non-production
-deployments, but is not required.
+IMPORTANT: In a <<dev-vs-prod-mode,production environment>>, some {es} features
+such as tokens and API keys will be disabled unless you enable TLS on the HTTP
+layer.
 
 If you enable TLS on the HTTP layer in {es}, you might need to make
 configuration changes in other parts of the Elastic Stack and in any {es}

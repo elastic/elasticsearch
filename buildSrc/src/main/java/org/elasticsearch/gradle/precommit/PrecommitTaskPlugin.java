@@ -23,35 +23,38 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-/**
- * Base plugin for adding a precommit task.
- */
-public abstract class PrecommitPlugin implements Plugin<Project> {
-
-    public static final String PRECOMMIT_TASK_NAME = "precommit";
+public class PrecommitTaskPlugin implements Plugin<Project> {
 
     @Override
-    public final void apply(Project project) {
-        project.getPluginManager().apply(PrecommitTaskPlugin.class);
-        TaskProvider<? extends Task> task = createTask(project);
-        TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
-        precommit.configure(t -> t.dependsOn(task));
+    public void apply(Project project) {
+        TaskProvider<Task> precommit = project.getTasks().register(PrecommitPlugin.PRECOMMIT_TASK_NAME, t -> {
+            t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+            t.setDescription("Runs all non-test checks");
+        });
 
+        project.getPluginManager()
+            .withPlugin(
+                "lifecycle-base",
+                p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
+            );
         project.getPluginManager()
             .withPlugin(
                 "java",
                 p -> {
-                    // We want to get any compilation error before running the pre-commit checks.
+                    // run compilation as part of precommit
                     for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
-                        task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
+                        precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()));
                     }
+
+                    // make sure tests run after all precommit tasks
+                    project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
                 }
             );
     }
-
-    public abstract TaskProvider<? extends Task> createTask(Project project);
-
 }

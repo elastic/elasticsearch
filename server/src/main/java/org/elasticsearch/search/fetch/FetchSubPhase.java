@@ -86,16 +86,17 @@ public interface FetchSubPhase {
             return searcher.getIndexReader();
         }
 
+        // TODO move this into Highlighter
         public Map<String, Object> cache() {
             return cache;
         }
     }
 
     /**
-     * Returns a {@link FetchSubPhaseExecutor} for this sub phase.
+     * Returns a {@link FetchSubPhaseProcessor} for this sub phase.
      *
      * If nothing should be executed for the provided {@link SearchContext}, then the
      * implementation should return {@code null}
      */
-    FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException;
+    FetchSubPhaseProcessor getCollector(SearchContext searchContext) throws IOException;
 }

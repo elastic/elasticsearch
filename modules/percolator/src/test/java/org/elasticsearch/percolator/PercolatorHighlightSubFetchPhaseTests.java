@@ -52,9 +52,9 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         Mockito.when(searchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());
 
-        assertNull(subFetchPhase.getExecutor(searchContext));
+        assertNull(subFetchPhase.getCollector(searchContext));
         Mockito.when(searchContext.query()).thenReturn(percolateQuery);
-        assertNotNull(subFetchPhase.getExecutor(searchContext));
+        assertNotNull(subFetchPhase.getCollector(searchContext));
     }
 
     public void testLocatePercolatorQuery() {

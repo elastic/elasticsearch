@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -163,12 +163,12 @@ public class FetchSourcePhaseTests extends ESTestCase {
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        FetchSubPhaseExecutor executor = phase.getExecutor(searchContext);
+        FetchSubPhaseProcessor processor = phase.getCollector(searchContext);
         if (fetchSource == false) {
-            assertNull(executor);
+            assertNull(processor);
         } else {
-            assertNotNull(executor);
-            executor.execute(hitContext);
+            assertNotNull(processor);
+            processor.process(hitContext);
         }
         return hitContext;
     }

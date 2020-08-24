@@ -23,7 +23,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,12 +35,12 @@ import java.util.List;
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) {
         if (context.hasScriptFields() == false) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             FieldScript[] leafScripts = null;
 
@@ -50,7 +50,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) {
+            public void process(HitContext hitContext) {
                 int docId = hitContext.docId();
                 for (int i = 0; i < leafScripts.length; i++) {
                     leafScripts[i].setDocument(docId);

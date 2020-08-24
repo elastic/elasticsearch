@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Collection;
@@ -47,24 +47,24 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) {
         if (context.highlight() == null) {
             return null;
         }
 
-        return getExecutor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.parsedQuery().query());
+        return getProcessor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.parsedQuery().query());
     }
 
-    public FetchSubPhaseExecutor getExecutor(QueryShardContext qsc, SearchShardTarget target, SearchHighlightContext hc, Query query) {
+    public FetchSubPhaseProcessor getProcessor(QueryShardContext qsc, SearchShardTarget target, SearchHighlightContext hc, Query query) {
         Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(qsc, target, hc, query);
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
             @Override
-            public void execute(HitContext hitContext) {
+            public void process(HitContext hitContext) {
                 Map<String, HighlightField> highlightFields = new HashMap<>();
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);

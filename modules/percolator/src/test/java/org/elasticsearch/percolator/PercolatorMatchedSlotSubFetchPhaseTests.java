@@ -38,7 +38,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -77,9 +77,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     SearchContext sc = mock(SearchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
-                    FetchSubPhaseExecutor executor = phase.getExecutor(sc);
-                    assertNotNull(executor);
-                    executor.execute(hit);
+                    FetchSubPhaseProcessor processor = phase.getCollector(sc);
+                    assertNotNull(processor);
+                    processor.process(hit);
 
                     assertNotNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                     assertEquals(0, (int) hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
@@ -98,9 +98,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     SearchContext sc = mock(SearchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
-                    FetchSubPhaseExecutor executor = phase.getExecutor(sc);
-                    assertNotNull(executor);
-                    executor.execute(hit);
+                    FetchSubPhaseProcessor processor = phase.getCollector(sc);
+                    assertNotNull(processor);
+                    processor.process(hit);
 
                     assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
@@ -118,9 +118,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     SearchContext sc = mock(SearchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
-                    FetchSubPhaseExecutor executor = phase.getExecutor(sc);
-                    assertNotNull(executor);
-                    executor.execute(hit);
+                    FetchSubPhaseProcessor processor = phase.getCollector(sc);
+                    assertNotNull(processor);
+                    processor.process(hit);
 
                     assertNull(hit.hit().field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }

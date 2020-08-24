@@ -23,7 +23,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,12 +31,12 @@ import java.io.IOException;
 public final class FetchVersionPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) {
         if (context.version() == false ||
             (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
             return null;
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             NumericDocValues versions = null;
 
@@ -46,7 +46,7 @@ public final class FetchVersionPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 long version = Versions.NOT_FOUND;
                 if (versions != null && versions.advanceExact(hitContext.docId())) {
                     version = versions.longValue();

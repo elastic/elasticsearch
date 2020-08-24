@@ -26,7 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.io.IOException;
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
         if (context.trackScores() == false || context.docIdsToLoadSize() == 0 ||
             // scores were already computed since they are needed on the coordinated node to merge top hits
             context.sort() == null) {
@@ -42,7 +42,7 @@ public class FetchScorePhase implements FetchSubPhase {
         }
         final IndexSearcher searcher = context.searcher();
         final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             Scorer scorer;
 
@@ -57,7 +57,7 @@ public class FetchScorePhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 if (scorer == null || scorer.iterator().advance(hitContext.docId()) != hitContext.docId()) {
                     throw new IllegalStateException("Can't compute score on document " + hitContext + " as it doesn't match the query");
                 }

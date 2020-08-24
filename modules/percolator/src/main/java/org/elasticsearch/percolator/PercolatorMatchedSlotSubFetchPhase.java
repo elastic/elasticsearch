@@ -34,7 +34,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     static final String FIELD_NAME_PREFIX = "_percolator_document_slot";
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) throws IOException {
 
         List<PercolateContext> percolateContexts = new ArrayList<>();
         for (PercolateQuery pq : locatePercolatorQuery(searchContext.query())) {
@@ -67,7 +67,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         }
         boolean singlePercolateQuery = percolateContexts.size() == 1;
 
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             LeafReaderContext ctx;
 
@@ -77,7 +77,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 for (PercolateContext pc : percolateContexts) {
                     String fieldName = pc.fieldName(singlePercolateQuery);
                     Query query = pc.percolateQuery.getQueryStore().getQueries(ctx).apply(hitContext.docId());

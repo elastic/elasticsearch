@@ -24,7 +24,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -39,19 +39,19 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) {
         FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
             @Override
-            public void execute(HitContext hitContext) {
+            public void process(HitContext hitContext) {
                 SearchHit hit = hitContext.hit();
                 SourceLookup sourceLookup = hitContext.sourceLookup();
                 FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();

@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
  */
-public interface FetchSubPhaseExecutor {
+public interface FetchSubPhaseProcessor {
 
     /**
      * Called when moving to the next {@link LeafReaderContext} for a set of hits
@@ -37,6 +37,6 @@ public interface FetchSubPhaseExecutor {
     /**
      * Called in doc id order for each hit in a leaf reader
      */
-    void execute(HitContext hitContext) throws IOException;
+    void process(HitContext hitContext) throws IOException;
 
 }

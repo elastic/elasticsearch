@@ -114,15 +114,15 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) {
-            return new FetchSubPhaseExecutor() {
+        public FetchSubPhaseProcessor getCollector(SearchContext searchContext) {
+            return new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {
 
                 }
 
                 @Override
-                public void execute(HitContext hitContext) {
+                public void process(HitContext hitContext) {
                     hitExecute(searchContext, hitContext);
                 }
             };

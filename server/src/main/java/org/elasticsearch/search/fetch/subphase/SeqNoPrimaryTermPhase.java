@@ -23,7 +23,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,11 +31,11 @@ import java.io.IOException;
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
         if (context.seqNoAndPrimaryTerm() == false) {
             return null;
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             NumericDocValues seqNoField = null;
             NumericDocValues primaryTermField = null;
@@ -47,7 +47,7 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 int docId = hitContext.docId();
                 long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;

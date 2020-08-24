@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();
@@ -72,7 +72,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
         }
 
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
                 for (DocValueField f : fields) {
@@ -81,7 +81,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hit) throws IOException {
+            public void process(HitContext hit) throws IOException {
                 for (DocValueField f : fields) {
                     DocumentField hitField = hit.hit().field(f.field);
                     if (hitField == null) {

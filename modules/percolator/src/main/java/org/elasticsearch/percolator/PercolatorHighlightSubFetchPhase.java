@@ -28,7 +28,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -54,7 +54,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) throws IOException {
         if (searchContext.highlight() == null) {
             return null;
         }
@@ -62,7 +62,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
         if (percolateQueries.isEmpty()) {
             return null;
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             LeafReaderContext ctx;
 
@@ -72,7 +72,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hit) throws IOException {
+            public void process(HitContext hit) throws IOException {
                 boolean singlePercolateQuery = percolateQueries.size() == 1;
                 for (PercolateQuery percolateQuery : percolateQueries) {
                     String fieldName = singlePercolateQuery ? PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX :
@@ -101,9 +101,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(searchContext.highlight().fields(), true);
                             QueryShardContext shardContext = new QueryShardContext(searchContext.getQueryShardContext());
-                            FetchSubPhaseExecutor executor = highlightPhase.getExecutor(shardContext, searchContext.shardTarget(),
+                            FetchSubPhaseProcessor processor = highlightPhase.getProcessor(shardContext, searchContext.shardTarget(),
                                 highlight, query);
-                            executor.execute(subContext);
+                            processor.process(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
                                 if (percolateQuery.getDocuments().size() == 1) {
                                     String hlFieldName;

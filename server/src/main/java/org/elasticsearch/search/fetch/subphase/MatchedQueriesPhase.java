@@ -25,7 +25,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.Map;
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
         if (context.docIdsToLoadSize() == 0 ||
             // in case the request has only suggest, parsed query is null
             context.parsedQuery() == null) {
@@ -55,7 +55,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             weights.put(entry.getKey(),
                 context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1));
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
 
             final Map<String, DocIdSetIterator> matchingIterators = new HashMap<>();
 
@@ -71,7 +71,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 List<String> matches = new ArrayList<>();
                 int doc = hitContext.docId();
                 for (Map.Entry<String, DocIdSetIterator> iterator : matchingIterators.entrySet()) {

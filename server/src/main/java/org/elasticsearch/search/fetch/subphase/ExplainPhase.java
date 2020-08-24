@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 
@@ -33,18 +33,18 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext context) {
+    public FetchSubPhaseProcessor getCollector(SearchContext context) {
         if (context.explain() == false || context.hasOnlySuggest()) {
             return null;
         }
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 final int topLevelDocId = hitContext.hit().docId();
                 Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
 

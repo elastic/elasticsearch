@@ -28,7 +28,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseExecutor;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -45,19 +45,19 @@ public final class InnerHitsPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseExecutor getExecutor(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) {
         if (searchContext.innerHits() == null) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
-        return new FetchSubPhaseExecutor() {
+        return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
             @Override
-            public void execute(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) throws IOException {
                 hitExecute(innerHits, hitContext);
             }
         };

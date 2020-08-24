@@ -27,7 +27,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
 
         Request createTest2 = new Request("PUT", "/test2");
         String body2 = "{\"aliases\":{\"test\":{}}, \"mappings\": {\"properties\": {\"test_field\":{\"type\":\"integer\"}}},"
-            + "\"settings\": {\"index.routing.allocation.include.node\": \"nowhere\", \"index.routing.allocation.include._tier\": null}}";
+            + "\"settings\": {\"index.routing.allocation.include.node\": \"nowhere\"}}";
         createTest2.setJsonEntity(body2);
         createTest2.addParameter("timeout", "100ms");
         client().performRequest(createTest2);

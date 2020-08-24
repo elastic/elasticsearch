@@ -90,7 +90,7 @@ public class DataTierIT extends ESIntegTestCase {
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
         // Even the key shouldn't exist if it has been nulled out
-        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
+        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);

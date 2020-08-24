@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -151,13 +152,18 @@ public class DataTier {
         @Override
         public Settings getExplicitIndexSettings(String indexName, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
-            // Only put the "include" setting in place if there are no index-level tier
-            // require or exclude settings already on the template or request
-            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE) == false &&
-                settings.contains(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE) == false) {
+            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)) {
+                // It's okay to put it, it will be removed or overridden by the template/request settings
+                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
+            } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
+                settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
+                settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
+                // A different index level require, include, or exclude has been specified, so don't put the setting
+                return Settings.EMPTY;
+            } else {
+                // Otherwise, put the setting in place by default
                 return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
             }
-            return Settings.EMPTY;
         }
     }
 }

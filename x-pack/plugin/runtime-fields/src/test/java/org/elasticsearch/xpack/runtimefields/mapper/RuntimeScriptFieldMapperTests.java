@@ -57,6 +57,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "runtime_script").field("runtime_type", "keyword");
+        b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
     public void testRuntimeTypeIsRequired() throws Exception {

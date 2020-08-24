@@ -15,8 +15,8 @@ public class DoubleScriptFieldExistsQuery extends AbstractDoubleScriptFieldQuery
     }
 
     @Override
-    protected boolean matches(double[] values, int count) {
-        return count > 0;
+    protected boolean matches(double[] values) {
+        return values.length > 0;
     }
 
     @Override

@@ -9,10 +9,6 @@
 class org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript @no_import {
 }
 
-static_import {
-    void value(org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript, double) bound_to org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript$Value
-}
-
-# This import is required to make painless happy and it isn't 100% clear why
+# This whitelist is required to allow painless to build the factory
 class org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript$Factory @no_import {
 }

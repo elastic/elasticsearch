@@ -42,6 +42,8 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         super(params, searchLookup, ctx);
     }
 
+    public abstract void execute();
+
     /**
      * Execute the script for the provided {@code docId}.
      */

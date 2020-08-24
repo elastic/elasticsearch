@@ -270,21 +270,27 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                             case "read_foo":
                                 return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new DoubleScriptFieldScript.Value(this).value(((Number) foo).doubleValue());
+                                    public double[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        double[] results = new double[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = ((Number) foo).doubleValue();
                                         }
+                                        return results;
                                     }
                                 };
                             case "add_param":
                                 return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new DoubleScriptFieldScript.Value(this).value(
-                                                ((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue()
-                                            );
+                                    public double[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        double[] results = new double[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = ((Number) getParams().get("param")).doubleValue() + ((Number) foo).doubleValue();
                                         }
+                                        return results;
                                     }
                                 };
                             default:

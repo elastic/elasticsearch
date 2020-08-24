@@ -98,10 +98,10 @@ second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. By default, up to 75 scripts per
-5 minutes will be compiled for most contexts and 375 scripts per 5 minutes
-for ingest contexts. You can change these settings dynamically by setting
-`script.context.$CONTEXT.max_compilations_rate` eg.
+`circuit_breaking_exception` error. For most contexts, you can compile up to 75
+scripts per 5 minutes by default. For ingest contexts, the default script
+compilation rate is unlimited. You can change these settings dynamically by
+setting `script.context.$CONTEXT.max_compilations_rate` eg.
 `script.context.field.max_compilations_rate=100/10m`.
 
 ========================================
@@ -245,7 +245,8 @@ All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration, but
 you can change this behavior by using the `script.cache.expire` setting.
 You can configure the size of this cache by using the `script.cache.max_size` setting.
-By default, the cache size is `100`.
+For most contexts, the default cache size is `100`. For ingest contexts, the
+default cache size is `200`.
 
 NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft

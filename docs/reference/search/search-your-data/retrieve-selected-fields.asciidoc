@@ -230,7 +230,70 @@ It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
 `stored_fields` parameter to include these stored values in the search response.
 
-include::request/stored-fields.asciidoc[]
+WARNING: The `stored_fields` parameter is for fields that are explicitly marked as
+stored in the mapping, which is off by default and generally not recommended.
+Use <<source-filtering,source filtering>> instead to select
+subsets of the original source document to be returned.
+
+Allows to selectively load specific stored fields for each document represented
+by a search hit.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields" : ["user", "postDate"],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+`*` can be used to load all stored fields from the document.
+
+An empty array will cause only the `_id` and `_type` for each hit to be
+returned, for example:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields" : [],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
+
+Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` are never returned as an array.
+
+Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
+
+NOTE: On its own, `stored_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that stored field. To access nested fields, `stored_fields`
+must be used within an <<inner-hits, `inner_hits`>> block.
+
+[discrete]
+[[disable-stored-fields]]
+==== Disable stored fields
+
+To disable the stored fields (and metadata fields) entirely use: `_none_`:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields": "_none_",
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
 
 [discrete]
 [[source-filtering]]
@@ -318,4 +381,74 @@ GET /_search
 }
 ----
 
-include::request/script-fields.asciidoc[]
+[discrete]
+[[script-fields]]
+=== Script fields
+
+You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
+evaluation>> (based on different fields) for each hit. For example:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "test1": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * 2"
+      }
+    },
+    "test2": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * params.factor",
+        "params": {
+          "factor": 2.0
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+
+Script fields can work on fields that are not stored (`price` in
+the above case), and allow to return custom values to be returned (the
+evaluated value of the script).
+
+Script fields can also access the actual `_source` document and
+extract specific elements to be returned from it by using `params['_source']`.
+Here is an example:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+    {
+        "query" : {
+            "match_all": {}
+        },
+        "script_fields" : {
+            "test1" : {
+                "script" : "params['_source']['message']"
+            }
+        }
+    }
+--------------------------------------------------
+// TEST[setup:my_index]
+
+Note the `_source` keyword here to navigate the json-like model.
+
+It's important to understand the difference between
+`doc['my_field'].value` and `params['_source']['my_field']`. The first,
+using the doc keyword, will cause the terms for that field to be loaded to
+memory (cached), which will result in faster execution, but more memory
+consumption. Also, the `doc[...]` notation only allows for simple valued
+fields (you can't return a json object from it) and makes sense only for
+non-analyzed or single term based fields. However, using `doc` is
+still the recommended way to access values from the document, if at all
+possible, because `_source` must be loaded and parsed every time it's used.
+Using `_source` is very slow.

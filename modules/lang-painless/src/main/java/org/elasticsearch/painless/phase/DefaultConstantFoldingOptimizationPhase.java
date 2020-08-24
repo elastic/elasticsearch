@@ -667,6 +667,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ConstantNode irConstantNode = (ConstantNode)irCastNode.getChildNode();
             irConstantNode.setConstant(
                     AnalyzerCaster.constCast(irCastNode.getLocation(), irConstantNode.getConstant(), irCastNode.getCast()));
+            irConstantNode.setExpressionType(irCastNode.getExpressionType());
             scope.accept(irConstantNode);
         }
     }

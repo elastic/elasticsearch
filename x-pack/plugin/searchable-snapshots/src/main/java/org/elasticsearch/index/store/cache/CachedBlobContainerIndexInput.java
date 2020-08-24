@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
@@ -160,46 +161,77 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
-        final Tuple<Long, Long> indexCacheMiss; // null if not a miss
+        try {
+            final CacheFile cacheFile = getCacheFileSafe();
+            try (Releasable ignored = cacheFile.fileLock()) {
 
-        // We prefer to use the index cache if the recovery is not done yet
-        if (directory.isRecoveryDone() == false) {
-            // We try to use the snapshot blob cache if:
-            // - the file is small enough to be fully cached in the blob cache
-            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
-            // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+                // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-            if (canBeFullyCached || isStartOfFile) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
+                if (cacheFile.getAbsentRangeWithin(position, position + length) == null) {
+                    final Tuple<Long, Long> targetRange = Tuple.tuple(position, position + length);
+                    cacheFile.populateAndRead(targetRange, targetRange, channel -> {
+                        final int read = readCacheFile(channel, position, b);
+                        assert read == length : read + " vs " + length;
+                        return read;
+                    }, (channel, from, to, progressUpdater) -> {
+                        final String message = "range ["
+                            + from
+                            + "-"
+                            + to
+                            + "] (["
+                            + (to - from)
+                            + "] bytes) unexpectedly missing when reading ["
+                            + position
+                            + "-"
+                            + (position + length)
+                            + "] from "
+                            + CachedBlobContainerIndexInput.this;
+                        assert false : message;
+                        throw new IllegalStateException(message);
+                    }, EsExecutors.newDirectExecutorService()); // never used
+                    return;
+                }
 
-                if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-                    // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested so
-                    // we compute the regions of the file we would like to have the next time. The regions are expressed as tuples of
-                    // {start, end} ranges where positions are relative to the whole file.
-                    if (canBeFullyCached) {
-                        // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                        indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
+                // Requested data is not on disk, so try the cache index next.
+
+                final Tuple<Long, Long> indexCacheMiss; // null if not a miss
+
+                // We try to use the cache index if:
+                // - the file is small enough to be fully cached
+                final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
+                // - we're reading the first N bytes of the file
+                final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+
+                if (canBeFullyCached || isStartOfFile) {
+                    final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
+
+                    if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
+                        // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
+                        // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
+                        // {start, end} where positions are relative to the whole file.
+                        if (canBeFullyCached) {
+                            // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
+                            indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
+                        } else {
+                            // the index input is too large to fully cache, so just cache the initial range
+                            indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+                        }
+
+                        // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
+                        // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
                     } else {
-                        // the index input is too large to fully cache, so just cache the initial range
-                        indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-                    }
+                        logger.trace(
+                            "reading [{}] bytes of file [{}] at position [{}] using cache index",
+                            length,
+                            fileInfo.physicalName(),
+                            position
+                        );
+                        stats.addIndexCacheBytesRead(cachedBlob.length());
 
-                    // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
-                    // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-                } else {
-                    logger.trace(
-                        "reading [{}] bytes of file [{}] at position [{}] using index cache",
-                        length,
-                        fileInfo.physicalName(),
-                        position
-                    );
-                    stats.addIndexCacheBytesRead(cachedBlob.length());
-                    b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
+                        // TODO don't call toBytes here
+                        b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
 
-                    try {
-                        final CacheFile cacheFile = getCacheFileSafe();
-                        try (Releasable ignored = cacheFile.fileLock()) {
+                        try {
                             final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());
                             cacheFile.populateAndRead(
                                 cachedRange,
@@ -222,41 +254,33 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                                     assert writePosition == to : writePosition + " vs " + to;
                                     final long endTimeNanos = stats.currentTimeNanos();
                                     stats.addCachedBytesWritten(to - from, endTimeNanos - startTimeNanos);
-                                    logger.trace("copied bytes [{}-{}] of file [{}] from index cache to node cache", from, to, fileInfo);
+                                    logger.trace("copied bytes [{}-{}] of file [{}] from cache index to disk", from, to, fileInfo);
                                 },
                                 directory.cacheFetchAsyncExecutor()
                             );
+                        } catch (Exception e) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
+                                    cachedBlob.from(),
+                                    cachedBlob.to(),
+                                    fileInfo
+                                ),
+                                e
+                            );
+                            // oh well, no big deal, at least we can return them to the caller.
                         }
-                    } catch (Exception e) {
-                        logger.debug(
-                            new ParameterizedMessage(
-                                "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
-                                cachedBlob.from(),
-                                cachedBlob.to(),
-                                fileInfo
-                            ),
-                            e
-                        );
-                        // oh well, no big deal, at least we can return them to the caller.
+
+                        return;
                     }
-
-                    return;
+                } else {
+                    // requested range is not eligible for caching
+                    indexCacheMiss = null;
                 }
-            } else {
-                // requested range is not eligible for caching
-                indexCacheMiss = null;
-            }
 
-            logger.trace("recovery cache miss for [{}], falling through with [{}]", this, indexCacheMiss);
-        } else {
-            indexCacheMiss = null;
-        }
+                // Requested data is also not in the cache index, so we must visit the blob store to satisfy both the target range and any
+                // miss in the cache index.
 
-        try {
-            final CacheFile cacheFile = getCacheFileSafe();
-            try (Releasable ignored = cacheFile.fileLock()) {
-
-                // Read all target ranges in one go, including any cache misses identified above.
                 final Tuple<Long, Long> startRangeToWrite = computeRange(position);
                 final Tuple<Long, Long> endRangeToWrite = computeRange(position + length - 1);
                 assert startRangeToWrite.v2() <= endRangeToWrite.v2() : startRangeToWrite + " vs " + endRangeToWrite;

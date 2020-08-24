@@ -125,7 +125,7 @@ include-tagged::{doc-tests-file}[{api}-classification]
 <11> The optimization objective to target when assigning class labels. Defaults to maximize_minimum_recall.
 <12> The number of top classes to be reported in the results. Defaults to 2.
 <13> Custom feature processors that will create new features for analysis from the included document
-     fields. Note, automatic categorical feature encoding will still occur for all features.
+     fields. Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for all features.
 
 ===== Regression
 
@@ -149,7 +149,7 @@ include-tagged::{doc-tests-file}[{api}-regression]
 <11> The loss function used for regression. Defaults to `mse`.
 <12> An optional parameter to the loss function.
 <13> Custom feature processors that will create new features for analysis from the included document
-fields. Note, automatic categorical feature encoding will still occur for all features.
+fields. Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for all features.
 
 ==== Analyzed fields
 

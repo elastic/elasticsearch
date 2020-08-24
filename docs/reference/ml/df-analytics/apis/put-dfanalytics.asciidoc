@@ -448,7 +448,7 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
 <1> Source index to analyze.
 <2> This query filters out entire documents that will not be present in the
 destination index.
-<3> The `_source` object defines fields in the dataset that will be included or
+<3> The `_source` object defines fields in the data set that will be included or
 excluded in the destination index.
 <4> Defines the destination index that contains the results of the analysis and
 the fields of the source index specified in the `_source` object. Also defines

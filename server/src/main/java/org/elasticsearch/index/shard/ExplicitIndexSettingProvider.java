@@ -21,9 +21,6 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
-import java.util.Map;
-
 /**
  * An {@link ExplicitIndexSettingProvider} is a provider for index level settings that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
@@ -32,7 +29,7 @@ public interface ExplicitIndexSettingProvider {
     /**
      * Returns a map of explicitly set default index settings for the given index.
      */
-    default Map<String, String> getExplicitIndexSettings(String indexName, Settings templateAndRequestSettings) {
-        return Collections.emptyMap();
+    default Settings getExplicitIndexSettings(String indexName, Settings templateAndRequestSettings) {
+        return Settings.EMPTY;
     }
 }

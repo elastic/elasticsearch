@@ -622,7 +622,7 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Map<String, String> explicitDefaultSettings = new HashMap<>();
+            final Settings.Builder explicitDefaultSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder()
                 .put(combinedTemplateSettings)
                 .put(request.settings())
@@ -632,7 +632,7 @@ public class MetadataCreateIndexService {
             // explicitDefaultSettings map
             for (ExplicitIndexSettingProvider listener : explicitIndexSettingProviders) {
                 try {
-                    listener.getExplicitIndexSettings(request.index(), templateAndRequestSettings).forEach(explicitDefaultSettings::put);
+                    explicitDefaultSettings.put(listener.getExplicitIndexSettings(request.index(), templateAndRequestSettings));
                 } catch (Exception e) {
                     logger.warn(new ParameterizedMessage("failed invoking explicit setting provider for creation of [{}] index",
                         request.index()), e);
@@ -649,7 +649,7 @@ public class MetadataCreateIndexService {
             // also from the template and request settings, so that from the newly create index's
             // perspective it is as though the setting has not been set at all (using the default
             // value).
-            for (String explicitSetting : explicitDefaultSettings.keySet()) {
+            for (String explicitSetting : explicitDefaultSettings.keys()) {
                 if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
                     explicitDefaultSettings.remove(explicitSetting);
                     templateSettings.remove(explicitSetting);
@@ -663,7 +663,7 @@ public class MetadataCreateIndexService {
             // Finally, we actually add the explicit defaults prior to the template settings and the
             // request settings, so that the precedence goes:
             // Explicit Defaults -> Template -> Request -> Necessary Settings (# of shards, uuid, etc)
-            explicitDefaultSettings.forEach(indexSettingsBuilder::put);
+            indexSettingsBuilder.put(explicitDefaultSettings.build());
             indexSettingsBuilder.put(templateSettings.build());
         }
 

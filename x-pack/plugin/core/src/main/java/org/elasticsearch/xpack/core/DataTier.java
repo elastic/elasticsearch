@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -151,15 +149,15 @@ public class DataTier {
      */
     public static class DefaultHotAllocationSettingProvider implements ExplicitIndexSettingProvider {
         @Override
-        public Map<String, String> getExplicitIndexSettings(String indexName, Settings indexSettings) {
+        public Settings getExplicitIndexSettings(String indexName, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
             // Only put the "include" setting in place if there are no index-level tier
             // require or exclude settings already on the template or request
             if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE) == false &&
                 settings.contains(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE) == false) {
-                return Collections.singletonMap(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT);
+                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
             }
-            return Collections.emptyMap();
+            return Settings.EMPTY;
         }
     }
 }

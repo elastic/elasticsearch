@@ -17,4 +17,6 @@ dependencies {
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
 }

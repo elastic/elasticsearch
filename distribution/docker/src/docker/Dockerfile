@@ -94,7 +94,10 @@ ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN chmod g=u /etc/passwd && \\
+# The JDK's directories' permissions don't allow `java` to be executed under a different
+# group to the default. Fix this.
+RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
+    chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
 # Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.

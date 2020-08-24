@@ -35,17 +35,17 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
@@ -54,30 +54,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 
-public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<RangeFieldMapper.Builder> {
-
-    @Override
-    protected RangeFieldMapper.Builder newBuilder() {
-        return new RangeFieldMapper.Builder("range", RangeType.DATE)
-            .format("iso8601");
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
-    }
-
-    @Before
-    public void addModifiers() {
-        addModifier("format", true, (a, b) -> {
-            a.format("basic_week_date");
-            b.format("strict_week_date");
-        });
-        addModifier("locale", true, (a, b) -> {
-            a.locale(Locale.CANADA);
-            b.locale(Locale.JAPAN);
-        });
-    }
+public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -491,20 +468,20 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
         assertEquals("Invalid format: [[test_format]]: Unknown pattern letter: t", e.getMessage());
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Map.of("gte", 3L, "lt", 42L), longMapper.parseSourceValue(longRange, null));
+        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
             .format("yyyy/MM/dd||epoch_millis")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(Map.of("lt", "1990/12/29", "gte", "1988/12/06"),
-            dateMapper.parseSourceValue(dateRange, null));
+        assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+            fetchSourceValue(dateMapper, dateRange));
     }
 
     public void testParseSourceValueWithFormat() {
@@ -513,13 +490,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
 
         RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Map.of("gte", 3L, "lt", 42L), longMapper.parseSourceValue(longRange, null));
+        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
             .format("strict_date_time")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(Map.of("lt", "1990/12/29"), dateMapper.parseSourceValue(dateRange, "yyy/MM/dd"));
-        assertEquals(Map.of("lt", "662428800000"), dateMapper.parseSourceValue(dateRange, "epoch_millis"));
+        assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
+        assertEquals(List.of(Map.of("lt", "662428800000")), fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

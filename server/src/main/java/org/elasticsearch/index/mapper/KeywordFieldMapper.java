@@ -390,36 +390,36 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        String keywordValue = value.toString();
-        if (keywordValue.length() > ignoreAbove) {
-            return null;
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                String keywordValue = value.toString();
+                if (keywordValue.length() > ignoreAbove) {
+                    return null;
+                }
 
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer == null) {
-            return keywordValue;
-        }
+                NamedAnalyzer normalizer = fieldType().normalizer();
+                if (normalizer == null) {
+                    return keywordValue;
+                }
 
-        try {
-            return normalizeValue(normalizer, keywordValue);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+                try {
+                    return normalizeValue(normalizer, keywordValue);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected String nullValue() {
-        return nullValue;
     }
 
     @Override

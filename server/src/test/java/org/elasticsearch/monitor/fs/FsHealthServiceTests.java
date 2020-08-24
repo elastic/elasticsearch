@@ -43,7 +43,6 @@ import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
-import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.util.Set;
@@ -227,32 +226,6 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals(1, disruptWritesFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptWritesFileSystemProvider.injectIOException.set(false);
-            PathUtilsForTesting.teardown();
-            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
-        }
-    }
-
-    public void testFailsHealthOnMissingLockFile() throws IOException {
-        final Settings settings = Settings.EMPTY;
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
-            fsHealthService.new FsHealthMonitor().run();
-            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
-            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
-
-            //Deleting Lock file
-            Path[] paths = env.nodeDataPaths();
-            Path deletedPath = randomFrom(paths);
-            deletedPath = deletedPath.resolve(NodeEnvironment.NODE_LOCK_FILENAME);
-            Files.deleteIfExists(deletedPath);
-
-            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
-            fsHealthService.new FsHealthMonitor().run();
-            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed due to broken node lock"));
-        } finally {
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }

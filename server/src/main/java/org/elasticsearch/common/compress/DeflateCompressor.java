@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -205,16 +204,21 @@ public class DeflateCompressor implements Compressor {
         DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
         OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
         return new OutputStreamStreamOutput(compressedOut) {
-            final AtomicBoolean closed = new AtomicBoolean(false);
+
+            // Due to https://bugs.openjdk.java.net/browse/JDK-8054565 we can't rely on the buffered output stream to only close once
+            // in code that has to support Java 8 so we manually manage a close flag for this stream.
+            private boolean closed = false;
 
             public void close() throws IOException {
-                if (closed.compareAndSet(false, true)) {
-                    try {
-                        super.close();
-                    } finally {
-                        // important to release native memory
-                        releasable.close();
-                    }
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                try {
+                    super.close();
+                } finally {
+                    // important to release native memory
+                    releasable.close();
                 }
             }
         };

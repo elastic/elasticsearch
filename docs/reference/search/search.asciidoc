@@ -129,9 +129,44 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
   - The request targets one or more read-only index.
   - The primary sort of the query targets an indexed field.
 
+[[search-preference]]
 `preference`::
-(Optional, string) Specifies the node or shard the operation should be
-performed on. Random by default.
+(Optional, string)
+Nodes and shards used for the search. By default, {es} selects from eligible
+nodes and shards using <<search-adaptive-replica,adaptive replica selection>>,
+accounting for <<shard-allocation-awareness,allocation awareness>>.
++
+.Valid values for `preference`
+[%collapsible%open]
+====
+`_only_local`::
+Run the search only on shards on the local node.
+
+`_local`::
+If possible, run the search on shards on the local node. If not, select shards
+using the default method.
+
+`_only_nodes:<node-id>,<node-id>`::
+Run the search on only the specified nodes IDs. If suitable shards exist on more
+than one selected nodes, use shards on those nodes using the default method. If
+none of the specified nodes are available, select shards from any available node
+using the default method.
+
+`_prefer_nodes:<node-id>,<node-id>`::
+If possible, run the search on the specified nodes IDs. If not, select shards
+using the default method.
+
+`_shards:<shard>,<shard>`::
+Run the search only on the specified shards. This value can be combined with
+other `preference` values, but this value must come first. For example:
+`_shards:2,3|_local`
+
+<custom-string>::
+Any string that does not start with `_`. If the cluster state and selected
+shards do not change, searches using the same `<custom-string>` value are routed
+to the same shards in the same order.
+====
+
 
 [[search-api-query-params-q]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
@@ -164,7 +199,28 @@ Period to retain the <<scroll-search-context,search context>> for scrolling. See
 By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
+[[search-type]]
+`search_type`::
+(Optional, string)
+How {wikipedia}/Tf–idf[distributed term frequencies] are calculated for
+<<relevance-scores,relevance scoring>>.
++
+.Valid values for `search_type`
+[%collapsible%open]
+====
+`query_then_fetch`::
+(Default)
+Distributed term frequencies are calculated locally for each shard running the
+search. We recommend this option for faster searches with potentially less
+accurate scoring.
+
+[[dfs-query-then-fetch]]
+`dfs_query_then_fetch`::
+Distributed term frequencies are calculated globally, using information gathered
+from all shards running the search. While this option increases the accuracy of
+scoring, it adds a round-trip to each shard, which can result in slower
+searches.
+====
 
 `seq_no_primary_term`::
 (Optional, boolean) If `true`, returns sequence number and primary term of the
@@ -284,7 +340,7 @@ You can specify items in the array as a string or object.
 See <<docvalue-fields>>.
 +
 .Properties of `docvalue_fields` objects
-[%collapsible]
+[%collapsible%open]
 ====
 `field`::
 (Required, string)
@@ -325,6 +381,24 @@ As an alternative to deep paging, we recommend using
 <<scroll-search-results,scroll>> or the
 <<search-after,`search_after`>> parameter.
 --
+
+`indices_boost`::
+(Optional, array of objects)
+Boosts the <<relevance-scores,`_score`>> of documents from specified indices.
++
+.Properties of `indices_boost` objects
+[%collapsible%open]
+====
+`<index>: <boost-value>`::
+(Required, float)
+`<index>` is the name of the index or index alias. Wildcard (`*`) expressions
+are supported.
++
+`<boost-value>` is the factor by which scores are multiplied.
++
+A boost value greater than `1.0` increases the score. A boost value between
+`0` and `1.0` decreases the score. 
+====
 
 [[search-api-min-score]]
 `min_score`::
@@ -408,6 +482,13 @@ If this property is specified, only these source fields are returned. You can
 exclude fields from this subset using the `excludes` property.
 =====
 ====
+
+[[stats-groups]]
+`stats`::
+(Optional, array of strings)
+Stats groups to associate with the search. Each group maintains a statistics
+aggregation for its associated searches. You can retrieve these stats using the
+<<indices-stats,indices stats API>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

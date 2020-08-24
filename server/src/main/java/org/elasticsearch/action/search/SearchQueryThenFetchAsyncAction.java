@@ -83,8 +83,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             new SearchActionListener<>(listener.searchShardTarget, listener.requestIndex) {
                 @Override
                 protected void innerOnResponse(SearchPhaseResult response) {
-                    listener.innerOnResponse(response);
                     getSearchTransport().startSendingSearchContextHeartbeat(response.getContextId(), connection);
+                    listener.innerOnResponse(response);
                 }
 
                 @Override

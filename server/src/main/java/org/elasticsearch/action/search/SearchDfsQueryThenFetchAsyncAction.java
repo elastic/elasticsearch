@@ -70,8 +70,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             new SearchActionListener<>(listener.searchShardTarget, listener.requestIndex) {
                 @Override
                 protected void innerOnResponse(DfsSearchResult response) {
-                    listener.innerOnResponse(response);
                     getSearchTransport().startSendingSearchContextHeartbeat(response.getContextId(), connection);
+                    listener.innerOnResponse(response);
                 }
 
                 @Override

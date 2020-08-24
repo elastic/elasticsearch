@@ -122,7 +122,7 @@ Update the previous EQL query as follows:
 
 * Change the `any` keyword to `process`. This limits matches to events with an
 `event.category` of `process`.
-* Add the `and process.command_line != null` condition to match only
+* Add the `and process.command_line.keyword != null` condition to match only
 events with a command line value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
@@ -133,7 +133,7 @@ lets you retrieve the document source for any matching events.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.name == "regsvr32.exe" and process.command_line != null
+    process where process.name == "regsvr32.exe" and process.command_line.keyword != null
   """
 }
 ----
@@ -142,8 +142,8 @@ GET /my-index-000001/_eql/search
 The query matches one process event. The event has an `event.type` of
 `creation`, indicating the start of a `regsvr32.exe` process.
 
-Based on the `process.command_line` value, `regsvr32.exe` used `scrobj.dll` to
-register a script, `RegSvr32.sct`. This fits the behavior of a
+Based on the `process.command_line` value in the response, `regsvr32.exe` used
+`scrobj.dll` to register a script, `RegSvr32.sct`. This fits the behavior of a
 https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
 variant of `regsvr32` misuse.
 
@@ -213,7 +213,7 @@ malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
 Modify the previous EQL query as follows:
 
 * Change the `process` keyword to `library`.
-* Replace the `process.command_line != null` condition with
+* Replace the `process.command_line.keyword != null` condition with
 `dll.name == "scrobj.dll`.
 
 [source,console]
@@ -326,7 +326,7 @@ The query matches a sequence, indicating the attack likely succeeded.
     "sequences": [
       {
         "join_keys": [
-          "2012"
+          2012
         ],
         "events": [
           {

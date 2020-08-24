@@ -34,12 +34,19 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DateScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.IpScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.StringScriptFieldScriptTests;
+import org.elasticsearch.xpack.runtimefields.TestScriptEngine;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -312,85 +319,30 @@ public class RuntimeScriptFieldMapperTests extends ESTestCase {
         return mapping.endObject();
     }
 
-    private static final ScriptEngine TEST_ENGINE = new ScriptEngine() {
+    private static final ScriptEngine TEST_ENGINE = new TestScriptEngine() {
         @Override
-        public String getType() {
-            return "test";
-        }
-
-        @Override
-        public <FactoryType> FactoryType compile(
-            String name,
-            String code,
-            ScriptContext<FactoryType> context,
-            Map<String, String> paramsMap
-        ) {
-            if ("dummy_source".equals(code)) {
-                @SuppressWarnings("unchecked")
-                FactoryType castFactory = (FactoryType) dummyScriptFactory(context);
-                return castFactory;
-            }
-            throw new IllegalArgumentException("No test script for [" + code + "]");
-        }
-
-        private Object dummyScriptFactory(ScriptContext<?> context) {
+        protected Object buildScriptFactory(ScriptContext<?> context) {
             if (context == BooleanScriptFieldScript.CONTEXT) {
-                return (BooleanScriptFieldScript.Factory) (params, lookup) -> ctx -> new BooleanScriptFieldScript(params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        new BooleanScriptFieldScript.Value(this).value(true);
-                    }
-                };
+                return BooleanScriptFieldScriptTests.DUMMY;
             }
             if (context == DateScriptFieldScript.CONTEXT) {
-                return (DateScriptFieldScript.Factory) (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
-                    params,
-                    lookup,
-                    formatter,
-                    ctx
-                ) {
-                    @Override
-                    public void execute() {
-                        new DateScriptFieldScript.Millis(this).millis(1595431354874L);
-                    }
-                };
+                return DateScriptFieldScriptTests.DUMMY;
             }
             if (context == DoubleScriptFieldScript.CONTEXT) {
-                return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        new DoubleScriptFieldScript.Value(this).value(1.0);
-                    }
-                };
+                return DoubleScriptFieldScriptTests.DUMMY;
             }
             if (context == IpScriptFieldScript.CONTEXT) {
-                return (IpScriptFieldScript.Factory) (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        new IpScriptFieldScript.StringValue(this).stringValue("192.168.0.1");
-                    }
-                };
-            }
-            if (context == StringScriptFieldScript.CONTEXT) {
-                return (StringScriptFieldScript.Factory) (params, lookup) -> ctx -> new StringScriptFieldScript(params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        new StringScriptFieldScript.Value(this).value("test");
-                    }
-                };
+                return IpScriptFieldScriptTests.DUMMY;
             }
             if (context == LongScriptFieldScript.CONTEXT) {
-                return (LongScriptFieldScript.Factory) (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        new LongScriptFieldScript.Value(this).value(1);
-                    }
-                };
+                return LongScriptFieldScriptTests.DUMMY;
             }
-            throw new IllegalArgumentException("No test script for [" + context + "]");
+            if (context == StringScriptFieldScript.CONTEXT) {
+                return StringScriptFieldScriptTests.DUMMY;
+            }
+            throw new IllegalArgumentException("Unsupported context: " + context);
         };
 
-        @Override
         public Set<ScriptContext<?>> getSupportedContexts() {
             return Set.of(
                 BooleanScriptFieldScript.CONTEXT,

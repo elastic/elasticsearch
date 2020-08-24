@@ -112,6 +112,24 @@ setup:
   - match: {aggregations.ip.buckets.1.doc_count: 1}
 
 ---
+"use in scripts":
+  - do:
+      search:
+        index: http_logs
+        body:
+          aggs:
+            ip:
+              terms:
+                script:
+                  String v = doc['ip'].value;
+                  return v.substring(0, v.indexOf('.'));
+  - match: {hits.total.value: 6}
+  - match: {aggregations.ip.buckets.0.key: '247'}
+  - match: {aggregations.ip.buckets.0.doc_count: 2}
+  - match: {aggregations.ip.buckets.1.key: '232'}
+  - match: {aggregations.ip.buckets.1.doc_count: 1}
+
+---
 "term query":
   - do:
       search:

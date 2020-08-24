@@ -9,16 +9,42 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.ScriptCache;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
 public abstract class AbstractScriptFieldScript {
+    public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+        return new ScriptContext<F>(
+            name + "_script_field",
+            factoryClass,
+            /*
+             * In an ideal world we wouldn't need the script cache at all
+             * because we have a hard reference to the script. The trouble
+             * is that we compile the scripts a few times when performing
+             * a mapping update. This is unfortunate, but we rely on the
+             * cache to speed this up.
+             */
+            100,
+            timeValueMillis(0),
+            /*
+             * Disable compilation rate limits for scripted fields so we
+             * don't prevent mapping updates because we've performed too
+             * many recently. That'd just be lame.
+             */
+            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()
+        );
+    }
+
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 

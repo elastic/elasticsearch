@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("boolean_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "boolean_whitelist.txt"));

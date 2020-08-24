@@ -213,6 +213,9 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.nextRoundingValue(0), equalTo(oneDay - twoHours));
         assertThat(rounding.withoutOffset().round(0), equalTo(0L));
         assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(ZoneId.of("America/New_York")).offset(-twoHours).build();
+        assertThat(rounding.round(time("2020-11-01T09:00:00")), equalTo(time("2020-11-01T02:00:00")));
     }
 
     /**

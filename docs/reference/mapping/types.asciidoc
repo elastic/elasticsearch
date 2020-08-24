@@ -26,7 +26,7 @@ type: `boolean`.
 Keyword::               The keyword family, including <<keyword, `keyword`>>,
                         <<constant-keyword,`constant_keyword`>>, and
                         <<wildcard, `wildcard`>>.
-<<number,Numbers>>::    Numeric types, such as `long` and `double` used to
+<<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
                         express amounts rather than identifiers.
 Dates::                 Date types, including <<date,`date`>> and 
                         <<date_nanos,`date_nanos`>>.

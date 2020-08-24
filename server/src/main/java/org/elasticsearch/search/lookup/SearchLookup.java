@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 
 public class SearchLookup {
 
-    private static final int MAX_FIELD_CHAIN = 32;
+    private static final int MAX_FIELD_CHAIN = 5;
 
     private final DocLookup docMap;
     private final SourceLookup sourceLookup;

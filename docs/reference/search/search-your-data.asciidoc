@@ -2,7 +2,7 @@
 = Search your data
 
 [[search-query]]
-A _search query_, or _query_, is a request for information about data in 
+A _search query_, or _query_, is a request for information about data in
 {es} data streams or indices.
 
 You can think of a query as a question, written in a way {es} understands.
@@ -24,55 +24,30 @@ a specific number of results.
 [[run-an-es-search]]
 == Run a search
 
-You can use the <<search-search,search API>> to search data stored in
-{es} data streams or indices.
+You can use the <<search-search,search API>> to search and
+<<search-aggregations,aggregate>> data stored in {es} data streams or indices.
+The API's `query` request body parameter accepts queries written in
+<<query-dsl,Query DSL>>.
 
-The API can run two types of searches, depending on how you provide
-queries:
-
-<<run-uri-search,URI searches>>::
-  Queries are provided through a query parameter. URI searches tend to be
-  simpler and best suited for testing.
-
-<<run-request-body-search,Request body searches>>::
-  Queries are provided through the JSON body of the API request. These queries
-  are written in <<query-dsl,Query DSL>>. We recommend using request body
-  searches in most production use cases.
-
-[WARNING]
-====
-If you specify a query in both the URI and request body, the search API request
-runs only the URI query.
-====
-
-[discrete]
-[[run-uri-search]]
-=== Run a URI search
-
-You can use the search API's <<search-api-query-params-q,`q` query string
-parameter>> to run a search in the request's URI. The `q` parameter only accepts
-queries written in Lucene's <<query-string-syntax,query string syntax>>.
-
-The following URI search matches documents with a `user.id` value of `kimchy`.
+The following request searches `my-index-000001` using a
+<<query-dsl-match-query,`match`>> query. This query matches documents with a
+`user.id` value of `kimchy`.
 
 [source,console]
 ----
-GET /my-index-000001/_search?q=user.id:kimchy
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
 ----
 // TEST[setup:my_index]
 
-The API returns the following response.
-
-By default, the `hits.hits` property returns the top 10 documents matching the
-query. To retrieve more documents, see <<paginate-search-results>>.
-
-The response sorts documents in `hits.hits` by `_score`, a
-<<relevance-scores,relevance score>> that measures how well each document
-matches the query.
-
-The `hit.hits` property also includes the <<mapping-source-field,`_source`>> for
-each matching document. To retrieve only a subset of the `_source` or other
-fields, see <<search-fields>>.
+The API response returns the top 10 documents matching the query in the
+`hits.hits` property.
 
 [source,console-result]
 ----
@@ -126,20 +101,84 @@ fields, see <<search-fields>>.
 // TESTRESPONSE[s/"_id": "kxWFcnMByiguvud1Z8vC"/"_id": "$body.hits.hits.0._id"/]
 
 [discrete]
-[[run-request-body-search]]
-=== Run a request body search
+[[common-search-options]]
+=== Common search options
 
-You can use the search API's <<request-body-search-query,`query` request
-body parameter>> to provide a query as a JSON object, written in
-<<query-dsl,Query DSL>>.
+You can use the following options to customize your searches.
 
-The following request body search uses the <<query-dsl-match-query,`match`>>
-query to match documents with a `user.id` value of `kimchy`.
+*Query DSL* +
+<<query-dsl,Query DSL>> supports a variety of query types you can mix and match
+to get the results you want. Query types include:
+
+* <<query-dsl-bool-query,Boolean>> and other <<compound-queries,compound
+queries>>, which let you combine queries and match results based on multiple
+criteria
+* <<term-level-queries,Term-level queries>> for filtering and finding exact matches
+* <<full-text-queries,Full text queries>>, which are commonly used in search
+engines
+* <<geo-queries,Geo>> and <<shape-queries,spatial queries>>
+
+*Aggregations* +
+You can use <<search-aggregations,search aggregations>> to get statistics and
+other analytics for your search results. Aggregations help you answer questions
+like:
+
+* What's the average response time for my servers?
+* What are the top IP addresses hit by users on my network?
+* What is the total transaction revenue by customer?
+
+*Search multiple data streams and indices* +
+You can use comma-separated values and grep-like index patterns to search
+several data streams and indices in the same request. You can even boost search
+results from specific indices. See <<search-multiple-indices>>.
+
+*Paginate search results* +
+By default, searches return only the top 10 matching hits. To retrieve
+more or fewer documents, see <<paginate-search-results>>.
+
+*Retrieve selected fields* +
+The search response's `hit.hits` property includes the full document
+<<mapping-source-field,`_source`>> for each hit. To retrieve only a subset of
+the `_source` or other fields, see <<search-fields>>.
+
+*Sort search results* +
+By default, search hits are sorted by `_score`, a <<relevance-scores,relevance
+score>> that measures how well each document matches the query. To customize the
+calculation of these scores, use the
+<<query-dsl-script-score-query,`script_score`>> query. To sort search hits by
+other field values, see <<sort-search-results>>.
+
+*Run an async search* +
+{es} searches are designed to run on large volumes of data quickly, often
+returning results in milliseconds. For this reason, searches are
+_synchronous_ by default. The search request waits for complete results before
+returning a response.
+
+However, complete results can take longer for searches across
+<<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
+clusters>>.
+
+To avoid long waits, you can use run an _asynchronous_, or _async_, search
+instead. An <<async-search-intro,async search>> lets you retrieve partial
+results for a long-running search now and get complete results later.
+
+[discrete]
+[[search-timeout]]
+=== Search timeout
+
+By default, search requests don't time out. The request waits for complete
+results before returning a response.
+
+While <<async-search-intro,async search>> is designed for long-running
+searches, you can also use the `timeout` parameter to specify a duration you'd
+like to wait for a search to complete. If no response is received before this
+period ends, the request fails and returns an error.
 
 [source,console]
 ----
 GET /my-index-000001/_search
 {
+  "timeout": "2s",
   "query": {
     "match": {
       "user.id": "kimchy"
@@ -148,89 +187,24 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+
+To set a cluster-wide default timeout for all search requests, configure
+`search.default_search_timeout` using the <<cluster-update-settings,cluster
+settings API>>. This global timeout duration is used if no `timeout` argument is
+passed in the request. If the global search timeout expires before the search
+request finishes, the request is cancelled using <<task-cancellation,task
+cancellation>>. The `search.default_search_timeout` setting defaults to `-1` (no
+timeout).
 
 [discrete]
-[[search-multiple-indices]]
-=== Search multiple data streams and indices
+[[global-search-cancellation]]
+=== Search cancellation
 
-To search multiple data streams and indices, add them as comma-separated values
-in the search API request path.
+You can cancel a search request using the <<task-cancellation,task management
+API>>. {es} also automatically cancels a search request when your client's HTTP
+connection closes. We recommend you set up your client to close HTTP connections
+when a search request is aborted or times out.
 
-The following request searches the `my-index-000001` and `my-index-000002`
-indices.
-
-[source,console]
-----
-GET /my-index-000001,my-index-000002/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-----
-// TEST[setup:my_index]
-// TEST[s/^/PUT my-index-000002\n/]
-
-You can also search multiple data streams and indices using a wildcard (`*`)
-pattern.
-
-The following request targets the wildcard pattern `my-index-*`. The request
-searches any data streams or indices in the cluster that start with `my-index-`.
-
-[source,console]
-----
-GET /my-index-*/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-----
-// TEST[setup:my_index]
-
-To search all data streams and indices in a cluster, omit the target from the
-request path. Alternatively, you can use `_all` or `*`.
-
-The following requests are equivalent and search all data streams and indices in the cluster.
-
-[source,console]
-----
-GET /_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-
-GET /_all/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-
-GET /*/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  }
-}
-----
-// TEST[setup:my_index]
-
-include::request/index-boost.asciidoc[]
-include::request/preference.asciidoc[]
-include::request/search-type.asciidoc[]
 include::request/track-total-hits.asciidoc[]
 include::quickly-check-for-matching-docs.asciidoc[]
 
@@ -243,4 +217,6 @@ include::paginate-search-results.asciidoc[]
 include::request/inner-hits.asciidoc[]
 include::search-fields.asciidoc[]
 include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]
+include::search-multiple-indices.asciidoc[]
+include::search-shard-routing.asciidoc[]
 include::request/sort.asciidoc[]

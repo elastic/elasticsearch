@@ -33,7 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -255,18 +257,23 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
             @Override
             public void onFailure(Exception e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
-                    // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
-                    // recovering.
+                // In case the blob cache system index is unavailable, we indicate it's not ready and move on. We do not fail the request:
+                // a failure here is not fatal since the data exists in the blob store, so we can simply indicate the cache is not ready.
+                if (isExpectedCacheGetException(e)) {
                     logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                    listener.onResponse(CachedBlob.CACHE_NOT_READY);
                 } else {
                     logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                    listener.onFailure(e);
+                    assert false : e;
                 }
+                listener.onResponse(CachedBlob.CACHE_NOT_READY);
             }
         });
+    }
+
+    private static boolean isExpectedCacheGetException(Exception e) {
+        return TransportActions.isShardNotAvailableException(e)
+                || e instanceof ConnectTransportException
+                || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {

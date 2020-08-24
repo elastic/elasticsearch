@@ -77,9 +77,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static final RestHandler FAVICON_HANDLER = (request, channel, client) ->
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));
-
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
@@ -102,7 +99,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", FAVICON_HANDLER);
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
     /**

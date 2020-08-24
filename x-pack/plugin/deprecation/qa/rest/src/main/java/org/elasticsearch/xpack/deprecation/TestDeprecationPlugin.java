@@ -31,9 +31,15 @@ import static java.util.Collections.singletonList;
 public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin {
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.singletonList(new TestDeprecationHeaderRestAction(settings));
     }
 
@@ -42,13 +48,15 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
         return Arrays.asList(
             TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
             TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2,
-            TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
+            TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING
+        );
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(TestDeprecatedQueryBuilder.NAME, TestDeprecatedQueryBuilder::new,
-                TestDeprecatedQueryBuilder::fromXContent));
+        return singletonList(
+            new QuerySpec<>(TestDeprecatedQueryBuilder.NAME, TestDeprecatedQueryBuilder::new, TestDeprecatedQueryBuilder::fromXContent)
+        );
     }
 
 }

@@ -69,6 +69,7 @@ The API response returns the top 10 documents matching the query in the
     "hits": [
       {
         "_index": "my-index-000001",
+        "_type": "_doc",
         "_id": "kxWFcnMByiguvud1Z8vC",
         "_score": 1.3862942,
         "_source": {

@@ -133,7 +133,6 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            // EMPTY is safe here because we never call namedObject
             try (XContentParser parser = createParser(data, xContent, from, nextMarker)) {
                 // move pointers
                 from = nextMarker + 1;
@@ -275,7 +274,6 @@ public final class BulkRequestParser {
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .setRequireAlias(requireAlias)
                                 .routing(routing);
-                        // EMPTY is safe here because we never call namedObject
                         try (XContentParser sliceParser = createParser(
                                 sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent)) {
                             updateRequest.fromXContent(sliceParser);
@@ -316,6 +314,7 @@ public final class BulkRequestParser {
             if (slice instanceof BytesArray) {
                 return parseBytesArray(xContent, (BytesArray) slice, 0, length);
             } else {
+                // EMPTY is safe here because we never call namedObject
                 return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, slice.streamInput());
             }
         }
@@ -323,6 +322,7 @@ public final class BulkRequestParser {
 
     private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
         final int offset = array.offset();
+        // EMPTY is safe here because we never call namedObject
         return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
                 offset + from, nextMarker - from);
     }

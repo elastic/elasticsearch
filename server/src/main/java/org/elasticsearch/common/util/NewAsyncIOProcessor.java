@@ -21,6 +21,7 @@ package org.elasticsearch.common.util;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public abstract class NewAsyncIOProcessor<Item> {
         // we try to have only one caller that processes pending items to disc while others just add to the queue but
         // at the same time never overload the node by pushing too many items into the queue.
 
-        if (isAlreadyWritten(item)) {
+        if (Translog.Location.MAX_LOCATION != item && isAlreadyWritten(item)) {
             notifyListener(null, listener);
             return;
         }
@@ -74,7 +75,7 @@ public abstract class NewAsyncIOProcessor<Item> {
                 queue.put(new Tuple<>(item, preserveContext(listener)));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                listener.accept(e);
+                notifyListener(e, listener);
             }
         }
 

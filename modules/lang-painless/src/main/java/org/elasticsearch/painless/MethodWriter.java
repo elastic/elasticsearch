@@ -160,9 +160,7 @@ public final class MethodWriter extends GeneratorAdapter {
         if (cast == null) {
             return;
         }
-        if (cast.converter != null) {
-            invokeStatic(Type.getType(cast.converter.getDeclaringClass()), Method.getMethod(cast.converter));
-        } else if (cast.originalType == char.class && cast.targetType == String.class) {
+        if (cast.originalType == char.class && cast.targetType == String.class) {
             invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
         } else if (cast.originalType == String.class && cast.targetType == char.class) {
             invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);

@@ -49,8 +49,8 @@ syntax.
 [[date-math-index-names]]
 === Date math support in index names
 
-Date math index name resolution enables you to search a range of time-series indices, rather
-than searching all of your time-series indices and filtering the results or maintaining aliases.
+Date math index name resolution enables you to search a range of time series indices, rather
+than searching all of your time series indices and filtering the results or maintaining aliases.
 Limiting the number of indices that are searched reduces the load on the cluster and improves
 execution performance. For example, if you are searching for errors in your
 daily logs, you can use a date math name template to restrict the search to the past

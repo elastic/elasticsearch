@@ -168,7 +168,7 @@ public final class TransportLogger {
     private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
         if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
             try {
-                return CompressorFactory.COMPRESSOR.streamInput(streamInput);
+                return CompressorFactory.COMPRESSOR.threadLocalStreamInput(streamInput);
             } catch (IllegalArgumentException e) {
                 throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
             }

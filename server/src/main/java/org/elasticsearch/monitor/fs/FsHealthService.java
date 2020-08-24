@@ -118,8 +118,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Set<Path> unhealthyPaths = this.unhealthyPaths;
         if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
-        } else if (brokenLock == true) {
-            statusInfo = new StatusInfo(UNHEALTHY, "health check failed on node due to broken locks");
+        } else if (brokenLock) {
+            statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
         } else {
@@ -153,39 +153,42 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            boolean lockAssertionFailed = false;
+            brokenLock = false;
+            Path[] paths = null;
             try {
-                for (Path path : nodeEnv.nodeDataPaths()) {
-                    long executionStartTime = currentTimeMillisSupplier.getAsLong();
-                    try {
-                        if (Files.exists(path)) {
-                            Path tempDataPath = path.resolve(TEMP_FILE_NAME);
-                            Files.deleteIfExists(tempDataPath);
-                            try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                                os.write(byteToWrite);
-                                IOUtils.fsync(tempDataPath, false);
-                            }
-                            Files.delete(tempDataPath);
-                            final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
-                            if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                                logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
-                                    path, elapsedTime, slowPathLoggingThreshold);
-                            }
-                        }
-                    } catch (Exception ex) {
-                        logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
-                        if (currentUnhealthyPaths == null) {
-                            currentUnhealthyPaths = new HashSet<>(1);
-                        }
-                        currentUnhealthyPaths.add(path);
-                    }
-                }
+                paths = nodeEnv.nodeDataPaths();
             } catch (IllegalStateException e) {
                 logger.error("Lock assertions failed due to", e);
-                lockAssertionFailed = true;
+                brokenLock = true;
+                return;
+            }
+
+            for (Path path : paths) {
+                long executionStartTime = currentTimeMillisSupplier.getAsLong();
+                try {
+                    if (Files.exists(path)) {
+                        Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                        Files.deleteIfExists(tempDataPath);
+                        try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
+                            os.write(byteToWrite);
+                            IOUtils.fsync(tempDataPath, false);
+                        }
+                        Files.delete(tempDataPath);
+                        final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
+                        if (elapsedTime > slowPathLoggingThreshold.millis()) {
+                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
+                                path, elapsedTime, slowPathLoggingThreshold);
+                        }
+                    }
+                } catch (Exception ex) {
+                    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+                    if (currentUnhealthyPaths == null) {
+                        currentUnhealthyPaths = new HashSet<>(1);
+                    }
+                    currentUnhealthyPaths.add(path);
+                }
             }
             unhealthyPaths = currentUnhealthyPaths;
-            brokenLock = lockAssertionFailed;
         }
     }
 }

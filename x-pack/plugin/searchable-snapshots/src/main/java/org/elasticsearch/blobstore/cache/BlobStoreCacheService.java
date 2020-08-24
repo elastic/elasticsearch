@@ -236,41 +236,37 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
             listener.onResponse(CachedBlob.CACHE_NOT_READY);
             return;
         }
-        try {
-            final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
-            client.get(request, new ActionListener<>() {
-                @Override
-                public void onResponse(GetResponse response) {
-                    if (response.isExists()) {
-                        logger.debug("cache hit : [{}]", request.id());
-                        assert response.isSourceEmpty() == false;
+        final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
+        client.get(request, new ActionListener<>() {
+            @Override
+            public void onResponse(GetResponse response) {
+                if (response.isExists()) {
+                    logger.debug("cache hit : [{}]", request.id());
+                    assert response.isSourceEmpty() == false;
 
-                        final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
-                        assert response.getId().equals(cachedBlob.generatedId());
-                        listener.onResponse(cachedBlob);
-                    } else {
-                        logger.debug("cache miss: [{}]", request.id());
-                        listener.onResponse(CachedBlob.CACHE_MISS);
-                    }
+                    final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
+                    assert response.getId().equals(cachedBlob.generatedId());
+                    listener.onResponse(cachedBlob);
+                } else {
+                    logger.debug("cache miss: [{}]", request.id());
+                    listener.onResponse(CachedBlob.CACHE_MISS);
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (TransportActions.isShardNotAvailableException(e)) {
-                        // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
-                        // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
-                        // recovering.
-                        logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                        listener.onResponse(CachedBlob.CACHE_NOT_READY);
-                    } else {
-                        logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
-                        listener.onFailure(e);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                if (TransportActions.isShardNotAvailableException(e)) {
+                    // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
+                    // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
+                    // recovering.
+                    logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    listener.onResponse(CachedBlob.CACHE_NOT_READY);
+                } else {
+                    logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    listener.onFailure(e);
                 }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            }
+        });
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {

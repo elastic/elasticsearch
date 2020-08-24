@@ -9,7 +9,7 @@ restResources {
 }
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('eql:qa:common'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
 testClusters.all {

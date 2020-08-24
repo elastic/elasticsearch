@@ -9,17 +9,3 @@ dependencies {
   // TOML parser for EqlActionIT tests
   api 'io.ous:jtoml:2.0.0'
 }
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}

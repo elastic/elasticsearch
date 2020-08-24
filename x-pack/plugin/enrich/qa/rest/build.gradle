@@ -9,7 +9,7 @@ restResources {
 }
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('enrich:qa:common'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('enrich:qa:common'))
 }
 
 testClusters.all {

@@ -17,9 +17,6 @@ client not to do {wikipedia}/Chunked_transfer_encoding[HTTP chunking].
 
 The following settings can be configured for HTTP. These settings also use the common <<modules-network,network settings>>.
 
-NOTE: HTTP settings cannot be updated dynamically. You must configure these settings in the {es} <<settings, configuration file>>
-and restart {es} for changes to take effect.
-
 `http.port`::
 (<<static-cluster-setting,Static>>)
 A bind port range. Defaults to `9200-9300`.

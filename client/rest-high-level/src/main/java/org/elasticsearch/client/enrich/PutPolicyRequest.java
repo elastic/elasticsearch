@@ -80,7 +80,7 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     // package private for testing only
     void setQuery(BytesReference query) {
-        assert XContentHelper.xContentType(query) == XContentType.JSON :
+        assert query == null || XContentHelper.xContentType(query) == XContentType.JSON :
                 "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
         this.query = query;
     }

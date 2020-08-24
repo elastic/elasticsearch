@@ -1,0 +1,55 @@
+---
+"Test for json (de)serialization in painless' watcher context":
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "watch": {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "condition": {
+                "script": {
+                  "source": "Json.dump([1, 2, 3, 4]) == '[1,2,3,4]'"
+                }
+              },
+              "transform": {
+                "script": {
+                  "source": "return Json.load('{\"hello\": \"world\"}')"
+                }
+              },
+              "actions": {
+                "indexme" : {
+                  "index" : {
+                    "index" : "my_test_index",
+                    "doc_id": "my-id"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.status.state.active: true }
+  - is_true: watch_record.node
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+  - gt: { watch_record.result.execution_duration: 0 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: my_test_index
+        id: my-id
+
+  - match: { found: true }
+  - match: { _source.hello: world }
+

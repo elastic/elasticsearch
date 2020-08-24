@@ -60,12 +60,19 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return Set.of("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range");
+        return org.elasticsearch.common.collect.Set.of(
+            "date_range",
+            "ip_range",
+            "float_range",
+            "double_range",
+            "integer_range",
+            "long_range"
+        );
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return Set.of("integer_range", "long_range");
+        return org.elasticsearch.common.collect.Set.of("integer_range", "long_range");
     }
 
     @Override

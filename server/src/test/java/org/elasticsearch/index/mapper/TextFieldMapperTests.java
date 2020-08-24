@@ -169,9 +169,11 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             )
         );
         return new IndexAnalyzers(
-            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
-            Map.of()
+            org.elasticsearch.common.collect.Map.of(
+                "default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop
+            ),
+            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.common.collect.Map.of()
         );
     }
 

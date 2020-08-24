@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -245,7 +244,7 @@ public abstract class MapperTestCase extends ESTestCase {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
+        when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
 
         ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
         SourceLookup lookup = new SourceLookup();

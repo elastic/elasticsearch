@@ -47,6 +47,8 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +61,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -112,7 +113,11 @@ public abstract class MapperTestCase extends ESTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, emptyMap(), emptyMap());
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
         MapperService mapperService = new MapperService(
             indexSettings,
@@ -122,7 +127,7 @@ public abstract class MapperTestCase extends ESTestCase {
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
             () -> true,
-            null
+            scriptService
         );
         merge(mapperService, mapping);
         return mapperService;

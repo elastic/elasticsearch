@@ -173,18 +173,11 @@ public class DeflateCompressor implements Compressor {
             releasable = inflater::end;
         }
         return new BufferedInputStream(new InflaterInputStream(in, inflater, BUFFER_SIZE) {
-
-            private boolean closed = false;
-
             @Override
             public void close() throws IOException {
-                if (closed) {
-                    return;
-                }
                 try {
                     super.close();
                 } finally {
-                    closed = true;
                     // We are ensured to only call this once since we wrap this stream in a BufferedInputStream that will only close
                     // its delegate once
                     releasable.close();

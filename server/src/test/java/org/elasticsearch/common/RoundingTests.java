@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateFormatter;

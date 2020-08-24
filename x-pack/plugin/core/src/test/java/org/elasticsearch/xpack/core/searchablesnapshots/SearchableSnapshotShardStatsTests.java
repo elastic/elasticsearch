@@ -46,7 +46,7 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
-            randomCounter(), randomCounter(), randomTimedCounter(),
+            randomCounter(), randomTimedCounter(), randomTimedCounter(),
             randomTimedCounter(), randomTimedCounter(),
             randomCounter(), randomNonNegativeLong());
     }

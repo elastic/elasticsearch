@@ -44,7 +44,7 @@ public class IndexInputStats {
     private final TimedCounter optimizedBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
-    private final Counter indexCacheBytesRead = new Counter();
+    private final TimedCounter indexCacheBytesRead = new TimedCounter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
 
     private final Counter blobStoreBytesRequested = new Counter();
@@ -79,8 +79,8 @@ public class IndexInputStats {
         cachedBytesRead.add(bytesRead);
     }
 
-    public void addIndexCacheBytesRead(int bytesRead) {
-        indexCacheBytesRead.add(bytesRead);
+    public void addIndexCacheBytesRead(int bytesRead, long nanoseconds) {
+        indexCacheBytesRead.add(bytesRead, nanoseconds);
     }
 
     public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
@@ -182,7 +182,7 @@ public class IndexInputStats {
         return cachedBytesRead;
     }
 
-    public Counter getIndexCacheBytesRead() {
+    public TimedCounter getIndexCacheBytesRead() {
         return indexCacheBytesRead;
     }
 

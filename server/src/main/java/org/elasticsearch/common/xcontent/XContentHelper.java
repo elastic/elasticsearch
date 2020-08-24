@@ -76,6 +76,11 @@ public class XContentHelper {
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
+            if (bytes instanceof BytesArray) {
+                final BytesArray array = (BytesArray) bytes;
+                return xContentType.xContent().createParser(
+                        xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
+            }
             return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
@@ -106,10 +111,19 @@ public class XContentHelper {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+            } else if (bytes instanceof BytesArray) {
+                final BytesArray arr = (BytesArray) bytes;
+                final byte[] raw = arr.array();
+                final int offset = arr.offset();
+                final int length = arr.length();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
+                return new Tuple<>(Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
-            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             try (InputStream stream = input) {
                 return new Tuple<>(Objects.requireNonNull(contentType),
                     convertToMap(XContentFactory.xContent(contentType), stream, ordered));
@@ -142,6 +156,21 @@ public class XContentHelper {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    /**
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
+            throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -183,17 +212,29 @@ public class XContentHelper {
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        try (InputStream stream = bytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-            parser.nextToken();
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            if (prettyPrint) {
-                builder.prettyPrint();
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                return toJsonString(prettyPrint, parser);
             }
-            builder.copyCurrentStructure(parser);
-            return Strings.toString(builder);
+        } else {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                return toJsonString(prettyPrint, parser);
+            }
         }
+    }
+
+    private static String toJsonString(boolean prettyPrint, XContentParser parser) throws IOException {
+        parser.nextToken();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        if (prettyPrint) {
+            builder.prettyPrint();
+        }
+        builder.copyCurrentStructure(parser);
+        return Strings.toString(builder);
     }
 
     /**

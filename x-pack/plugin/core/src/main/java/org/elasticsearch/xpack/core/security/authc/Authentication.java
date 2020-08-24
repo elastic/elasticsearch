@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -176,6 +177,7 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
+        builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -261,4 +263,3 @@ public class Authentication implements ToXContentObject {
         INTERNAL
     }
 }
-

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -403,6 +404,10 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
             indices.remove(index);
             return this;
+        }
+
+        public boolean hasIndexBlock(String index, ClusterBlock block) {
+            return indices.getOrDefault(index, Collections.emptySet()).contains(block);
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {

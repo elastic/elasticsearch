@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -421,8 +421,18 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        BytesRef br = bytes.toBytesRef();
-        return XContentFactory.xContentType(br.bytes, br.offset, br.length);
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        }
+        try {
+            final InputStream inputStream = bytes.streamInput();
+            assert inputStream.markSupported();
+            return XContentFactory.xContentType(inputStream);
+        } catch (IOException e) {
+            assert false : "Should not happen, we're just reading bytes from memory";
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

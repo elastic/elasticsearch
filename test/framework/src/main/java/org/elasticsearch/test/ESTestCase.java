@@ -149,7 +149,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;

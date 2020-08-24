@@ -32,7 +32,7 @@ include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::search/search-your-data.asciidoc[]
+include::search/search-your-data/search-your-data.asciidoc[]
 
 include::query-dsl.asciidoc[]
 

@@ -27,7 +27,7 @@ Keyword::               The keyword family, including <<keyword, `keyword`>>,
                         <<constant-keyword,`constant_keyword`>>, and
                         <<wildcard, `wildcard`>>.
 <<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
-                        express amounts rather than identifiers.
+                        express amounts rather than IDs.
 Dates::                 Date types, including <<date,`date`>> and 
                         <<date_nanos,`date_nanos`>>.
 <<alias,`alias`>>::     Defines an alias for an existing field.

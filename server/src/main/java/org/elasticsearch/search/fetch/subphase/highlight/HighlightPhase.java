@@ -147,7 +147,7 @@ public class HighlightPhase implements FetchSubPhase {
 
                 boolean forceSource = highlight.forceSource(field);
                 builders.put(fieldName,
-                    hc -> new FieldHighlightContext(fieldName, field, fieldType, shardTarget, context, hc,
+                    hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, shardTarget, context, hc,
                         highlightQuery == null ? query : highlightQuery, forceSource, fieldNameContainsWildcards));
             }
         }

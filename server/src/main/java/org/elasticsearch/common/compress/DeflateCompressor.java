@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -201,26 +202,22 @@ public class DeflateCompressor implements Compressor {
             releasable = current;
         }
         final boolean syncFlush = true;
-        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush) {
+        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
+        OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
+        return new OutputStreamStreamOutput(compressedOut) {
+            final AtomicBoolean closed = new AtomicBoolean(false);
 
-            private boolean closed = false;
-
-            @Override
             public void close() throws IOException {
-                if (closed) {
-                    return;
-                }
-                try {
-                    super.close();
-                } finally {
-                    closed = true;
-                    // We are ensured to only call this once since we wrap this stream in a BufferedOutputStream that will only close
-                    // its delegate once below
-                    releasable.close();
+                if (closed.compareAndSet(false, true)) {
+                    try {
+                        super.close();
+                    } finally {
+                        // important to release native memory
+                        releasable.close();
+                    }
                 }
             }
         };
-        return new OutputStreamStreamOutput(new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE));
     }
 
     private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);

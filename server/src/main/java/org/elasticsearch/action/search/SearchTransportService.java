@@ -462,7 +462,7 @@ public class SearchTransportService {
         private final Logger logger;
         private final TransportService transportService;
         private final ThreadPool threadPool;
-        private final Map<SearchContextIdKey, Transport.Connection> targets = ConcurrentCollections.newConcurrentMap();
+        private final Map<SearchContextId, Transport.Connection> targets = ConcurrentCollections.newConcurrentMap();
         private final Set<Transport.Connection> ongoingConnections = ConcurrentCollections.newConcurrentSet();
 
         SearchContextHeartbeatSender(TransportService transportService, Logger logger, ThreadPool threadPool, TimeValue sendInterval) {
@@ -484,8 +484,8 @@ public class SearchTransportService {
                 return;
             }
             final Map<Transport.Connection, Set<SearchContextId>> perConnections = new HashMap<>();
-            for (Map.Entry<SearchContextIdKey, Transport.Connection> entry : targets.entrySet()) {
-                perConnections.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey().id);
+            for (Map.Entry<SearchContextId, Transport.Connection> entry : targets.entrySet()) {
+                perConnections.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
             }
             final ThreadContext threadContext = threadPool.getThreadContext();
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -517,37 +517,16 @@ public class SearchTransportService {
         }
 
         void addTarget(SearchContextId contextId, Transport.Connection connection) {
-            targets.put(new SearchContextIdKey(contextId), connection);
+            targets.put(contextId, connection);
         }
 
         void removeTarget(SearchContextId contextId) {
-            targets.remove(new SearchContextIdKey(contextId));
+            targets.remove(contextId);
         }
 
         @Override
         protected String getThreadPool() {
             return ThreadPool.Names.SAME;
-        }
-
-        private static class SearchContextIdKey {
-            final SearchContextId id;
-
-            SearchContextIdKey(SearchContextId id) {
-                this.id = id;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                SearchContextIdKey that = (SearchContextIdKey) o;
-                return this.id == that.id;
-            }
-
-            @Override
-            public int hashCode() {
-                return System.identityHashCode(id);
-            }
         }
     }
 

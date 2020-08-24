@@ -21,7 +21,7 @@ and its backing indices.
 [[data-stream-prereqs]]
 === Prerequisites
 
-* {es} data streams are intended for time-series data only. Each document
+* {es} data streams are intended for time series data only. Each document
 indexed to a data stream must contain the `@timestamp` field. This field must be
 mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type.
 
@@ -106,6 +106,21 @@ template for a data stream must specify:
 
 * That the template is used exclusively for data streams.
 
+* A priority for the template.
+
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
+patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
+templates to create data streams. If you use {agent}, assign your index
+templates a priority lower than `100` to avoid an override of the built-in
+templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern, or assign your templates a `priority` higher or
+lower than `100`.
+====
+
 Every document indexed to a data stream must have a `@timestamp` field. This
 field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
 data type by the stream's index template. This mapping can include other
@@ -146,6 +161,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "index.lifecycle.name": "my-data-stream-policy"
@@ -163,6 +179,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {

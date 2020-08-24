@@ -190,6 +190,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             "ApiKey " + base64ApiKeyKeyValue).build());
         assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_SUPERUSER));
+        assertThat(authResponse.getAuthenticationType(), equalTo("api_key"));
 
         // use the first ApiKey for an unauthorized action
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->

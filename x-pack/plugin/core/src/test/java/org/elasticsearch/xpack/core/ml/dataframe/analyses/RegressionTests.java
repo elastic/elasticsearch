@@ -107,7 +107,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             instance.getRandomizeSeed(),
             instance.getLossFunction(),
             instance.getLossFunctionParameter(),
-            version.onOrAfter(Version.V_8_0_0) ? instance.getFeatureProcessors() : Collections.emptyList());
+            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList());
     }
 
     @Override

@@ -134,6 +134,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
 
     public static byte[] checksumToBytesArray(String checksum) throws IOException {
         final byte[] result = new byte[CodecUtil.footerLength()];
+        assert result.length >= Integer.BYTES + Integer.BYTES + Long.BYTES; // ensure that nobody changed the file format under us
         final ByteArrayDataOutput output = new ByteArrayDataOutput(result);
         // reverse CodecUtil.writeFooter()
         output.writeInt(CodecUtil.FOOTER_MAGIC);

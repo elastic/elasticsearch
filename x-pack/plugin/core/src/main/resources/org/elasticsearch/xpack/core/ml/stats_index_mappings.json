@@ -97,6 +97,9 @@
       "failure_count": {
         "type": "long"
       },
+      "cache_miss_count": {
+        "type": "long"
+      },
       "missing_all_fields_count": {
         "type": "long"
       },

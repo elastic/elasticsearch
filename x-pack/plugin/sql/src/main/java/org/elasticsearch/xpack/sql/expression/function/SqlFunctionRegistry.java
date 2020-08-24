@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevSamp;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.VarSamp;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTi
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
@@ -143,8 +146,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(StddevSamp.class, StddevSamp::new, "STDDEV_SAMP"),
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
-                def(VarPop.class, VarPop::new, "VAR_POP")
+                def(VarPop.class, VarPop::new, "VAR_POP"),
+                def(VarSamp.class, VarSamp::new, "VAR_SAMP")
                 },
         // histogram
             new FunctionDefinition[] {
@@ -172,7 +177,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateParse.class, DateParse::new, "DATE_PARSE"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),

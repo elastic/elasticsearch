@@ -451,6 +451,11 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return new Date(randomLongBetween(0, 3000000000000L));
     }
 
+    private static Instant randomInstant() {
+        // between 1970 and 2065
+        return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
+    }
+
     private static List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
@@ -521,7 +526,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant());
     }
 
     private static class ResultsBuilder {

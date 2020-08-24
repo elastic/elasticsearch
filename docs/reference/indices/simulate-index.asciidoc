@@ -1,0 +1,176 @@
+[[indices-simulate-index]]
+=== Simulate index API
+++++
+<titleabbrev>Simulate index</titleabbrev>
+++++
+
+experimental[]
+
+Returns the index configuration that would be applied to the specified index from an 
+existing <<indices-templates, index template>>.
+
+////
+[source,console]
+--------------------------------------------------
+PUT _index_template/template_1
+{
+  "index_patterns": ["my-index-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/*
+--------------------------------------------------
+// TEARDOWN
+////
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate_index/my-index-000001
+--------------------------------------------------
+
+[[simulate-index-api-request]]
+==== {api-request-title}
+
+`POST /_index_template/_simulate_index/<index>`
+
+
+[[simulate-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+Name of the index to simulate. 
+
+[[simulate-index-api-query-params]]
+==== {api-query-parms-title}
+////
+`cause`::
+(Optional, string) The reason for running the simulation. 
+////
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[role="child_attributes"]
+[[simulate-index-api-response-body]]
+==== {api-response-body-title}
+
+`overlapping`::
+(array) Any templates that also matched the index but were superseded by a higher-priority template.
+Response includes an empty array if there are no overlapping templates. 
++
+.Properties of `overlapping`
+[%collapsible%open]
+====
+`name`::
+(string) Name of the superseded template.
+
+`index_patterns`:: 
+(array) Index patterns that the superseded template applies to.
+====
+
+`template`::
+(object)
+The settings, mappings, and aliases that would be applied to the index. 
++
+.Properties of `template`
+[%collapsible%open]
+====
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
++
+Response includes an empty object if no aliases would be applied. 
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
++
+Omitted from the response if no mappings would be applied.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
++
+Response includes an empty object if no settings would be applied. 
+====
+
+[[simulate-index-api-example]]
+==== {api-examples-title}
+
+The following example shows the configuration that would be applied to `my-index-000001` by 
+an existing template.
+
+[source,console]
+--------------------------------------------------
+PUT /_component_template/ct1                    <1>
+{
+  "template": {
+    "settings": {
+      "index.number_of_shards": 2
+    }
+  }
+}
+
+PUT /_component_template/ct2                    <2>
+{
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/final-template             <3>
+{
+  "index_patterns": ["my-index-*"],
+  "composed_of": ["ct1", "ct2"],
+  "priority": 5
+}
+
+POST /_index_template/_simulate_index/my-index-000001 <4>
+--------------------------------------------------
+<1> Create a component template (`ct1`) that sets the number of shards to 2
+<2> Create a second component template (`ct2`) that sets the number of replicas to 0 and defines a mapping
+<3> Create an index template (`final-template`) that uses the component templates
+<4> Show the configuration that would be applied to `my-index-000001`
+
+The response shows the index settings, mappings, and aliases applied by the `final-template`:
+
+[source,console-result]
+---------------------------------------------------------
+{
+  "template" : {
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "2",
+        "number_of_replicas" : "0"
+      }
+    },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        }
+      }
+    },
+    "aliases" : { }
+  },
+  "overlapping" : [
+    {
+      "name" : "template_1",
+      "index_patterns" : [
+        "my-index-*"
+      ]
+    }
+  ]
+}
+---------------------------------------------------------

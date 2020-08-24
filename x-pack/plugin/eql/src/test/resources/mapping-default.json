@@ -56,7 +56,7 @@
             "type" : "text",
             "fields" : {
                 "keyword" : {
-                    "type" : "keyword",
+                    "type" : "wildcard",
                     "ignore_above" : 256
                 }
             }

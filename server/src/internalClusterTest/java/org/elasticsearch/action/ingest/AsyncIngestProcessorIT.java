@@ -112,8 +112,8 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Map.of(
-                "test-async", (factories, tag, config) -> {
-                    return new AbstractProcessor(tag) {
+                "test-async", (factories, tag, description, config) -> {
+                    return new AbstractProcessor(tag, description) {
 
                         @Override
                         public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
@@ -142,8 +142,8 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
                         }
                     };
                 },
-                "test", (processorFactories, tag, config) -> {
-                    return new AbstractProcessor(tag) {
+                "test", (processorFactories, tag, description, config) -> {
+                    return new AbstractProcessor(tag, description) {
                         @Override
                         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
                             String id = (String) ingestDocument.getSourceAndMetadata().get("_id");

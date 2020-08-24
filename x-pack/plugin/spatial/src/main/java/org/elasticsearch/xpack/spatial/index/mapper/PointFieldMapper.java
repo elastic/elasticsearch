@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
@@ -29,41 +31,27 @@ import java.util.Map;
  *
  * Uses lucene 8 XYPoint encoding
  */
-public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>> {
+public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
         public Builder(String name) {
-            super(name, new PointFieldType(), new PointFieldType());
+            super(name, new FieldType());
             builder = this;
         }
 
         @Override
-        public PointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                      MappedFieldType defaultFieldType, Settings indexSettings,
+        public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                      Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-            setupFieldType(context);
-            return new PointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, ignoreZValue(context), copyTo);
+                                      Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
+            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            ft.setGeometryParser(new PointParser<>());
+            ft.setGeometryIndexer(new PointIndexer(ft));
+            ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
+            return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
+                ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
         }
 
-        @Override
-        protected void setGeometryParser() {
-            PointParser<ParsedCartesianPoint> pointParser = new PointParser<>();
-            fieldType().setGeometryParser((parser, mapper) -> pointParser.parse(parser, mapper));
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected void setGeometryIndexer(PointFieldType fieldType) {
-            fieldType.setGeometryIndexer(new PointIndexer(fieldType));
-        }
-
-        @Override
-        protected void setGeometryQueryBuilder(PointFieldType fieldType) {
-            fieldType.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
-        }
     }
 
     @Override
@@ -71,21 +59,21 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         return new ParsedCartesianPoint();
     }
 
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<CartesianPoint, Builder> {
+    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
             return new PointFieldMapper.Builder(name);
         }
 
         @Override
-        protected CartesianPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        protected ParsedPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
             ParsedCartesianPoint point = new ParsedCartesianPoint();
             CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
-                if (Float.isFinite(point.getX()) == false) {
+                if (Double.isFinite(point.getX()) == false) {
                     throw new IllegalArgumentException("illegal x value [" + point.getX() + "]");
                 }
-                if (Float.isFinite(point.getY()) == false) {
+                if (Double.isFinite(point.getY()) == false) {
                     throw new IllegalArgumentException("illegal y value [" + point.getY() + "]");
                 }
             }
@@ -102,14 +90,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         CartesianPoint.parsePoint(parser, (CartesianPoint)point, ignoreZValue().value());
     }
 
-    public PointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                            Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                            Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, ignoreMalformed, ignoreZValue, copyTo);
+    public PointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                            MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void addStoredFields(ParseContext context, List<? extends CartesianPoint> points) {
         for (CartesianPoint point : points) {
             context.doc().add(new StoredField(fieldType().name(), point.toString()));
@@ -117,11 +104,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void addDocValuesFields(String name, List<? extends CartesianPoint> points, List<IndexableField> fields,
                                       ParseContext context) {
         for (CartesianPoint point : points) {
-            context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
+            context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }
     }
 
@@ -137,36 +123,29 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
 
     @Override
     public PointFieldType fieldType() {
-        return (PointFieldType)fieldType;
+        return (PointFieldType) mappedFieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<ParsedCartesianPoint>> {
-        public PointFieldType() {
-            super();
-        }
-
-         PointFieldType(PointFieldType ref) {
-            super(ref);
+    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
+        public PointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        public MappedFieldType clone() {
-            return new PointFieldType(this);
-        }
     }
 
-    protected static class ParsedCartesianPoint extends CartesianPoint implements ParsedPoint {
+    // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
+    // See https://bugs.eclipse.org/bugs/show_bug.cgi?id=565255
+    protected static class ParsedCartesianPoint extends CartesianPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
         @Override
         public void validate(String fieldName) {
-            if (Float.isFinite(getX()) == false) {
+            if (Double.isFinite(getX()) == false) {
                 throw new IllegalArgumentException("illegal x value [" + getX() + "] for " + fieldName);
             }
-            if (Float.isFinite(getY()) == false) {
+            if (Double.isFinite(getY()) == false) {
                 throw new IllegalArgumentException("illegal y value [" + getY() + "] for " + fieldName);
             }
         }
@@ -183,7 +162,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
 
         @Override
         public void resetCoords(double x, double y) {
-            this.reset((float)x, (float)y);
+            this.reset(x, y);
+        }
+
+        @Override
+        public Point asGeometry() {
+            return new Point(getX(), getY());
         }
 
         @Override
@@ -213,7 +197,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         }
     }
 
-    protected static class PointIndexer implements Indexer<List<ParsedCartesianPoint>, List<ParsedCartesianPoint>> {
+    protected static class PointIndexer implements Indexer<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
         protected final PointFieldType fieldType;
 
         PointIndexer(PointFieldType fieldType) {
@@ -221,7 +205,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         }
 
         @Override
-        public List<ParsedCartesianPoint> prepareForIndexing(List<ParsedCartesianPoint> points) {
+        public List<? extends CartesianPoint> prepareForIndexing(List<ParsedCartesianPoint> points) {
             if (points == null || points.isEmpty()) {
                 return Collections.emptyList();
             }
@@ -230,15 +214,15 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
 
         @Override
         @SuppressWarnings("unchecked")
-        public Class<List<ParsedCartesianPoint>> processedClass() {
-            return (Class<List<ParsedCartesianPoint>>)(Object)List.class;
+        public Class<List<? extends CartesianPoint>> processedClass() {
+            return (Class<List<? extends CartesianPoint>>)(Object)List.class;
         }
 
         @Override
-        public List<IndexableField> indexShape(ParseContext context, List<ParsedCartesianPoint> points) {
+        public List<IndexableField> indexShape(ParseContext context, List<? extends CartesianPoint> points) {
             ArrayList<IndexableField> fields = new ArrayList<>(1);
-            for (ParsedCartesianPoint point : points) {
-                fields.add(new XYPointField(fieldType.name(), point.getX(), point.getY()));
+            for (CartesianPoint point : points) {
+                fields.add(new XYPointField(fieldType.name(), (float) point.getX(), (float) point.getY()));
             }
             return fields;
         }

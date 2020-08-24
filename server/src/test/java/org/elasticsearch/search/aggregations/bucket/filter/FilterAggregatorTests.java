@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -52,10 +51,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUpTest() throws Exception {
         super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("field");
+        fieldType = new KeywordFieldMapper.KeywordFieldType("field");
     }
 
     public void testEmpty() throws Exception {
@@ -66,7 +62,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
+        InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
@@ -84,11 +80,11 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (frequently()) {
                 // make sure we have more than one segment to test the merge
-                indexWriter.getReader().close();
+                indexWriter.commit();
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), fieldType));
+            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }
@@ -102,20 +98,12 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            for (boolean doReduce : new boolean[]{true, false}) {
-                final InternalFilter response;
-                if (doReduce) {
-                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
-                        fieldType);
-                } else {
-                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-                }
-                assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
-                if (expectedBucketCount[value] > 0) {
-                    assertTrue(AggregationInspectionHelper.hasValue(response));
-                } else {
-                    assertFalse(AggregationInspectionHelper.hasValue(response));
-                }
+            final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+            if (expectedBucketCount[value] > 0) {
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            } else {
+                assertFalse(AggregationInspectionHelper.hasValue(response));
             }
         } finally {
             indexReader.close();
@@ -126,7 +114,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     public void testBucketComparator() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexWriter.addDocument(singleton(new Field("field", "1", fieldType)));
+                indexWriter.addDocument(singleton(new Field("field", "1", KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);

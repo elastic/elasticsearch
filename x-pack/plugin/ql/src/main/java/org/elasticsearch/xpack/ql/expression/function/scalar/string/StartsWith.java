@@ -33,12 +33,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class StartsWith extends CaseSensitiveScalarFunction {
 
-    private final Expression field;
+    private final Expression input;
     private final Expression pattern;
 
-    public StartsWith(Source source, Expression field, Expression pattern, Configuration configuration) {
-        super(source, Arrays.asList(field, pattern), configuration);
-        this.field = field;
+    public StartsWith(Source source, Expression input, Expression pattern, Configuration configuration) {
+        super(source, Arrays.asList(input, pattern), configuration);
+        this.input = input;
         this.pattern = pattern;
     }
 
@@ -48,7 +48,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution fieldResolution = isStringAndExact(field, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution fieldResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (fieldResolution.unresolved()) {
             return fieldResolution;
         }
@@ -56,8 +56,8 @@ public class StartsWith extends CaseSensitiveScalarFunction {
         return isStringAndExact(pattern, sourceText(), ParamOrdinal.SECOND);
     }
 
-    public Expression field() {
-        return field;
+    public Expression input() {
+        return input;
     }
 
     public Expression pattern() {
@@ -71,27 +71,27 @@ public class StartsWith extends CaseSensitiveScalarFunction {
 
     @Override
     public Pipe makePipe() {
-        return new StartsWithFunctionPipe(source(), this, Expressions.pipe(field), Expressions.pipe(pattern), isCaseSensitive());
+        return new StartsWithFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern), isCaseSensitive());
     }
 
     @Override
     public boolean foldable() {
-        return field.foldable() && pattern.foldable();
+        return input.foldable() && pattern.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(field.fold(), pattern.fold(), isCaseSensitive());
+        return doProcess(input.fold(), pattern.fold(), isCaseSensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StartsWith::new, field, pattern, configuration());
+        return NodeInfo.create(this, StartsWith::new, input, pattern, configuration());
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate fieldScript = asScript(field);
+        ScriptTemplate fieldScript = asScript(input);
         ScriptTemplate patternScript = asScript(pattern);
 
         return asScriptFrom(fieldScript, patternScript);

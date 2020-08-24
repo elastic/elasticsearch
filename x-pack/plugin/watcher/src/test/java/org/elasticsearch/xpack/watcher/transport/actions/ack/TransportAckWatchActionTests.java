@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +63,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            new ClockHolder(Clock.systemUTC()), new XPackLicenseState(Settings.EMPTY),
+            new ClockHolder(Clock.systemUTC()), TestUtils.newTestLicenseState(),
             watchParser, client, createClusterService(threadPool));
     }
 

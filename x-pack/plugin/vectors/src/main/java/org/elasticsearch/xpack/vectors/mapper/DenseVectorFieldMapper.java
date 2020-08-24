@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -22,7 +23,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -46,12 +51,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final byte INT_BYTES = 4;
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new DenseVectorFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
@@ -61,35 +65,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private int dims = 0;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         public Builder dims(int dims) {
             if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
                 throw new MapperParsingException("The number of dimensions for field [" + name +
-                    "] should be in the range [1, " + MAX_DIMS_COUNT + "]");
+                    "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
             }
             this.dims = dims;
             return this;
         }
 
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            fieldType().setDims(dims);
-        }
-
-        @Override
-        public DenseVectorFieldType fieldType() {
-            return (DenseVectorFieldType) super.fieldType();
-        }
-
-        @Override
         public DenseVectorFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new DenseVectorFieldMapper(
-                    name, fieldType, defaultFieldType,
+                    name, fieldType, new DenseVectorFieldType(buildFullName(context), dims, meta),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -108,24 +100,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static final class DenseVectorFieldType extends MappedFieldType {
-        private int dims;
+        private final int dims;
 
-        public DenseVectorFieldType() {}
-
-        protected DenseVectorFieldType(DenseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public DenseVectorFieldType clone() {
-            return new DenseVectorFieldType(this);
+        public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
+            super(name, false, false, TextSearchInfo.NONE, meta);
+            this.dims = dims;
         }
 
         int dims() {
             return dims;
-        }
-
-        void setDims(int dims) {
-            this.dims = dims;
         }
 
         @Override
@@ -146,7 +129,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -156,10 +139,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    private final Version indexCreatedVersion;
+
+    private DenseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
+        this.indexCreatedVersion = Version.indexCreated(indexSettings);
     }
 
     @Override
@@ -220,6 +206,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

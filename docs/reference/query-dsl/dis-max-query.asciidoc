@@ -18,16 +18,16 @@ a tie breaking increment for any additional matching subqueries.
 ----
 GET /_search
 {
-    "query": {
-        "dis_max" : {
-            "queries" : [
-                { "term" : { "title" : "Quick pets" }},
-                { "term" : { "body" : "Quick pets" }}
-            ],
-            "tie_breaker" : 0.7
-        }
+  "query": {
+    "dis_max": {
+      "queries": [
+        { "term": { "title": "Quick pets" } },
+        { "term": { "body": "Quick pets" } }
+      ],
+      "tie_breaker": 0.7
     }
-}    
+  }
+}
 ----
 
 [[query-dsl-dis-max-query-top-level-params]]

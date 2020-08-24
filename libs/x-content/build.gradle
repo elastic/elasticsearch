@@ -21,13 +21,13 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
-  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  api "org.yaml:snakeyaml:${versions.snakeyaml}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
@@ -51,7 +51,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.fasterxml.jackson.databind.cfg.MapperBuilder'
 )
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 

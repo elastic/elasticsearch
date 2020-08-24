@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.rollup;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -41,7 +39,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +53,6 @@ import java.util.stream.Collectors;
  *
  */
 public class RollupResponseTranslator {
-
-    private static final Logger logger = LogManager.getLogger(RollupResponseTranslator.class);
 
     /**
      * Verifies a live-only search response.  Essentially just checks for failure then returns
@@ -272,7 +267,7 @@ public class RollupResponseTranslator {
         // The combination process returns a tree that is identical to the non-rolled
         // which means we can use aggregation's reduce method to combine, just as if
         // it was a result from another shard
-        InternalAggregations currentTree = new InternalAggregations(Collections.emptyList());
+        InternalAggregations currentTree = InternalAggregations.EMPTY;
         InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
                 reduceContext.bigArrays(), reduceContext.scriptService(), b -> {}, PipelineTree.EMPTY);
         for (SearchResponse rolledResponse : rolledResponses) {
@@ -291,7 +286,7 @@ public class RollupResponseTranslator {
 
             // Iteratively merge in each new set of unrolled aggs, so that we can identify/fix overlapping doc_counts
             // in the next round of unrolling
-            InternalAggregations finalUnrolledAggs = new InternalAggregations(unrolledAggs);
+            InternalAggregations finalUnrolledAggs = InternalAggregations.from(unrolledAggs);
             currentTree = InternalAggregations.reduce(Arrays.asList(currentTree, finalUnrolledAggs), finalReduceContext);
         }
 
@@ -505,7 +500,7 @@ public class RollupResponseTranslator {
      */
     private static InternalAggregations unrollSubAggsFromMulti(InternalBucket bucket, InternalBucket original, InternalBucket currentTree) {
         // Iterate over the subAggs in each bucket
-        return new InternalAggregations(bucket.getAggregations()
+        return InternalAggregations.from(bucket.getAggregations()
                 .asList().stream()
                 // Avoid any rollup count metrics, as that's not a true "sub-agg" but rather agg
                 // added by the rollup for accounting purposes (e.g. doc_count)

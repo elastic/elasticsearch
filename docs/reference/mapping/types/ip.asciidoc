@@ -1,15 +1,15 @@
 [[ip]]
-=== IP datatype
+=== IP data type
 ++++
 <titleabbrev>IP</titleabbrev>
 ++++
 
-An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
-https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
+An `ip` field can index/store either {wikipedia}/IPv4[IPv4] or
+{wikipedia}/IPv6[IPv6] addresses.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -20,12 +20,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "ip_addr": "192.168.1.1"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -36,7 +36,7 @@ GET my_index/_search
 --------------------------------------------------
 // TESTSETUP
 
-NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
+NOTE: You can also store ip ranges in a single field using an <<range,ip_range data type>>.
 
 [[ip-params]]
 ==== Parameters for `ip` fields
@@ -51,13 +51,18 @@ The following parameters are accepted by `ip` fields:
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
 
+<<ignore-malformed,`ignore_malformed`>>::
+
+    If `true`, malformed IP addresses are ignored. If `false` (default), malformed
+    IP addresses throw an exception and reject the whole document.
+
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
-    Accepts an IPv4 value which is substituted for any explicit `null` values.
+    Accepts an IPv4 or IPv6 value which is substituted for any explicit `null` values.
     Defaults to `null`, which means the field is treated as missing.
 
 <<mapping-store,`store`>>::
@@ -70,12 +75,12 @@ The following parameters are accepted by `ip` fields:
 ==== Querying `ip` fields
 
 The most common way to query ip addresses is to use the
-https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
+{wikipedia}/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 notation: `[ip_address]/[prefix_length]`. For instance:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -89,7 +94,7 @@ or
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -106,7 +111,7 @@ searched value:
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "query_string" : {

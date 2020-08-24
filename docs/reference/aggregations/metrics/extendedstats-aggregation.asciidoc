@@ -11,10 +11,10 @@ Assuming the data consists of documents representing exams grades (between 0 and
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : { "extended_stats" : { "field" : "grade" } }
-    }
+  "size": 0,
+  "aggs": {
+    "grades_stats": { "extended_stats": { "field": "grade" } }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -26,32 +26,32 @@ The `std_deviation` and `variance` are calculated as population metrics so they 
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "grades_stats": {
-           "count": 2,
-           "min": 50.0,
-           "max": 100.0,
-           "avg": 75.0,
-           "sum": 150.0,
-           "sum_of_squares": 12500.0,
-           "variance": 625.0,
-           "variance_population": 625.0,
-           "variance_sampling": 1250.0,
-           "std_deviation": 25.0,
-           "std_deviation_population": 25.0,
-           "std_deviation_sampling": 35.35533905932738,
-           "std_deviation_bounds": {
-            "upper": 125.0,
-            "lower": 25.0,
-            "upper_population" : 125.0,
-            "lower_population" : 25.0,
-            "upper_sampling" : 145.71067811865476,
-            "lower_sampling" : 4.289321881345245
-           }
-        }
+  "aggregations": {
+    "grades_stats": {
+      "count": 2,
+      "min": 50.0,
+      "max": 100.0,
+      "avg": 75.0,
+      "sum": 150.0,
+      "sum_of_squares": 12500.0,
+      "variance": 625.0,
+      "variance_population": 625.0,
+      "variance_sampling": 1250.0,
+      "std_deviation": 25.0,
+      "std_deviation_population": 25.0,
+      "std_deviation_sampling": 35.35533905932738,
+      "std_deviation_bounds": {
+        "upper": 125.0,
+        "lower": 25.0,
+        "upper_population": 125.0,
+        "lower_population": 25.0,
+        "upper_sampling": 145.71067811865476,
+        "lower_sampling": 4.289321881345245
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -67,15 +67,15 @@ three standard deviations, you can set `sigma` in the request:
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : {
-            "extended_stats" : {
-                "field" : "grade",
-                "sigma" : 3 <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "grades_stats": {
+      "extended_stats": {
+        "field": "grade",
+        "sigma": 3          <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -103,17 +103,17 @@ Computing the grades stats based on a script:
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : {
-            "extended_stats" : {
-                "script" : {
-                    "source" : "doc['grade'].value",
-                    "lang" : "painless"
-                 }
-             }
-         }
+  "size": 0,
+  "aggs": {
+    "grades_stats": {
+      "extended_stats": {
+        "script": {
+          "source": "doc['grade'].value",
+          "lang": "painless"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -124,19 +124,19 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : {
-            "extended_stats" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "grade"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "grades_stats": {
+      "extended_stats": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "grade"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams,stored_example_script]
@@ -149,21 +149,21 @@ It turned out that the exam was way above the level of the students and a grade 
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : {
-            "extended_stats" : {
-                "field" : "grade",
-                "script" : {
-                    "lang" : "painless",
-                    "source": "_value * params.correction",
-                    "params" : {
-                        "correction" : 1.2
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "grades_stats": {
+      "extended_stats": {
+        "field": "grade",
+        "script": {
+          "lang": "painless",
+          "source": "_value * params.correction",
+          "params": {
+            "correction": 1.2
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -178,15 +178,15 @@ had a value.
 --------------------------------------------------
 GET /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grades_stats" : {
-            "extended_stats" : {
-                "field" : "grade",
-                "missing": 0 <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "grades_stats": {
+      "extended_stats": {
+        "field": "grade",
+        "missing": 0        <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]

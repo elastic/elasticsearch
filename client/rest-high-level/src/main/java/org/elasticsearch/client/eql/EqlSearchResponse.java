@@ -23,7 +23,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
@@ -32,43 +35,56 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class EqlSearchResponse {
 
     private final Hits hits;
     private final long tookInMillis;
     private final boolean isTimeout;
+    private final String asyncExecutionId;
+    private final boolean isRunning;
+    private final boolean isPartial;
 
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
         static final String HITS = "hits";
+        static final String ID = "id";
+        static final String IS_RUNNING = "is_running";
+        static final String IS_PARTIAL = "is_partial";
     }
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
     private static final ParseField HITS = new ParseField(Fields.HITS);
+    private static final ParseField ID = new ParseField(Fields.ID);
+    private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
+    private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
 
-    private static final ConstructingObjectParser<EqlSearchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("eql/search_response", true,
-            args -> {
-                int i = 0;
-                Hits hits = (Hits) args[i++];
-                Long took = (Long) args[i++];
-                Boolean timeout = (Boolean) args[i];
-                return new EqlSearchResponse(hits, took, timeout);
-            });
-
+    private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOOK);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), TIMED_OUT);
+        InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser =
+            InstantiatingObjectParser.builder("eql/search_response", true, EqlSearchResponse.class);
+        parser.declareObject(constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
+        parser.declareLong(constructorArg(), TOOK);
+        parser.declareBoolean(constructorArg(), TIMED_OUT);
+        parser.declareString(optionalConstructorArg(), ID);
+        parser.declareBoolean(constructorArg(), IS_RUNNING);
+        parser.declareBoolean(constructorArg(), IS_PARTIAL);
+        PARSER = parser.build();
     }
 
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout) {
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, String asyncExecutionId,
+                             boolean isRunning, boolean isPartial) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
         this.tookInMillis = tookInMillis;
         this.isTimeout = isTimeout;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isRunning = isRunning;
+        this.isPartial = isPartial;
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -85,6 +101,18 @@ public class EqlSearchResponse {
 
     public Hits hits() {
         return hits;
+    }
+
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public boolean isPartial() {
+        return isPartial;
     }
 
     @Override
@@ -120,20 +148,21 @@ public class EqlSearchResponse {
             new ConstructingObjectParser<>("eql/search_response_sequence", true,
                 args -> {
                     int i = 0;
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     @SuppressWarnings("unchecked") List<SearchHit> events = (List<SearchHit>) args[i];
                     return new EqlSearchResponse.Sequence(joinKeys, events);
                 });
 
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOIN_KEYS);
+            PARSER.declareFieldArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                JOIN_KEYS, ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p), EVENTS);
         }
 
-        private final List<String> joinKeys;
+        private final List<Object> joinKeys;
         private final List<SearchHit> events;
 
-        public Sequence(List<String> joinKeys, List<SearchHit> events) {
+        public Sequence(List<Object> joinKeys, List<SearchHit> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
@@ -160,7 +189,7 @@ public class EqlSearchResponse {
             return Objects.hash(joinKeys, events);
         }
 
-        public List<String> joinKeys() {
+        public List<Object> joinKeys() {
             return joinKeys;
         }
 
@@ -178,7 +207,7 @@ public class EqlSearchResponse {
         }
 
         private final int count;
-        private final List<String> keys;
+        private final List<Object> keys;
         private final float percent;
 
         private static final ParseField COUNT = new ParseField(Fields.COUNT);
@@ -190,18 +219,19 @@ public class EqlSearchResponse {
                 args -> {
                     int i = 0;
                     int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     float percent = (float) args[i];
                     return new EqlSearchResponse.Count(count, joinKeys, percent);
                 });
 
         static {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), COUNT);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), KEYS);
+            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
+                ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), PERCENT);
         }
 
-        public Count(int count, List<String> keys, float percent) {
+        public Count(int count, List<Object> keys, float percent) {
             this.count = count;
             this.keys = keys == null ? Collections.emptyList() : keys;
             this.percent = percent;
@@ -234,7 +264,7 @@ public class EqlSearchResponse {
             return count;
         }
 
-        public List<String> keys() {
+        public List<Object> keys() {
             return keys;
         }
 

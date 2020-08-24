@@ -20,13 +20,13 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -34,7 +34,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,7 +42,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -68,12 +71,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "join";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new JoinFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
@@ -91,7 +93,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
         DocumentMapper mapper = service.documentMapper();
         String joinField = fieldType.getJoinField();
-        DocumentFieldMappers fieldMappers = mapper.mappers();
+        MappingLookup fieldMappers = mapper.mappers();
         return (ParentJoinFieldMapper) fieldMappers.getMapper(joinField);
     }
 
@@ -133,13 +135,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals = true;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
-        }
-
-        @Override
-        public JoinFieldType fieldType() {
-            return (JoinFieldType) super.fieldType();
         }
 
         public Builder addParent(String parent, Set<String> children) {
@@ -156,7 +153,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public ParentJoinFieldMapper build(BuilderContext context) {
             checkObjectOrNested(context.path(), name);
-            fieldType.setName(name);
             final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
             parentIdFieldBuilders.stream()
                 .map((parentBuilder) -> {
@@ -168,7 +164,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
-            return new ParentJoinFieldMapper(name, fieldType, context.indexSettings(),
+            return new ParentJoinFieldMapper(name, fieldType, new JoinFieldType(buildFullName(context), meta),
                 unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
         }
     }
@@ -211,17 +207,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     public static final class JoinFieldType extends StringFieldType {
-        public JoinFieldType() {
+        public JoinFieldType(String name, Map<String, String> meta) {
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected JoinFieldType(JoinFieldType ref) {
-            super(ref);
-        }
-
-        public JoinFieldType clone() {
-            return new JoinFieldType(this);
         }
 
         @Override
@@ -232,7 +220,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -256,12 +244,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     private boolean eagerGlobalOrdinals;
 
     protected ParentJoinFieldMapper(String simpleName,
-                                    MappedFieldType fieldType,
-                                    Settings indexSettings,
+                                    FieldType fieldType,
+                                    MappedFieldType mappedFieldType,
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
@@ -362,6 +350,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
@@ -420,7 +421,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType());
+        Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();

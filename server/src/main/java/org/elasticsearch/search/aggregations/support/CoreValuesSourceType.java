@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
@@ -255,7 +254,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
-            if (fieldContext.fieldType().indexOptions() == IndexOptions.NONE
+            if (fieldContext.fieldType().isSearchable() == false
                     || fieldContext.fieldType() instanceof DateFieldType == false) {
                 /*
                  * We can't implement roundingPreparer in these cases because

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
@@ -1057,7 +1058,7 @@ public final class OptimizerRules {
                     return filter.child();
                 }
                 if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    return nonMatchingFilter(filter);
+                    return skipPlan(filter);
                 }
             }
 
@@ -1067,7 +1068,7 @@ public final class OptimizerRules {
             return filter;
         }
 
-        protected abstract LogicalPlan nonMatchingFilter(Filter filter);
+        protected abstract LogicalPlan skipPlan(Filter filter);
 
         private static Expression foldBinaryLogic(Expression expression) {
             if (expression instanceof Or) {
@@ -1120,6 +1121,21 @@ public final class OptimizerRules {
         }
     }
     
+
+    public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            if (limit.limit().foldable()) {
+                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
+                    return skipPlan(limit);
+                }
+            }
+            return limit;
+        }
+
+        protected abstract LogicalPlan skipPlan(Limit limit);
+    }
+
     public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

@@ -20,11 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -37,8 +36,7 @@ import java.util.Map;
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (MissingAggregatorSupplier) MissingAggregator::new);
+        builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -51,22 +49,16 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config, MissingAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-
-        return ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent, metadata);
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, factories, config, searchContext, parent, cardinality, metadata);
     }
-
 }

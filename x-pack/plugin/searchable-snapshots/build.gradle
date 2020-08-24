@@ -1,7 +1,4 @@
 import org.elasticsearch.gradle.info.BuildParams
-
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'searchable-snapshots'
@@ -35,7 +32,7 @@ configurations {
   testArtifacts.extendsFrom testImplementation
 }
 
-task testJar(type: Jar) {
+def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
 }

@@ -903,7 +903,7 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
-"Test get stats on newly created congig":
+"Test get stats on newly created config":
 
   - do:
       ml.put_data_frame_analytics:
@@ -931,6 +931,21 @@ setup:
   - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
   - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
   - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+        verbose: true
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
 
 ---
 "Test delete given stopped config":
@@ -2098,4 +2113,58 @@ setup:
             "analyzed_fields": {
               "includes": ["excluded"]
             }
+          }
+
+---
+"Test update given all updatable settings":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "update-test-job"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "description": "before update",
+            "model_memory_limit": "20mb",
+            "allow_lazy_start": false,
+            "max_num_threads": 1
+          }
+  - match: { id: "update-test-job" }
+  - match: { description: "before update" }
+  - match: { model_memory_limit: "20mb" }
+  - match: { allow_lazy_start: false }
+  - match: { max_num_threads: 1 }
+
+  - do:
+      ml.update_data_frame_analytics:
+        id: "update-test-job"
+        body: >
+          {
+            "description": "after update",
+            "model_memory_limit": "30mb",
+            "allow_lazy_start": true,
+            "max_num_threads": 2
+          }
+  - match: { id: "update-test-job" }
+  - match: { description: "after update" }
+  - match: { model_memory_limit: "30mb" }
+  - match: { allow_lazy_start: true }
+  - match: { max_num_threads: 2 }
+
+---
+"Test update given missing analytics":
+
+  - do:
+      catch: missing
+      ml.update_data_frame_analytics:
+        id: "missing-analytics"
+        body: >
+          {
+            "description": "blah"
           }

@@ -336,7 +336,7 @@ public class JsonLoggerTests extends ESTestCase {
 
 
     public void testDuplicateLogMessages() throws IOException {
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("test"));
+        final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("test");
 
         // For the same key and X-Opaque-ID deprecation should be once
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

@@ -24,15 +24,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
@@ -48,10 +45,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -65,7 +58,7 @@ import static org.hamcrest.Matchers.is;
  * Tests snapshot operations during disruptions.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SnapshotDisruptionIT extends ESIntegTestCase {
+public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -81,27 +74,17 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
     public void testDisruptionAfterFinalization() throws Exception {
         final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
 
         createRandomIndex(idxName);
 
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository("test-repo", "fs");
 
         final String masterNode1 = internalCluster().getMasterName();
-        Set<String> otherNodes = new HashSet<>(allMasterEligibleNodes);
-        otherNodes.remove(masterNode1);
-        otherNodes.add(dataNode);
 
-        NetworkDisruption networkDisruption =
-            new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode1), otherNodes),
-                new NetworkDisruption.NetworkUnresponsive());
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
 
         ClusterService clusterService = internalCluster().clusterService(masterNode1);
@@ -137,7 +120,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        assertAllSnapshotsCompleted();
+        awaitNoMoreRunningOperations(dataNode);
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
@@ -165,37 +148,32 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 
-        assertAllSnapshotsCompleted();
+        awaitNoMoreRunningOperations(dataNode);
     }
 
     public void testDisruptionAfterShardFinalization() throws Exception {
         final String idxName = "test";
         internalCluster().startMasterOnlyNodes(1);
-        final String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
         createIndex(idxName);
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         final String repoName = "test-repo";
-
-        logger.info("--> creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("mock")
-                .setSettings(Settings.builder().put("location", randomRepoPath())));
+        createRepository(repoName, "mock");
 
         final String masterNode = internalCluster().getMasterName();
 
-        AbstractSnapshotIntegTestCase.blockAllDataNodes(repoName);
+        blockAllDataNodes(repoName);
 
         final String snapshot = "test-snap";
         logger.info("--> starting snapshot");
         ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin().cluster()
                 .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute();
 
-        AbstractSnapshotIntegTestCase.waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
+        waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode), Collections.singleton(dataNode)),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -205,7 +183,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> stopping disrupting");
         networkDisruption.stopDisrupting();
-        AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
+        unblockAllDataNodes(repoName);
 
         ensureStableCluster(2, masterNode);
         logger.info("--> done");
@@ -216,11 +194,11 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
-        AbstractSnapshotIntegTestCase.blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture =
                 client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
-        AbstractSnapshotIntegTestCase.waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
-        AbstractSnapshotIntegTestCase.unblockNode(repoName, masterNode);
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
+        unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
         logger.info("--> create a snapshot expected to be successful");
@@ -228,24 +206,43 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).get();
         final SnapshotInfo successfulSnapshotInfo = successfulSnapshot.getSnapshotInfo();
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        logger.info("--> making sure snapshot delete works out cleanly");
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2").get());
     }
 
-    private void assertAllSnapshotsCompleted() throws Exception {
-        logger.info("--> wait until the snapshot is done");
-        assertBusy(() -> {
-            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
-            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().isEmpty() == false) {
-                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                fail("Snapshot is still running");
-            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
-                fail("Snapshot deletion is still running");
-            } else {
-                logger.info("Snapshot is no longer in the cluster state");
-            }
-        }, 1L, TimeUnit.MINUTES);
+    public void testMasterFailOverDuringShardSnapshots() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(4);
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final String indexName = "index-one";
+        createIndex(indexName);
+        client().prepareIndex(indexName).setSource("foo", "bar").get();
+
+        blockDataNode(repoName, dataNode);
+
+        logger.info("--> create snapshot via master node client");
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient().admin().cluster()
+                .prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).execute();
+
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+        unblockNode(repoName, dataNode);
+
+        networkDisruption.stopDisrupting();
+        awaitNoMoreRunningOperations(dataNode);
+
+        logger.info("--> make sure isolated master responds to snapshot request");
+        final SnapshotException sne =
+                expectThrows(SnapshotException.class, () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L)));
+        assertThat(sne.getMessage(), endsWith("no longer master"));
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {
@@ -259,8 +256,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
     }
 
     private void createRandomIndex(String idxName) throws InterruptedException {
-        assertAcked(prepareCreate(idxName, 0, Settings.builder().put("number_of_shards", between(1, 20))
-            .put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(idxName, 0, indexSettingsNoReplicas(between(1, 5))));
         logger.info("--> indexing some data");
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];

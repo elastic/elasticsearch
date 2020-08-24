@@ -32,6 +32,8 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -56,6 +58,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -63,6 +66,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -72,7 +76,6 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,6 +91,15 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             a.maxShingleSize(3);
             b.maxShingleSize(2);
         });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
+            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
+        });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("doc_values");
     }
 
     @Override
@@ -98,8 +110,9 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     @Override
     protected SearchAsYouTypeFieldMapper.Builder newBuilder() {
         return new SearchAsYouTypeFieldMapper.Builder("sayt")
-            .indexAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()))
-            .searchAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     public void testIndexing() throws IOException {
@@ -275,7 +288,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             fields.add(path);
             final MapperService mapperService =
                 createIndex(index, Settings.EMPTY, mapping).mapperService();
-            FieldType fieldType = mapperService.fieldType(path + "._index_prefix");
+            MappedFieldType fieldType = mapperService.fieldType(path + "._index_prefix");
             assertThat(fieldType, instanceOf(PrefixFieldType.class));
             PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
             assertEquals(path, prefixFieldType.parentField);
@@ -330,7 +343,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
         ).forEach(mapper -> assertThat("for " + mapper.name(),
-            mapper.fieldType().indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
+            mapper.fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
     }
 
     public void testStore() throws IOException {
@@ -351,12 +364,12 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        assertTrue(getRootFieldMapper(defaultMapper, "a_field").fieldType().stored());
+        assertTrue(getRootFieldMapper(defaultMapper, "a_field").fieldType.stored());
         Stream.of(
             getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
-        ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType().stored()));
+        ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType.stored()));
     }
 
     public void testIndex() throws IOException {
@@ -382,7 +395,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
-        ).forEach(mapper -> assertThat("for " + mapper.name(), mapper.fieldType().indexOptions(), equalTo(IndexOptions.NONE)));
+        ).forEach(mapper -> assertThat("for " + mapper.name(), mapper.fieldType.indexOptions(), equalTo(IndexOptions.NONE)));
     }
 
     public void testTermVectors() throws IOException {
@@ -407,10 +420,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             getRootFieldMapper(defaultMapper, "a_field"),
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
-        ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().storeTermVectors()));
+        ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType.storeTermVectors()));
 
         final PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "a_field._index_prefix");
-        assertFalse(prefixFieldMapper.fieldType().storeTermVectors());
+        assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
     }
 
     public void testNorms() throws IOException {
@@ -436,10 +449,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
                 getRootFieldMapper(defaultMapper, "a_field"),
                 getShingleFieldMapper(defaultMapper, "a_field._2gram"),
                 getShingleFieldMapper(defaultMapper, "a_field._3gram")
-            ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType().omitNorms()));
+            ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType.omitNorms()));
 
             final PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "a_field._index_prefix");
-            assertTrue(prefixFieldMapper.fieldType().omitNorms());
+            assertTrue(prefixFieldMapper.fieldType.omitNorms());
         }
 
         // can disable them on shingle fields
@@ -466,7 +479,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
                 getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
                 getShingleFieldMapper(defaultMapper, "a_field._2gram"),
                 getShingleFieldMapper(defaultMapper, "a_field._3gram")
-            ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().omitNorms()));
+            ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType.omitNorms()));
         }
     }
 
@@ -656,21 +669,6 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             assertThat(actual, equalTo(expected));
         }
 
-        // todo are these queries generated for the prefix field right?
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two")
-                .toQuery(queryShardContext);
-            final Query expected = new MatchNoDocsQuery("Matching no documents because no terms present");
-            assertThat(actual, equalTo(expected));
-        }
-
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three")
-                .toQuery(queryShardContext);
-            final Query expected = new TermQuery(new Term("a_field._index_prefix", "one two three"));
-            assertThat(actual, equalTo(expected));
-        }
-
         {
             expectThrows(IllegalArgumentException.class,
                 () -> new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three four").toQuery(queryShardContext));
@@ -759,28 +757,13 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
         final ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON));
 
-
-        final Set<Matcher<IndexableField>> rootFieldMatchers = values.stream()
-            .map(value -> indexableFieldMatcher(value, SearchAsYouTypeFieldType.class))
-            .collect(Collectors.toSet());
-        final Set<Matcher<IndexableField>> shingleFieldMatchers = values.stream()
-            .map(value -> indexableFieldMatcher(value, ShingleFieldType.class))
-            .collect(Collectors.toSet());
-        final Set<Matcher<IndexableField>> prefixFieldMatchers = values.stream()
-            .map(value -> indexableFieldMatcher(value, PrefixFieldType.class))
-            .collect(Collectors.toSet());
-
-        // the use of new ArrayList<>() here is to avoid the varargs form of arrayContainingInAnyOrder
-        assertThat(
-            parsedDocument.rootDoc().getFields("a_field"),
-            arrayContainingInAnyOrder(new ArrayList<>(rootFieldMatchers)));
-
-        assertThat(
-            parsedDocument.rootDoc().getFields("a_field._index_prefix"),
-            arrayContainingInAnyOrder(new ArrayList<>(prefixFieldMatchers)));
-
-        for (String name : asList("a_field._2gram", "a_field._3gram")) {
-            assertThat(parsedDocument.rootDoc().getFields(name), arrayContainingInAnyOrder(new ArrayList<>(shingleFieldMatchers)));
+        IndexableField[] rootFields = parsedDocument.rootDoc().getFields("a_field");
+        IndexableField[] prefixFields = parsedDocument.rootDoc().getFields("a_field._index_prefix");
+        IndexableField[] shingle2Fields = parsedDocument.rootDoc().getFields("a_field._2gram");
+        IndexableField[] shingle3Fields = parsedDocument.rootDoc().getFields("a_field._3gram");
+        for (IndexableField[] fields : new IndexableField[][]{ rootFields, prefixFields, shingle2Fields, shingle3Fields}) {
+            Set<String> expectedValues = Arrays.stream(fields).map(IndexableField::stringValue).collect(Collectors.toSet());
+            assertThat(values, equalTo(expectedValues));
         }
     }
 
@@ -819,7 +802,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize-1));
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
@@ -837,7 +820,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
 
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -851,12 +834,13 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     }
 
     private static void assertPrefixFieldType(PrefixFieldType fieldType, int shingleSize, String analyzerName) {
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
-        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
+            = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));
         }

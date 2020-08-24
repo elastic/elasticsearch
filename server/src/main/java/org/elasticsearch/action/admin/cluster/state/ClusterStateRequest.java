@@ -156,6 +156,11 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public ClusterStateRequest customs(boolean customs) {
         this.customs = customs;
         return this;

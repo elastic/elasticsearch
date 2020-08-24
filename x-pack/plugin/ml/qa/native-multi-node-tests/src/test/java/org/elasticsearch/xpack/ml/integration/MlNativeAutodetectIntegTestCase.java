@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -45,6 +47,8 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -70,7 +74,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -243,8 +249,9 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return response.getPage().results();
     }
 
-    protected RevertModelSnapshotAction.Response revertModelSnapshot(String jobId, String snapshotId) {
+    protected RevertModelSnapshotAction.Response revertModelSnapshot(String jobId, String snapshotId, boolean deleteInterveningResults) {
         RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId, snapshotId);
+        request.setDeleteInterveningResults(deleteInterveningResults);
         return client().execute(RevertModelSnapshotAction.INSTANCE, request).actionGet();
     }
 
@@ -293,6 +300,25 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        client().admin().indices().prepareRefresh(AnnotationIndex.INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .execute()
+            .actionGet();
+
+        SearchRequest searchRequest =
+            new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        List<Annotation> annotations = new ArrayList<>();
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                annotations.add(Annotation.fromXContent(parser, null));
+            }
+        }
+        assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {

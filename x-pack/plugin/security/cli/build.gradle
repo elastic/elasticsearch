@@ -8,8 +8,8 @@ archivesBaseName = 'elasticsearch-security-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
   testImplementation('com.google.jimfs:jimfs:1.1') {
     // this is provided by the runtime classpath, from the security project
     exclude group: 'com.google.guava', module: 'guava'
@@ -19,7 +19,7 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 

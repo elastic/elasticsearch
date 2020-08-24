@@ -20,6 +20,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -257,7 +258,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException || e instanceof NoShardAvailableActionException) {
+                    if (TransportActions.isShardNotAvailableException(e)) {
                         // In case the blob cache system index got unavailable, we pretend we didn't find a cache entry and we move on.
                         // Failing here might bubble up the exception and fail the searchable snapshot shard which is potentially
                         // recovering.

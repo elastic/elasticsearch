@@ -2,18 +2,14 @@
   "index_patterns": [
     "ilm-history-${xpack.ilm_history.template.version}*"
   ],
-  "order": 2147483647,
-  "settings": {
-    "index.number_of_shards": 1,
-    "index.number_of_replicas": 0,
-    "index.auto_expand_replicas": "0-1",
-    "index.lifecycle.name": "ilm-history-ilm-policy",
-    "index.lifecycle.rollover_alias": "ilm-history-${xpack.ilm_history.template.version}",
-    "index.hidden": true,
-    "index.format": 1
-  },
-  "mappings": {
-    "_doc": {
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.auto_expand_replicas": "0-1",
+      "index.lifecycle.name": "ilm-history-ilm-policy"
+    },
+    "mappings": {
       "dynamic": false,
       "properties": {
         "@timestamp": {
@@ -26,7 +22,7 @@
         "index": {
           "type": "keyword"
         },
-        "index_age":{
+        "index_age": {
           "type": "long"
         },
         "success": {
@@ -81,5 +77,10 @@
       }
     }
   },
+  "_meta": {
+    "description": "index template for ILM history indices",
+    "managed": true
+  },
+  "priority": 2147483647,
   "version": ${xpack.ilm_history.template.version}
 }

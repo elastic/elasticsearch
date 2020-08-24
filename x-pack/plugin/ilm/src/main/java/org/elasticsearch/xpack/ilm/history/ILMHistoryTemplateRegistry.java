@@ -62,7 +62,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (this.ilmHistoryEnabled) {
             return Collections.singletonList(TEMPLATE_ILM_HISTORY);
         } else {

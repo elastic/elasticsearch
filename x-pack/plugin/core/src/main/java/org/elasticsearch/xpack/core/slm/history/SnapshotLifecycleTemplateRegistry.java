@@ -69,7 +69,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }

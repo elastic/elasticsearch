@@ -68,7 +68,7 @@ session ID. This string cannot start with a `_`.
 TIP: You can use this option to serve cached results for frequently used and
 resource-intensive searches. If the shard's data doesn't change, repeated
 searches with the same `preference` string retrieve results from the same
-<<shard-request-cache,shard request cache>>. For time-series use cases, such as
+<<shard-request-cache,shard request cache>>. For time series use cases, such as
 logging, data in older indices is rarely updated and can be served directly from
 this cache.
 

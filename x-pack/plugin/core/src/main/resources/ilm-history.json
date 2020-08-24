@@ -10,72 +10,72 @@
       "index.lifecycle.name": "ilm-history-ilm-policy"
     },
     "mappings": {
-      "dynamic": false,
-      "properties": {
-        "@timestamp": {
-          "type": "date",
-          "format": "epoch_millis"
-        },
-        "policy": {
-          "type": "keyword"
-        },
-        "index": {
-          "type": "keyword"
-        },
-        "index_age": {
-          "type": "long"
-        },
-        "success": {
-          "type": "boolean"
-        },
-        "state": {
-          "type": "object",
-          "dynamic": true,
-          "properties": {
-            "phase": {
-              "type": "keyword"
-            },
-            "action": {
-              "type": "keyword"
-            },
-            "step": {
-              "type": "keyword"
-            },
-            "failed_step": {
-              "type": "keyword"
-            },
-            "is_auto-retryable_error": {
-              "type": "keyword"
-            },
-            "creation_date": {
-              "type": "date",
-              "format": "epoch_millis"
-            },
-            "phase_time": {
-              "type": "date",
-              "format": "epoch_millis"
-            },
-            "action_time": {
-              "type": "date",
-              "format": "epoch_millis"
-            },
-            "step_time": {
-              "type": "date",
-              "format": "epoch_millis"
-            },
-            "phase_definition": {
-              "type": "text"
-            },
-            "step_info": {
-              "type": "text"
+        "dynamic": false,
+        "properties": {
+          "@timestamp": {
+            "type": "date",
+            "format": "epoch_millis"
+          },
+          "policy": {
+            "type": "keyword"
+          },
+          "index": {
+            "type": "keyword"
+          },
+          "index_age": {
+            "type": "long"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "object",
+            "dynamic": true,
+            "properties": {
+              "phase": {
+                "type": "keyword"
+              },
+              "action": {
+                "type": "keyword"
+              },
+              "step": {
+                "type": "keyword"
+              },
+              "failed_step": {
+                "type": "keyword"
+              },
+              "is_auto-retryable_error": {
+                "type": "keyword"
+              },
+              "creation_date": {
+                "type": "date",
+                "format": "epoch_millis"
+              },
+              "phase_time": {
+                "type": "date",
+                "format": "epoch_millis"
+              },
+              "action_time": {
+                "type": "date",
+                "format": "epoch_millis"
+              },
+              "step_time": {
+                "type": "date",
+                "format": "epoch_millis"
+              },
+              "phase_definition": {
+                "type": "text"
+              },
+              "step_info": {
+                "type": "text"
+              }
             }
+          },
+          "error_details": {
+            "type": "text"
           }
-        },
-        "error_details": {
-          "type": "text"
         }
       }
-    }
   },
   "_meta": {
     "description": "index template for ILM history indices",

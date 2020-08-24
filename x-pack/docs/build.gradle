@@ -60,6 +60,7 @@ testClusters.integTest {
   setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'TRACE'
   user username: 'test_admin'
 }
 

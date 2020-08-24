@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -279,6 +277,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
         createIndexIfNecessary(new ActionListener<>() {
             @Override
             public void onResponse(String s) {
+                final IndexRequest request;
                 try {
                     final CachedBlob cachedBlob = new CachedBlob(
                         Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
@@ -289,34 +288,38 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                         content,
                         offset
                     );
-                    final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
+                    request = new IndexRequest(index).id(cachedBlob.generatedId());
                     try (XContentBuilder builder = jsonBuilder()) {
                         request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
-                    client.index(request, new ActionListener<>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
-                            listener.onResponse(null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
-                            listener.onFailure(e);
-                        }
-                    });
                 } catch (IOException e) {
                     logger.warn(
                         new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
                         e
                     );
+                    listener.onFailure(e);
+                    return;
                 }
+
+                client.index(request, new ActionListener<>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                        listener.onFailure(e);
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error(() -> new ParameterizedMessage("failed to create blob cache system index [{}]", index), e);
+                listener.onFailure(e);
             }
         });
     }

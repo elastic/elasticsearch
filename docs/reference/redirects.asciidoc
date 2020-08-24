@@ -3,6 +3,31 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="ccr-remedy-follower-index"]
+=== Leader index retaining operations for replication
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-leader-not-replicating"]
+=== Remedying a follower that has fallen behind
+
+See <<ccr-recreate-follower-index,Recreating a follower index>>.
+
+[role="exclude",id="remote-reovery"]
+=== Remote recovery process
+
+See <<ccr-remote-recovery,Remote recovery process>>.
+
+[role="exclude",id="ccr-requirements"]
+=== Leader index requirements
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-overview"]
+=== Cross-cluster replication overview
+
+See <<xpack-ccr,Cross-cluster replication>>.
+
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
@@ -81,15 +106,15 @@ See <<highlighting>>.
 
 [role="exclude",id="search-request-index-boost"]
 === Index boost parameter for request body search API
-See <<request-body-search-index-boost>>.
+See <<index-boost>>.
 
 [role="exclude",id="search-request-inner-hits"]
 === Inner hits parameter for request body search API
-See <<request-body-search-inner-hits>>.
+See <<inner-hits>>.
 
 [role="exclude",id="search-request-min-score"]
 === Minimum score parameter for request body search API
-See <<request-body-search-min-score>>.
+See <<search-api-min-score>>.
 
 [role="exclude",id="search-request-named-queries-and-filters"]
 === Named query parameter for request body search API
@@ -97,11 +122,11 @@ See <<named-queries>>.
 
 [role="exclude",id="search-request-post-filter"]
 === Post filter parameter for request body search API
-See <<request-body-search-post-filter>>.
+See <<post-filter>>.
 
 [role="exclude",id="search-request-preference"]
 === Preference parameter for request body search API
-See <<request-body-search-preference>>.
+See <<search-preference>>.
 
 [role="exclude",id="search-request-query"]
 === Query parameter for request body search API
@@ -109,11 +134,11 @@ See <<request-body-search-query>>.
 
 [role="exclude",id="search-request-rescore"]
 === Rescoring parameter for request body search API
-See <<request-body-search-rescore>>.
+See <<rescore>>.
 
 [role="exclude",id="search-request-script-fields"]
 === Script fields parameter for request body search API
-See <<request-body-search-script-fields>>.
+See <<script-fields>>.
 
 [role="exclude",id="search-request-scroll"]
 === Scroll parameter for request body search API
@@ -125,11 +150,11 @@ See <<search-after>>.
 
 [role="exclude",id="search-request-search-type"]
 === Search type parameter for request body search API
-See <<request-body-search-search-type>>.
+See <<search-type>>.
 
 [role="exclude",id="search-request-seq-no-primary-term"]
 === Sequence numbers and primary terms parameter for request body search API
-See <<request-body-search-search-type>>.
+See <<optimistic-concurrency-control>>.
 
 [role="exclude",id="search-request-sort"]
 === Sort parameter for request body search API
@@ -142,11 +167,11 @@ See <<source-filtering>>.
 
 [role="exclude",id="search-request-stored-fields"]
 === Stored fields parameter for request body search API
-See <<request-body-search-stored-fields>>.
+See <<stored-fields>>.
 
 [role="exclude",id="search-request-track-total-hits"]
 === Track total hits parameter for request body search API
-See <<request-body-search-track-total-hits>>.
+See <<track-total-hits>>.
 
 [role="exclude",id="search-request-version"]
 === Version parameter for request body search API
@@ -639,66 +664,66 @@ See:
 [role="exclude",id="testing"]
 === Testing
 
-This page was deleted. 
-Information about the Java testing framework was removed 
-({es-issue}55257[#55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[#55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 [role="exclude",id="testing-framework"]
 === Java testing framework
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="why-randomized-testing"]
 === Why randomized testing?
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="using-elasticsearch-test-classes"]
 === Using the {es} test classes
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="unit-tests"]
 === Unit tests
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="integration-tests"]
 === Integration tests
 
 This page was deleted.
-Information about the Java testing framework was removed 
-({es-issue}55257[55257]) from the {es} Reference 
-because it was out of date and erroneously implied that it should be used by application developers.  
-There is an issue ({es-issue}55258[#55258]) 
-for providing general testing guidance for applications that communicate with {es}. 
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Reference
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="number-of-shards"]
@@ -954,12 +979,12 @@ The `xpack.sql.enabled` setting has been deprecated. SQL access is always enable
 [role="exclude",id="indices-templates"]
 === Index templates [[getting]]
 
-See <<index-templates>>. 
+See <<index-templates>>.
 
 [role="exclude",id="run-a-search"]
 === Run a search
 
-See <<run-an-es-search>>. 
+See <<run-an-es-search>>.
 
 [role="exclude",id="how-highlighters-work-internally"]
 === How highlighters work internally
@@ -981,7 +1006,11 @@ See <<eql-syntax-limitations>>.
 
 See <<eql-required-fields>>.
 
-////
+[role="exclude",id="sql-client-apps-tableau"]
+=== Tableau Desktop
+
+See <<sql-client-apps-tableau-desktop>> and <<sql-client-apps-tableau-server>>.
+
 [role="exclude",id="search-request-body"]
 === Request body search
 
@@ -989,12 +1018,17 @@ This page has been removed.
 
 For search API reference documentation, see <<search-search>>.
 
-For search examples, see <<run-a-search>>.
+For search examples, see <<search-your-data>>.
 
 [role="exclude",id="request-body-search-docvalue-fields"]
 ==== Doc value fields
 
 See <<docvalue-fields, doc value fields>>.
+
+[role="exclude",id="_fast_check_for_any_matching_docs"]
+==== Fast check for any matching docs
+
+See <<quickly-check-for-matching-docs>>.
 
 [role="exclude",id="request-body-search-collapse"]
 ==== Field collapsing
@@ -1014,12 +1048,45 @@ See <<highlighting>>.
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
 
-[role="exclude",id="request-body-search-queries-and-filters"]
-=== Named queries
-
-See <<named-queries>.
-
 See <<how-es-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-index-boost"]
+==== Index boost
+See <<index-boost>>.
+
+[role="exclude",id="request-body-search-inner-hits"]
+==== Inner hits
+See <<inner-hits>>.
+
+[role="exclude",id="request-body-search-min-score"]
+==== `min_score`
+
+See the <<search-api-min-score,`min_score`>> parameter.
+
+[role="exclude",id="request-body-search-queries-and-filters"]
+==== Named queries
+
+See <<named-queries>>.
+
+[role="exclude",id="request-body-search-post-filter"]
+==== Post filter
+
+See <<post-filter>>.
+
+[role="exclude",id="request-body-search-preference"]
+==== Preference
+
+See <<search-preference>>.
+
+[role="exclude",id="request-body-search-rescore"]
+==== Rescoring
+
+See <<rescore>>.
+
+[role="exclude",id="request-body-search-script-fields"]
+==== Script fields
+
+See <<script-fields>>.
 
 [role="exclude",id="request-body-search-scroll"]
 ==== Scroll
@@ -1027,19 +1094,24 @@ See <<how-es-highlighters-work-internally>>.
 See <<scroll-search-results>>.
 
 [[_clear_scroll_api]]
-===== Clear scroll API
+==== Clear scroll API
 
 See <<clear-scroll-api>>.
 
 [[sliced-scroll]]
-===== Sliced scroll
+==== Sliced scroll
 
 See <<slice-scroll>>.
 
 [role="exclude",id="request-body-search-search-after"]
-==== Search After
+==== Search after
 
 See <<search-after>>.
+
+[role="exclude",id="request-body-search-search-type"]
+==== Search type
+
+See <<search-type>>.
 
 [role="exclude",id="request-body-search-sort"]
 ==== Sort
@@ -1050,4 +1122,23 @@ See <<sort-search-results>>.
 ==== Source filtering
 
 See <<source-filtering>>.
-////
+
+[role="exclude",id="request-body-search-stored-fields"]
+==== Stored fields
+
+See <<stored-fields>>.
+
+[role="exclude",id="request-body-search-track-total-hits"]
+==== Track total hits
+
+See <<track-total-hits>>.
+
+[role="exclude",id="_notes_3"]
+=== Joining queries notes
+
+See <<joining-queries-notes>>.
+
+[role="exclude",id="_notes_4"]
+=== Percolate query notes
+
+See <<percolate-query-notes>>.

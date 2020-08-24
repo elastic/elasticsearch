@@ -4,6 +4,10 @@
 A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
 to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
 
+TIP: We do not recommend using `top_hits` as a top-level aggregation. If you
+want to group search hits, use the <<collapse-search-results,`collapse`>>
+parameter instead.
+
 The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
 One or more bucket aggregators determines by which properties a result set get sliced into.
 
@@ -21,14 +25,19 @@ The top_hits aggregation returns regular search hits, because of this many per h
 * <<request-body-search-explain,Explain>>
 * <<named-queries,Named queries>>
 * <<source-filtering,Source filtering>>
-* <<request-body-search-stored-fields,Stored fields>>
-* <<request-body-search-script-fields,Script fields>>
+* <<stored-fields,Stored fields>>
+* <<script-fields,Script fields>>
 * <<docvalue-fields,Doc value fields>>
 * <<request-body-search-version,Include versions>>
 * <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 IMPORTANT: If you *only* need `docvalue_fields`, `size`, and `sort` then
 <<search-aggregations-metrics-top-metrics>> might be a more efficient choice than the Top Hits Aggregation.
+
+`top_hits` does not support the <<rescore,`rescore`>> parameter. Query rescoring
+applies only to search hits, not aggregation results. To change the scores used
+by aggregations, use a <<query-dsl-function-score-query,`function_score`>> or
+<<query-dsl-script-score-query,`script_score`>> query.
 
 ==== Example
 

@@ -256,7 +256,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     final CompressedXContent currentSource = currentMapping.source();
                     final CompressedXContent newSource = updatedMapper.mappingSource();
                     assert currentSource.equals(newSource) == false :
-                        "expected current mapping [" + currentSource + "] to be different than new mapping";
+                        "expected current mapping [" + currentSource + "] to be different than new mapping [" + newSource + "]";
                 }
             }
         }

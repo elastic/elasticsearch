@@ -400,7 +400,6 @@ public class InternalVariableWidthHistogram
         }
 
         mergeBucketsIfNeeded(reducedBuckets, targetNumBuckets, reduceContext);
-
         return reducedBuckets;
     }
 
@@ -451,7 +450,8 @@ public class InternalVariableWidthHistogram
             }
             toMerge.add(buckets.get(startIdx)); // Don't remove the startIdx bucket because it will be replaced by the merged bucket
 
-            reduceContext.consumeBucketsAndMaybeBreak(- (toMerge.size() - 1));
+            int toRemove = toMerge.stream().mapToInt(b -> countInnerBucket(b)+1).sum();
+            reduceContext.consumeBucketsAndMaybeBreak(-toRemove + 1);
             Bucket merged_bucket = reduceBucket(toMerge, reduceContext);
 
             buckets.set(startIdx, merged_bucket);

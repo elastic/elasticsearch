@@ -117,8 +117,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -777,9 +775,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         try {
             SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
             testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-                assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
-
-                assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
+                boolean areAllFilesReused = snapshotDirectory.snapshot()
+                    .indexFiles()
+                    .stream()
+                    .allMatch(fileInfo -> fileInfo.metadata().hashEqualsContents());
+                assertBusy(() -> {
+                    // When the number of indexed documents == 0, the index snapshot only contains the
+                    // commit file, meaning that the recovery won't fail in that case.
+                    RecoveryState.Stage expectedStage = areAllFilesReused ? RecoveryState.Stage.DONE : RecoveryState.Stage.FINALIZE;
+                    assertThat(recoveryState.getStage(), equalTo(expectedStage));
+                });
                 // All pre-warm tasks failed
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
             });
@@ -823,7 +828,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching)
             .build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
-            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
@@ -837,7 +842,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
 
         testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
 
             List<BlobStoreIndexShardSnapshot.FileInfo> filesWithEqualContent = snapshotDirectory.snapshot()
@@ -887,14 +892,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         }
         assertThat("Number of files (" + files.size() + ") mismatch, got : " + files.keySet(), files.size(), matchNumberOfFiles);
         assertThat("Sum of file sizes mismatch, got: " + files, files.values().stream().mapToLong(Long::longValue).sum(), matchSizeOfFiles);
-    }
-
-    private void assertExecutorIsIdle(Executor executor) throws Exception {
-        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
-        assertBusy(() -> {
-            assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
-            assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
-        });
     }
 
     private static IndexSettings newIndexSettings() {

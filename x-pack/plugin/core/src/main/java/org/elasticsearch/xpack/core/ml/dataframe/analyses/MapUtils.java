@@ -18,22 +18,46 @@ import java.util.Map;
 
 final class MapUtils {
 
-    private static final Map<String, Object> FEATURE_IMPORTANCE_MAPPING;
-    static {
-        Map<String, Object> featureImportanceMappingProperties = new HashMap<>();
+    private static Map<String, Object> createFeatureImportanceMapping(Map<String, Object> featureImportanceMappingProperties){
         featureImportanceMappingProperties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
-        featureImportanceMappingProperties.put("importance",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
         Map<String, Object> featureImportanceMapping = new HashMap<>();
         // TODO sorted indices don't support nested types
         //featureImportanceMapping.put("dynamic", true);
         //featureImportanceMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
         featureImportanceMapping.put("properties", featureImportanceMappingProperties);
-        FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(featureImportanceMapping);
+        return featureImportanceMapping;
     }
 
-    static Map<String, Object> featureImportanceMapping() {
-        return FEATURE_IMPORTANCE_MAPPING;
+    private static final Map<String, Object> CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING;
+    static {
+        Map<String, Object> classImportancePropertiesMapping = new HashMap<>();
+        // TODO sorted indices don't support nested types
+        //classImportancePropertiesMapping.put("dynamic", true);
+        //classImportancePropertiesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        classImportancePropertiesMapping.put("class_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        classImportancePropertiesMapping.put("importance",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        Map<String, Object> featureImportancePropertiesMapping = new HashMap<>();
+        featureImportancePropertiesMapping.put("classes", Collections.singletonMap("properties", classImportancePropertiesMapping));
+        CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING =
+            Collections.unmodifiableMap(createFeatureImportanceMapping(featureImportancePropertiesMapping));
+    }
+
+    private static final Map<String, Object> REGRESSION_FEATURE_IMPORTANCE_MAPPING;
+    static {
+        Map<String, Object> featureImportancePropertiesMapping = new HashMap<>();
+        featureImportancePropertiesMapping.put("importance",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        REGRESSION_FEATURE_IMPORTANCE_MAPPING =
+            Collections.unmodifiableMap(createFeatureImportanceMapping(featureImportancePropertiesMapping));
+    }
+
+    static Map<String, Object> regressionFeatureImportanceMapping() {
+        return REGRESSION_FEATURE_IMPORTANCE_MAPPING;
+    }
+
+    static Map<String, Object> classificationFeatureImportanceMapping() {
+        return CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING;
     }
 
     private MapUtils() {}

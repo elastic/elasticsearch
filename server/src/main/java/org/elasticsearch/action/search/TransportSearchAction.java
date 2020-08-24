@@ -519,8 +519,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, indices, shardIterators.size());
-        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState,
+        final Executor asyncSearchExecutor = asyncSearchExecutor(indices, clusterState);
+        searchAsyncAction(task, searchRequest, asyncSearchExecutor, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
+    }
+
+    Executor asyncSearchExecutor(final Index[] indices, final ClusterState clusterState) {
+        final boolean onlySystemIndices =
+            Arrays.stream(indices).allMatch(index -> clusterState.metadata().index(index.getName()).isSystem());
+        return onlySystemIndices ? threadPool.executor(ThreadPool.Names.SYSTEM_READ) : threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,
@@ -584,6 +591,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+                                                        Executor executor,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
@@ -594,7 +602,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                         ActionListener<SearchResponse> listener,
                                                         boolean preFilter,
                                                         SearchResponse.Clusters clusters) {
-        Executor executor = threadPool.executor(ThreadPool.Names.SEARCH);
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
@@ -602,6 +609,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
                     searchRequest,
+                    executor,
                     iter,
                     timeProvider,
                     connectionLookup,

@@ -168,7 +168,7 @@ tag::categorization-analyzer[]
 If `categorization_field_name` is specified, you can also define the analyzer
 that is used to interpret the categorization field. This property cannot be used
 at the same time as `categorization_filters`. The categorization analyzer
-specifies how the categorization field is interpreted by the categorization
+specifies how the `categorization_field` is interpreted by the categorization
 process. The syntax is very similar to that used to define the `analyzer` in the
 <<indices-analyze,Analyze endpoint>>. For more information, see
 {ml-docs}/ml-configuring-categories.html[Categorizing log messages].
@@ -197,7 +197,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is `4`.  If you increase this value, more examples
+data store. The default value is 4.  If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -282,8 +282,8 @@ tag::class-assignment-objective[]
 Defines the objective to optimize when assigning class labels:
 `maximize_accuracy` or `maximize_minimum_recall`. When maximizing accuracy,
 class labels are chosen to maximize the number of correct predictions. When
-maximizing minimum recall, labels are chosen to maximize the minimum recall
-for any class. Defaults to `maximize_minimum_recall`.
+maximizing minimum recall, labels are chosen to maximize the minimum recall for
+any class. Defaults to `maximize_minimum_recall`.
 end::class-assignment-objective[]
 
 tag::compute-feature-influence[]
@@ -453,10 +453,10 @@ Defaults to `true`.
 end::delayed-data-check-config[]
 
 tag::dependent-variable[]
-Defines which field of the document is to be predicted. 
-This parameter is supplied by field name and must match one of the fields in 
-the index being used to train. If this field is missing from a document, then 
-that document will not be used for training, but a prediction with the trained 
+Defines which field of the document is to be predicted.
+This parameter is supplied by field name and must match one of the fields in
+the index being used to train. If this field is missing from a document, then
+that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
@@ -513,9 +513,22 @@ The value of the downsample factor.
 end::dfas-downsample-factor[]
 
 tag::dfas-eta-growth[]
-Specifies the rate at which the `eta` increases for each new tree that is added to the 
-forest. For example, a rate of `1.05` increases `eta` by 5%.
+Specifies the rate at which the `eta` increases for each new tree that is added
+to the forest. For example, a rate of `1.05` increases `eta` by 5%.
 end::dfas-eta-growth[]
+
+tag::dfas-feature-bag-fraction[]
+The fraction of features that is used when selecting a random bag for each
+candidate split.
+end::dfas-feature-bag-fraction[]
+
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
 
 tag::dfas-iteration[]
 The number of iterations on the analysis.
@@ -529,10 +542,10 @@ training stops.
 end::dfas-max-attempts[]
 
 tag::dfas-max-optimization-rounds[]
-A multiplier responsible for determining the maximum number of 
-hyperparameter optimization steps in the Bayesian optimization procedure. 
-The maximum number of steps is determined based on the number of undefined hyperparameters 
-times the maximum optimization rounds per hyperparameter.
+A multiplier responsible for determining the maximum number of
+hyperparameter optimization steps in the Bayesian optimization procedure.
+The maximum number of steps is determined based on the number of undefined
+hyperparameters times the maximum optimization rounds per hyperparameter.
 end::dfas-max-optimization-rounds[]
 
 tag::dfas-num-folds[]
@@ -595,12 +608,12 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
 end::empty-bucket-count[]
 
 tag::eta[]
-Advanced configuration option. The shrinkage applied to the weights. Smaller 
+Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
-information, about shrinkage, see 
-{wikipedia}/Gradient_boosting#Shrinkage[this wiki article]. By
-default, this value is calcuated during hyperparameter optimization.
+information about shrinkage, see
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
+By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
 tag::exclude-frequent[]
@@ -624,14 +637,14 @@ this value to determine the number of unique categories that were missed.
 end::failed-category-count[]
 
 tag::feature-bag-fraction[]
-Advanced configuration option. Defines the fraction of features that will be 
+Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. By default, this
 value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
 
 tag::feature-influence-threshold[]
-The minimum {olscore} that a document needs to have to calculate its feature 
-influence score. Value range: 0-1 (`0.1` by default).
+The minimum {olscore} that a document needs to have in order to calculate its
+{fiscore}. Value range: 0-1 (`0.1` by default).
 end::feature-influence-threshold[]
 
 tag::filter[]
@@ -675,10 +688,10 @@ The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 end::function[]
 
 tag::gamma[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies a linear penalty associated with the size of 
-individual trees in the forest. The higher the value the more training will 
-prefer smaller trees. The smaller this parameter the larger individual trees 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies a linear penalty associated with the size of
+individual trees in the forest. The higher the value the more training will
+prefer smaller trees. The smaller this parameter the larger individual trees
 will be and the longer training will take. By default, this value is calculated
 during hyperparameter optimization.
 end::gamma[]
@@ -791,17 +804,20 @@ tag::job-id-anomaly-detection[]
 Identifier for the {anomaly-job}.
 end::job-id-anomaly-detection[]
 
+tag::job-id-data-frame-analytics[]
+Identifier for the {dfanalytics-job}.
+end::job-id-data-frame-analytics[]
+
 tag::job-id-anomaly-detection-default[]
 Identifier for the {anomaly-job}. It can be a job identifier, a group name, or a
 wildcard expression. If you do not specify one of these options, the API returns
 information for all {anomaly-jobs}.
 end::job-id-anomaly-detection-default[]
 
-tag::job-id-anomaly-detection-define[]
-Identifier for the {anomaly-job}. This identifier can contain lowercase 
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start 
-and end with alphanumeric characters.
-end::job-id-anomaly-detection-define[]
+tag::job-id-data-frame-analytics-default[]
+Identifier for the {dfanalytics-job}. If you do not specify this option, the API
+returns information for the first hundred {dfanalytics-jobs}.
+end::job-id-data-frame-analytics-default[]
 
 tag::job-id-anomaly-detection-list[]
 An identifier for the {anomaly-jobs}. It can be a job
@@ -818,14 +834,11 @@ Identifier for the {anomaly-job}. It can be a job identifier, a group name, a
 comma-separated list of jobs or groups, or a wildcard expression.
 end::job-id-anomaly-detection-wildcard-list[]
 
-tag::job-id-data-frame-analytics[]
-Identifier for the {dfanalytics-job}.
-end::job-id-data-frame-analytics[]
-
-tag::job-id-data-frame-analytics-default[]
-Identifier for the {dfanalytics-job}. If you do not specify this option, the API
-returns information for the first hundred {dfanalytics-jobs}.
-end::job-id-data-frame-analytics-default[]
+tag::job-id-anomaly-detection-define[]
+Identifier for the {anomaly-job}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
+and end with alphanumeric characters.
+end::job-id-anomaly-detection-define[]
 
 tag::job-id-data-frame-analytics-define[]
 Identifier for the {dfanalytics-job}. This identifier can contain lowercase
@@ -837,18 +850,13 @@ tag::job-id-datafeed[]
 The unique identifier for the job to which the {dfeed} sends data.
 end::job-id-datafeed[]
 
-tag::jobs-stats-anomaly-detection[]
-An array of {anomaly-job} statistics objects.
-For more information, see <<ml-jobstats>>.
-end::jobs-stats-anomaly-detection[]
-
 tag::lambda[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies an L2 regularisation term which applies to 
-leaf weights of the individual trees in the forest. The higher the value the 
-more training will attempt to keep leaf weights small. This makes the prediction  
-function smoother at the expense of potentially not being able to capture 
-relevant relationships between the features and the {depvar}. The smaller this 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies an L2 regularisation term which applies to
+leaf weights of the individual trees in the forest. The higher the value the
+more training will attempt to keep leaf weights small. This makes the prediction
+function smoother at the expense of potentially not being able to capture
+relevant relationships between the features and the {depvar}. The smaller this
 parameter the larger individual trees will be and the longer training will take.
 By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
@@ -1020,6 +1028,11 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
+tag::model-snapshot-id[]
+A numerical character string that uniquely identifies the model snapshot. For
+example, `1575402236000 `.
+end::model-snapshot-id[]
+
 tag::model-snapshot-retention-days[]
 Advanced configuration option, which affects the automatic removal of old model
 snapshots for this job. It specifies the maximum period of time (in days) that
@@ -1058,7 +1071,7 @@ end::multivariate-by-fields[]
 tag::n-neighbors[]
 Defines the value for how many nearest neighbors each method of {oldetection}
 uses to calculate its {olscore}. When the value is not set, different values are
-used for different ensemble members. This deafault behavior helps improve the
+used for different ensemble members. This default behavior helps improve the
 diversity in the ensemble; only override it if you are confident that the value
 you choose is appropriate for the data set.
 end::n-neighbors[]
@@ -1097,12 +1110,6 @@ tag::open-time[]
 For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
-tag::outlier-fraction[]
-The proportion of the data set that is assumed to be outlying prior to 
-{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
-outliers and 95% are inliers.
-end::outlier-fraction[]
-
 tag::out-of-order-timestamp-count[]
 The number of input documents that are out of time sequence and outside
 of the latency window. This information is applicable only when you provide data
@@ -1110,6 +1117,12 @@ to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
 order documents are  discarded, since jobs require time series data to be in
 ascending chronological order.
 end::out-of-order-timestamp-count[]
+
+tag::outlier-fraction[]
+The proportion of the data set that is assumed to be outlying prior to
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real
+outliers and 95% are inliers.
+end::outlier-fraction[]
 
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for
@@ -1165,6 +1178,14 @@ analyzed. If you use {dfeeds} and have aggregations in your search query, the
 number of {es} documents.
 end::processed-record-count[]
 
+tag::randomize-seed[]
+Defines the seed to the random generator that is used to pick which documents
+will be used for training. By default it is randomly generated. Set it to a
+specific value to ensure the same documents are used for training assuming other
+related parameters (for example, `source`, `analyzed_fields`, etc.) are the
+same.
+end::randomize-seed[]
+
 tag::query[]
 The {es} query domain-specific language (DSL). This value corresponds to the
 query object in an {es} search POST body. All the options that are supported by
@@ -1180,14 +1201,6 @@ and `120s`. This randomness improves the query performance when there are
 multiple jobs running on the same node. For more information, see
 {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 end::query-delay[]
-
-tag::randomize-seed[]
-Defines the seed to the random generator that is used to pick
-which documents will be used for training. By default it is randomly generated.
-Set it to a specific value to ensure the same documents are used for training
-assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are 
-the same.
-end::randomize-seed[]
 
 tag::rare-category-count[]
 The number of categories that match just one categorized document.
@@ -1253,7 +1266,7 @@ is `100`.
 end::size[]
 
 tag::snapshot-id[]
-A numerical character string that uniquely identifies the model snapshot.
+Identifier for the model snapshot.
 end::snapshot-id[]
 
 tag::sparse-bucket-count[]
@@ -1264,9 +1277,9 @@ end::sparse-bucket-count[]
 
 tag::standardization-enabled[]
 If `true`, the following operation is performed on the columns before computing
-{olscores}: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
-more information about this concept, see 
-https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more
+information about this concept, see
+{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
 end::standardization-enabled[]
 
 tag::state-anomaly-job[]
@@ -1320,6 +1333,16 @@ When supplied, only {infer} models that contain all the supplied tags are
 returned.
 end::tags[]
 
+tag::timeout-start[]
+Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults
+to 20 seconds.
+end::timeout-start[]
+
+tag::timeout-stop[]
+Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults
+to 20 seconds.
+end::timeout-stop[]
+
 tag::time-format[]
 The time format, which can be `epoch`, `epoch_ms`, or a custom pattern. The
 default value is `epoch`, which refers to UNIX or Epoch time (the number of
@@ -1338,16 +1361,6 @@ tag::time-span[]
 The time span that each search will be querying. This setting is only applicable
 when the mode is set to `manual`. For example: `3h`.
 end::time-span[]
-
-tag::timeout-start[]
-Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 
-to 20 seconds.
-end::timeout-start[]
-
-tag::timeout-stop[]
-Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults 
-to 20 seconds.
-end::timeout-stop[]
 
 tag::timestamp-results[]
 The start time of the bucket for which these results were calculated.

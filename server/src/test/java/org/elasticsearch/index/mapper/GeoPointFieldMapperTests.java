@@ -18,48 +18,33 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
-import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldMapper.Builder> {
+public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointFieldMapper.Builder> {
 
     @Override
     protected Set<String> unsupportedProperties() {
@@ -67,378 +52,177 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "geo_point");
     }
 
     public void testGeoHashValue() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("point", stringEncode(1.3, 1.2))
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", stringEncode(1.3, 1.2))));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testWKT() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("point", "POINT (2 3)")
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "POINT (2 3)")));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testLatLonValuesStored() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.field("store", true).endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("lat", 1.2).field("lon", 1.3).endObject()));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testArrayLatLonValues() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point").field("doc_values", false);
-        String mapping = Strings.toString(xContentBuilder.field("store", true).endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point")
-                        .startObject().field("lat", 1.2).field("lon", 1.3).endObject()
-                        .startObject().field("lat", 1.4).field("lon", 1.5).endObject()
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false).field("store", true))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("field");
+            b.startObject().field("lat", 1.2).field("lon", 1.3).endObject();
+            b.startObject().field("lat", 1.4).field("lon", 1.5).endObject();
+            b.endArray();
+        }));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
-        assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, equalTo(4));
+        assertThat(doc.rootDoc().getFields("field"), notNullValue());
+        assertThat(doc.rootDoc().getFields("field").length, equalTo(4));
     }
 
     public void testLatLonInOneValue() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("point", "1.2,1.3")
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1.2,1.3")));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testLatLonStringWithZValue() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), true);
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("point", "1.2,1.3,10.0")
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0")));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testLatLonStringWithZValueException() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), false);
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("point", "1.2,1.3,10.0")
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0"))));
         assertThat(e.getCause().getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
     }
 
     public void testLatLonInOneValueStored() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.field("store", true).endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("point", "1.2,1.3")
-                        .endObject()),
-                XContentType.JSON));
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1.2,1.3")));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testLatLonInOneValueArray() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point").field("doc_values", false);
-        String mapping = Strings.toString(xContentBuilder.field("store", true).endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point")
-                        .value("1.2,1.3")
-                        .value("1.4,1.5")
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false).field("store", true))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value("1.2,1.3").value("1.4,1.5").endArray()));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
-        IndexableField[] fields = doc.rootDoc().getFields("point");
-        assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, equalTo(4));
+        assertThat(doc.rootDoc().getFields("field"), notNullValue());
+        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(4));
     }
 
     public void testLonLatArray() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point").value(1.3).value(1.2).endArray()
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testLonLatArrayDynamic() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startArray("dynamic_templates").startObject().startObject("point").field("match", "point*")
-            .startObject("mapping").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endArray().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startArray("dynamic_templates");
+        {
+            mapping.startObject().startObject("point");
+            {
+                mapping.field("match", "point*");
+                mapping.startObject("mapping").field("type", "geo_point").endObject();
+            }
+            mapping.endObject().endObject();
+        }
+        mapping.endArray().endObject().endObject();
+        DocumentMapper mapper = createDocumentMapper(mapping);
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point").value(1.3).value(1.2).endArray()
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("point").value(1.3).value(1.2).endArray()));
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
 
     public void testLonLatArrayStored() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.field("store", true).endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point").value(1.3).value(1.2).endArray()
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, equalTo(3));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
+        assertThat(doc.rootDoc().getFields("field").length, equalTo(3));
     }
 
     public void testLonLatArrayArrayStored() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("point").field("type", "geo_point");
-        String mapping = Strings.toString(xContentBuilder.field("store", true)
-            .field("doc_values", false).endObject().endObject()
-            .endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray("point")
-                        .startArray().value(1.3).value(1.2).endArray()
-                        .startArray().value(1.5).value(1.4).endArray()
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("store", true).field("doc_values", false))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("field");
+            b.startArray().value(1.3).value(1.2).endArray();
+            b.startArray().value(1.5).value(1.4).endArray();
+            b.endArray();
+        }));
+        assertThat(doc.rootDoc().getFields("field"), notNullValue());
+        assertThat(doc.rootDoc().getFields("field").length, CoreMatchers.equalTo(4));
     }
 
     /**
      * Test that accept_z_value parameter correctly parses
      */
     public void testIgnoreZValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-
         boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-
         ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(false));
     }
 
     public void testMultiField() throws Exception {
-        int numDocs = randomIntBetween(10, 100);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject("location")
-            .field("type", "geo_point")
-            .startObject("fields")
-            .startObject("geohash").field("type", "keyword").endObject()  // test geohash as keyword
-            .startObject("latlon").field("type", "keyword").endObject()  // test geohash as string
-            .endObject()
-            .endObject().endObject().endObject());
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .setMapping(mapping);
-        mappingRequest.execute().actionGet();
-
-        // create index and add random test points
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        for (int i=0; i<numDocs; ++i) {
-            final GeoPoint pt = RandomGeoGenerator.randomPoint(random());
-            client().prepareIndex("test").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", pt.lat())
-                .field("lon", pt.lon()).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
-        }
-
-        // TODO these tests are bogus and need to be Fix
-        // query by geohash subfield
-        SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash")
-            .setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
-
-        // query by latlon subfield
-        searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
-    }
-
-
-    public void testEmptyName() throws Exception {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("").field("type", "geo_point").endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_point").field("doc_values", false);
+            b.startObject("fields");
+            {
+                b.startObject("geohash").field("type", "keyword").field("doc_values", false).endObject();  // test geohash as keyword
+                b.startObject("latlon").field("type", "text").field("doc_values", false).endObject();  // test geohash as text
+            }
+            b.endObject();
+        }));
+        ParseContext.Document doc = mapper.parse(source(b -> b.field("field", "POINT (2 3)"))).rootDoc();
+        assertThat(doc.getFields("field"), arrayWithSize(1));
+        assertThat(doc.getField("field"), hasToString(both(containsString("field:2.999")).and(containsString("1.999"))));
+        assertThat(doc.getFields("field.geohash"), arrayWithSize(1));
+        assertThat(doc.getField("field.geohash").binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
+        assertThat(doc.getFields("field.latlon"), arrayWithSize(1));
+        assertThat(doc.getField("field.latlon").stringValue(), equalTo("s093jd0k72s1"));
     }
 
     public void testNullValue() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_point")
-            .field(NULL_VALUE.getPreferredName(), "1,2")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2")));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .nullField("location")
-                    .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+        BytesRef defaultValue = doc.rootDoc().getBinaryValue("field");
 
-        assertThat(doc.rootDoc().getField("location"), notNullValue());
-        BytesRef defaultValue = doc.rootDoc().getBinaryValue("location");
-
-        doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("location", "1, 2")
-                    .endObject()),
-            XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("location")));
+        doc = mapper.parse(source(b -> b.field("field", "1, 2")));
+        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("field")));
 
-        doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("location", "3, 4")
-                    .endObject()),
-            XContentType.JSON));
-        // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("location"))));
+        doc = mapper.parse(source(b -> b.field("field", "3, 4")));
+        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("field"))));
     }
 
     /**
@@ -447,19 +231,15 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
      */
     public void testNullValueWithIgnoreMalformed() throws Exception {
         // Set ignore_z_value = false and ignore_malformed = true and test that a malformed point for null_value is normalized.
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("type")
-                .startObject("properties").startObject("location")
-                    .field("type", "geo_point")
-                    .field(IGNORE_Z_VALUE.getPreferredName(), false)
-                    .field(IGNORE_MALFORMED.getPreferredName(), true)
-                    .field(NULL_VALUE.getPreferredName(), "91,181")
-                .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "geo_point")
+                    .field("ignore_z_value", false)
+                    .field("ignore_malformed", true)
+                    .field("null_value", "91,181")
+            )
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
@@ -468,128 +248,55 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldM
     }
 
     public void testInvalidGeohashIgnored() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point")
-            .field("ignore_malformed", "true")
-            .endObject()
-            .endObject().endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("location", "1234.333")
-                    .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("location"), nullValue());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true"))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234.333")));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
     }
-
 
     public void testInvalidGeohashNotIgnored() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point")
-            .endObject()
-            .endObject().endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("location", "1234.333")
-                    .endObject()),
-            XContentType.JSON)));
-
-        assertThat(ex.getMessage(), equalTo("failed to parse field [location] of type [geo_point]"));
-        assertThat(ex.getRootCause().getMessage(), equalTo("unsupported symbol [.] in geohash [1234.333]"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "1234.333")))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [geo_point]"));
+        assertThat(e.getRootCause().getMessage(), containsString("unsupported symbol [.] in geohash [1234.333]"));
     }
 
-
     public void testInvalidGeopointValuesIgnored() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point")
-            .field("ignore_malformed", "true")
-            .endObject()
-            .endObject().endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "1234.333").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", "-").field("lon", 1.3).endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", 1.3).field("lon", "-").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "-,1.3").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "1.3,-").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", "NaN").field("lon", "NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", 12).field("lon", "NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", "NaN").field("lon", 10).endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "NaN,NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "10,NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("location", "NaN,12").endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("location").nullField("lat").field("lon", 1).endObject().endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-
-        assertThat(defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("location").nullField("lat").nullField("lon").endObject().endObject()
-            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+        assertThat(mapper.parse(source(b -> b.field("field", "1234.333"))).rootDoc().getField("field"), nullValue());
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").field("lat", "-").field("lon", 1.3).endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").field("lat", 1.3).field("lon", "-").endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
+        assertThat(mapper.parse(source(b -> b.field("field", "-,1.3"))).rootDoc().getField("field"), nullValue());
+        assertThat(mapper.parse(source(b -> b.field("field", "1.3,-"))).rootDoc().getField("field"), nullValue());
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").field("lat", "NaN").field("lon", 1.2).endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").field("lat", 1.2).field("lon", "NaN").endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
+        assertThat(mapper.parse(source(b -> b.field("field", "1.3,NaN"))).rootDoc().getField("field"), nullValue());
+        assertThat(mapper.parse(source(b -> b.field("field", "NaN,1.3"))).rootDoc().getField("field"), nullValue());
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").nullField("lat").field("lon", 1.2).endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
+        assertThat(
+            mapper.parse(source(b -> b.startObject("field").field("lat", 1.2).nullField("lon").endObject())).rootDoc().getField("field"),
+            nullValue()
+        );
     }
 
     public void testFetchSourceValue() {

@@ -219,7 +219,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             this.id = id;
             this.source = source;
         }
-        
+
         public Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
@@ -238,7 +238,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             builder.startObject();
             builder.field(Fields.INDEX, index);
             builder.field(Fields.ID, id);
-            //XContentHelper.writeRawField(Fields.SOURCE, source, builder.contentType(), builder, params);
+            // We have to use the deprecated version since we don't know the content type of the original source
             XContentHelper.writeRawField(Fields.SOURCE, source, builder, params);
             builder.endObject();
             return builder;
@@ -247,7 +247,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public static Event fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
         }
-        
+
         public String index() {
             return index;
         }
@@ -270,17 +270,17 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (this == obj) {
                 return true;
             }
-            
+
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            
+
             EqlSearchResponse.Event other = (EqlSearchResponse.Event) obj;
             return Objects.equals(index, other.index)
                     && Objects.equals(id, other.id)
                     && Objects.equals(source, other.source);
         }
-        
+
         @Override
         public String toString() {
             return Strings.toString(this, true, true);

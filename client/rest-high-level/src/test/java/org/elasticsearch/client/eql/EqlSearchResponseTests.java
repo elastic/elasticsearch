@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +86,7 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
             }
         }
     }
-    
+
     static List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event> randomEvents(XContentType xType) {
         int size = randomIntBetween(1, 10);
         List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event> hits = null;
@@ -225,10 +226,7 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (serverTestInstance.hits().events() == null) {
             assertNull(clientInstance.hits().events());
         } else {
-            assertThat(serverTestInstance.hits().events().size(), equalTo(clientInstance.hits().events().size()));
-            for (int i = 0; i < serverTestInstance.hits().events().size(); i++) {
-                assertThat(serverTestInstance.hits().events().get(i), is(clientInstance.hits().events().get(i)));
-            }
+            assertEvents(serverTestInstance.hits().events(), clientInstance.hits().events());
         }
         if (serverTestInstance.hits().sequences() == null) {
             assertNull(clientInstance.hits().sequences());
@@ -237,8 +235,19 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
             for (int i = 0; i < serverTestInstance.hits().sequences().size(); i++) {
                 assertThat(serverTestInstance.hits().sequences().get(i).joinKeys(),
                     is(clientInstance.hits().sequences().get(i).joinKeys()));
-                assertThat(serverTestInstance.hits().sequences().get(i).events(), is(clientInstance.hits().sequences().get(i).events()));
+                assertEvents(serverTestInstance.hits().sequences().get(i).events(), clientInstance.hits().sequences().get(i).events());
             }
+        }
+    }
+
+    private void assertEvents(
+        List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event> serverEvents,
+        List<EqlSearchResponse.Event> clientEvents
+    ) {
+        assertThat(serverEvents.size(), equalTo(clientEvents.size()));
+        for (int j = 0; j < serverEvents.size(); j++) {
+            assertThat(
+                SourceLookup.sourceAsMap(serverEvents.get(j).source()), is(clientEvents.get(j).sourceAsMap()));
         }
     }
 }

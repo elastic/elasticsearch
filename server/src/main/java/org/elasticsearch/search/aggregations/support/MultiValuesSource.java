@@ -57,11 +57,16 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
     }
 
     public static class AnyMultiValuesSource extends MultiValuesSource<ValuesSource> {
-        public AnyMultiValuesSource(Map<String, ValuesSourceConfig<ValuesSource>> valuesSourceConfigs,
-                                    QueryShardContext context) {
+        public AnyMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs, QueryShardContext context) {
             values = new HashMap<>(valuesSourceConfigs.size());
-            for (Map.Entry<String, ValuesSourceConfig<ValuesSource>> entry : valuesSourceConfigs.entrySet()) {
-                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
+            for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
+                final ValuesSource valuesSource = entry.getValue().getValuesSource();
+                if (valuesSource instanceof ValuesSource.Numeric == false
+                        && valuesSource instanceof ValuesSource.GeoPoint == false) {
+                    throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() +
+                        "is not supported for multi-valued aggregation");
+                }
+                values.put(entry.getKey(), valuesSource);
             }
         }
 

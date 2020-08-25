@@ -14,14 +14,14 @@ final class PathArraySorter extends IntroSorter {
     private double sortValuePivot;
     private int length;
 
-    public PathArraySorter(long[] points, double[] sortValues, int length) {
+    PathArraySorter(long[] points, double[] sortValues, int length) {
         this.points = points;
         this.sortValues = sortValues;
         this.sortValuePivot = 0;
         this.length = length;
     }
 
-    public final void sort() {
+    public void sort() {
         sort(0, length);
     }
 

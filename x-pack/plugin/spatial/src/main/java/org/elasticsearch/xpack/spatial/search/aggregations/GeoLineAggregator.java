@@ -9,7 +9,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -23,12 +22,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.GEO_POINT_FIELD;
@@ -46,9 +43,8 @@ final class GeoLineAggregator extends MetricsAggregator {
     private IntArray idxs;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
-                      Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                      Map<String,Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                      Aggregator parent, Map<String,Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null) {
             paths = context.bigArrays().newObjectArray(1);
@@ -136,12 +132,12 @@ final class GeoLineAggregator extends MetricsAggregator {
         double[] sortVals = sortValues.get(bucket);
         int length = idxs.get(bucket);
         new PathArraySorter(bucketLine, sortVals, length).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, length, pipelineAggregators(), metaData());
+        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, 0, pipelineAggregators(), metaData());
+        return new InternalGeoLine(name, null, null, 0, metadata());
     }
 
     @Override

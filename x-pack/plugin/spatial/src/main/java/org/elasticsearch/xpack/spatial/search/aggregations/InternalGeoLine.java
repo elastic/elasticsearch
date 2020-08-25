@@ -12,18 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
-import static org.apache.lucene.util.ArrayUtil.grow;
 
 /**
  * A single line string representing a sorted sequence of geo-points
@@ -35,8 +29,8 @@ public class InternalGeoLine extends InternalAggregation {
     private double[] sortVals;
     private int length;
 
-    InternalGeoLine(String name, long[] line, double[] sortVals, int length, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata) {
+        super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
         this.length = length;
@@ -79,7 +73,7 @@ public class InternalGeoLine extends InternalAggregation {
         new PathArraySorter(finalList, finalSortVals, length).sort();
 
         // sort the final list
-        return new InternalGeoLine(name, finalList, finalSortVals, mergedSize, pipelineAggregators(), getMetaData());
+        return new InternalGeoLine(name, finalList, finalSortVals, mergedSize, getMetadata());
     }
 
     @Override

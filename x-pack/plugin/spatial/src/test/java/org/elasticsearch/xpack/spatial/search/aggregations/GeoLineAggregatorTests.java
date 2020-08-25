@@ -15,7 +15,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -23,17 +22,25 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.mockito.internal.matchers.ArrayEquals;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GeoLineAggregatorTests extends AggregatorTestCase {
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new SpatialPlugin());
+    }
 
     public void testSomething() throws IOException {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
@@ -58,8 +65,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
 
         InternalGeoLine geoLine = new InternalGeoLine("_name",
-            Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength),
-            numPoints, null, null);
+            Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null);
 
         for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
             int idx1 = randomIntBetween(0, numPoints);
@@ -112,13 +118,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         try {
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setName("value_field");
-            fieldType.setHasDocValues(true);
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field");
 
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(fieldNumberType);
-            fieldType2.setName("sort_field");
-            fieldType2.setHasDocValues(true);
+            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
 
             GeoLineAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
             aggregator.preCollection();

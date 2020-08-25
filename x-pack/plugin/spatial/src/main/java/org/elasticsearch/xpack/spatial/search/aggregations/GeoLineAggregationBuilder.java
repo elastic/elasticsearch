@@ -11,42 +11,48 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 public class GeoLineAggregationBuilder
-    extends MultiValuesSourceAggregationBuilder<ValuesSource, GeoLineAggregationBuilder> {
+    extends MultiValuesSourceAggregationBuilder.LeafOnly<GeoLineAggregationBuilder> {
 
     static final ParseField GEO_POINT_FIELD = new ParseField("geo_point");
     static final ParseField SORT_FIELD = new ParseField("sort");
 
     static final String NAME = "geo_line";
 
-    private static final ObjectParser<GeoLineAggregationBuilder, Void> PARSER;
+    private static final ObjectParser<GeoLineAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, GeoLineAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(NAME);
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(GEO_POINT_FIELD.getPreferredName(), PARSER, true, false);
-        MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false);
+        MultiValuesSourceParseHelper.declareField(GEO_POINT_FIELD.getPreferredName(), PARSER, true, false, false);
+        MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false, false);
     }
 
-    GeoLineAggregationBuilder(String name) {
-        super(name, null);
+    public static void registerUsage(ValuesSourceRegistry.Builder builder) {
+        builder.registerUsage(NAME, CoreValuesSourceType.GEOPOINT);
+    }
+
+    public GeoLineAggregationBuilder(String name) {
+        super(name);
     }
 
     private GeoLineAggregationBuilder(GeoLineAggregationBuilder clone,
@@ -57,12 +63,8 @@ public class GeoLineAggregationBuilder
     /**
      * Read from a stream.
      */
-    GeoLineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, null);
-    }
-
-    static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoLineAggregationBuilder(aggregationName), null);
+    public GeoLineAggregationBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -71,15 +73,28 @@ public class GeoLineAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) {
         // Do nothing, no extra state to write to stream
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext, Map<String,
-        ValuesSourceConfig<ValuesSource>> configs, DocValueFormat format, AggregatorFactory parent,
-                                                                          AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new GeoLineAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
+    }
+
+    @Override
+    protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                            Map<String, ValuesSourceConfig> configs,
+                                                            Map<String, QueryBuilder> filters,
+                                                            DocValueFormat format,
+                                                            AggregatorFactory parent,
+                                                            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new GeoLineAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     public GeoLineAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {

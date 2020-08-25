@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -95,7 +96,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             this::registerGeoShapeGridAggregators,
             SpatialPlugin::registerGeoShapeBoundsAggregator,
             SpatialPlugin::registerValueCountAggregator,
-            SpatialPlugin::registerCardinalityAggregator
+            SpatialPlugin::registerCardinalityAggregator,
+            GeoLineAggregationBuilder::registerUsage
         );
     }
 

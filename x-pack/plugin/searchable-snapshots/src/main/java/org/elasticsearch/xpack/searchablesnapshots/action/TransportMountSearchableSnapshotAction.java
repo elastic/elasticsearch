@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -132,6 +133,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     ) {
         SearchableSnapshots.ensureValidLicense(licenseState);
 
+        final String mountedIndexName = request.mountedIndexName();
+        if (mountedIndexName.charAt(0) == '.') {
+            throw new InvalidIndexNameException(mountedIndexName, "system indices cannot be mounted as searchable snapshots");
+        }
+
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();
         final String indexName = request.snapshotIndexName();
@@ -168,7 +174,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .indices(indexName)
                         // Always rename it to the desired mounted index name
                         .renamePattern(".+")
-                        .renameReplacement(request.mountedIndexName())
+                        .renameReplacement(mountedIndexName)
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
                         .indexSettings(
                             Settings.builder()

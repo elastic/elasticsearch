@@ -35,6 +35,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -104,7 +105,7 @@ public class HighlightPhase implements FetchSubPhase {
                                                                                      SearchShardTarget shardTarget,
                                                                                      SearchHighlightContext highlight,
                                                                                      Query query) {
-        Map<String, Function<HitContext, FieldHighlightContext>> builders = new HashMap<>();
+        Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         for (SearchHighlightContext.Field field : highlight.fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {

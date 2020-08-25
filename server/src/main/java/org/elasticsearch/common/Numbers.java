@@ -36,11 +36,7 @@ public final class Numbers {
     }
 
     public static long bytesToLong(BytesRef bytes) {
-        int high = (bytes.bytes[bytes.offset + 0] << 24) | ((bytes.bytes[bytes.offset + 1] & 0xff) << 16) |
-            ((bytes.bytes[bytes.offset + 2] & 0xff) << 8) | (bytes.bytes[bytes.offset + 3] & 0xff);
-        int low = (bytes.bytes[bytes.offset + 4] << 24) | ((bytes.bytes[bytes.offset + 5] & 0xff) << 16) |
-            ((bytes.bytes[bytes.offset + 6] & 0xff) << 8) | (bytes.bytes[bytes.offset + 7] & 0xff);
-        return (((long) high) << 32) | (low & 0x0ffffffffL);
+        return (((long) toInt(bytes.offset, bytes.bytes)) << 32) | (toInt(bytes.offset + 4, bytes.bytes) & 0x0ffffffffL);
     }
 
     public static byte[] intToBytes(int val) {
@@ -187,5 +183,16 @@ public final class Numbers {
             throw new ArithmeticException("byte overflow: " + l);
         }
         return (byte) l;
+    }
+
+    /**
+     * Reads an int from the given offset in the byte array.
+     *
+     * @param offset offset to read from
+     * @param bytes  byte array to read from
+     */
+    public static int toInt(int offset, byte[] bytes) {
+        return ((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8)
+                | (bytes[offset + 3] & 0xFF);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Numbers;
 
 import java.util.Objects;
 
@@ -60,6 +61,11 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public byte get(int index) {
         return bytes[offset + index];
+    }
+
+    @Override
+    public int getInt(int index) {
+        return Numbers.toInt(offset + index, bytes);
     }
 
     @Override

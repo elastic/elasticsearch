@@ -76,6 +76,24 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         length = offset;
     }
 
+    @Override
+    public int getInt(int index) {
+        int offsetIndex = getOffsetIndex(index);
+        BytesReference ref = references[offsetIndex];
+        int indexInRef = index - offsets[offsetIndex];
+        if (ref.length() - indexInRef >= Integer.BYTES) {
+            return ref.getInt(indexInRef);
+        }
+        int res = (ref.get(indexInRef++) & 0xFF) << 24;
+        for (int i = 0; i < 3; ++i) {
+            while (indexInRef < 0 || ref.length() - indexInRef <= 0) {
+                ref = references[++offsetIndex];
+                indexInRef = (index + i + 1) - offsets[offsetIndex];
+            }
+            res |= (ref.get(indexInRef++) & 0xFF) << (16 - (i * 8));
+        }
+        return res;
+    }
 
     @Override
     public byte get(int index) {

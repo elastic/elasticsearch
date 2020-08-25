@@ -506,6 +506,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 );
             }
         }
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
     }
 
     private Map<String, Long> getMaxShardSizeByNodeInBytes(String indexName) {

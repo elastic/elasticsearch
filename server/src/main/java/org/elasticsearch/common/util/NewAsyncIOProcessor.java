@@ -101,10 +101,11 @@ public abstract class NewAsyncIOProcessor<Item> {
 
     private void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
         Exception exception;
+        
+        queue.drainTo(candidates);
+        final List<Tuple<Item, Consumer<Exception>>> written = new ArrayList<>(candidates.size());
+        final List<Tuple<Item, Consumer<Exception>>> unwritten = new ArrayList<>(candidates.size());
         try {
-            queue.drainTo(candidates);
-            List<Tuple<Item, Consumer<Exception>>> written = new ArrayList<>(candidates.size());
-            List<Tuple<Item, Consumer<Exception>>> unwritten = new ArrayList<>(candidates.size());
             for (Tuple<Item, Consumer<Exception>> candidate : candidates) {
                 if (isAlreadyWritten(candidate.v1())) {
                     written.add(candidate);
@@ -117,7 +118,7 @@ public abstract class NewAsyncIOProcessor<Item> {
         } finally {
             promiseSemaphore.release();
         }
-        notifyList(candidates, exception);
+        notifyList(unwritten, exception);
         candidates.clear();
     }
 

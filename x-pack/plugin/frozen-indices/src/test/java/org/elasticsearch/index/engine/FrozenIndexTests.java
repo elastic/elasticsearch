@@ -11,6 +11,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -41,6 +44,9 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.hamcrest.Matchers;
 
@@ -62,10 +68,17 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FrozenIndices.class);
+        return pluginList(FrozenIndices.class, XPackPlugin.class);
     }
 
-    public void testCloseFreezeAndOpen() {
+    String openReaders(TimeValue keepAlive, String... indices) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
+            indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED, keepAlive, null, null);
+        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        return response.getSearchContextId();
+    }
+
+    public void testCloseFreezeAndOpen() throws Exception {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -86,9 +99,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(useDFS ? 3 : 2, shard.refreshStats().getTotal());
         assertFalse(((FrozenEngine)engine).isReaderOpen());
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertNotNull(FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()));
-        }
+
         // now scroll
         SearchResponse searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
@@ -100,13 +111,39 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 2; i++) {
                 shard = indexService.getShard(i);
                 engine = IndexShardTestCase.getEngine(shard);
-                assertFalse(((FrozenEngine) engine).isReaderOpen());
+                // scrolls keep the reader open
+                assertTrue(((FrozenEngine) engine).isReaderOpen());
             }
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
         } while (searchResponse.getHits().getHits().length > 0);
+        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+
+        String readerId = openReaders(TimeValue.timeValueMinutes(1), "index");
+        try {
+            // now readerId
+            for (int from = 0; from < 3; from++) {
+                searchResponse = client().prepareSearch()
+                    .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
+                    .setSize(1)
+                    .setFrom(from)
+                    .get();
+                assertHitCount(searchResponse, 3);
+                assertEquals(1, searchResponse.getHits().getHits().length);
+                SearchService searchService = getInstanceFromNode(SearchService.class);
+                assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+                for (int i = 0; i < 2; i++) {
+                    shard = indexService.getShard(i);
+                    engine = IndexShardTestCase.getEngine(shard);
+                    assertFalse(((FrozenEngine) engine).isReaderOpen());
+                }
+            }
+        } finally {
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(searchResponse.pointInTimeId())).get();
+        }
     }
 
-    public void testSearchAndGetAPIsAreThrottled() throws InterruptedException, IOException {
+    public void testSearchAndGetAPIsAreThrottled() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
             .endObject().endObject()

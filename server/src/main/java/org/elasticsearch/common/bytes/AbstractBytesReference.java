@@ -115,7 +115,7 @@ public abstract class AbstractBytesReference implements BytesReference {
             }
             return hash = result;
         } else {
-            return hash.intValue();
+            return hash;
         }
     }
 

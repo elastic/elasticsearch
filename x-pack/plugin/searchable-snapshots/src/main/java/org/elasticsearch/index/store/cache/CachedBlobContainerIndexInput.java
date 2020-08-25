@@ -232,8 +232,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         );
                         stats.addIndexCacheBytesRead(cachedBlob.length());
 
-                        // TODO don't call toBytes here
-                        b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));
+                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(Math.toIntExact(position), length).iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = cachedBytesIterator.next()) != null) {
+                            b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        }
+                        assert b.position() == length : "copied " + b.position() + " but expected " + length;
 
                         try {
                             final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());

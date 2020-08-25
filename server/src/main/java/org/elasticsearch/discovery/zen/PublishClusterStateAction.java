@@ -354,7 +354,7 @@ public class PublishClusterStateAction {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(bStream)) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
@@ -364,7 +364,7 @@ public class PublishClusterStateAction {
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(bStream)) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);
@@ -382,7 +382,7 @@ public class PublishClusterStateAction {
         synchronized (lastSeenClusterStateMutex) {
             try {
                 if (compressor != null) {
-                    in = compressor.streamInput(in);
+                    in = compressor.threadLocalStreamInput(in);
                 }
                 in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
                 in.setVersion(request.version());

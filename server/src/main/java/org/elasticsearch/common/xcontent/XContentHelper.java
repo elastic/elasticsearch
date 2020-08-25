@@ -51,7 +51,7 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -70,7 +70,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -106,7 +106,7 @@ public class XContentHelper {
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                InputStream compressedStreamInput = compressor.threadLocalStreamInput(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
@@ -355,7 +355,7 @@ public class XContentHelper {
                                      ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
             }
         } else {
@@ -374,7 +374,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
             }
         } else {

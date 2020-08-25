@@ -20,11 +20,13 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -98,8 +100,12 @@ public class RestSearchAction extends BaseRestHandler {
          * company.
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
-        request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parser, setSize));
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            parseSearchRequest(searchRequest, request, parser, setSize);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                preparePointInTime(searchRequest, client.getNamedWriteableRegistry());
+            }
+        });
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
@@ -281,6 +287,17 @@ public class RestSearchAction extends BaseRestHandler {
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }
+    }
+
+    static void preparePointInTime(SearchRequest request, NamedWriteableRegistry namedWriteableRegistry) {
+        assert request.pointInTimeBuilder() != null;
+        final IndicesOptions indicesOptions = request.indicesOptions();
+        final IndicesOptions stricterIndicesOptions = IndicesOptions.fromOptions(
+            indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(), false, false, false,
+            true, true, indicesOptions.ignoreThrottled());
+        request.indicesOptions(stricterIndicesOptions);
+        final SearchContextId searchContextId = SearchContextId.decode(namedWriteableRegistry, request.pointInTimeBuilder().getId());
+        request.indices(searchContextId.getActualIndices());
     }
 
     /**

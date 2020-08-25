@@ -411,6 +411,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);
         final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,

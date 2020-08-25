@@ -1613,7 +1613,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(client, threadPool, transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
-                        actionFilters, indexNameExpressionResolver));
+                        actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                         indexNameExpressionResolver));
@@ -1652,7 +1652,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         snapshotsService, actionFilters, indexNameExpressionResolver
                     ));
                 client.initialize(actions, transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
+                    new NamedWriteableRegistry(List.of()));
             }
 
             private Repository.Factory getRepoFactory(Environment environment) {

@@ -431,6 +431,10 @@ public class ModelLoadingService implements ClusterStateListener {
                     INFERENCE_MODEL_CACHE_TTL.getKey());
                 auditIfNecessary(notification.getKey(), msg);
             }
+
+            logger.trace(() -> new ParameterizedMessage("Persisting stats for evicted model [{}]",
+                notification.getValue().model.getModelId()));
+            
             // If the model is no longer referenced, flush the stats to persist as soon as possible
             notification.getValue().model.persistStats(referencedModels.contains(notification.getKey()) == false);
         } finally {

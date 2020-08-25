@@ -30,6 +30,7 @@ import java.util.List;
 /**
  * Handler for REST requests
  */
+@FunctionalInterface
 public interface RestHandler {
 
     Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;

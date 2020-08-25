@@ -219,7 +219,11 @@ tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
 //    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
-  apply plugin: 'elasticsearch.internal-distribution-check'
+  apply plugin: 'elasticsearch.internal-distribution-archive-check'
+
+  distributionArchiveCheck {
+    expectedMlLicenses.add("Boost Software License - Version 1.0 - August 17th, 2003")
+  }
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.named(buildTask)

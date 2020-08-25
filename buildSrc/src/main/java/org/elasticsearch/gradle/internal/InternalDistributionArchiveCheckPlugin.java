@@ -42,26 +42,17 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
-
-    public static final List<String> EXPECTED_ML_CPP_LICENSES = Arrays.asList(
-            "Boost Software License - Version 1.0 - August 17th, 2003"
-    );
+public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
         String buildTaskName = calculateBuildTask(project.getName());
         Task buildDistTask = project.getParent().getTasks().getByName(buildTaskName);
-        File archiveExtractionDir;
-        if (project.getName().contains("tar")) {
-            archiveExtractionDir = new File(project.getBuildDir(), "tar-extracted");
-        } else {
-            if (!project.getName().contains("zip")) {
-                throw new GradleException("Expecting project name containing 'zip' or 'tar'.");
-            }
-            archiveExtractionDir = new File(project.getBuildDir(), "zip-extracted");
-        }
+        DistributionArchiveCheckExtension distributionArchiveCheckExtension = project.getExtensions()
+            .create("distributionArchiveCheck", DistributionArchiveCheckExtension.class);
+
+        File archiveExtractionDir = calculateArchiveExtractionDir(project);
         Spec<Task> toolAvailableSpec = task -> toolExists(project);
 
         // sanity checks if archives can be extracted
@@ -101,10 +92,21 @@ public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
                 buildDistTask,
                 archiveExtractionDir,
                 toolAvailableSpec,
-                checkExtraction
+                checkExtraction,
+                distributionArchiveCheckExtension
             );
             checkTask.configure(task -> task.dependsOn(checkMlCppNoticeTask));
         }
+    }
+
+    private File calculateArchiveExtractionDir(Project project) {
+        if (project.getName().contains("tar")) {
+            return new File(project.getBuildDir(), "tar-extracted");
+        }
+        if (!project.getName().contains("zip")) {
+            throw new GradleException("Expecting project name containing 'zip' or 'tar'.");
+        }
+        return new File(project.getBuildDir(), "zip-extracted");
     }
 
     private static TaskProvider<Task> registerCheckMlCppNoticeTask(
@@ -112,7 +114,8 @@ public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
         Task buildDistTask,
         File archiveExtractionDir,
         Spec<Task> toolAvailableSpec,
-        TaskProvider<LoggedExec> checkExtraction
+        TaskProvider<LoggedExec> checkExtraction,
+        DistributionArchiveCheckExtension extension
     ) {
         TaskProvider<Task> checkMlCppNoticeTask = project.getTasks().register("checkMlCppNotice", task -> {
             task.dependsOn(buildDistTask, checkExtraction);
@@ -122,7 +125,7 @@ public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     // this is just a small sample from the C++ notices,
                     // the idea being that if we've added these lines we've probably added all the required lines
-                    final List<String> expectedLines = EXPECTED_ML_CPP_LICENSES;
+                    final List<String> expectedLines = extension.expectedMlLicenses.get();
                     final Path noticePath = archiveExtractionDir.toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
                     final List<String> actualLines;

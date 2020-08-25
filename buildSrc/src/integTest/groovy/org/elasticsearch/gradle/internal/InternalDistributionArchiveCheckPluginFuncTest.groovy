@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
-class InternalDistributionSanityCheckPluginFuncTest extends AbstractGradleFuncTest {
+class InternalDistributionArchiveCheckPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         ["darwin-zip", 'darwin-tar'].each { projName ->
@@ -34,7 +34,7 @@ class InternalDistributionSanityCheckPluginFuncTest extends AbstractGradleFuncTe
 
             file("${projName}/build.gradle") << """
                 plugins {
-                  id 'elasticsearch.internal-distribution-check'
+                  id 'elasticsearch.internal-distribution-archive-check'
                 }"""
         }
         file("SomeFile.txt") << """
@@ -133,8 +133,12 @@ Copyright 2009-2018 Acme Coorp"""
         file("NOTICE.txt").text = """Elasticsearch
 Copyright 2009-2018 Elasticsearch"""
 
-        file("ml/NOTICE.txt").text = """Apache log4cxx"""
-
+        file("ml/NOTICE.txt").text = "Boost Software License - Version 1.0 - August 17th, 2003"
+        file('darwin-tar/build.gradle') << """
+            distributionArchiveCheck {
+                expectedMlLicenses.add('foo license')
+            }
+        """
         buildFile << """
             apply plugin:'base'
             tasks.withType(AbstractArchiveTask).configureEach {
@@ -155,7 +159,7 @@ Copyright 2009-2018 Elasticsearch"""
         result.task(":darwin-tar:checkMlCppNotice").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output)
                 .contains("> expected [./darwin-tar/build/tar-extracted/elasticsearch-8.0.0-SNAPSHOT/modules/x-pack-ml/NOTICE.txt " +
-                        "to contain [Boost Software License - Version 1.0 - August 17th, 2003] but it did not")
+                        "to contain [foo license] but it did not")
     }
 
     void elasticLicense(File file = file("licenses/ELASTIC-LICENSE.txt")) {

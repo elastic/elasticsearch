@@ -43,6 +43,11 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
+
+    public static final List<String> EXPECTED_ML_CPP_LICENSES = Arrays.asList(
+            "Boost Software License - Version 1.0 - August 17th, 2003"
+    );
+
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
@@ -117,10 +122,7 @@ public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     // this is just a small sample from the C++ notices,
                     // the idea being that if we've added these lines we've probably added all the required lines
-                    final List<String> expectedLines = Arrays.asList(
-                        "Apache log4cxx",
-                        "Boost Software License - Version 1.0 - August 17th, 2003"
-                    );
+                    final List<String> expectedLines = EXPECTED_ML_CPP_LICENSES;
                     final Path noticePath = archiveExtractionDir.toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
                     final List<String> actualLines;

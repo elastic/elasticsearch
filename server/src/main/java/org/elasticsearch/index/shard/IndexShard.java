@@ -46,7 +46,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

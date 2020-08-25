@@ -34,7 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
@@ -56,13 +55,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -148,7 +144,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .build()
         );
         ensureGreen(restoredIndex);
-        ensureExecutorsAreIdle();
 
         // wait for all async cache fills to complete
         assertBusy(() -> {
@@ -215,7 +210,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .build()
         );
         ensureGreen(restoredAgainIndex);
-        ensureExecutorsAreIdle();
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
@@ -279,7 +273,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             }
         });
         ensureGreen(restoredAgainIndex);
-        ensureExecutorsAreIdle();
 
         logger.info("--> verifying documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -358,18 +351,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             }
         });
         return Map.copyOf(blobsPerShard);
-    }
-
-    private void ensureExecutorsAreIdle() throws Exception {
-        assertBusy(() -> {
-            for (ThreadPool threadPool : internalCluster().getDataNodeInstances(ThreadPool.class)) {
-                for (String threadPoolName : List.of(CACHE_FETCH_ASYNC_THREAD_POOL_NAME, CACHE_PREWARMING_THREAD_POOL_NAME)) {
-                    final ThreadPoolExecutor executor = (ThreadPoolExecutor) threadPool.executor(threadPoolName);
-                    assertThat(threadPoolName, executor.getQueue().size(), equalTo(0));
-                    assertThat(threadPoolName, executor.getActiveCount(), equalTo(0));
-                }
-            }
-        });
     }
 
     private void assertCachedBlobsInSystemIndex(final String repositoryName, final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot)

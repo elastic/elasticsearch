@@ -19,11 +19,12 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
@@ -57,7 +58,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         return new FetchSubPhaseProcessor() {
 
-            final Map<String, DocIdSetIterator> matchingIterators = new HashMap<>();
+            final Map<String, Bits> matchingIterators = new HashMap<>();
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
@@ -65,17 +66,18 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                 for (Map.Entry<String, Weight> entry : weights.entrySet()) {
                     ScorerSupplier ss = entry.getValue().scorerSupplier(readerContext);
                     if (ss != null) {
-                        matchingIterators.put(entry.getKey(), ss.get(0).iterator());
+                        Bits matchingBits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), ss);
+                        matchingIterators.put(entry.getKey(), matchingBits);
                     }
                 }
             }
 
             @Override
-            public void process(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) {
                 List<String> matches = new ArrayList<>();
                 int doc = hitContext.docId();
-                for (Map.Entry<String, DocIdSetIterator> iterator : matchingIterators.entrySet()) {
-                    if (iterator.getValue().advance(doc) == doc) {
+                for (Map.Entry<String, Bits> iterator : matchingIterators.entrySet()) {
+                    if (iterator.getValue().get(doc)) {
                         matches.add(iterator.getKey());
                     }
                 }

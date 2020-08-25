@@ -193,14 +193,14 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new StartDataFrameAnalyticsAction.TaskParams(
                 "job-id",
                 Version.CURRENT,
-                List.of(
+                Arrays.asList(
                     new PhaseProgress(ProgressTracker.REINDEXING, 0),
                     new PhaseProgress(ProgressTracker.LOADING_DATA, 0),
                     new PhaseProgress(ProgressTracker.WRITING_RESULTS, 0)),
                 false);
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, clusterService, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Collections.emptyMap(), client, clusterService, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
         Exception exception = new Exception("some exception");
 

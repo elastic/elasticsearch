@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -537,7 +536,7 @@ public abstract class InternalOrder extends BucketOrder {
     public static class Parser {
 
         private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(Parser.class));
+                DeprecationLogger.getLogger(Parser.class);
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.

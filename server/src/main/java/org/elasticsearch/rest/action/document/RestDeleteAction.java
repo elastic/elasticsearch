@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
@@ -38,8 +37,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
@@ -55,7 +54,7 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(WordDelimiterTokenFilterFactory.class));
+            DeprecationLogger.getLogger(WordDelimiterTokenFilterFactory.class);
 
     private final byte[] charTypeTable;
     private final int flags;

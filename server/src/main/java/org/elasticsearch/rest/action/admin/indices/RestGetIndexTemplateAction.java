@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -51,8 +50,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
         Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RestGetIndexTemplateAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndexTemplateAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
             " Specifying include_type_name in get index template requests is deprecated.";
 

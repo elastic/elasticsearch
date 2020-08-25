@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -32,7 +31,7 @@ import org.elasticsearch.index.analysis.Analysis;
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(StandardHtmlStripAnalyzerProvider.class));
+            DeprecationLogger.getLogger(StandardHtmlStripAnalyzerProvider.class);
 
     private final StandardHtmlStripAnalyzer analyzer;
 

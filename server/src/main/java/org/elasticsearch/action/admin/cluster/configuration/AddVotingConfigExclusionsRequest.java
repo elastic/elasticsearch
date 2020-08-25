@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -29,8 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +46,7 @@ import java.util.stream.StreamSupport;
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
     public static final String DEPRECATION_MESSAGE = "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-                                                                        LogManager.getLogger(AddVotingConfigExclusionsRequest.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AddVotingConfigExclusionsRequest.class);
     private final String[] nodeDescriptions;
     private final String[] nodeIds;
     private final String[] nodeNames;

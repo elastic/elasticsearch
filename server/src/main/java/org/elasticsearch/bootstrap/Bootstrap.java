@@ -19,20 +19,18 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
@@ -43,8 +41,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -361,7 +361,7 @@ final class Bootstrap {
                             "future versions of Elasticsearch will require Java 11; " +
                                     "your Java version from [%s] does not meet this requirement",
                             System.getProperty("java.home"));
-            new DeprecationLogger(LogManager.getLogger(Bootstrap.class)).deprecate("java_version_11_required", message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
         }
         if (environment.pidFile() != null) {
             try {

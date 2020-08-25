@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
@@ -42,8 +41,7 @@ import java.util.function.Supplier;
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(GeoShapeQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoShapeQueryBuilder.class);
 
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
         "The type should no longer be specified in the [indexed_shape] section.";

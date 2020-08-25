@@ -80,6 +80,10 @@ public class DeprecationLogger {
         HeaderWarning.removeThreadContext(threadContext);
     }
 
+    public static DeprecationLogger getLogger2(Logger parentLogger) {
+        return new DeprecationLogger(parentLogger);
+    }
+
     /**
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      * The deprecation message will be throttled to deprecation log.

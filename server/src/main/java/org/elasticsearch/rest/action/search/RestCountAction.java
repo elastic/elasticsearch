@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,8 +46,7 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestCountAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in count requests is deprecated.";
 

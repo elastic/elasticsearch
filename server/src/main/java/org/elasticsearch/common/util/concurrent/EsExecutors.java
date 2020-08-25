@@ -79,7 +79,8 @@ public class EsExecutors {
             if (value > availableProcessors) {
                 deprecationLogger.deprecate(
                     "processors",
-                    "setting [" + name + "] to value [{}] which is more than available processors [{}] is deprecated",
+                    "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
+                    name,
                     value,
                     availableProcessors);
             }

@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
+@SuppressLoggerChecks(reason = "super is not calling a constructor")
 public abstract class ESLogMessage extends ParameterizedMessage {
     private final Map<String, Object> fields;
 
@@ -65,12 +66,10 @@ public abstract class ESLogMessage extends ParameterizedMessage {
             .collect(Collectors.joining(", ")) + "]";
     }
 
-    @SuppressLoggerChecks(reason = "super is not calling a constructor")
     public Object[] getArguments() {
         return super.getParameters();
     }
 
-    @SuppressLoggerChecks(reason = "super is not calling a constructor")
     public String getMessagePattern() {
         return super.getFormat();
     }

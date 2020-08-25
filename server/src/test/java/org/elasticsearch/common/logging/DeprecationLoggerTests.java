@@ -56,7 +56,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             supplierCalled.set(true);
             createTempDir(); // trigger file permission, like rolling logs would
             return null;
-        }).when(mockLogger).warn(new DeprecatedMessage("foo", any()));
+        }).when(mockLogger).warn(new DeprecatedMessage(any(), "foo"));
         final LoggerContext context = new SimpleLoggerContext() {
             @Override
             public ExtendedLogger getLogger(String name) {

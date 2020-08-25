@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
@@ -71,6 +72,7 @@ public class DeprecationLogger {
      * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
      * The deprecation message will be throttled to deprecation log.
      */
+    @SuppressLoggerChecks(reason = "Safely delegates to a deprecated message")
     public void deprecate(final String key, final String msg, final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = new DeprecatedMessage(opaqueId, msg, params);

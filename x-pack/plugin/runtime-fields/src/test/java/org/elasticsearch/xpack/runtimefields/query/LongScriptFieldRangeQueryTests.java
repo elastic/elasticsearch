@@ -65,13 +65,13 @@ public class LongScriptFieldRangeQueryTests extends AbstractLongScriptFieldQuery
     @Override
     public void testMatches() {
         LongScriptFieldRangeQuery query = new LongScriptFieldRangeQuery(randomScript(), leafFactory, "test", 1, 3);
-        assertTrue(query.matches(new long[] { 1 }, 1));
-        assertTrue(query.matches(new long[] { 2 }, 1));
-        assertTrue(query.matches(new long[] { 3 }, 1));
-        assertFalse(query.matches(new long[] { 1 }, 0));
-        assertFalse(query.matches(new long[] { 5 }, 1));
-        assertTrue(query.matches(new long[] { 1, 5 }, 2));
-        assertTrue(query.matches(new long[] { 5, 1 }, 2));
+        assertTrue(query.matches(new long[] { 1 }));
+        assertTrue(query.matches(new long[] { 2 }));
+        assertTrue(query.matches(new long[] { 3 }));
+        assertFalse(query.matches(new long[] {}));
+        assertFalse(query.matches(new long[] { 5 }));
+        assertTrue(query.matches(new long[] { 1, 5 }));
+        assertTrue(query.matches(new long[] { 5, 1 }));
     }
 
     @Override

@@ -29,10 +29,10 @@ public class BooleanScriptFieldExistsQueryTests extends AbstractBooleanScriptFie
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(between(1, Integer.MAX_VALUE), 0));
-        assertTrue(createTestInstance().matches(0, between(1, Integer.MAX_VALUE)));
-        assertTrue(createTestInstance().matches(between(1, Integer.MAX_VALUE), between(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(0, 0));
+        assertTrue(createTestInstance().matches(new boolean[] { true }));
+        assertTrue(createTestInstance().matches(new boolean[] { false }));
+        assertTrue(createTestInstance().matches(new boolean[] { true, true }));
+        assertFalse(createTestInstance().matches(new boolean[] {}));
     }
 
     @Override

@@ -89,10 +89,14 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                 CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory =
                     ctx -> new DateScriptFieldScript(Map.of(), new SearchLookup(null, null), null, ctx) {
                         @Override
-                        public void execute() {
-                            for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                new DateScriptFieldScript.Millis(this).millis(((Number) timestamp).longValue());
+                        public long[] execute() {
+                            List<?> timestamps = (List<?>) getSource().get("timestamp");
+                            long[] results = new long[timestamps.size()];
+                            int i = 0;
+                            for (Object timestamp : timestamps) {
+                                results[i++] = ((Number) timestamp).longValue();
                             }
+                            return results;
                         }
                     };
                 LongScriptFieldDistanceFeatureQuery query = new LongScriptFieldDistanceFeatureQuery(

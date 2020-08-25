@@ -34,7 +34,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
         return DUMMY;
     }
 
-    public void testConvertDouble() {
+    public void testConvertFromDouble() {
         double v = randomDouble();
         assertThat(DoubleScriptFieldScript.convertFromDouble(v), equalTo(new double[] { v }));
         assertThat(DoubleScriptFieldScript.convertFromDef(v), equalTo(new double[] { v }));
@@ -48,12 +48,12 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
         assertThat(DoubleScriptFieldScript.convertFromDef(List.of(d, l, i)), equalTo(new double[] { d, l, i }));
     }
 
-    public void testConvertDoubleArrayFromDef() {
+    public void testConvertFromDoubleArrayFromDef() {
         double[] a = new double[] { 1, 2, 3 };
         assertThat(DoubleScriptFieldScript.convertFromDef(a), equalTo(a));
     }
 
-    public void testConvertNumberFromDef() {
+    public void testConvertFromNumberInDef() {
         for (Number n : new Number[] { randomByte(), randomShort(), randomInt(), randomLong(), randomFloat() }) {
             assertThat(DoubleScriptFieldScript.convertFromDef(n), equalTo(new double[] { n.doubleValue() }));
         }

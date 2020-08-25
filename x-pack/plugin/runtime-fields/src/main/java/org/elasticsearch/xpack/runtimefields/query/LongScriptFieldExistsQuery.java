@@ -23,8 +23,8 @@ public class LongScriptFieldExistsQuery extends AbstractLongScriptFieldQuery {
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
-        return count > 0;
+    protected boolean matches(long[] values) {
+        return values.length > 0;
     }
 
     @Override

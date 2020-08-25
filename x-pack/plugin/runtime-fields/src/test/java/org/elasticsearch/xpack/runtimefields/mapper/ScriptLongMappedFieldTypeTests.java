@@ -269,21 +269,27 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                             case "read_foo":
                                 return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new LongScriptFieldScript.Value(this).value(((Number) foo).longValue());
+                                    public long[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        long[] results = new long[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = ((Number) foo).longValue();
                                         }
+                                        return results;
                                     }
                                 };
                             case "add_param":
                                 return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new LongScriptFieldScript.Value(this).value(
-                                                ((Number) foo).longValue() + ((Number) getParams().get("param")).longValue()
-                                            );
+                                    public long[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        long[] results = new long[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = ((Number) foo).longValue() + ((Number) getParams().get("param")).longValue();
                                         }
+                                        return results;
                                     }
                                 };
                             default:

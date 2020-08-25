@@ -411,21 +411,27 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                             case "read_foo":
                                 return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new BooleanScriptFieldScript.Value(this).value(parse(foo));
+                                    public boolean[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        boolean[] results = new boolean[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = parse(foo);
                                         }
+                                        return results;
                                     }
                                 };
                             case "xor_param":
                                 return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new BooleanScriptFieldScript.Value(this).value(
-                                                (Boolean) foo ^ ((Boolean) getParams().get("param"))
-                                            );
+                                    public boolean[] execute() {
+                                        List<?> foos = (List<?>) getSource().get("foo");
+                                        boolean[] results = new boolean[foos.size()];
+                                        int i = 0;
+                                        for (Object foo : foos) {
+                                            results[i++] = parse(foo) ^ ((Boolean) getParams().get("param"));
                                         }
+                                        return results;
                                     }
                                 };
                             default:

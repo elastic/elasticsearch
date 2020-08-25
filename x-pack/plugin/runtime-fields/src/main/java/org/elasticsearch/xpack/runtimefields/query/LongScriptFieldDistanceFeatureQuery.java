@@ -64,8 +64,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 AbstractLongScriptFieldScript script = leafFactory.apply(context);
-                script.runForDoc(doc);
-                long value = valueWithMinAbsoluteDistance(script);
+                long value = valueWithMinAbsoluteDistance(script.runForDoc(doc));
                 float weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
                 float score = score(weight, distanceFor(value));
                 return Explanation.match(
@@ -81,19 +80,18 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
     }
 
     private class DistanceScorer extends Scorer {
-        private final AbstractLongScriptFieldScript script;
         private final TwoPhaseIterator twoPhase;
         private final DocIdSetIterator disi;
         private final float weight;
+        private long[] values;
 
         protected DistanceScorer(Weight weight, AbstractLongScriptFieldScript script, int maxDoc, float boost) {
             super(weight);
-            this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override
                 public boolean matches() throws IOException {
-                    script.runForDoc(approximation().docID());
-                    return script.count() > 0;
+                    values = script.runForDoc(approximation().docID());
+                    return values.length > 0;
                 }
 
                 @Override
@@ -127,29 +125,29 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
         @Override
         public float score() throws IOException {
-            if (script.count() == 0) {
+            if (values.length == 0) {
                 return 0;
             }
-            return LongScriptFieldDistanceFeatureQuery.this.score(weight, (double) minAbsoluteDistance(script));
+            return LongScriptFieldDistanceFeatureQuery.this.score(weight, (double) minAbsoluteDistance(values));
         }
     }
 
-    long minAbsoluteDistance(AbstractLongScriptFieldScript script) {
+    long minAbsoluteDistance(long[] values) {
         long minDistance = Long.MAX_VALUE;
-        for (int i = 0; i < script.count(); i++) {
-            minDistance = Math.min(minDistance, distanceFor(script.values()[i]));
+        for (long v : values) {
+            minDistance = Math.min(minDistance, distanceFor(v));
         }
         return minDistance;
     }
 
-    long valueWithMinAbsoluteDistance(AbstractLongScriptFieldScript script) {
+    long valueWithMinAbsoluteDistance(long[] values) {
         long minDistance = Long.MAX_VALUE;
         long minDistanceValue = Long.MAX_VALUE;
-        for (int i = 0; i < script.count(); i++) {
-            long distance = distanceFor(script.values()[i]);
+        for (long v : values) {
+            long distance = distanceFor(v);
             if (distance < minDistance) {
                 minDistance = distance;
-                minDistanceValue = script.values()[i];
+                minDistanceValue = v;
             }
         }
         return minDistanceValue;

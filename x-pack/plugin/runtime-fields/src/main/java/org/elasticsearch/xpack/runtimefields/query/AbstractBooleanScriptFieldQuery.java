@@ -36,10 +36,8 @@ abstract class AbstractBooleanScriptFieldQuery extends AbstractScriptFieldQuery 
 
     /**
      * Does the value match this query?
-     * @param trues the number of true values returned by the script
-     * @param falses the number of false values returned by the script
      */
-    protected abstract boolean matches(int trues, int falses);
+    protected abstract boolean matches(boolean[] values);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -56,8 +54,7 @@ abstract class AbstractBooleanScriptFieldQuery extends AbstractScriptFieldQuery 
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        script.runForDoc(approximation().docID());
-                        return AbstractBooleanScriptFieldQuery.this.matches(script.trues(), script.falses());
+                        return AbstractBooleanScriptFieldQuery.this.matches(script.runForDoc(approximation().docID()));
                     }
 
                     @Override

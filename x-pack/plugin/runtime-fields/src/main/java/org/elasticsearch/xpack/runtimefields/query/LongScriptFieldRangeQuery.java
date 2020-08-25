@@ -32,9 +32,9 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
-        for (int i = 0; i < count; i++) {
-            if (lowerValue <= values[i] && values[i] <= upperValue) {
+    protected boolean matches(long[] values) {
+        for (long v : values) {
+            if (lowerValue <= v && v <= upperValue) {
                 return true;
             }
         }

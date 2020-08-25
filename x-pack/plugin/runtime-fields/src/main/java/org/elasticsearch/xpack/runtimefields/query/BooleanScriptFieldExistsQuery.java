@@ -15,8 +15,8 @@ public class BooleanScriptFieldExistsQuery extends AbstractBooleanScriptFieldQue
     }
 
     @Override
-    protected boolean matches(int trues, int falses) {
-        return (trues | falses) != 0;
+    protected boolean matches(boolean[] values) {
+        return values.length > 0;
     }
 
     @Override

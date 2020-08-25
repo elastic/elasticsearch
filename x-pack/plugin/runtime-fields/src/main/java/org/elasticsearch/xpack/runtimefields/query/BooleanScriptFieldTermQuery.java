@@ -20,11 +20,21 @@ public class BooleanScriptFieldTermQuery extends AbstractBooleanScriptFieldQuery
     }
 
     @Override
-    protected boolean matches(int trues, int falses) {
+    protected boolean matches(boolean[] values) {
         if (term) {
-            return trues > 0;
+            for (boolean v : values) {
+                if (v) {
+                    return true;
+                }
+            }
+            return false;
         }
-        return falses > 0;
+        for (boolean v : values) {
+            if (false == v) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

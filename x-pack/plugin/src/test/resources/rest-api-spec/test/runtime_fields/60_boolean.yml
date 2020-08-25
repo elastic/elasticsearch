@@ -22,9 +22,13 @@ setup:
                 runtime_type: boolean
                 script:
                   source: |
-                    for (def v : doc['voltage']) {
-                      value(v >= params.min_v);
+                    def voltage = doc['voltage'];
+                    boolean[] result = new boolean[voltage.size()];
+                    int i = 0;
+                    for (double v : voltage) {
+                      result[i++] = v >= params.min_v;
                     }
+                    return result;
                   params:
                     min_v: 5.0
               # Test fetching from _source
@@ -33,21 +37,21 @@ setup:
                 runtime_type: boolean
                 script:
                   source: |
-                    value(source['voltage'] >= 5.0);
+                    source['voltage'] >= 5.0;
               # Test many booleans
               big_vals:
                 type: runtime_script
                 runtime_type: boolean
                 script:
                   source: |
+                    List results = new ArrayList();
                     for (def v : doc['temperature']) {
-                      value(v >= 200);
+                      results.add(v >= 200);
                     }
                     for (def v : doc['voltage']) {
-                      value(v >= 5.0);
+                      results.add(v >= 5.0);
                     }
-
-
+                    return results;
 
   - do:
       bulk:
@@ -76,9 +80,13 @@ setup:
   - match: {sensor.mappings.properties.over_v.runtime_type: boolean }
   - match:
       sensor.mappings.properties.over_v.script.source: |
-        for (def v : doc['voltage']) {
-          value(v >= params.min_v);
+        def voltage = doc['voltage'];
+        boolean[] result = new boolean[voltage.size()];
+        int i = 0;
+        for (double v : voltage) {
+          result[i++] = v >= params.min_v;
         }
+        return result;
   - match: {sensor.mappings.properties.over_v.script.params: {min_v: 5.0} }
   - match: {sensor.mappings.properties.over_v.script.lang: painless }
 

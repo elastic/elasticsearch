@@ -8,6 +8,10 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.elasticsearch.script.ScriptContext;
 
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+
 public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<BooleanScriptFieldScript.Factory> {
     public static final BooleanScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new BooleanScriptFieldScript(
         params,
@@ -15,8 +19,8 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
         ctx
     ) {
         @Override
-        public void execute() {
-            new BooleanScriptFieldScript.Value(this).value(false);
+        public boolean[] execute() {
+            return new boolean[] { false };
         }
     };
 
@@ -28,5 +32,22 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     @Override
     protected BooleanScriptFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    public void testConvertBoolean() {
+        boolean v = randomBoolean();
+        assertThat(BooleanScriptFieldScript.convertFromBoolean(v), equalTo(new boolean[] { v }));
+        assertThat(BooleanScriptFieldScript.convertFromDef(v), equalTo(new boolean[] { v }));
+    }
+
+    public void testConvertFromCollection() {
+        boolean[] result = new boolean[] { randomBoolean(), randomBoolean(), randomBoolean() };
+        assertThat(BooleanScriptFieldScript.convertFromCollection(List.of(result[0], result[1], result[2])), equalTo(result));
+        assertThat(BooleanScriptFieldScript.convertFromDef(List.of(result[0], result[1], result[2])), equalTo(result));
+    }
+
+    public void testConvertBooleanArrayFromDef() {
+        boolean[] result = new boolean[] { randomBoolean(), randomBoolean(), randomBoolean() };
+        assertThat(BooleanScriptFieldScript.convertFromDef(result), equalTo(result));
     }
 }

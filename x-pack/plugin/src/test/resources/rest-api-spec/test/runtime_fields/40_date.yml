@@ -22,9 +22,11 @@ setup:
                 runtime_type: date
                 script:
                   source: |
+                    List result = new ArrayList();
                     for (def dt : doc['timestamp']) {
-                      date(dt.plus(params.days, ChronoUnit.DAYS));
+                      result.add(dt.plus(params.days, ChronoUnit.DAYS));
                     }
+                    return result;
                   params:
                     days: 1
               # Test fetching from _source and parsing
@@ -35,36 +37,38 @@ setup:
                   source: |
                     Instant instant = Instant.ofEpochMilli(parse(source['timestamp']));
                     ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                    date(dt.plus(1, ChronoUnit.DAYS));
+                    return dt.plus(1, ChronoUnit.DAYS);
               # Test returning millis
               the_past:
                 type: runtime_script
                 runtime_type: date
                 script:
                   source: |
-                    for (def dt : doc['timestamp']) {
-                      millis(dt.toInstant().toEpochMilli() - 1000);
-                    }
+                    doc['timestamp'].value.toInstant().toEpochMilli() - 1000;
               # Test fetching many values
               all_week:
                 type: runtime_script
                 runtime_type: date
                 script:
                   source: |
+                    List result = new ArrayList();
                     for (def dt : doc['timestamp']) {
                       for (int i = 0; i < 7; i++) {
-                        date(dt.plus(i, ChronoUnit.DAYS));
+                        result.add(dt.plus(i, ChronoUnit.DAYS));
                       }
                     }
+                    return result;
               # Test format parameter
               formatted_tomorrow:
                 type: runtime_script
                 runtime_type: date
                 format: yyyy-MM-dd
                 script: |
+                  List result = new ArrayList();
                   for (def dt : doc['timestamp']) {
-                    date(dt.plus(1, ChronoUnit.DAYS));
+                    result.add(dt.plus(1, ChronoUnit.DAYS));
                   }
+                  return result;
 
   - do:
       bulk:
@@ -93,9 +97,11 @@ setup:
   - match: {sensor.mappings.properties.tomorrow.runtime_type: date }
   - match:
       sensor.mappings.properties.tomorrow.script.source: |
+        List result = new ArrayList();
         for (def dt : doc['timestamp']) {
-          date(dt.plus(params.days, ChronoUnit.DAYS));
+          result.add(dt.plus(params.days, ChronoUnit.DAYS));
         }
+        return result;
   - match: {sensor.mappings.properties.tomorrow.script.params: {days: 1} }
   - match: {sensor.mappings.properties.tomorrow.script.lang: painless }
 
@@ -103,9 +109,11 @@ setup:
   - match: {sensor.mappings.properties.formatted_tomorrow.runtime_type: date }
   - match:
       sensor.mappings.properties.formatted_tomorrow.script.source: |
+        List result = new ArrayList();
         for (def dt : doc['timestamp']) {
-          date(dt.plus(1, ChronoUnit.DAYS));
+          result.add(dt.plus(1, ChronoUnit.DAYS));
         }
+        return result;
   - match: {sensor.mappings.properties.formatted_tomorrow.script.lang: painless }
   - match: {sensor.mappings.properties.formatted_tomorrow.format: yyyy-MM-dd }
 

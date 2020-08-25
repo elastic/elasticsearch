@@ -53,6 +53,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -437,23 +438,32 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                             case "read_timestamp":
                                 return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
-                                            new DateScriptFieldScript.Millis(this).millis(parse.parse(timestamp));
+                                    public long[] execute() {
+                                        DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
+                                        List<?> timestamps = (List<?>) getSource().get("timestamp");
+                                        long[] results = new long[timestamps.size()];
+                                        int i = 0;
+                                        for (Object timestamp : timestamps) {
+                                            results[i++] = parse.parse(timestamp);
                                         }
+                                        return results;
                                     }
                                 };
                             case "add_days":
                                 return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
                                     @Override
-                                    public void execute() {
-                                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            long epoch = (Long) timestamp;
+                                    public long[] execute() {
+                                        DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
+                                        List<?> timestamps = (List<?>) getSource().get("timestamp");
+                                        TemporalAccessor[] results = new TemporalAccessor[timestamps.size()];
+                                        int i = 0;
+                                        for (Object timestamp : timestamps) {
+                                            long epoch = parse.parse(timestamp);
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            new DateScriptFieldScript.Date(this).date(dt);
+                                            results[i++] = dt;
                                         }
+                                        return convertFromTemporalAccessorArray(results);
                                     }
                                 };
                             default:

@@ -13,6 +13,8 @@ import java.io.IOException;
 
 public final class ScriptBooleanDocValues extends AbstractSortedNumericDocValues {
     private final BooleanScriptFieldScript script;
+    private int trues;
+    private int falses;
     private int cursor;
 
     ScriptBooleanDocValues(BooleanScriptFieldScript script) {
@@ -21,19 +23,33 @@ public final class ScriptBooleanDocValues extends AbstractSortedNumericDocValues
 
     @Override
     public boolean advanceExact(int docId) {
-        script.runForDoc(docId);
-        cursor = 0;
-        return script.trues() > 0 || script.falses() > 0;
+        boolean[] values = script.runForDoc(docId);
+        if (values.length == 0) {
+            return false;
+        }
+        trues = falses = cursor = 0;
+        /*
+         * We need to emit all falses before all trues so instead of
+         * sorting we count them all.
+         */
+        for (boolean v : values) {
+            if (v) {
+                trues++;
+            } else {
+                falses++;
+            }
+        }
+        return true;
     }
 
     @Override
     public long nextValue() throws IOException {
         // Emit all false values before all true values
-        return cursor++ < script.falses() ? 0 : 1;
+        return cursor++ < falses ? 0 : 1;
     }
 
     @Override
     public int docValueCount() {
-        return script.trues() + script.falses();
+        return trues + falses;
     }
 }

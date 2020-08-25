@@ -15,6 +15,7 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -35,60 +36,44 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         BooleanScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    private int trues;
-    private int falses;
-
     public BooleanScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
     }
 
-    public abstract void execute();
+    public abstract boolean[] execute();
 
     /**
      * Execute the script for the provided {@code docId}.
      */
-    public final void runForDoc(int docId) {
-        trues = 0;
-        falses = 0;
+    public final boolean[] runForDoc(int docId) {
         setDocument(docId);
-        execute();
-    }
-
-    /**
-     * How many {@code true} values were returned for this document.
-     */
-    public final int trues() {
-        return trues;
-    }
-
-    /**
-     * How many {@code false} values were returned for this document.
-     */
-    public final int falses() {
-        return falses;
-    }
-
-    private void collectValue(boolean v) {
-        if (v) {
-            trues++;
-        } else {
-            falses++;
-        }
+        return execute();
     }
 
     public static boolean parse(Object str) {
         return Booleans.parseBoolean(str.toString());
     }
 
-    public static class Value {
-        private final BooleanScriptFieldScript script;
+    public static boolean[] convertFromBoolean(boolean v) {
+        return new boolean[] { v };
+    }
 
-        public Value(BooleanScriptFieldScript script) {
-            this.script = script;
+    public static boolean[] convertFromCollection(Collection<?> v) {
+        boolean[] result = new boolean[v.size()];
+        int i = 0;
+        for (Object o : v) {
+            result[i++] = (Boolean) o;
         }
+        return result;
+    }
 
-        public void value(boolean v) {
-            script.collectValue(v);
+    public static boolean[] convertFromDef(Object o) {
+        if (o instanceof Boolean) {
+            return convertFromBoolean((Boolean) o);
+        } else if (o instanceof Collection) {
+            return convertFromCollection((Collection<?>) o);
+        } else {
+            return (boolean[]) o;
         }
     }
 }

@@ -56,13 +56,13 @@ public class LongScriptFieldTermsQueryTests extends AbstractLongScriptFieldQuery
     @Override
     public void testMatches() {
         LongScriptFieldTermsQuery query = new LongScriptFieldTermsQuery(randomScript(), leafFactory, "test", LongHashSet.from(1, 2, 3));
-        assertTrue(query.matches(new long[] { 1 }, 1));
-        assertTrue(query.matches(new long[] { 2 }, 1));
-        assertTrue(query.matches(new long[] { 3 }, 1));
-        assertTrue(query.matches(new long[] { 1, 0 }, 2));
-        assertTrue(query.matches(new long[] { 0, 1 }, 2));
-        assertFalse(query.matches(new long[] { 0 }, 1));
-        assertFalse(query.matches(new long[] { 0, 1 }, 1));
+        assertTrue(query.matches(new long[] { 1 }));
+        assertTrue(query.matches(new long[] { 2 }));
+        assertTrue(query.matches(new long[] { 3 }));
+        assertTrue(query.matches(new long[] { 1, 0 }));
+        assertTrue(query.matches(new long[] { 0, 1 }));
+        assertFalse(query.matches(new long[] { 0 }));
+        assertFalse(query.matches(new long[] {}));
     }
 
     @Override

@@ -166,7 +166,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             return null;
         }
         StringBuilder b = new StringBuilder();
-        if ("double".equals(type)) {
+        if (List.of("boolean", "date", "double", "long").contains(type)) {
             b.append("List result = new ArrayList();");
         }
         b.append("def v = source['").append(name).append("'];\n");
@@ -183,15 +183,15 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         b.append("    ").append(emit).append("\n");
         b.append("  }\n");
         b.append("}\n");
-        if ("double".equals(type)) {
+        if (List.of("boolean", "date", "double", "long").contains(type)) {
             b.append("return result;");
         }
         return b.toString();
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(parse(value));"),
-        Map.entry(DateFieldMapper.CONTENT_TYPE, "millis(parse(value.toString()));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "result.add(parse(value));"),
+        Map.entry(DateFieldMapper.CONTENT_TYPE, "result.add(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
             "result.add(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
@@ -200,7 +200,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         Map.entry(IpFieldMapper.CONTENT_TYPE, "stringValue(value.toString());"),
         Map.entry(
             NumberType.LONG.typeName(),
-            "value(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+            "result.add(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
         )
     );
 

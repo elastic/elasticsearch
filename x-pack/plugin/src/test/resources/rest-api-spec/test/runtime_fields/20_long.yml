@@ -22,18 +22,31 @@ setup:
                 runtime_type: long
                 script:
                   source: |
-                    for (double v : doc['voltage']) {
-                      value((long)(v * params.multiplier));
+                    def voltage = doc['voltage'];
+                    long[] result = new long[voltage.size()];
+                    int i = 0;
+                    for (double v : voltage) {
+                      result[i++] = (long)(v * params.multiplier);
                     }
+                    return result;
                   params:
                     multiplier: 10
-              # Test fetching from _source
+              # Test fetching from _source and def to long[] conversion
               voltage_times_ten_from_source:
                 type: runtime_script
                 runtime_type: long
                 script:
                   source: |
-                    value((long)(source['voltage'] * params.multiplier));
+                    Math.round(source['voltage'] * params.multiplier)
+                  params:
+                    multiplier: 10
+              # Test long to long[] conversion
+              voltage_times_ten_long_conversion:
+                type: runtime_script
+                runtime_type: long
+                script:
+                  source: |
+                    (long)(source['voltage'] * params.multiplier)
                   params:
                     multiplier: 10
               # Test fetching many values
@@ -42,13 +55,15 @@ setup:
                 runtime_type: long
                 script:
                   source: |
+                    List result = new ArrayList();
                     for (long temperature : doc['temperature']) {
                       long t = temperature;
                       while (t != 0) {
-                        value(t % 10);
+                        result.add(t % 10);
                         t /= 10;
                       }
                     }
+                    return result;
 
   - do:
       bulk:
@@ -77,9 +92,13 @@ setup:
   - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |
-        for (double v : doc['voltage']) {
-          value((long)(v * params.multiplier));
+        def voltage = doc['voltage'];
+        long[] result = new long[voltage.size()];
+        int i = 0;
+        for (double v : voltage) {
+          result[i++] = (long)(v * params.multiplier);
         }
+        return result;
   - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
   - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
 
@@ -90,10 +109,15 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields: [voltage_times_ten, voltage_times_ten_from_source, temperature_digits]
+          docvalue_fields:
+            - voltage_times_ten
+            - voltage_times_ten_from_source
+            - voltage_times_ten_long_conversion
+            - temperature_digits
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
   - match: {hits.hits.0.fields.voltage_times_ten_from_source: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_long_conversion: [40] }
   - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
   - match: {hits.hits.1.fields.voltage_times_ten: [42] }

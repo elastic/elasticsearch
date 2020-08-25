@@ -14,6 +14,7 @@ import java.util.Arrays;
 
 public final class ScriptLongDocValues extends AbstractSortedNumericDocValues {
     private final AbstractLongScriptFieldScript script;
+    private long[] values;
     private int cursor;
 
     ScriptLongDocValues(AbstractLongScriptFieldScript script) {
@@ -22,22 +23,22 @@ public final class ScriptLongDocValues extends AbstractSortedNumericDocValues {
 
     @Override
     public boolean advanceExact(int docId) {
-        script.runForDoc(docId);
-        if (script.count() == 0) {
+        values = script.runForDoc(docId);
+        if (values.length == 0) {
             return false;
         }
-        Arrays.sort(script.values(), 0, script.count());
+        Arrays.sort(values);
         cursor = 0;
         return true;
     }
 
     @Override
     public long nextValue() throws IOException {
-        return script.values()[cursor++];
+        return values[cursor++];
     }
 
     @Override
     public int docValueCount() {
-        return script.count();
+        return values.length;
     }
 }

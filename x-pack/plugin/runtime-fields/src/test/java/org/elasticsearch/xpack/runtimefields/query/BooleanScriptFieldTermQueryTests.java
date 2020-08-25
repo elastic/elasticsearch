@@ -48,15 +48,15 @@ public class BooleanScriptFieldTermQueryTests extends AbstractBooleanScriptField
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance(true).matches(between(1, Integer.MAX_VALUE), 0));
-        assertFalse(createTestInstance(true).matches(0, between(1, Integer.MAX_VALUE)));
-        assertTrue(createTestInstance(true).matches(between(1, Integer.MAX_VALUE), between(1, Integer.MAX_VALUE)));
+        assertTrue(createTestInstance(true).matches(new boolean[] { true }));
+        assertFalse(createTestInstance(true).matches(new boolean[] { false }));
+        assertTrue(createTestInstance(true).matches(new boolean[] { true, false }));
 
-        assertFalse(createTestInstance(false).matches(between(1, Integer.MAX_VALUE), 0));
-        assertTrue(createTestInstance(false).matches(0, between(1, Integer.MAX_VALUE)));
-        assertTrue(createTestInstance(false).matches(between(1, Integer.MAX_VALUE), between(1, Integer.MAX_VALUE)));
+        assertFalse(createTestInstance(false).matches(new boolean[] { true }));
+        assertTrue(createTestInstance(false).matches(new boolean[] { false }));
+        assertTrue(createTestInstance(false).matches(new boolean[] { true, false }));
 
-        assertFalse(createTestInstance().matches(0, 0));
+        assertFalse(createTestInstance().matches(new boolean[] {}));
     }
 
     @Override

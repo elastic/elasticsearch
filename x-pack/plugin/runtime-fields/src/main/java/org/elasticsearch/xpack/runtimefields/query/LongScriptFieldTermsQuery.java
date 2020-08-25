@@ -30,9 +30,9 @@ public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
-        for (int i = 0; i < count; i++) {
-            if (terms.contains(values[i])) {
+    protected boolean matches(long[] values) {
+        for (long v : values) {
+            if (terms.contains(v)) {
                 return true;
             }
         }

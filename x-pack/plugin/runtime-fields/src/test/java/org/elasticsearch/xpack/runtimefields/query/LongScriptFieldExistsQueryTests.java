@@ -29,9 +29,8 @@ public class LongScriptFieldExistsQueryTests extends AbstractLongScriptFieldQuer
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new long[0], randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(new long[0], 0));
-        assertFalse(createTestInstance().matches(new long[] { 1, 2, 3 }, 0));
+        assertTrue(createTestInstance().matches(new long[] { 1 }));
+        assertFalse(createTestInstance().matches(new long[] {}));
     }
 
     @Override

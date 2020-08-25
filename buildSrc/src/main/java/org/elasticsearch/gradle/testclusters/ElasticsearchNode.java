@@ -431,9 +431,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (Files.exists(workingDir)) {
                     project.delete(workingDir);
                 }
-                setupNodeDistribution(getExtractedDistributionDir());
                 isWorkingDirConfigured = true;
             }
+            setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);

@@ -426,22 +426,6 @@ Name of the index containing the event.
 Unique identifier for the event.
 This ID is only unique within the index.
 
-`_version`::
-(integer)
-Version of the document (event). This version is incremented each time the document is
-updated.
-
-`_seq_no`::
-(integer)
-Sequence number assigned to the document (event).
-+
-Sequence numbers are used to ensure an older version of a document
-doesn’t overwrite a newer version. See <<optimistic-concurrency-control>>.
-
-`_primary_term`::
-(integer)
-Primary term assigned to the document. See <<optimistic-concurrency-control>>.
-
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
@@ -495,7 +479,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted

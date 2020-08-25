@@ -45,20 +45,20 @@ either the limit is increased as described below, or some indices are
 <<indices-open-close,closed>> or <<indices-delete-index,deleted>> to bring the
 number of shards below the limit.
 
-Replicas count towards this limit, but closed indexes do not. An index with 5
-primary shards and 2 replicas will be counted as 15 shards. Any closed index
-is counted as 0, no matter how many shards and replicas it contains.
+The cluster shard limit defaults to 1,000 shards per data node. 
+Both primary and replica shards of all open indices count toward the limit, 
+including unassigned shards. 
+For example, an open index with 5 primary shards and 2 replicas counts as 15 shards. 
+Closed indices do not contribute to the shard count. 
 
-The limit defaults to 1,000 shards per data node, and can be dynamically
-adjusted using the following property:
+You can dynamically adjust the cluster shard limit with the following property:
 
 `cluster.max_shards_per_node`::
 
      Controls the number of shards allowed in the cluster per data node.
 
-For example, a 3-node cluster with the default setting would allow 3,000 shards
-total, across all open indexes. If the above setting is changed to 500, then
-the cluster would allow 1,500 shards total.
+With the default setting, a 3-node cluster allows 3,000 shards total, across all open indexes. 
+If you reduce the limit to 500, the cluster would allow 1,500 shards total.
 
 NOTE: If there are no data nodes in the cluster, the limit will not be enforced.
 This allows the creation of indices during cluster creation if dedicated master

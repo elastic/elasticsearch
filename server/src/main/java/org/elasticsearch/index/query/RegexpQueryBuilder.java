@@ -95,13 +95,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         syntaxFlagsValue = in.readVInt();
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            // IMPORTANT - older versions of Lucene/elasticsearch used 0xffff to
-            // represent ALL, but newer versions of Lucene will error given syntax flag
-            // values > 0xff
-            // Here, we mute the bits beyond 0xff to provide BWC
-            syntaxFlagsValue = syntaxFlagsValue & RegExp87.ALL;
-        }
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {

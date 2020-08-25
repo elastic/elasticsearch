@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -32,6 +31,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
@@ -95,21 +95,24 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         assertEquals(-10.1, doc.rootDoc().getField("metric.min").numericValue());
     }
 
+    /*
+        public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
+
+        assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
+    }
+     */
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         AggregateDoubleMetricFieldMapper mapper = new AggregateDoubleMetricFieldMapper.Builder("field").metrics(
             EnumSet.of(AggregateDoubleMetricFieldMapper.Metric.min)
         ).build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-
         Map<String, Object> metric = Collections.singletonMap("min", 14.2);
-        sourceLookup.setSource(Collections.singletonMap("field", metric));
-
-        assertEquals(List.of(metric), mapper.lookupValues(sourceLookup, null));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
-        assertEquals("Field [field] of type [aggregate_metric_double] doesn't support formats.", e.getMessage());
+        assertEquals(List.of(metric), fetchSourceValue(mapper, metric));
     }
 
     /**

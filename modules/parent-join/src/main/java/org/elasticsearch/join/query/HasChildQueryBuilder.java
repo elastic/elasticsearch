@@ -144,7 +144,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
         }
         if (minChildren == 0) {
-            deprecationLogger.deprecatedAndMaybeLog("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");

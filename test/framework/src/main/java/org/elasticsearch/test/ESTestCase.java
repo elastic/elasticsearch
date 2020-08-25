@@ -65,9 +65,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -449,7 +448,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final Set<String> actualWarningValues =
                 actualWarnings.stream()
                     .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-                    .map(DeprecationLogger::escapeAndEncode)
+                    .map(HeaderWarning::escapeAndEncode)
                     .collect(Collectors.toSet());
             Set<String> expectedWarnings = new HashSet<>(Arrays.asList(allowedWarnings));
             final Set<String> warningsNotExpected = Sets.difference(actualWarningValues, expectedWarnings);

@@ -77,7 +77,7 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecatedAndMaybeLog("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
         }
 
         DateTimeFormatter formatter;

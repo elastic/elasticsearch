@@ -498,7 +498,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("RestoreSnapshotRequest#settings",
+                DEPRECATION_LOGGER.deprecate("RestoreSnapshotRequest#settings",
                     "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");

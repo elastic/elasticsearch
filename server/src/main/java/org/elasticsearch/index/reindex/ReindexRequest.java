@@ -374,7 +374,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             String[] types = extractStringArray(source, "type");
             if (types != null) {
-                deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
                 request.getSearchRequest().types(types);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
@@ -390,7 +390,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString((request, type) -> {
-            deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
             request.type(type);
         }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));

@@ -65,11 +65,13 @@ public abstract class ESLogMessage extends ParameterizedMessage {
             .collect(Collectors.joining(", ")) + "]";
     }
 
+    @SuppressLoggerChecks(reason = "super is not calling a constructor")
     public Object[] getArguments() {
-        return arguments.toArray();
+        return super.getParameters();
     }
 
+    @SuppressLoggerChecks(reason = "super is not calling a constructor")
     public String getMessagePattern() {
-        return messagePattern;
+        return super.getFormat();
     }
 }

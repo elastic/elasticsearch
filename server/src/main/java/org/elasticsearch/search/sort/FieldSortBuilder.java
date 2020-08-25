@@ -703,7 +703,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static {
         PARSER.declareField(FieldSortBuilder::missing, XContentParser::objectText,  MISSING, ValueType.VALUE);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_path",
+            deprecationLogger.deprecate("field_sort_nested_path",
                 "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
@@ -711,7 +711,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_filter",
+            deprecationLogger.deprecate("field_sort_nested_filter",
                 "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);

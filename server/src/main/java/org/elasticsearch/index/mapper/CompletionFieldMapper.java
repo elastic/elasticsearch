@@ -209,7 +209,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
         private void checkCompletionContextsLimit(BuilderContext context) {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                deprecationLogger.deprecatedAndMaybeLog("excessive_completion_contexts",
+                deprecationLogger.deprecate("excessive_completion_contexts",
                     "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                         " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
                         "The maximum allowed number of completion contexts in a mapping will be limited to " +

@@ -130,7 +130,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        deprecationLogger.deprecatedAndMaybeLog("type_query", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate("type_query", TYPES_DEPRECATION_MESSAGE);
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
         DocumentMapper documentMapper = context.getMapperService().documentMapper(type);
         if (documentMapper == null) {

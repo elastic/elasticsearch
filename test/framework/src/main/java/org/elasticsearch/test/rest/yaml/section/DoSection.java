@@ -330,7 +330,7 @@ public class DoSection implements ExecutableSection {
             final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                final String message = DeprecationLogger.extractWarningValueFromWarningHeader(header, true);
+                final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (masterVersion.before(Version.V_7_0_0)
                         && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
                         + "if you wish to continue using the default of [5] shards, "

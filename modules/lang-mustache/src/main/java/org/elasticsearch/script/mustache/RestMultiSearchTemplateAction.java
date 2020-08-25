@@ -86,7 +86,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         // Emit a single deprecation message if any search template contains types.
         for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
             if (searchTemplateRequest.getRequest().types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

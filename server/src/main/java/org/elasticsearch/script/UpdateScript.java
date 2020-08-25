@@ -35,7 +35,7 @@ public abstract class UpdateScript {
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("update-script",
+                deprecationLogger.deprecate("update-script",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

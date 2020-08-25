@@ -101,7 +101,7 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecatedAndMaybeLog(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
+            deprecationLogger.deprecate(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                 "[{}] will be removed in version {}",
                 DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
         }
@@ -305,7 +305,7 @@ public class DiskThresholdMonitor {
                 logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
-                deprecationLogger.deprecatedAndMaybeLog(
+                deprecationLogger.deprecate(
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                     "[{}] will be removed in version {}",
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);

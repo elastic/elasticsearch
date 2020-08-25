@@ -547,14 +547,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecatedAndMaybeLog(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecatedAndMaybeLog(propName,
+                        deprecationLogger.deprecate(propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;

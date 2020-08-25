@@ -248,7 +248,7 @@ class S3Repository extends BlobStoreRepository {
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
-            deprecationLogger.deprecatedAndMaybeLog("s3_repository_secret_settings",
+            deprecationLogger.deprecate("s3_repository_secret_settings",
                     "Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
         }

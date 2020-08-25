@@ -251,7 +251,7 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecatedAndMaybeLog("similarity",
+                deprecationLogger.deprecate("similarity",
                     "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
                 iterator.remove();
             } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {

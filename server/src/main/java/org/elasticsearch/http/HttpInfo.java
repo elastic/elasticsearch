@@ -73,7 +73,7 @@ public class HttpInfo implements ReportingService.Info {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (CNAME_IN_PUBLISH_HOST) {
-            deprecationLogger.deprecatedAndMaybeLog(
+            deprecationLogger.deprecate(
                 "cname_in_publish_address",
                 "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
                     "formatting. Remove this property to get rid of this deprecation warning."

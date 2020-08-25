@@ -131,7 +131,7 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest;
         final String type = request.param("type");
         if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {
             indexRequest = new IndexRequest(request.param("index"));

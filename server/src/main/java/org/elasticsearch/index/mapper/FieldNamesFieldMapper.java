@@ -99,7 +99,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
             if (enabled.getValue().explicit()) {
-                deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
             }
             FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue().value());
             return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated, fieldNamesFieldType);

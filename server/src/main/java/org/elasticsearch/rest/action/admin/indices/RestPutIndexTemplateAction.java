@@ -66,10 +66,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         if (request.hasParam("template")) {
-            deprecationLogger.deprecatedAndMaybeLog("put_index_template_deprecated_parameter",
+            deprecationLogger.deprecate("put_index_template_deprecated_parameter",
                 "Deprecated parameter [template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
         } else {

@@ -452,7 +452,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecatedAndMaybeLog("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
+                deprecationLogger.deprecate("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             results.put(DEFAULT_MAPPING, defaultMapper);
@@ -631,7 +631,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappedFieldType unmappedFieldType(String type) {
         if (type.equals("string")) {
-            deprecationLogger.deprecatedAndMaybeLog("unmapped_type_string",
+            deprecationLogger.deprecate("unmapped_type_string",
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }

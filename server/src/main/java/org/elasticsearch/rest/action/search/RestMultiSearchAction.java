@@ -97,7 +97,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         // Emit a single deprecation message if any search request contains types.
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {
             if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

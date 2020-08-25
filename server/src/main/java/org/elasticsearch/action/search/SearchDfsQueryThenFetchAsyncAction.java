@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -71,7 +73,10 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, final SearchPhaseContext context) {
-        return new DfsQueryPhase(results.getAtomicArray(), searchPhaseController, (queryResults) ->
-            new FetchSearchPhase(queryResults, searchPhaseController, context, clusterState()), context, onPartialMergeFailure);
+        final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
+        final AggregatedDfs aggregatedDfs = searchPhaseController.aggregateDfs(dfsSearchResults);
+
+        return new DfsQueryPhase(dfsSearchResults, aggregatedDfs, searchPhaseController, (queryResults) ->
+            new FetchSearchPhase(queryResults, searchPhaseController, aggregatedDfs, context), context, onPartialMergeFailure);
     }
 }

@@ -103,7 +103,17 @@ public abstract class NewAsyncIOProcessor<Item> {
         Exception exception;
         try {
             queue.drainTo(candidates);
-            exception = processList(candidates);
+            List<Tuple<Item, Consumer<Exception>>> written = new ArrayList<>(candidates.size());
+            List<Tuple<Item, Consumer<Exception>>> unwritten = new ArrayList<>(candidates.size());
+            for (Tuple<Item, Consumer<Exception>> candidate : candidates) {
+                if (isAlreadyWritten(candidate.v1())) {
+                    written.add(candidate);
+                } else {
+                    unwritten.add(candidate);
+                }
+            }
+            notifyList(written, null);
+            exception = processList(unwritten);
         } finally {
             promiseSemaphore.release();
         }

@@ -189,6 +189,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         assert false : message;
                         throw new IllegalStateException(message);
                     }, EsExecutors.newDirectExecutorService()); // never used
+
+                    readComplete(position, length);
+
                     return;
                 }
 
@@ -273,6 +276,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             );
                             // oh well, no big deal, at least we can return them to the caller.
                         }
+
+                        readComplete(position, length);
 
                         return;
                     }
@@ -370,6 +375,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // already a rare case caused by an overfull/undersized cache.
         }
 
+        readComplete(position, length);
+    }
+
+    private void readComplete(long position, int length) {
         stats.incrementBytesRead(lastReadPosition, position, length);
         lastReadPosition = position + length;
         lastSeekPosition = lastReadPosition;

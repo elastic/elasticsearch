@@ -217,6 +217,7 @@ public class TransportStartDataFrameAnalyticsAction
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
+                // We will only warn the caller if the configured limit is too low.
                 if (startContext.config.getModelMemoryLimit()
                     .compareTo(expectedMemoryWithoutDisk) < 0) {
                     String warning =  Messages.getMessage(

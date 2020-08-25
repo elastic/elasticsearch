@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
+import org.elasticsearch.xpack.analytics.rate.InternalRate;
+import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -118,7 +120,13 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TTestAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
-                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
+                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
+            new AggregationSpec(
+                RateAggregationBuilder.NAME,
+                RateAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.RATE, checkLicense(RateAggregationBuilder.PARSER)))
+                .addResultReader(InternalRate::new)
+                .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators)
         );
     }
 

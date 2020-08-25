@@ -58,6 +58,15 @@ public class ReleasableLock implements Releasable {
         return this;
     }
 
+    public ReleasableLock tryAcquire() throws EngineException {
+        if (lock.tryLock()) {
+            assert addCurrentThread();
+            return this;
+        } else {
+            return null;
+        }
+    }
+
     /**
      * Try acquiring lock, returning null if unable to acquire lock within timeout.
      */

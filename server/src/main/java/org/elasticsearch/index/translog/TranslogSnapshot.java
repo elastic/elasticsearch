@@ -24,6 +24,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
@@ -40,14 +42,19 @@ final class TranslogSnapshot extends BaseTranslogReader {
     /**
      * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
-        super(reader.generation, reader.channel, reader.path, reader.header);
-        this.length = length;
-        this.totalOperations = reader.totalOperations();
-        this.checkpoint = reader.getCheckpoint();
+    TranslogSnapshot(final BaseTranslogReader reader) {
+        this(reader.generation, reader.channel, reader.path, reader.header, reader.getCheckpoint(), reader.getFirstOperationOffset());
+    }
+
+    TranslogSnapshot(long generation, FileChannel channel, Path path, TranslogHeader header, Checkpoint checkpoint,
+                     long getFirstOperationOffset) {
+        super(generation,channel, path, header);
+        this.length = checkpoint.offset;
+        this.totalOperations = checkpoint.numOps;
+        this.checkpoint = checkpoint;
         this.reusableBuffer = ByteBuffer.allocate(1024);
         this.readOperations = 0;
-        this.position = reader.getFirstOperationOffset();
+        this.position = getFirstOperationOffset;
         this.reuse = null;
     }
 

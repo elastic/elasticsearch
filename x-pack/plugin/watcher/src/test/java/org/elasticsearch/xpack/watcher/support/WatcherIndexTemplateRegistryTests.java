@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -356,11 +357,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
     private ClusterState createClusterState(Map<String, Integer> existingTemplates) {
         Metadata.Builder metadataBuilder = Metadata.builder();
+        HashMap<String, ComposableIndexTemplate> templates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            metadataBuilder.put(IndexTemplateMetadata.builder(template.getKey())
-                    .version(template.getValue())
-                    .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))));
+            ComposableIndexTemplate indexTemplate = mock(ComposableIndexTemplate.class);
+            when(indexTemplate.version()).thenReturn(template.getValue() == null ? null : (long) template.getValue());
+            when(indexTemplate.indexPatterns()).thenReturn(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
+            templates.put(template.getKey(), indexTemplate);
         }
+        metadataBuilder.indexTemplates(templates);
 
         return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }

@@ -11,16 +11,21 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.List;
 
 /**
- * Container for internal results. Can be low-level such as SearchHits or Sequences.
- * Generalized to allow reuse and internal pluggability.
+ * Container for final results. Used for completed data, such as Events or Sequences.
  */
 public interface Payload {
 
-    Results.Type resultType();
+    enum Type {
+        EVENT,
+        SEQUENCE,
+        COUNT;
+    }
+    
+    Type resultType();
 
     boolean timedOut();
 
     TimeValue timeTook();
 
-    <V> List<V> values();
+    List<?> values();
 }

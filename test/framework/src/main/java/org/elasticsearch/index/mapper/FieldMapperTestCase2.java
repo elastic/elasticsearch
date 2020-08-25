@@ -202,8 +202,12 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
             assertSerializes(builder1);
             assertSerializes(builder2);
         }
+        assertSerializationWarnings();
     }
 
+    protected void assertSerializationWarnings() {
+        // Most mappers don't emit any warnings
+    }
 
     protected void assertSerializes(T builder) throws IOException {
         Mapper.BuilderContext context = new Mapper.BuilderContext(getIndexSettings(), new ContentPath(1));

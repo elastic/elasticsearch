@@ -20,12 +20,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -42,13 +44,13 @@ import java.util.List;
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final InternalSearchResponse searchResponse;
-    private final String scrollId;
+    private final AtomicArray<SearchPhaseResult> queryResults;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, String scrollId) {
+    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
-        this.scrollId = scrollId;
+        this.queryResults = queryResults;
     }
 
     /**
@@ -110,11 +112,11 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         }
                     }
-                    context.sendSearchResponse(searchResponse, scrollId);
+                    context.sendSearchResponse(searchResponse, queryResults);
                 }, context::onFailure)
             );
         } else {
-            context.sendSearchResponse(searchResponse, scrollId);
+            context.sendSearchResponse(searchResponse, queryResults);
         }
     }
 

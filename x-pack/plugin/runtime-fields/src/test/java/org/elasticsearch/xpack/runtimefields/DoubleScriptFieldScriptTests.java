@@ -52,4 +52,10 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
         double[] a = new double[] { 1, 2, 3 };
         assertThat(DoubleScriptFieldScript.convertFromDef(a), equalTo(a));
     }
+
+    public void testConvertNumberFromDef() {
+        for (Number n : new Number[] { randomByte(), randomShort(), randomInt(), randomLong(), randomFloat() }) {
+            assertThat(DoubleScriptFieldScript.convertFromDef(n), equalTo(new double[] { n.doubleValue() }));
+        }
+    }
 }

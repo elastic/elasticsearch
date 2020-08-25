@@ -63,8 +63,8 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public static double[] convertFromDef(Object o) {
-        if (o instanceof Double) {
-            return convertFromDouble(((Double) o).doubleValue());
+        if (o instanceof Number) {
+            return convertFromDouble(((Number) o).doubleValue());
         } else if (o instanceof Collection) {
             return convertFromCollection((Collection<?>) o);
         } else {

@@ -108,7 +108,7 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
             toCounter(inputStats.getContiguousReads()),
             toCounter(inputStats.getNonContiguousReads()),
             toCounter(inputStats.getCachedBytesRead()),
-            toTimedCounter(inputStats.getIndexCacheBytesRead()),
+            toCounter(inputStats.getIndexCacheBytesRead()),
             toTimedCounter(inputStats.getCachedBytesWritten()),
             toTimedCounter(inputStats.getDirectBytesRead()),
             toTimedCounter(inputStats.getOptimizedBytesRead()),

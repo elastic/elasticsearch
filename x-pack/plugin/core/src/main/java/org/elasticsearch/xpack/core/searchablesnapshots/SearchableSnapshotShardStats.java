@@ -135,7 +135,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter contiguousReads;
         private final Counter nonContiguousReads;
         private final Counter cachedBytesRead;
-        private final TimedCounter indexCacheBytesRead;
+        private final Counter indexCacheBytesRead;
         private final TimedCounter cachedBytesWritten;
         private final TimedCounter directBytesRead;
         private final TimedCounter optimizedBytesRead;
@@ -146,7 +146,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
-                                    Counter cachedBytesRead, TimedCounter indexCacheBytesRead,
+                                    Counter cachedBytesRead, Counter indexCacheBytesRead,
                                     TimedCounter cachedBytesWritten, TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
                                     Counter blobStoreBytesRequested, long currentIndexCacheFills) {
             this.fileName = fileName;
@@ -181,9 +181,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.nonContiguousReads = new Counter(in);
             this.cachedBytesRead = new Counter(in);
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.indexCacheBytesRead = new TimedCounter(in);
+                this.indexCacheBytesRead = new Counter(in);
             } else {
-                this.indexCacheBytesRead = new TimedCounter(0, 0, 0, 0, 0);
+                this.indexCacheBytesRead = new Counter(0, 0, 0, 0);
             }
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
@@ -267,7 +267,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return cachedBytesRead;
         }
 
-        public TimedCounter getIndexCacheBytesRead() {
+        public Counter getIndexCacheBytesRead() {
             return indexCacheBytesRead;
         }
 

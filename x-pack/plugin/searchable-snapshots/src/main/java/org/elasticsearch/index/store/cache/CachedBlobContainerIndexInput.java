@@ -206,14 +206,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
 
                 if (canBeFullyCached || isStartOfFile) {
-                    final long cacheReadStartTime = stats.currentTimeNanos();
                     final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
 
                     if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
                         // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
                         // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
                         // {start, end} where positions are relative to the whole file.
-                        stats.addIndexCacheBytesRead(0, stats.currentTimeNanos() - cacheReadStartTime);
 
                         if (canBeFullyCached) {
                             // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
@@ -232,7 +230,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             fileInfo.physicalName(),
                             position
                         );
-                        stats.addIndexCacheBytesRead(cachedBlob.length(), stats.currentTimeNanos() - cacheReadStartTime);
+                        stats.addIndexCacheBytesRead(cachedBlob.length());
 
                         // TODO don't call toBytes here
                         b.put(BytesReference.toBytes(cachedBlob.bytes().slice(Math.toIntExact(position), length)));

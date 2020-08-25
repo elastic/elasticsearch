@@ -71,7 +71,7 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
         assertTrue(CompressorFactory.COMPRESSOR.isCompressed(bytesRef));
 
-        StreamInput streamInput = CompressorFactory.COMPRESSOR.streamInput(bytesRef.streamInput());
+        StreamInput streamInput = CompressorFactory.COMPRESSOR.threadLocalStreamInput(bytesRef.streamInput());
         byte[] actualBytes = new byte[expectedBytes.length];
         streamInput.readBytes(actualBytes, 0, expectedBytes.length);
 
@@ -94,7 +94,7 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
         stream.write(expectedBytes);
 
 
-        StreamInput streamInput = CompressorFactory.COMPRESSOR.streamInput(bStream.bytes().streamInput());
+        StreamInput streamInput = CompressorFactory.COMPRESSOR.threadLocalStreamInput(bStream.bytes().streamInput());
         byte[] actualBytes = new byte[expectedBytes.length];
         EOFException e = expectThrows(EOFException.class, () -> streamInput.readBytes(actualBytes, 0, expectedBytes.length));
         assertEquals("Unexpected end of ZLIB input stream", e.getMessage());

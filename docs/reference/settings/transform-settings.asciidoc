@@ -10,11 +10,6 @@
 You do not need to configure any settings to use {transforms}. It is enabled by
 default.
 
-All of these settings can be added to the `elasticsearch.yml` configuration file.
-The dynamic settings can also be updated across a cluster with the
-<<cluster-update-settings,cluster update settings API>>. Dynamic settings take
-precedence over settings in the `elasticsearch.yml` file.
-
 [discrete]
 [[general-transform-settings]]
 ==== General {transforms} settings

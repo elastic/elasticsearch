@@ -50,24 +50,26 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
-            assert indexAccessControl != null;
-            for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
-                boolean found = false;
-                if (bulkItemRequest.request() instanceof UpdateRequest) {
-                    boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                    boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                    // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                    if ((fls || dls) && featureUsageChecker.get()) {
-                        found = true;
-                        logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
-                        bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
-                                "item request with update requests embedded if field or document level security is enabled",
-                                RestStatus.BAD_REQUEST));
+            // TODO replace if condition with assertion
+            if (indexAccessControl != null) {
+                for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
+                    boolean found = false;
+                    if (bulkItemRequest.request() instanceof UpdateRequest) {
+                        boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                        boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                        // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
+                        if ((fls || dls) && featureUsageChecker.get()) {
+                            found = true;
+                            logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
+                            bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
+                                    "item request with update requests embedded if field or document level security is enabled",
+                                    RestStatus.BAD_REQUEST));
+                        }
                     }
-                }
-                if (found == false) {
-                    logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
-                        bulkShardRequest.index());
+                    if (found == false) {
+                        logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
+                                bulkShardRequest.index());
+                    }
                 }
             }
         }

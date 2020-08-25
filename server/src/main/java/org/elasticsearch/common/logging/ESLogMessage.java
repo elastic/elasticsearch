@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
-@SuppressLoggerChecks(reason = "super is not calling a constructor")
+@SuppressLoggerChecks(reason = "Safe as this is abstract class")
 public abstract class ESLogMessage extends ParameterizedMessage {
     private final Map<String, Object> fields;
 
@@ -37,7 +37,6 @@ public abstract class ESLogMessage extends ParameterizedMessage {
      * This is an abstract class, so this is safe. The check is done on DeprecationMessage.
      * Other subclasses are not allowing varargs
      */
-    @SuppressLoggerChecks(reason = "Safe as this is abstract class")
     public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;

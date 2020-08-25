@@ -66,7 +66,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events are included in the
 `hits.events` property. These events are sorted by timestamp, converted to

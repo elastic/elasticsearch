@@ -90,9 +90,9 @@ public abstract class CardinalityUpperBound {
     public abstract CardinalityUpperBound multiply(int bucketCount);
 
     /**
-     * Map the cardinality to a value. If the upper bound of the cardinality
-     * is unknown the call the first argument to produce the value, otherwise
-     * call the second argument with the estimated upper bound.
+     * Map the cardinality to a value. The argument to the {@code mapper}
+     * is the estimated cardinality, or {@code Integer.MAX_VALUE} if the
+     * cardinality is unknown.
      */
     public abstract <R> R map(IntFunction<R> mapper);
 

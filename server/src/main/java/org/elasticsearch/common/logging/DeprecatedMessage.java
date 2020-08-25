@@ -22,7 +22,6 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -30,16 +29,20 @@ import java.util.Map;
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage extends ESLogMessage {
+    public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
-    public DeprecatedMessage(String xOpaqueId, String messagePattern, Object... args) {
-        super(fieldMap(xOpaqueId), messagePattern, args);
+    public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
+        super(fieldMap(key, xOpaqueId), messagePattern, args);
     }
 
-    private static Map<String, Object> fieldMap(String xOpaqueId) {
-        if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return Collections.emptyMap();
+    private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
+        final MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
+        if (Strings.isNullOrEmpty(key) == false) {
+            builder.put("key", key);
         }
-
-        return MapBuilder.<String,Object>newMapBuilder().put("x-opaque-id", xOpaqueId).immutableMap();
+        if (Strings.isNullOrEmpty(xOpaqueId) == false) {
+            builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+        }
+        return builder.immutableMap();
     }
 }

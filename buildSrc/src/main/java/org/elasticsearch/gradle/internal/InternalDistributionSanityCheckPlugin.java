@@ -176,7 +176,7 @@ public class InternalDistributionSanityCheckPlugin implements Plugin<Project> {
                 @Override
                 public void execute(Task task) {
                     String licenseFilename = null;
-                    if (project.getName().contains("oss-") || project.getName() == "integ-test-zip") {
+                    if (project.getName().contains("oss-") || project.getName().equals("integ-test-zip")) {
                         licenseFilename = "APACHE-LICENSE-2.0.txt";
                     } else {
                         licenseFilename = "ELASTIC-LICENSE.txt";

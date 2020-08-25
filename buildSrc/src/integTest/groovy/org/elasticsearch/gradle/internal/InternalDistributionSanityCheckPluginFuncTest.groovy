@@ -47,6 +47,7 @@ class InternalDistributionSanityCheckPluginFuncTest extends AbstractGradleFuncTe
                 ext.elasticLicenseUrl = "http://foo.bar"
             }
             tasks.register("buildDarwinTar", Tar) {
+                compression = Compression.GZIP
                 from 'SomeFile.class'
             }
             tasks.register("buildDarwinZip", Zip) {
@@ -91,7 +92,7 @@ unknown license content line 2
         """
 
         when:
-        def result = gradleRunner(":darwin-tar:check", '--stacktrace').buildAndFail()
+        def result = gradleRunner(":darwin-tar:check").buildAndFail()
         then:
         result.task(":darwin-tar:checkLicense").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output).contains("> expected line [2] in " +

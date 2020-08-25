@@ -87,10 +87,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
 
@@ -613,16 +609,6 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
             assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
-    }
-
-    private QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
-        return queryShardContext;
     }
 
     public void testFastPhraseMapping() throws IOException {

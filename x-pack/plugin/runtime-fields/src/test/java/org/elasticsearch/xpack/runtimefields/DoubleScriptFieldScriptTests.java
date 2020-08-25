@@ -36,20 +36,20 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
 
     public void testConvertDouble() {
         double v = randomDouble();
-        assertThat(DoubleScriptFieldScript.convertFromDouble(v), equalTo(new double[] {v}));
-        assertThat(DoubleScriptFieldScript.convertFromDef(v), equalTo(new double[] {v}));
+        assertThat(DoubleScriptFieldScript.convertFromDouble(v), equalTo(new double[] { v }));
+        assertThat(DoubleScriptFieldScript.convertFromDef(v), equalTo(new double[] { v }));
     }
 
     public void testConvertFromCollection() {
         double d = randomDouble();
         long l = randomLong();
         int i = randomInt();
-        assertThat(DoubleScriptFieldScript.convertFromCollection(List.of(d, l, i)), equalTo(new double[] {d, l, i}));
-        assertThat(DoubleScriptFieldScript.convertFromDef(List.of(d, l, i)), equalTo(new double[] {d, l, i}));
+        assertThat(DoubleScriptFieldScript.convertFromCollection(List.of(d, l, i)), equalTo(new double[] { d, l, i }));
+        assertThat(DoubleScriptFieldScript.convertFromDef(List.of(d, l, i)), equalTo(new double[] { d, l, i }));
     }
 
     public void testConvertDoubleArrayFromDef() {
-        double[] a = new double[] {1, 2, 3};
+        double[] a = new double[] { 1, 2, 3 };
         assertThat(DoubleScriptFieldScript.convertFromDef(a), equalTo(a));
     }
 }

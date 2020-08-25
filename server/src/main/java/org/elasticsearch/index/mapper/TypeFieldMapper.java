@@ -77,7 +77,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+            if (caseInsensitive) {
+                return pattern.equalsIgnoreCase(MapperService.SINGLE_MAPPING_NAME);
+            }
             return pattern.equals(MapperService.SINGLE_MAPPING_NAME);
         }
     }

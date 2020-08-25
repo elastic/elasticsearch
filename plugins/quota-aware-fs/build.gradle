@@ -1,18 +1,7 @@
-// apply plugin: 'elasticsearch.build'
-// apply plugin: 'elasticsearch.publish'
-
-// dependencies {
-//   testImplementation(project(":test:framework"))
-// }
-
-// tasks.named('forbiddenApisMain').configure {
-//   replaceSignatureFiles 'jdk-signatures'
-// }
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'
   classname 'org.elasticsearch.fs.quotaaware.QuoteAwareFsPlugin'
   bootstrapOnly = true
 }
-
-integTest.enabled = false

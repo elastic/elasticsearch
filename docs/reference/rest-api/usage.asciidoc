@@ -303,7 +303,6 @@ GET /_xpack/usage
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
 // TESTRESPONSE[s/"ilm" : \{[^\}]*\},/"ilm" : $body.$_path,/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
-// TESTRESPONSE[s/"analytics" : \{[^\}]*\}/"analytics" : $body.$_path/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]

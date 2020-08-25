@@ -136,7 +136,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
 
     @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
-        // We serialize extra fields on top of the 
+        // We serialize these fields regardless of whether or not they are changed
         b.field("type", "search_as_you_type").field("max_shingle_size", 3).field("doc_values", false);
     }
 

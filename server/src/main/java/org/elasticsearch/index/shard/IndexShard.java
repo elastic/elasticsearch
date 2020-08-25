@@ -3076,24 +3076,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        translogSyncProcessor.put(Translog.Location.MAX_LOCATION, e -> {
-            if (e == null) {
-                future.onResponse(null);
-            } else {
-                future.onFailure(e);
-            }
-        });
-        try {
-            future.actionGet();
-        } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
-            } else {
-                throw e;
-            }
-        }
+        getEngine().syncTranslog();
     }
 
     /**

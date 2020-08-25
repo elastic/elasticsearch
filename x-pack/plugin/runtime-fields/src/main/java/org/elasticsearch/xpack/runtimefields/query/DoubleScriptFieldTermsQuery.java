@@ -29,9 +29,9 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     @Override
-    protected boolean matches(double[] values, int count) {
-        for (int i = 0; i < count; i++) {
-            if (terms.contains(Double.doubleToLongBits(values[i]))) {
+    protected boolean matches(double[] values) {
+        for (double value : values) {
+            if (terms.contains(Double.doubleToLongBits(value))) {
                 return true;
             }
         }

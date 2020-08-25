@@ -36,7 +36,7 @@ abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
     /**
      * Does the value match this query?
      */
-    protected abstract boolean matches(double[] values, int count);
+    protected abstract boolean matches(double[] values);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -53,8 +53,7 @@ abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        script.runForDoc(approximation().docID());
-                        return AbstractDoubleScriptFieldQuery.this.matches(script.values(), script.count());
+                        return AbstractDoubleScriptFieldQuery.this.matches(script.runForDoc(approximation().docID()));
                     }
 
                     @Override

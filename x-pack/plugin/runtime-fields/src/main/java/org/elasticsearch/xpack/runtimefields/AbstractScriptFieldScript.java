@@ -81,6 +81,4 @@ public abstract class AbstractScriptFieldScript {
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafSearchLookup.doc();
     }
-
-    public abstract void execute();
 }

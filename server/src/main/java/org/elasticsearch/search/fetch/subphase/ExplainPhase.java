@@ -33,7 +33,7 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.explain() == false || context.hasOnlySuggest()) {
             return null;
         }

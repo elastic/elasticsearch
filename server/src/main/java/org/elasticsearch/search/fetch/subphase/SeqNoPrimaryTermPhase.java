@@ -31,7 +31,7 @@ import java.io.IOException;
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
         if (context.seqNoAndPrimaryTerm() == false) {
             return null;
         }

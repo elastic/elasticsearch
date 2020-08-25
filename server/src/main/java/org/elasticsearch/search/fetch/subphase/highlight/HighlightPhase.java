@@ -48,7 +48,7 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.highlight() == null) {
             return null;
         }

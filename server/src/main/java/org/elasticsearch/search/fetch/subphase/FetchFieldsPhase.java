@@ -39,7 +39,7 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
         FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;

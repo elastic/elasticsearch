@@ -163,7 +163,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        FetchSubPhaseProcessor processor = phase.getCollector(searchContext);
+        FetchSubPhaseProcessor processor = phase.getProcessor(searchContext);
         if (fetchSource == false) {
             assertNull(processor);
         } else {

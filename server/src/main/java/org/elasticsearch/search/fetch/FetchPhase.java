@@ -109,7 +109,7 @@ public class FetchPhase implements SearchPhase {
 
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getCollector(context);
+                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
                 if (processor != null) {
                     processors.add(processor);
                 }

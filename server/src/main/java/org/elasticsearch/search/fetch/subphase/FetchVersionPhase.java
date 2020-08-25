@@ -31,7 +31,7 @@ import java.io.IOException;
 public final class FetchVersionPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.version() == false ||
             (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
             return null;

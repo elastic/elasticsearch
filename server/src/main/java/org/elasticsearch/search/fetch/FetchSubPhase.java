@@ -98,5 +98,5 @@ public interface FetchSubPhase {
      * If nothing should be executed for the provided {@link SearchContext}, then the
      * implementation should return {@code null}
      */
-    FetchSubPhaseProcessor getCollector(SearchContext searchContext) throws IOException;
+    FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException;
 }

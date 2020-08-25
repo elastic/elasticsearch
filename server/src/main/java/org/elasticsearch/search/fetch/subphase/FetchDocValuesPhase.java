@@ -48,7 +48,7 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();

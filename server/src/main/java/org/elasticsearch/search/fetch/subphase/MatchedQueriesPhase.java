@@ -37,7 +37,7 @@ import java.util.Map;
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
         if (context.docIdsToLoadSize() == 0 ||
             // in case the request has only suggest, parsed query is null
             context.parsedQuery() == null) {

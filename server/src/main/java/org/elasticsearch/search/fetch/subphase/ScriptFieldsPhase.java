@@ -35,7 +35,7 @@ import java.util.List;
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.hasScriptFields() == false) {
             return null;
         }

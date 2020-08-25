@@ -54,7 +54,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException {
         if (searchContext.highlight() == null) {
             return null;
         }

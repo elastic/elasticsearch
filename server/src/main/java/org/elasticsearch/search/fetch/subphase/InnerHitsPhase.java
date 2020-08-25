@@ -45,7 +45,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
         if (searchContext.innerHits() == null) {
             return null;
         }

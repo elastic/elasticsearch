@@ -34,7 +34,7 @@ import java.io.IOException;
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getCollector(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
         if (context.trackScores() == false || context.docIdsToLoadSize() == 0 ||
             // scores were already computed since they are needed on the coordinated node to merge top hits
             context.sort() == null) {

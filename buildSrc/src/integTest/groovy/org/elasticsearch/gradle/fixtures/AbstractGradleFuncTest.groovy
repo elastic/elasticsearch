@@ -55,11 +55,9 @@ abstract class AbstractGradleFuncTest extends Specification{
     }
 
     String normalizedOutput(String input) {
-        String normalizedOutput = input.readLines()
+        return input.readLines()
                 .collect {it.replaceAll(testProjectDir.root.canonicalPath, ".") }
                 .join("\n")
-
-        return normalizedOutput
     }
 
     File file(String path) {

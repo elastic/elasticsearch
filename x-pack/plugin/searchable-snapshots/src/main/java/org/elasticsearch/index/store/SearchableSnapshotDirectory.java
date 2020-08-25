@@ -124,7 +124,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final ShardPath shardPath;
-    private final AtomicBoolean recovered;
     private final AtomicBoolean closed;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
@@ -161,7 +160,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Objects.requireNonNull(cacheDir);
         this.shardPath = Objects.requireNonNull(shardPath);
-        this.recovered = new AtomicBoolean(false);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
         this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
@@ -198,6 +196,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
         assert assertCurrentThreadMayLoadSnapshot();
+        // noinspection ConstantConditions in case assertions are disabled
         if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
             throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");
         }
@@ -231,17 +230,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlobStoreIndexShardSnapshot snapshot = this.snapshot;
         assert snapshot != null;
         return snapshot;
-    }
-
-    public boolean isRecoveryDone() {
-        if (recovered.get()) {
-            return true;
-        }
-        final RecoveryState recoveryState = this.recoveryState;
-        if (recoveryState != null && recoveryState.getStage() == RecoveryState.Stage.DONE) {
-            return recovered.compareAndSet(false, true);
-        }
-        return false;
     }
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> files() {

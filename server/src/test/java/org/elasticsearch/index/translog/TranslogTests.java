@@ -1255,12 +1255,11 @@ public class TranslogTests extends ESTestCase {
         final Set<Long> persistedSeqNos = new HashSet<>();
         persistedSeqNoConsumer.set(persistedSeqNos::add);
         final int numOps = randomIntBetween(8, 128);
-        byte[] bytes = new byte[4];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
-            out.reset(bytes);
+            byte[] bytes = new byte[4];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
             out.writeInt(i);
             long seqNo;
             do {
@@ -1291,7 +1290,8 @@ public class TranslogTests extends ESTestCase {
         assertThat(reader.getCheckpoint().minSeqNo, equalTo(minSeqNo));
         assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 
-        out.reset(bytes);
+        byte[] bytes = new byte[4];
+        ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
         out.writeInt(2048);
         writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
 
@@ -1319,9 +1319,9 @@ public class TranslogTests extends ESTestCase {
     public void testCloseIntoReader() throws IOException {
         try (TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1)) {
             final int numOps = randomIntBetween(8, 128);
-            final byte[] bytes = new byte[4];
-            final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
             for (int i = 0; i < numOps; i++) {
+                final byte[] bytes = new byte[4];
+                final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
                 out.reset(bytes);
                 out.writeInt(i);
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());

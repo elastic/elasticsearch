@@ -43,8 +43,7 @@ public class RepositoryStats implements Writeable {
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, Long> result = new HashMap<>();
-        result.putAll(requestCounts);
+        final Map<String, Long> result = new HashMap<>(requestCounts);
         for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {
             result.merge(entry.getKey(), entry.getValue(), Math::addExact);
         }

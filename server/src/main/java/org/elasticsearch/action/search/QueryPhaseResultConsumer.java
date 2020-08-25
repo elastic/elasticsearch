@@ -283,7 +283,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
                 if (task != null) {
                     toCancel.add(task);
                 }
-                queue.stream().forEach(toCancel::add);
+                toCancel.addAll(queue);
                 queue.clear();
                 mergeResult = null;
                 toCancel.stream().forEach(MergeTask::cancel);

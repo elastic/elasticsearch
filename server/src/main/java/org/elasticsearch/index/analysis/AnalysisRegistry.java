@@ -475,8 +475,7 @@ public final class AnalysisRegistry implements Closeable {
                 Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
                 Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
 
-            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
-            analyzerProviderFactories.putAll(preConfiguredAnalyzers);
+            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>(preConfiguredAnalyzers);
             // Pre-build analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
                 String name = preBuiltAnalyzerEnum.name().toLowerCase(Locale.ROOT);

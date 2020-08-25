@@ -320,9 +320,7 @@ public final class IndexGraveyard implements Metadata.Custom {
                                                 old.tombstones.size() + "] tombstones.");
             }
             final List<Tombstone> newTombstones = new ArrayList<>(old.tombstones.subList(removedCount, old.tombstones.size()));
-            for (Tombstone tombstone : added) {
-                newTombstones.add(tombstone);
-            }
+            newTombstones.addAll(added);
             return new IndexGraveyard.Builder().addBuiltTombstones(newTombstones).build();
         }
 

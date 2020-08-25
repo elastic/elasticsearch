@@ -90,8 +90,7 @@ public final class ConsistentSettingsService {
     public boolean areAllConsistent() {
         final ClusterState state = clusterService.state();
         final Map<String, String> publishedHashesOfConsistentSettings = state.metadata().hashesOfConsistentSettings();
-        final Set<String> publishedSettingKeysToVerify = new HashSet<>();
-        publishedSettingKeysToVerify.addAll(publishedHashesOfConsistentSettings.keySet());
+        final Set<String> publishedSettingKeysToVerify = new HashSet<>(publishedHashesOfConsistentSettings.keySet());
         final AtomicBoolean allConsistent = new AtomicBoolean(true);
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
             final String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(concreteSecureSetting.getKey());

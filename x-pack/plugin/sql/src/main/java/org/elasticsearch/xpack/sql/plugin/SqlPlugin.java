@@ -65,6 +65,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                     break;
                 case PLAIN:
                 case CLI:
+                case KIBANA:
                     if (licenseState.checkFeature(XPackLicenseState.Feature.SQL) == false) {
                         throw LicenseUtils.newComplianceException(XPackField.SQL);
                     }

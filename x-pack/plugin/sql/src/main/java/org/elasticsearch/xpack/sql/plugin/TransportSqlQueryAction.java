@@ -99,11 +99,10 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
-            if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName(), SqlDataTypes.displaySize(entry.type())));
-            } else {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName()));
-            }
+            String table = request.mode() == Mode.KIBANA ? entry.index() : null;
+            String baseName = request.mode() == Mode.KIBANA ? entry.field() : null;
+            Integer displaySize = Mode.isDriver(request.mode()) ? SqlDataTypes.displaySize(entry.type()) : null;
+            columns.add(new ColumnInfo(table, entry.name(), baseName, entry.type().typeName(), displaySize));
         }
         columns = unmodifiableList(columns);
         return createResponse(request, request.zoneId(), columns, page);

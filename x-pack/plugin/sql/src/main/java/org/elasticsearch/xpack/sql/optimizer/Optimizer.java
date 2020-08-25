@@ -200,7 +200,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     //
     // Replace any reference attribute with its source, if it does not affect the result.
-    // This avoid ulterior look-ups between attributes and its source across nodes, which is
+    // This avoids ulterior look-ups between attributes and its source across nodes, which is
     // problematic when doing script translation.
     //
     static class ReplaceReferenceAttributeWithSource extends OptimizerBasicRule {

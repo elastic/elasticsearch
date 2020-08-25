@@ -478,6 +478,18 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }, containsString("unknown field [columnar]"));
     }
 
+    public void testKibanaMode() throws IOException {
+        simpleNameNumberTestIndex();
+
+        String query = "SELECT name, number AS NR, number + 1 FROM test";
+        Map<String, Object> response = runSql(Mode.KIBANA.toString(), query);
+        assertEquals(
+            response.get("columns").toString(),
+            "[{base_name=name, name=name, type=text, table=test}, {base_name=number, name=NR, type=long, table=test}, "
+                + "{name=number + 1, type=long}]"
+        );
+    }
+
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
@@ -929,11 +941,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testDefaultQueryInCSV() throws IOException {
-        index(
-            "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
-            "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
-            "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
-        );
+        simpleNameNumberTestIndex();
 
         String expected = "name,number\r\n" + "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
 
@@ -946,11 +954,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testQueryWithoutHeaderInCSV() throws IOException {
-        index(
-            "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
-            "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
-            "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
-        );
+        simpleNameNumberTestIndex();
 
         String expected = "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
 
@@ -964,11 +968,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testQueryInTSV() throws IOException {
-        index(
-            "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
-            "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
-            "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
-        );
+        simpleNameNumberTestIndex();
 
         String expected = "name\tnumber\n" + "first\t1\n" + "second\\t\t2\n" + "\"third,\"\t3\n";
 
@@ -977,6 +977,15 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(expected, response.v1());
         response = runSqlAsTextFormat(query, "tsv");
         assertEquals(expected, response.v1());
+    }
+
+    private void simpleNameNumberTestIndex() throws IOException {
+        index(
+            "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
+            "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
+            "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
+        );
+
     }
 
     public void testNextPageTSV() throws IOException {

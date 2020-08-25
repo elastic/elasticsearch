@@ -14,8 +14,9 @@ import java.util.Locale;
 public enum Mode {
     CLI,
     PLAIN,
-    JDBC, 
-    ODBC;
+    JDBC,
+    ODBC,
+    KIBANA;
 
     public static Mode fromString(String mode) {
         if (mode == null || mode.isEmpty()) {
@@ -35,6 +36,6 @@ public enum Mode {
     }
 
     public static boolean isDedicatedClient(Mode mode) {
-        return mode == JDBC || mode == ODBC || mode == CLI;
+        return mode == JDBC || mode == ODBC || mode == CLI || mode == KIBANA;
     }
 }

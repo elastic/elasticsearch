@@ -209,7 +209,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));
 
         Map<String, Object> map;
-        boolean isBinaryResponse = mode != Mode.PLAIN;
+        boolean isBinaryResponse = Mode.isDriver(mode) || mode == Mode.CLI;
         Response response = client().performRequest(request);
         if (isBinaryResponse) {
             map = XContentHelper.convertToMap(CborXContent.cborXContent, response.getEntity().getContent(), false);
@@ -326,9 +326,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
                 requestContent.length() - 1,
                 ",\"binary_format\":" + binaryCommunication
             ).toString();
-            binaryCommunication = Mode.isDedicatedClient(mode) && binaryCommunication;
+            binaryCommunication = (Mode.isDedicatedClient(mode)) && binaryCommunication;
         } else {
-            binaryCommunication = Mode.isDedicatedClient(mode);
+            binaryCommunication = Mode.isDriver(mode) || mode == CLI;
         }
 
         // send the query either as body or as request parameter

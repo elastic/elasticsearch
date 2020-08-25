@@ -14,10 +14,10 @@ import java.util.function.UnaryOperator;
 
 /**
  * Rules that apply transformation to a tree. In addition, performs
- * type filtering so that a rule that the rule implementation doesn't
+ * type filtering so that the rule implementation doesn't
  * have to manually filter.
  * <p>
- * Rules <strong>could</strong> could be built as lambdas but most
+ * Rules <strong>could</strong> be built as lambdas but most
  * rules are much larger so we keep them as full blown subclasses.
  */
 public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOperator<T> {

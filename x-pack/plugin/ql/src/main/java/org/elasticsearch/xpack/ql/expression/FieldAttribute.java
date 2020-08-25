@@ -29,6 +29,7 @@ public class FieldAttribute extends TypedAttribute {
     private final FieldAttribute nestedParent;
     private final String path;
     private final EsField field;
+    private final String indexName;
 
     public FieldAttribute(Source source, String name, EsField field) {
         this(source, null, name, field);
@@ -38,14 +39,19 @@ public class FieldAttribute extends TypedAttribute {
         this(source, parent, name, field, null, Nullability.TRUE, null, false);
     }
 
-    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier, Nullability nullability,
-            NameId id, boolean synthetic) {
-        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String indexName) {
+        this(source, parent, name, field.getDataType(), field, indexName, null, Nullability.TRUE, null, false);
     }
 
-    public FieldAttribute(Source source, FieldAttribute parent, String name, DataType type, EsField field, String qualifier,
-                          Nullability nullability, NameId id, boolean synthetic) {
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier, Nullability nullability,
+            NameId id, boolean synthetic) {
+        this(source, parent, name, field.getDataType(), field, null, qualifier, nullability, id, synthetic);
+    }
+
+    public FieldAttribute(Source source, FieldAttribute parent, String name, DataType type, EsField field, String indexName,
+                          String qualifier, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, type, qualifier, nullability, id, synthetic);
+        this.indexName = indexName;
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -63,7 +69,8 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, indexName, qualifier(), nullable(), id(),
+            synthetic());
     }
 
     public FieldAttribute parent() {
@@ -107,7 +114,8 @@ public class FieldAttribute extends TypedAttribute {
     protected Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability, NameId id,
             boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+        return new FieldAttribute(source, qualifiedParent, name, field.getDataType(), field, indexName, qualifier, nullability, id,
+            synthetic);
     }
 
     @Override
@@ -127,5 +135,9 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    public String indexName() {
+        return indexName;
     }
 }

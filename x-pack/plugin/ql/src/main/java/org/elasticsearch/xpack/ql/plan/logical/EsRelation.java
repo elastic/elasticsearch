@@ -37,11 +37,11 @@ public class EsRelation extends LeafPlan {
         return NodeInfo.create(this, EsRelation::new, index, frozen);
     }
 
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
+    private List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
         return flatten(source, mapping, null);
     }
 
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
+    private List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
         List<Attribute> list = new ArrayList<>();
 
         for (Entry<String, EsField> entry : mapping.entrySet()) {
@@ -49,7 +49,7 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
+                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t, index.name());
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {

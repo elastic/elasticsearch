@@ -66,11 +66,18 @@ public class RestSqlQueryAction extends BaseRestHandler {
          */
         String accept = null;
 
-        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
-                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
-            // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
-            accept = XContentType.CBOR.name();
-        } else {
+        Mode mode = sqlRequest.requestInfo().mode();
+        // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
+        if (Mode.isDedicatedClient(mode)) {
+            if (sqlRequest.binaryCommunication() == null) {
+                if (mode != Mode.KIBANA) {
+                    accept = XContentType.CBOR.name();
+                }
+            } else if (sqlRequest.binaryCommunication()) {
+                accept = XContentType.CBOR.name();
+            }
+        }
+        if (accept == null) {
             accept = request.param(URL_PARAM_FORMAT);
         }
         if (accept == null) {

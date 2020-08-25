@@ -214,17 +214,19 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     }
 
     public static ColumnInfo readColumnInfo(StreamInput in) throws IOException {
-        String table = in.readString();
+        String table = in.readOptionalString();
         String name = in.readString();
+        String baseName = in.readOptionalString();
         String esType = in.readString();
         Integer displaySize = in.readOptionalVInt();
-            
+
         return new ColumnInfo(table, name, esType, displaySize);
     }
 
     public static void writeColumnInfo(StreamOutput out, ColumnInfo columnInfo) throws IOException {
-        out.writeString(columnInfo.table());
+        out.writeOptionalString(columnInfo.table());
         out.writeString(columnInfo.name());
+        out.writeOptionalString(columnInfo.baseName());
         out.writeString(columnInfo.esType());
         out.writeOptionalVInt(columnInfo.displaySize());
     }

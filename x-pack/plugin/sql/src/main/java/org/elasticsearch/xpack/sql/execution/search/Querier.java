@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
@@ -141,7 +143,7 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
                 // always track total hits accurately
@@ -388,7 +390,7 @@ public class Querier {
 
         BaseAggActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
-            super(listener, client, cfg, output);
+            super(listener, client, cfg, output, query.aliases());
 
             this.query = query;
             this.request = request;
@@ -458,7 +460,7 @@ public class Querier {
 
         ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query) {
-            super(listener, client, cfg, output);
+            super(listener, client, cfg, output, query.aliases());
             this.query = query;
             this.mask = query.columnMask(output);
             this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
@@ -529,13 +531,14 @@ public class Querier {
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
+        BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                           AttributeMap<Expression> aliases) {
             this.listener = listener;
 
             this.client = client;
             this.cfg = cfg;
             this.keepAlive = cfg.requestTimeout();
-            this.schema = Rows.schema(output);
+            this.schema = Rows.schema(output, aliases);
         }
 
         // TODO: need to handle rejections plus check failures (shard size, etc...)

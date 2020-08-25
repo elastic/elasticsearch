@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
@@ -167,31 +166,19 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
                 // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-                if (cacheFile.getAbsentRangeWithin(position, position + length) == null) {
-                    final Tuple<Long, Long> targetRange = Tuple.tuple(position, position + length);
-                    cacheFile.populateAndRead(targetRange, targetRange, channel -> {
+                final CompletableFuture<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(
+                    Tuple.tuple(position, position + length),
+                    channel -> {
                         final int read = readCacheFile(channel, position, b);
                         assert read == length : read + " vs " + length;
                         return read;
-                    }, (channel, from, to, progressUpdater) -> {
-                        final String message = "range ["
-                            + from
-                            + "-"
-                            + to
-                            + "] (["
-                            + (to - from)
-                            + "] bytes) unexpectedly missing when reading ["
-                            + position
-                            + "-"
-                            + (position + length)
-                            + "] from "
-                            + CachedBlobContainerIndexInput.this;
-                        assert false : message;
-                        throw new IllegalStateException(message);
-                    }, EsExecutors.newDirectExecutorService()); // never used
+                    }
+                );
 
+                if (waitingForRead != null) {
+                    final Integer read = waitingForRead.get();
+                    assert read == length;
                     readComplete(position, length);
-
                     return;
                 }
 
@@ -323,7 +310,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
                 if (indexCacheMiss != null) {
                     final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                    cacheFile.populateAndRead(indexCacheMiss, indexCacheMiss, channel -> {
+                    final CompletableFuture<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
                         final int indexCacheMissLength = Math.toIntExact(indexCacheMiss.v2() - indexCacheMiss.v1());
 
                         // We assume that we only cache small portions of blobs so that we do not need to:
@@ -349,19 +336,14 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             }
                         });
                         return indexCacheMissLength;
-                    }, (channel, from, to, progressUpdater) -> {
+                    });
+
+                    if (readFuture == null) {
                         // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
                         // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
-                        // case, try and fill just the cache miss from the blob store because there may be other reads waiting on this
-                        // range.
-                        logger.debug(
-                            "directly filling index cache miss [{}-{}] of {} due to earlier failure",
-                            from,
-                            to,
-                            CachedBlobContainerIndexInput.this
-                        );
-                        writeCacheFile(channel, from, to, progressUpdater);
-                    }, directory.cacheFetchAsyncExecutor());
+                        // case, simply move on.
+                        onCacheFillComplete.close();
+                    }
                 }
 
                 final int bytesRead = populateCacheFuture.get();

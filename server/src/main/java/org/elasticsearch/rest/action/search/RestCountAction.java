@@ -92,7 +92,7 @@ public class RestCountAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("count_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("count_with_types", TYPES_DEPRECATION_MESSAGE);
             countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
 

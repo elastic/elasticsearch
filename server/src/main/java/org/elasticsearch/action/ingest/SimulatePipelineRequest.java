@@ -187,7 +187,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,
                 dataMap, Metadata.INDEX.getFieldName(), "_index");
             if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.deprecatedAndMaybeLog("simulate_pipeline_with_types",
+                deprecationLogger.deprecate("simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated");
             }
             String type = ConfigurationUtils.readStringOrIntProperty(null, null,

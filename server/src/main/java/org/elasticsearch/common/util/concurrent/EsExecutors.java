@@ -77,9 +77,10 @@ public class EsExecutors {
             final int value = Setting.parseInt(s, 1, name);
             final int availableProcessors = Runtime.getRuntime().availableProcessors();
             if (value > availableProcessors) {
-                deprecationLogger.deprecatedAndMaybeLog(
+                deprecationLogger.deprecate(
                     "processors",
-                    "setting [" + name + "] to value [{}] which is more than available processors [{}] is deprecated",
+                    "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
+                    name,
                     value,
                     availableProcessors);
             }

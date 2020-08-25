@@ -79,7 +79,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
+        testLogger.info(new DeprecatedMessage("someId", "deprecated message1"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -104,9 +104,9 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
-        testLogger.info(new DeprecatedMessage("deprecated message2", ""));
-        testLogger.info(new DeprecatedMessage("deprecated message3", null));
+        testLogger.info(new DeprecatedMessage("someId", "deprecated message1"));
+        testLogger.info(new DeprecatedMessage("", "deprecated message2"));
+        testLogger.info(new DeprecatedMessage(null, "deprecated message3"));
         testLogger.info("deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -277,8 +277,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -309,8 +309,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),

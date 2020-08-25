@@ -19,7 +19,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
@@ -45,7 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
+import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
@@ -200,7 +200,7 @@ public class DeprecationHttpIT extends ESSingleNodeTestCase {
             assertThat(deprecatedWarning, matches(WARNING_HEADER_PATTERN.pattern()));
         }
         final List<String> actualWarningValues =
-                deprecatedWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                deprecatedWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
                     .collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));

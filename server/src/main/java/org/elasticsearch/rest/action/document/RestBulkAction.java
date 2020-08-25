@@ -88,7 +88,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (defaultType == null) {
             defaultType = MapperService.SINGLE_MAPPING_NAME;
         } else {
-            deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
         }
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);

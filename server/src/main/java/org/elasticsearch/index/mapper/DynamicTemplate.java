@@ -208,7 +208,7 @@ public class DynamicTemplate implements ToXContentObject {
                 if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
-                    deprecationLogger.deprecatedAndMaybeLog("invalid_mapping_type",
+                    deprecationLogger.deprecate("invalid_mapping_type",
                         "match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
                         + e.getMessage());
                     // this template is on an unknown type so it will never match anything

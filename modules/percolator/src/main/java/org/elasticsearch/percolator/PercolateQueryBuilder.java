@@ -472,7 +472,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         GetRequest getRequest;
         if (indexedDocumentType != null) {
-            deprecationLogger.deprecatedAndMaybeLog("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
         } else {
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
@@ -543,7 +543,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final MapperService mapperService = context.getMapperService();
         String type = mapperService.documentMapper().type();
         if (documentType != null) {
-            deprecationLogger.deprecatedAndMaybeLog("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
             if (documentType.equals(type) == false) {
                 throw new IllegalArgumentException("specified document_type [" + documentType +
                     "] is not equal to the actual type [" + type + "]");

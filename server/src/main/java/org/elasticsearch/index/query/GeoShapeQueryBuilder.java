@@ -272,7 +272,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
         GeoShapeQueryBuilder builder;
         if (pgsqp.type != null) {
-            deprecationLogger.deprecatedAndMaybeLog("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (pgsqp.shape != null) {

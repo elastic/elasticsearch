@@ -84,7 +84,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         }
 
         if (nodeDescriptions.length > 0) {
-            deprecationLogger.deprecatedAndMaybeLog("voting_config_exclusion", DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("voting_config_exclusion", DEPRECATION_MESSAGE);
         }
 
         this.nodeDescriptions = nodeDescriptions;
@@ -106,7 +106,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         timeout = in.readTimeValue();
 
         if (nodeDescriptions.length > 0) {
-            deprecationLogger.deprecatedAndMaybeLog("voting_config_exclusion",
+            deprecationLogger.deprecate("voting_config_exclusion",
                 "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead");
         }
 

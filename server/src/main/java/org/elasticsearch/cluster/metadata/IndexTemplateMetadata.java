@@ -103,7 +103,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         this.settings = settings;
         this.mappings = mappings;
         if (this.mappings.size() > 1) {
-            deprecationLogger.deprecatedAndMaybeLog("index-templates",
+            deprecationLogger.deprecate("index-templates",
                 "Index template {} contains multiple typed mappings; templates in 8x will only support a single mapping",
                 name);
         }

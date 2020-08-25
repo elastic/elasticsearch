@@ -77,7 +77,7 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecatedAndMaybeLog("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
         }
 
         DateTimeFormatter formatter;
@@ -286,7 +286,7 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            getDeprecationLogger().deprecatedAndMaybeLog("joda-pattern-deprecation",
+            getDeprecationLogger().deprecate("joda-pattern-deprecation",
                 suggestion + " " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
     }
@@ -396,11 +396,11 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    getDeprecationLogger().deprecatedAndMaybeLog("epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
+                    getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);

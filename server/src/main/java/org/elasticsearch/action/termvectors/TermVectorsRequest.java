@@ -615,7 +615,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types",
+                    deprecationLogger.deprecate("termvectors_with_types",
                         RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {

@@ -81,7 +81,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            deprecationLogger.deprecatedAndMaybeLog("sparse_vector", DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("sparse_vector", DEPRECATION_MESSAGE);
             SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
             return builder;
         }

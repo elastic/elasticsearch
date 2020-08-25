@@ -56,7 +56,7 @@ public final class ScriptProcessor extends AbstractProcessor {
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("script_processor",
+                deprecationLogger.deprecate("script_processor",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

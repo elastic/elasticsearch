@@ -80,7 +80,7 @@ public class ScoreScriptUtils {
                 docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof DenseVectorScriptDocValues) {
                 docValues = (DenseVectorScriptDocValues) field;
-                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
@@ -238,13 +238,13 @@ public class ScoreScriptUtils {
                 docValues = (SparseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof SparseVectorScriptDocValues) {
                 docValues = (SparseVectorScriptDocValues) field;
-                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
             }
 
-            deprecationLogger.deprecatedAndMaybeLog("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
         BytesRef getEncodedVector() {

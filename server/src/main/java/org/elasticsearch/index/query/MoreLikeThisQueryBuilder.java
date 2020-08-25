@@ -969,7 +969,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         if (moreLikeThisQueryBuilder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return moreLikeThisQueryBuilder;
     }

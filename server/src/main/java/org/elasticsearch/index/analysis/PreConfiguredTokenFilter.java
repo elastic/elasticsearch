@@ -132,7 +132,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                     }
                     else {
-                        DEPRECATION_LOGGER.deprecatedAndMaybeLog(name(), "Token filter [" + name()
+                        DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
                             + "] will not be usable to parse synonyms after v7.0");
                         return this;
                     }
@@ -159,7 +159,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
                 else {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog(name(), "Token filter [" + name()
+                    DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
                         + "] will not be usable to parse synonyms after v7.0");
                     return this;
                 }

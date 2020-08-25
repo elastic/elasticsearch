@@ -87,10 +87,10 @@ used to match the names of data streams and indices during creation.
 [IMPORTANT]
 ====
 {es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
-patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
-templates to create data streams. If you use {agent}, assign your index
-templates a priority lower than `100` to avoid overriding the built-in
-templates.
+patterns, each with a priority of `100`.
+{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+create data streams. If you use {agent}, assign your index templates a priority
+lower than `100` to avoid an overriding the built-in templates.
 
 Otherwise, to avoid accidentally applying the built-in templates, use a
 non-overlapping index pattern or assign templates with an overlapping pattern a

@@ -431,7 +431,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (Files.exists(workingDir)) {
                     project.delete(workingDir);
                 }
-                setupNodeDistribution(getDistroDir());
+                setupNodeDistribution(getExtractedDistributionDir());
                 isWorkingDirConfigured = true;
             }
             createWorkingDir();
@@ -1008,7 +1008,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void setupNodeDistribution(Path distroExtractDir) throws IOException {
-        if (!canUseSharedDistribution()) {
+        if (canUseSharedDistribution() == false) {
             logToProcessStdout("Configuring custom cluster specific distro directory: " + getDistroDir());
             if (Files.exists(getDistroDir()) == false) {
                 try {

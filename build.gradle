@@ -71,6 +71,7 @@ subprojects {
 
   // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
   project.ext.elasticLicenseUrl = elasticLicenseUrl
+
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {

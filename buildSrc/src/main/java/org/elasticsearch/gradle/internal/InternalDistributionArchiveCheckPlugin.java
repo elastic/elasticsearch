@@ -103,7 +103,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         if (project.getName().contains("tar")) {
             return new File(project.getBuildDir(), "tar-extracted");
         }
-        if (!project.getName().contains("zip")) {
+        if (project.getName().contains("zip") == false) {
             throw new GradleException("Expecting project name containing 'zip' or 'tar'.");
         }
         return new File(project.getBuildDir(), "zip-extracted");

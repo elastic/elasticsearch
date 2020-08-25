@@ -62,7 +62,7 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 } else {
   licenseCommit = "v${version}"
 }
-String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+String elasticLicenseUrlString = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
 subprojects {
   // Default to the apache license
@@ -70,8 +70,7 @@ subprojects {
   project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
 
   // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
-  project.ext.elasticLicenseUrl = elasticLicenseUrl
-
+  project.ext.elasticLicenseUrl = elasticLicenseUrlString
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {

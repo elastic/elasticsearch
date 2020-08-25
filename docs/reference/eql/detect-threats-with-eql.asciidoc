@@ -166,9 +166,7 @@ The response also includes other valuable information about how the
     "events": [
       {
         "_index": "my-index-000001",
-        "_type": "_doc",
         "_id": "gl5MJXMBMk1dGnErnBW8",
-        "_score": null,
         "_source": {
           "process": {
             "parent": {
@@ -246,9 +244,7 @@ The query matches an event, confirming `scrobj.dll` was later loaded by
     "events": [
       {
         "_index": "my-index-000001",
-        "_type": "_doc",
         "_id": "ol5MJXMBMk1dGnErnBW8",
-        "_score": null,
         "_source": {
           "process": {
             "name": "regsvr32.exe",
@@ -333,12 +329,7 @@ The query matches a sequence, indicating the attack likely succeeded.
         "events": [
           {
             "_index": "my-index-000001",
-            "_type": "_doc",
             "_id": "gl5MJXMBMk1dGnErnBW8",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "process": {
                 "parent": {
@@ -368,12 +359,7 @@ The query matches a sequence, indicating the attack likely succeeded.
           },
           {
             "_index": "my-index-000001",
-            "_type": "_doc",
             "_id": "ol5MJXMBMk1dGnErnBW8",
-            "_version": 1,
-            "_seq_no": 5,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "process": {
                 "name": "regsvr32.exe",
@@ -393,12 +379,7 @@ The query matches a sequence, indicating the attack likely succeeded.
           },
           {
             "_index": "my-index-000001",
-            "_type": "_doc",
             "_id": "EF5MJXMBMk1dGnErnBa9",
-            "_version": 1,
-            "_seq_no": 24,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "process": {
                 "name": "regsvr32.exe",
@@ -437,8 +418,5 @@ The query matches a sequence, indicating the attack likely succeeded.
 ----
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_seq_no": 3/"_seq_no": $body.hits.sequences.0.events.0._seq_no/]
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]
-// TESTRESPONSE[s/"_seq_no": 5/"_seq_no": $body.hits.sequences.0.events.1._seq_no/]
 // TESTRESPONSE[s/"_id": "EF5MJXMBMk1dGnErnBa9"/"_id": $body.hits.sequences.0.events.2._id/]
-// TESTRESPONSE[s/"_seq_no": 24/"_seq_no": $body.hits.sequences.0.events.2._seq_no/]

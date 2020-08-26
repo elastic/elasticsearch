@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,11 +28,22 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Before;
+
+import java.io.IOException;
+
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class FilterAggregatorTests extends AggregatorTestCase {
     private MappedFieldType fieldType;
@@ -41,10 +51,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUpTest() throws Exception {
         super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("field");
+        fieldType = new KeywordFieldMapper.KeywordFieldType("field");
     }
 
     public void testEmpty() throws Exception {
@@ -55,7 +62,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
+        InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
@@ -73,11 +80,11 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (frequently()) {
                 // make sure we have more than one segment to test the merge
-                indexWriter.getReader().close();
+                indexWriter.commit();
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), fieldType));
+            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }
@@ -91,25 +98,44 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            for (boolean doReduce : new boolean[]{true, false}) {
-                final InternalFilter response;
-                if (doReduce) {
-                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
-                        fieldType);
-                } else {
-                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-                }
-                assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
-                if (expectedBucketCount[value] > 0) {
-                    assertTrue(AggregationInspectionHelper.hasValue(response));
-                } else {
-                    assertFalse(AggregationInspectionHelper.hasValue(response));
-                }
+            final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+            if (expectedBucketCount[value] > 0) {
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            } else {
+                assertFalse(AggregationInspectionHelper.hasValue(response));
             }
         } finally {
             indexReader.close();
             directory.close();
         }
+    }
 
+    public void testBucketComparator() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                indexWriter.addDocument(singleton(new Field("field", "1", KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                FilterAggregationBuilder builder = new FilterAggregationBuilder("test", new MatchAllQueryBuilder());
+                FilterAggregator agg = createAggregator(builder, indexSearcher, fieldType);
+                agg.preCollection();
+                LeafBucketCollector collector = agg.getLeafCollector(indexReader.leaves().get(0));
+                collector.collect(0, 0);
+                collector.collect(0, 0);
+                collector.collect(0, 1);
+                BucketComparator c = agg.bucketComparator(null, SortOrder.ASC);
+                assertThat(c.compare(0, 1), greaterThan(0));
+                assertThat(c.compare(1, 0), lessThan(0));
+                c = agg.bucketComparator("doc_count", SortOrder.ASC);
+                assertThat(c.compare(0, 1), greaterThan(0));
+                assertThat(c.compare(1, 0), lessThan(0));
+                Exception e = expectThrows(IllegalArgumentException.class, () ->
+                    agg.bucketComparator("garbage", randomFrom(SortOrder.values())));
+                assertThat(e.getMessage(), equalTo("Ordering on a single-bucket aggregation can only be done on its doc_count. "
+                        + "Either drop the key (a la \"test\") or change it to \"doc_count\" (a la \"test.doc_count\") or \"key\"."));
+            }
+        }
     }
 }

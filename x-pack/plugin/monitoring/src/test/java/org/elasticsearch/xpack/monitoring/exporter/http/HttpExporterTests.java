@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -14,9 +15,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -69,7 +73,7 @@ public class HttpExporterTests extends ESTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-    private final MetaData metaData = mock(MetaData.class);
+    private final Metadata metadata = mock(Metadata.class);
 
     private final SSLService sslService = mock(SSLService.class);
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -80,7 +84,7 @@ public class HttpExporterTests extends ESTestCase {
         final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
 
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.metadata()).thenReturn(metadata);
         when(clusterState.nodes()).thenReturn(nodes);
         // always let the watcher resources run for these tests; HttpExporterResourceTests tests it flipping on/off
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
@@ -133,14 +137,27 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
         builder.putList(prefix + ".host", List.of("https://example.com:443"));
         final Settings settings = builder.build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
-        assertThat(
-            e,
-            hasToString(containsString("Failed to parse value [[\"https://example.com:443\"]] for setting [" + prefix + ".host]")));
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is set but type is [local]")));
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(HttpExporter.HOST_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
+    }
+
+    public void testSecurePasswordIsRejectedIfTypeIsNotHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
+
+        final String settingName = ".auth.secure_password";
+        final String settingValue = "securePassword";
+        MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+        mockSecureSettings.setString(prefix + settingName, settingValue);
+
+        builder.setSecureSettings(mockSecureSettings);
+
+        final Settings settings = builder.build();
+        final ClusterSettings clusterSettings =
+            new ClusterSettings(settings, Set.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + settingName + "] is set but type is [local]")));
     }
 
     public void testInvalidHost() {
@@ -222,22 +239,6 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo(expected));
     }
 
-    public void testExporterWithPasswordButNoUsername() {
-        final String expected =
-                "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
-                .put("xpack.monitoring.exporters._http.auth.password", "_pass");
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception = expectThrows(SettingsException.class,
-                () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo(expected));
-    }
-
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
         when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
@@ -279,6 +280,29 @@ public class HttpExporterTests extends ESTestCase {
         new HttpExporter(config, sslService, threadContext).close();
     }
 
+    public void testExporterWithInvalidProxyBasePath() throws Exception {
+        final String prefix = "xpack.monitoring.exporters._http";
+        final String settingName = ".proxy.base_path";
+        final String settingValue = "z//";
+        final String expected = "[" + prefix + settingName + "] is malformed [" + settingValue + "]";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + settingName, settingValue)
+            .build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(prefix + settingName).get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [" + settingValue + "] for setting [" + prefix + settingName + "]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
+    }
+
     public void testCreateRestClient() throws IOException {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
@@ -289,9 +313,12 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
 
         // use basic auth
-        if (randomBoolean()) {
-            builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
-                   .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+        final boolean useBasicAuth = randomBoolean();
+        if (useBasicAuth) {
+            builder.put("xpack.monitoring.exporters._http.auth.username", "_user");
+            MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+            mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", "securePassword");
+            builder.setSecureSettings(mockSecureSettings);
         }
 
         // use headers
@@ -304,6 +331,17 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
+    }
+
+    public void testCreateCredentialsProviderWithoutSecurity() {
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
+
+        final Config config = createConfig(builder.build());
+        CredentialsProvider provider = HttpExporter.createCredentialsProvider(config);
+
+        assertNull(provider);
     }
 
     public void testCreateSnifferDisabledByDefault() {

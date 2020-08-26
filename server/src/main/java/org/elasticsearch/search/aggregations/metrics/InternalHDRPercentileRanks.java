@@ -21,19 +21,17 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
-    InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
+                                      Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
     /**
@@ -70,11 +68,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
-    static double percentileRank(DoubleHistogram state, double value) {
+    public static double percentileRank(DoubleHistogram state, double value) {
         if (state.getTotalCount() == 0) {
             return Double.NaN;
         }

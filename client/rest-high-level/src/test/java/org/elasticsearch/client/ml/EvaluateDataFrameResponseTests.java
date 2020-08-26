@@ -20,36 +20,58 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetricResultTests;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
 public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<EvaluateDataFrameResponse> {
 
     public static EvaluateDataFrameResponse randomResponse() {
-        List<EvaluationMetric.Result> metrics = new ArrayList<>();
-        if (randomBoolean()) {
-            metrics.add(AucRocMetricResultTests.randomResult());
+        String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
+        List<EvaluationMetric.Result> metrics;
+        switch (evaluationName) {
+            case OutlierDetection.NAME:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        AucRocMetricResultTests.randomResult(),
+                        PrecisionMetricResultTests.randomResult(),
+                        RecallMetricResultTests.randomResult(),
+                        ConfusionMatrixMetricResultTests.randomResult()));
+                break;
+            case Regression.NAME:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        MeanSquaredErrorMetricResultTests.randomResult(),
+                        RSquaredMetricResultTests.randomResult()));
+                break;
+            case Classification.NAME:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        AccuracyMetricResultTests.randomResult(),
+                        org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
+                        org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
+                        MulticlassConfusionMatrixMetricResultTests.randomResult()));
+                break;
+            default:
+                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
         }
-        if (randomBoolean()) {
-            metrics.add(PrecisionMetricResultTests.randomResult());
-        }
-        if (randomBoolean()) {
-            metrics.add(RecallMetricResultTests.randomResult());
-        }
-        if (randomBoolean()) {
-            metrics.add(ConfusionMatrixMetricResultTests.randomResult());
-        }
-        if (randomBoolean()) {
-            metrics.add(MeanSquaredErrorMetricResultTests.randomResult());
-        }
-        return new EvaluateDataFrameResponse(randomAlphaOfLength(5), metrics);
+        return new EvaluateDataFrameResponse(evaluationName, metrics);
     }
 
     @Override

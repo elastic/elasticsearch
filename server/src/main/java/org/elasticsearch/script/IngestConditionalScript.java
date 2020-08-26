@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.Map;
 
 /**
@@ -29,7 +31,8 @@ public abstract class IngestConditionalScript {
     public static final String[] PARAMETERS = { "ctx" };
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("processor_conditional", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("processor_conditional", Factory.class,
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

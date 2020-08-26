@@ -35,11 +35,23 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
     private final Client client;
 
     @Inject
-    public TransportEnrichStatsAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Client client) {
-        super(EnrichStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            EnrichStatsAction.Request::new, indexNameExpressionResolver);
+    public TransportEnrichStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            EnrichStatsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            EnrichStatsAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.client = client;
     }
 
@@ -54,41 +66,43 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
     }
 
     @Override
-    protected void masterOperation(Task task,
-                                   EnrichStatsAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<EnrichStatsAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        EnrichStatsAction.Request request,
+        ClusterState state,
+        ActionListener<EnrichStatsAction.Response> listener
+    ) throws Exception {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
-        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(
-            response -> {
-                if (response.hasFailures()) {
-                    // Report failures even if some node level requests succeed:
-                    Exception failure = null;
-                    for (FailedNodeException nodeFailure : response.failures()) {
-                        if (failure == null) {
-                            failure = nodeFailure;
-                        } else {
-                            failure.addSuppressed(nodeFailure);
-                        }
+        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
+            if (response.hasFailures()) {
+                // Report failures even if some node level requests succeed:
+                Exception failure = null;
+                for (FailedNodeException nodeFailure : response.failures()) {
+                    if (failure == null) {
+                        failure = nodeFailure;
+                    } else {
+                        failure.addSuppressed(nodeFailure);
                     }
-                    listener.onFailure(failure);
-                    return;
                 }
+                listener.onFailure(failure);
+                return;
+            }
 
-                List<CoordinatorStats> coordinatorStats = response.getNodes().stream()
-                    .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
-                    .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
-                    .collect(Collectors.toList());
-                List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks().values().stream()
-                    .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
-                    .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
-                    .map(t -> new ExecutingPolicy(t.getDescription(), t))
-                    .sorted(Comparator.comparing(ExecutingPolicy::getName))
-                    .collect(Collectors.toList());
-                listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
-            },
-            listener::onFailure
-        );
+            List<CoordinatorStats> coordinatorStats = response.getNodes()
+                .stream()
+                .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
+                .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
+                .collect(Collectors.toList());
+            List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
+                .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
+                .map(t -> new ExecutingPolicy(t.getDescription(), t))
+                .sorted(Comparator.comparing(ExecutingPolicy::getName))
+                .collect(Collectors.toList());
+            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
+        }, listener::onFailure);
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

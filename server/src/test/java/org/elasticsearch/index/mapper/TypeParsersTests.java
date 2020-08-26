@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,11 +40,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
@@ -55,8 +58,8 @@ import static org.mockito.Mockito.when;
 
 public class TypeParsersTests extends ESTestCase {
 
-    private static final IndexMetaData EMPTY_INDEX_METADATA = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+    private static final IndexMetadata EMPTY_INDEX_METADATA = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
     private static final IndexSettings indexSettings = new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY);
 
@@ -181,15 +184,18 @@ public class TypeParsersTests extends ESTestCase {
             .endObject()
         .endObject();
 
-        Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
+        Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
         // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
         Map<String, Object> fieldNode = XContentHelper.convertToMap(
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, olderVersion, null);
+            null, mapperService, type -> typeParser, olderVersion, null, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -204,7 +210,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, version, null);
+            null, mapperService, type -> typeParser, version, null, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TypeParsers.parseField(builder, "some-field", fieldNodeCopy, context));
@@ -226,5 +232,64 @@ public class TypeParsersTests extends ESTestCase {
         };
         return new CustomAnalyzer(null, new CharFilterFactory[0],
                 new TokenFilterFactory[] { tokenFilter  });
+    }
+
+    public void testParseMeta() {
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseMeta("foo", 3));
+            assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
+        }
+
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseMeta("foo", Map.of("veryloooooooooooongkey", 3L)));
+            assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = Map.of(
+                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L);
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping));
+            assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = Map.of("foo", Map.of("bar", "baz"));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping));
+            assertEquals("[meta] values can only be strings, but got Map1[{bar=baz}] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = Map.of("bar", "baz", "foo", 3);
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping));
+            assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, String> meta = new HashMap<>();
+            meta.put("foo", null);
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", meta));
+            assertEquals("[meta] values can't be null (field [foo])",
+                    e.getMessage());
+        }
+
+        {
+            String longString = IntStream.range(0, 51)
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining());
+            Map<String, Object> mapping = Map.of("foo", longString);
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping));
+            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
+        }
     }
 }

@@ -1,0 +1,188 @@
+[[snapshots-restore-snapshot]]
+== Restore a snapshot
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+-----------------------------------
+// TESTSETUP
+
+////
+
+Use the <<restore-snapshot-api,restore snapshot API>> to restore
+a snapshot of a cluster or specified data streams and indices:
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+-----------------------------------
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+By default, all data streams and indices in the snapshot are restored, but the cluster state is
+*not* restored. Use the `indices` parameter to restore only specific data streams or indices. This parameter
+supports <<multi-index,multi-target syntax>>. To include the global cluster state, set
+`include_global_state` to `true` in the restore request body.
+
+[WARNING]
+====
+Each data stream requires a matching
+<<create-a-data-stream-template,index template>>. The stream uses this
+template to create new backing indices.
+
+When restoring a data stream, ensure a matching template exists for the stream.
+You can do this using one of the following methods:
+
+* Check for existing templates that match the stream. If no matching template
+  exists, <<create-a-data-stream-template,create one>>.
+
+* Restore a global cluster state that includes a matching template for the
+  stream.
+
+If no index template matches a data stream, the stream cannot
+<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
+====
+
+The `rename_pattern`
+and `rename_replacement` options can be also used to rename data streams and indices on restore
+using regular expression that supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
+
+[[rename-restored-data-stream]]
+// tag::rename-restored-data-stream-tag[]
+If you rename a restored data stream, its backing indices are also
+renamed. For example, if you rename the `logs` data stream to `restored-logs`,
+the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
+
+[WARNING]
+====
+If you rename a restored stream, ensure an index template matches the new stream
+name. If no index template matches the stream, it cannot
+<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
+====
+// end::rename-restored-data-stream-tag[]
+
+Set `include_aliases` to `false` to prevent aliases from being restored together
+with associated indices.
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+  "indices": "data_stream_1,index_1,index_2",
+  "ignore_unavailable": true,
+  "include_global_state": false,              <1>
+  "rename_pattern": "index_(.+)",
+  "rename_replacement": "restored_index_$1",
+  "include_aliases": false
+}
+-----------------------------------
+// TEST[continued]
+
+<1> By default, `include_global_state` is `false`, meaning the snapshot's
+cluster state is not restored.
++
+If `true`, the snapshot's persistent settings, index templates, ingest
+pipelines, and {ilm-init} policies are restored into the current cluster. This
+overwrites any existing cluster settings, templates, pipelines and {ilm-init}
+policies whose names match those in the snapshot.
+
+The restore operation must be performed on a functioning cluster. However, an
+existing index can be only restored if it's <<indices-close,closed>> and
+has the same number of shards as the index in the snapshot. The restore
+operation automatically opens restored indices if they were closed and creates
+new indices if they didn't exist in the cluster.
+
+If a data stream is restored, its backing indices are also restored. The restore
+operation automatically opens restored backing indices if they were closed.
+
+NOTE: You cannot restore a data stream if a stream with the same name already
+exists.
+
+In addition to entire data streams, you can restore only specific backing
+indices from a snapshot. However, restored backing indices are not automatically
+added to any existing data streams. For example, if only the `.ds-logs-000003`
+backing index is restored from a snapshot, it is not automatically added to the
+existing `logs` data stream.
+
+[discrete]
+=== Partial restore
+
+By default, the entire restore operation will fail if one or more indices or backing indices participating in the operation don't have
+snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
+restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
+restored in this case and all missing shards will be recreated empty.
+
+
+[discrete]
+=== Changing index settings during restore
+
+Use the <<restore-snapshot-api-index-settings,`index_settings`>> parameter
+to override index settings during the restore process. For example, the
+following request will restore the index `index_1` without creating any
+replicas while switching back to the default refresh interval:
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+  "indices": "index_1",
+  "ignore_unavailable": true,
+  "index_settings": {
+    "index.number_of_replicas": 0
+  },
+  "ignore_index_settings": [
+    "index.refresh_interval"
+  ]
+}
+-----------------------------------
+// TEST[continued]
+
+NOTE: Some settings such as `index.number_of_shards` cannot be changed during the restore operation.
+
+For data streams, these index settings are applied to the restored backing
+indices.
+
+// tag::index-settings-data-stream-warning[]
+[IMPORTANT]
+====
+The `index_settings` and `ignore_index_settings` parameters affect
+restored backing indices only. New backing indices created for a stream use the index
+settings specified in the stream's matching
+<<create-a-data-stream-template,index template>>.
+
+If you change index settings during a restore, we recommend you make similar
+changes in the stream's matching index template. This ensures new backing
+indices created for the stream use the same index settings.
+====
+// end::index-settings-data-stream-warning[]
+
+[discrete]
+=== Restoring to a different cluster
+
+The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore, it's possible to
+restore a snapshot created from one cluster into another cluster by registering the repository that contains the snapshot in the new cluster and starting the restore process.
+
+The topology of the new cluster does not have to match the cluster where the snapshot was created. However, the version of the new cluster must be the same or only one major version newer than the cluster that was used to create the snapshot. For example, you can restore a 5.x snapshot to a 6.x cluster, but not a 5.x snapshot to a 7.x cluster.
+
+If the new cluster has a smaller capacity, consider the following changes:
+
+* Ensure that the new cluster has enough capacity to store all data streams and indices in the snapshot.
+* Change the index settings during the restore operation to reduce the
+<<dynamic-index-number-of-replicas,number of replicas>>.
+* Use the `indices` parameter to choose only specific data streams or indices to restore.
+
+If indices or backing indices in the original cluster were assigned to particular nodes using
+<<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. If the new cluster does not contain nodes with appropriate attributes that a restored index can be allocated on, the
+index will not be successfully restored unless these index allocation settings are changed during the restore operation.
+
+The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
+restoring incompatible settings. If you need to restore a snapshot with incompatible persistent settings, try restoring it without
+the <<restore-snapshot-api-include-global-state,global cluster state>>.

@@ -94,7 +94,7 @@ match exactly.
 
 ==================================================
 
-[float]
+[discrete]
 ==== Choosing a cluster name
 
 The <<cluster.name,`cluster.name`>> setting enables you to create multiple
@@ -104,7 +104,7 @@ will only form a cluster from nodes that all have the same cluster name. The
 default value for the cluster name is `elasticsearch`, but it is recommended to
 change this to reflect the logical name of the cluster.
 
-[float]
+[discrete]
 ==== Auto-bootstrapping in development mode
 
 If the cluster is running with a completely default configuration then it will
@@ -138,14 +138,10 @@ clusters together without a risk of data loss. You can tell that you have formed
 separate clusters by checking the cluster UUID reported by `GET /` on each node.
 If you intended to form a single cluster then you should start again:
 
-* Take a <<modules-snapshots,snapshot>> of each of the single-host clusters if
-  you do not want to lose any data that they hold. Note that each cluster must
-  use its own snapshot repository.
 * Shut down all the nodes.
 * Completely wipe each node by deleting the contents of their
   <<data-path,data folders>>.
 * Configure `cluster.initial_master_nodes` as described above.
 * Restart all the nodes and verify that they have formed a single cluster.
-* <<modules-snapshots,Restore>> any snapshots as required.
 
 ==================================================

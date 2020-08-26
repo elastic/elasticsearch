@@ -12,12 +12,10 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -27,12 +25,11 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.hasItem;
 
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTransformFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("doc",
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
                         .startObject("properties")
                         .startObject("foo")
@@ -77,19 +74,16 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
             GetFieldMappingsResponse response = client().admin().indices()
                                                                 .prepareGetFieldMappings(".watcher-history*")
                                                                 .setFields("result.actions.transform.payload")
-                                                                .setTypes(SINGLE_MAPPING_NAME)
                                                                 .includeDefaults(true)
                                                                 .get();
 
             // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
-            List<Boolean> payloadNulls = response.mappings().values().stream()
-                    .map(map -> map.get(SINGLE_MAPPING_NAME))
+            Optional<GetFieldMappingsResponse.FieldMappingMetadata> mapping = response.mappings().values().stream()
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
-                    .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)
-                    .collect(Collectors.toList());
+                    .findFirst();
 
-            assertThat(payloadNulls, hasItem(true));
+            assertTrue(mapping.isEmpty());
         });
     }
 }

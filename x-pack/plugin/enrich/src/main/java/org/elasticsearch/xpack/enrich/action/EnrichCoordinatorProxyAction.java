@@ -19,6 +19,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -63,7 +64,13 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Override
         protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
+            // Write tp is expected when executing enrich processor from index / bulk api
+            // Management tp is expected when executing enrich processor from ingest simulate api
+            // Search tp is allowed for now - After enriching, the remaining parts of the pipeline are processed on the
+            // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
+                || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
+                || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
             coordinator.schedule(request, listener);
         }
     }
@@ -73,6 +80,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
+        final int queueCapacity;
         final BlockingQueue<Slot> queue;
         final AtomicInteger remoteRequestsCurrent = new AtomicInteger(0);
         volatile long remoteRequestsTotal = 0;
@@ -87,36 +95,53 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             );
         }
 
-        Coordinator(BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
-                    int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity) {
+        Coordinator(
+            BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
+            int maxLookupsPerRequest,
+            int maxNumberOfConcurrentRequests,
+            int queueCapacity
+        ) {
             this.lookupFunction = lookupFunction;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
+            this.queueCapacity = queueCapacity;
             this.queue = new ArrayBlockingQueue<>(queueCapacity);
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-            // Use put(...), because if queue is full then this method will wait until a free slot becomes available
-            // The calling thread here is a write thread (write tp is used by ingest) and
-            // this will create natural back pressure from the enrich processor.
-            // If there are no write threads available then write requests with ingestion will fail with 429 error code.
-            try {
-                queue.put(new Slot(searchRequest, listener));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("unable to add item to queue", e);
-            }
+            // Use offer(...) instead of put(...). We are on a write thread and blocking here can be dangerous,
+            // especially since the logic to kick off draining the queue is located right after this section. If we
+            // cannot insert a request to the queue, we should reject the document with a 429 error code.
+            boolean accepted = queue.offer(new Slot(searchRequest, listener));
+            int queueSize = queue.size();
+
+            // Coordinate lookups no matter what, even if queues were full. Search threads should be draining the queue,
+            // but they may be busy with processing the remaining work for enrich results. If there is more than one
+            // enrich processor in a pipeline, those search threads may find themselves here again before they can
+            // coordinate the next set of lookups.
             coordinateLookups();
+
+            if (accepted == false) {
+                listener.onFailure(
+                    new EsRejectedExecutionException(
+                        "Could not perform enrichment, " + "enrich coordination queue at capacity [" + queueSize + "/" + queueCapacity + "]"
+                    )
+                );
+            }
         }
 
         CoordinatorStats getStats(String nodeId) {
-            return new CoordinatorStats(nodeId, queue.size(), remoteRequestsCurrent.get(), remoteRequestsTotal,
-                executedSearchesTotal.get());
+            return new CoordinatorStats(
+                nodeId,
+                queue.size(),
+                remoteRequestsCurrent.get(),
+                remoteRequestsTotal,
+                executedSearchesTotal.get()
+            );
         }
 
         synchronized void coordinateLookups() {
-            while (queue.isEmpty() == false &&
-                remoteRequestsCurrent.get() < maxNumberOfConcurrentRequests) {
+            while (queue.isEmpty() == false && remoteRequestsCurrent.get() < maxNumberOfConcurrentRequests) {
 
                 final List<Slot> slots = new ArrayList<>();
                 queue.drainTo(slots, maxLookupsPerRequest);
@@ -125,9 +150,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
                 remoteRequestsCurrent.incrementAndGet();
                 remoteRequestsTotal++;
-                lookupFunction.accept(multiSearchRequest, (response, e) -> {
-                    handleResponse(slots, response, e);
-                });
+                lookupFunction.accept(multiSearchRequest, (response, e) -> { handleResponse(slots, response, e); });
             }
         }
 
@@ -173,8 +196,10 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 int slot = 0;
                 final Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
                 for (SearchRequest searchRequest : request.requests()) {
-                    List<Tuple<Integer, SearchRequest>> items =
-                        itemsPerIndex.computeIfAbsent(searchRequest.indices()[0], k -> new ArrayList<>());
+                    List<Tuple<Integer, SearchRequest>> items = itemsPerIndex.computeIfAbsent(
+                        searchRequest.indices()[0],
+                        k -> new ArrayList<>()
+                    );
                     items.add(new Tuple<>(slot, searchRequest));
                     slot++;
                 }
@@ -184,20 +209,17 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 for (Map.Entry<String, List<Tuple<Integer, SearchRequest>>> entry : itemsPerIndex.entrySet()) {
                     final String enrichIndexName = entry.getKey();
                     final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
-                    ActionListener<MultiSearchResponse> listener = ActionListener.wrap(
-                        response -> {
-                            shardResponses.put(enrichIndexName, new Tuple<>(response, null));
-                            if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                                consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
-                            }
-                        },
-                        e -> {
-                            shardResponses.put(enrichIndexName, new Tuple<>(null, e));
-                            if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                                consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
-                            }
+                    ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
+                        shardResponses.put(enrichIndexName, new Tuple<>(response, null));
+                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
                         }
-                    );
+                    }, e -> {
+                        shardResponses.put(enrichIndexName, new Tuple<>(null, e));
+                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                        }
+                    });
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
                     enrichIndexRequestsAndSlots.stream().map(Tuple::v2).forEach(mrequest::add);
@@ -206,9 +228,11 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             };
         }
 
-        static MultiSearchResponse reduce(int numRequest,
-                                          Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex,
-                                          Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses) {
+        static MultiSearchResponse reduce(
+            int numRequest,
+            Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex,
+            Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses
+        ) {
             MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequest];
             for (Map.Entry<String, Tuple<MultiSearchResponse, Exception>> rspEntry : shardResponses.entrySet()) {
                 List<Tuple<Integer, SearchRequest>> reqSlots = itemsPerIndex.get(rspEntry.getKey());

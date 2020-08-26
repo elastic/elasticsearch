@@ -1,15 +1,114 @@
 [[analysis-porterstem-tokenfilter]]
-=== Porter Stem Token Filter
+=== Porter stem token filter
+++++
+<titleabbrev>Porter stem</titleabbrev>
+++++
 
-A token filter of type `porter_stem` that transforms the token stream as
-per the Porter stemming algorithm.
+Provides <<algorithmic-stemmers,algorithmic stemming>> for the English language,
+based on the http://snowball.tartarus.org/algorithms/porter/stemmer.html[Porter
+stemming algorithm].
 
-Note, the input to the stemming filter must already be in lower case, so
-you will need to use
-<<analysis-lowercase-tokenfilter,Lower
-Case Token Filter>> or
-<<analysis-lowercase-tokenizer,Lower
-Case Tokenizer>> farther down the Tokenizer chain in order for this to
-work properly!. For example, when using custom analyzer, make sure the
-`lowercase` filter comes before the `porter_stem` filter in the list of
-filters.
+This filter tends to stem more aggressively than other English
+stemmer filters, such as the <<analysis-kstem-tokenfilter,`kstem`>> filter.
+
+The `porter_stem` filter is equivalent to the
+<<analysis-stemmer-tokenfilter,`stemmer`>> filter's
+<<analysis-stemmer-tokenfilter-language-parm,`english`>> variant.
+
+The `porter_stem` filter uses Lucene's
+{lucene-analysis-docs}/en/PorterStemFilter.html[PorterStemFilter].
+
+[[analysis-porterstem-tokenfilter-analyze-ex]]
+==== Example
+
+The following analyze API request uses the `porter_stem` filter to stem
+`the foxes jumping quickly` to `the fox jump quickli`:
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [ "porter_stem" ],
+  "text": "the foxes jumping quickly"
+}
+----
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, fox, jump, quickli ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quickli",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+[[analysis-porterstem-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`porter_stem` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+[IMPORTANT]
+====
+To work properly, the `porter_stem` filter requires lowercase tokens. To ensure
+tokens are lowercased, add the <<analysis-lowercase-tokenfilter,`lowercase`>>
+filter before the `porter_stem` filter in the analyzer configuration.
+====
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [
+            "lowercase",
+            "porter_stem"
+          ]
+        }
+      }
+    }
+  }
+}
+----

@@ -30,9 +30,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
-        String type = "test-type";
         client().admin().indices().prepareCreate(index)
-                .addMapping(type)
                 .get();
 
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());

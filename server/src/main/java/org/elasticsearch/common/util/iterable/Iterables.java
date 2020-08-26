@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -101,5 +102,20 @@ public class Iterables {
             }
             return it.next();
         }
+    }
+
+    public static <T> int indexOf(Iterable<T> iterable, Predicate<T> predicate) {
+        int i = 0;
+        for (T element : iterable) {
+            if (predicate.test(element)) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
+    }
+
+    public static long size(Iterable<?> iterable) {
+        return StreamSupport.stream(iterable.spliterator(), true).count();
     }
 }

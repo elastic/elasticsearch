@@ -1,7 +1,8 @@
 {
   "license.get_basic_status":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-basic-status.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-basic-status.html",
+      "description":"Retrieves information about the status of the basic license."
     },
     "stability":"stable",
     "url":{

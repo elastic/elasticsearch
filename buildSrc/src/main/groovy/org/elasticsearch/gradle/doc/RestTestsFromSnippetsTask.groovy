@@ -266,6 +266,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                     case 'basic':
                     case 'gold':
                     case 'platinum':
+                    case 'enterprise':
                         current.println("        - xpack")
                         break;
                     default:
@@ -314,10 +315,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
             if (path == null) {
                 path = '' // Catch requests to the root...
             } else {
-                // Escape some characters that are also escaped by sense
                 path = path.replace('<', '%3C').replace('>', '%3E')
-                path = path.replace('{', '%7B').replace('}', '%7D')
-                path = path.replace('|', '%7C')
             }
             current.println("  - do:")
             if (catchPart != null) {

@@ -6,6 +6,7 @@
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
     "index.lifecycle.name": "watch-history-ilm-policy",
+    "index.hidden": true,
     "index.format": 6
   },
   "mappings": {
@@ -562,5 +563,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.watcher.template.version}
 }

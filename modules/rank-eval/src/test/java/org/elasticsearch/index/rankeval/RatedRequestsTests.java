@@ -64,8 +64,8 @@ public class RatedRequestsTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(
-                Stream.of(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents().stream()).flatMap(Function.identity())
-                        .collect(toList()));
+                Stream.of(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents().stream())
+                    .flatMap(Function.identity()).collect(toList()));
     }
 
     @AfterClass
@@ -143,7 +143,6 @@ public class RatedRequestsTests extends ESTestCase {
                 exception = exception.getCause();
             }
             assertThat(exception.getMessage(), containsString("unknown field"));
-            assertThat(exception.getMessage(), containsString("parser not found"));
         }
     }
 

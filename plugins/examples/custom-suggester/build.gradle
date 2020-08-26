@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-    name 'custom-suggester'
-    description 'An example plugin showing how to write and register a custom suggester'
-    classname 'org.elasticsearch.example.customsuggester.CustomSuggesterPlugin'
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+  name 'custom-suggester'
+  description 'An example plugin showing how to write and register a custom suggester'
+  classname 'org.elasticsearch.example.customsuggester.CustomSuggesterPlugin'
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
-testClusters.integTest {
-    numberOfNodes = 2
+testClusters.all {
+  numberOfNodes = 2
 }
 
 // this plugin has no unit tests, only rest tests

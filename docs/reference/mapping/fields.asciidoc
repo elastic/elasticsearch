@@ -1,12 +1,12 @@
 [[mapping-fields]]
-== Meta-Fields
+== Metadata fields
 
 Each document has metadata associated with it, such as the `_index`, mapping
-<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
-can be customised when a mapping type is created.
+<<mapping-type-field,`_type`>>, and `_id` metadata fields.  The behavior of
+some of these metadata fields can be customized when a mapping type is created.
 
-[float]
-=== Identity meta-fields
+[discrete]
+=== Identity metadata fields
 
 [horizontal]
 <<mapping-index-field,`_index`>>::
@@ -15,14 +15,14 @@ can be customised when a mapping type is created.
 
 <<mapping-type-field,`_type`>>::
 
-    The document's <<mapping-type,mapping type>>.
+    The document's mapping type.
 
 <<mapping-id-field,`_id`>>::
 
     The document's ID.
 
-[float]
-=== Document source meta-fields
+[discrete]
+=== Document source metadata fields
 
 <<mapping-source-field,`_source`>>::
 
@@ -33,8 +33,8 @@ can be customised when a mapping type is created.
     The size of the `_source` field in bytes, provided by the
     {plugins}/mapper-size.html[`mapper-size` plugin].
 
-[float]
-=== Indexing meta-fields
+[discrete]
+=== Indexing metadata fields
 
 <<mapping-field-names-field,`_field_names`>>::
 
@@ -45,15 +45,15 @@ can be customised when a mapping type is created.
     All fields in the document that have been ignored at index time because of
     <<ignore-malformed,`ignore_malformed`>>.
 
-[float]
-=== Routing meta-field
+[discrete]
+=== Routing metadata field
 
 <<mapping-routing-field,`_routing`>>::
 
     A custom routing value which routes a document to a particular shard.
 
-[float]
-=== Other meta-field
+[discrete]
+=== Other metadata field
 
 <<mapping-meta-field,`_meta`>>::
 

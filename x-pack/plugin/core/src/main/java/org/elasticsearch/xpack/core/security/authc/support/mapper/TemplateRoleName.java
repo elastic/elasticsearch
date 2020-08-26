@@ -97,6 +97,18 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
         }
     }
 
+    public void validate(ScriptService scriptService) {
+        try {
+            parseTemplate(scriptService, Collections.emptyMap());
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private List<String> convertJsonToList(String evaluation) throws IOException {
         final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE, evaluation);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 
 import java.io.IOException;
 import java.util.Objects;

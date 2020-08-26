@@ -20,6 +20,7 @@
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,8 +37,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSourceTests.randomSourceConfig;
 import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDestTests.randomDestConfig;
+import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSourceTests.randomSourceConfig;
 import static org.elasticsearch.client.ml.dataframe.OutlierDetectionTests.randomOutlierDetection;
 
 public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<DataFrameAnalyticsConfig> {
@@ -69,6 +70,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
         return builder.build();
     }
 
@@ -98,6 +102,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }
 }

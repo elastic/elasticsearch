@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
@@ -31,8 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(ShingleTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ShingleTokenFilterFactory.class);
 
     private final Factory factory;
 
@@ -51,8 +49,9 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                         + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
                         + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                deprecationLogger.deprecated("Deprecated big difference between maxShingleSize and minShingleSize" +
-                    " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
+                deprecationLogger.deprecate("excessive_shingle_diff",
+                    "Deprecated big difference between maxShingleSize and minShingleSize" +
+                            " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
             }
         }
 
@@ -76,8 +75,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                 "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
-                + "] will not be usable to parse synonym after v7.0");
+            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter " + name()
+                    + "] will not be usable to parse synonym after v7.0");
         }
         return this;
 

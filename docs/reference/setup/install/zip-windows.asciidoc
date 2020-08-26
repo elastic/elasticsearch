@@ -24,7 +24,7 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -144,7 +144,7 @@ installation. However, upgrading across JVM types (e.g. JRE versus SE) is not
 supported, and does require the service to be reinstalled.
 
 [[windows-service-settings]]
-[float]
+[discrete]
 === Customizing service settings
 
 The Elasticsearch service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
@@ -200,7 +200,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
 
-NOTE: At its core, `elasticsearch-service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
+NOTE: At its core, `elasticsearch-service.bat` relies on https://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
 NOTE: On Windows, the <<heap-size,heap size>> can be configured as for

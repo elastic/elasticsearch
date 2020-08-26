@@ -32,31 +32,61 @@ public final class BitArray implements Releasable {
     private final BigArrays bigArrays;
     private LongArray bits;
 
+    /**
+     * Create the {@linkplain BitArray}.
+     * @param initialSize the initial size of underlying storage.
+     */
     public BitArray(int initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         this.bits = bigArrays.newLongArray(initialSize, true);
     }
 
+    /**
+     * Set the {@code index}th bit.
+     */
     public void set(int index) {
-        fill(index, true);
+        int wordNum = wordNum(index);
+        bits = bigArrays.grow(bits, wordNum + 1);
+        bits.set(wordNum, bits.get(wordNum) | bitmask(index));
     }
 
+    /**
+     * Clear the {@code index}th bit.
+     */
     public void clear(int index) {
-        fill(index, false);
+        int wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            /*
+             * No need to resize the array just to clear the bit because we'll
+             * initialize them to false when we grow the array anyway.
+             */
+            return;
+        }
+        bits.set(wordNum, bits.get(wordNum) & ~bitmask(index));
     }
 
+    /**
+     * Is the {@code index}th bit set?
+     */
     public boolean get(int index) {
-        int wordNum = index >> 6;
+        int wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            /*
+             * If the word is bigger than the array then it could *never* have
+             * been set.
+             */
+            return false;
+        }
         long bitmask = 1L << index;
         return (bits.get(wordNum) & bitmask) != 0;
     }
 
-    private void fill(int index, boolean bit) {
-        int wordNum = index >> 6;
-        bits = bigArrays.grow(bits,wordNum+1);
-        long bitmask = 1L << index;
-        long value = bit ? bits.get(wordNum) | bitmask : bits.get(wordNum) & ~bitmask;
-        bits.set(wordNum, value);
+    private static int wordNum(int index) {
+        return index >> 6;
+    }
+
+    private static long bitmask(int index) {
+        return 1L << index;
     }
 
     @Override

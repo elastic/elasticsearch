@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -132,8 +132,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
 
-        IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-        int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {

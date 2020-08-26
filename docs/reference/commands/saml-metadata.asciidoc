@@ -6,7 +6,7 @@
 The `elasticsearch-saml-metadata` command can be used to generate a SAML 2.0 Service
 Provider Metadata file.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -23,7 +23,7 @@ bin/elasticsearch-saml-metadata
 [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 The SAML 2.0 specification provides a mechanism for Service Providers to
@@ -40,7 +40,11 @@ ensure its integrity and authenticity before sharing it with the Identity Provid
 The key used for signing the metadata file need not necessarily be the same as
 the keys already used in the saml realm configuration for SAML message signing.
 
-[float]
+If your {es} keystore is password protected, you
+are prompted to enter the password when you run the
+`elasticsearch-saml-metadata` command.
+
+[discrete]
 === Parameters
 
 `--attribute <name>`:: Specifies a SAML attribute that should be
@@ -103,7 +107,7 @@ realm in your {es} configuration.
 
 `-v, --verbose`:: Shows verbose output.
 
-[float]
+[discrete]
 === Examples
 
 The following command generates a default metadata file for the `saml1` realm:

@@ -32,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -50,7 +51,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
                 DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory = newDirectory();
-        bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
     }
 
     @After

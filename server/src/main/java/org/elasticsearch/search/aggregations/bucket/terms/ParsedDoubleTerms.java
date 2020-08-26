@@ -32,7 +32,7 @@ public class ParsedDoubleTerms extends ParsedTerms {
         return DoubleTerms.NAME;
     }
 
-    private static ObjectParser<ParsedDoubleTerms, Void> PARSER =
+    private static final ObjectParser<ParsedDoubleTerms, Void> PARSER =
             new ObjectParser<>(ParsedDoubleTerms.class.getSimpleName(), true, ParsedDoubleTerms::new);
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);

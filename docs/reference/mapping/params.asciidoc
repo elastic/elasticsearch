@@ -5,18 +5,17 @@ The following pages provide detailed explanations of the various mapping
 parameters that are used by <<mapping-types,field mappings>>:
 
 
-The following mapping parameters are common to some or all field datatypes:
+The following mapping parameters are common to some or all field data types:
 
 * <<analyzer,`analyzer`>>
-* <<normalizer, `normalizer`>>
-* <<mapping-boost,`boost`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
 * <<doc-values,`doc_values`>>
 * <<dynamic,`dynamic`>>
+* <<eager-global-ordinals,`eager_global_ordinals`>>
 * <<enabled,`enabled`>>
 * <<fielddata,`fielddata`>>
-* <<eager-global-ordinals,`eager_global_ordinals`>>
+* <<multi-fields,`fields`>>
 * <<mapping-date-format,`format`>>
 * <<ignore-above,`ignore_above`>>
 * <<ignore-malformed,`ignore_malformed`>>
@@ -24,7 +23,8 @@ The following mapping parameters are common to some or all field datatypes:
 * <<index-phrases,`index_phrases`>>
 * <<index-prefixes,`index_prefixes`>>
 * <<mapping-index,`index`>>
-* <<multi-fields,`fields`>>
+* <<mapping-field-meta,`meta`>>
+* <<normalizer, `normalizer`>>
 * <<norms,`norms`>>
 * <<null-value,`null_value`>>
 * <<position-increment-gap,`position_increment_gap`>>
@@ -37,10 +37,6 @@ The following mapping parameters are common to some or all field datatypes:
 
 include::params/analyzer.asciidoc[]
 
-include::params/normalizer.asciidoc[]
-
-include::params/boost.asciidoc[]
-
 include::params/coerce.asciidoc[]
 
 include::params/copy-to.asciidoc[]
@@ -49,9 +45,9 @@ include::params/doc-values.asciidoc[]
 
 include::params/dynamic.asciidoc[]
 
-include::params/enabled.asciidoc[]
-
 include::params/eager-global-ordinals.asciidoc[]
+
+include::params/enabled.asciidoc[]
 
 include::params/fielddata.asciidoc[]
 
@@ -69,7 +65,11 @@ include::params/index-phrases.asciidoc[]
 
 include::params/index-prefixes.asciidoc[]
 
+include::params/meta.asciidoc[]
+
 include::params/multi-fields.asciidoc[]
+
+include::params/normalizer.asciidoc[]
 
 include::params/norms.asciidoc[]
 

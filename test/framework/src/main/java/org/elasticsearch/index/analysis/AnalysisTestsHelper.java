@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -56,8 +56,8 @@ public class AnalysisTestsHelper {
             final Path configPath,
             final AnalysisPlugin... plugins) throws IOException {
         final Settings actualSettings;
-        if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
-            actualSettings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
+            actualSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         } else {
             actualSettings = settings;
         }

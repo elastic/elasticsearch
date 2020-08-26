@@ -18,30 +18,34 @@
  */
 
 dependencies {
-  compile 'org.ow2.asm:asm:7.1'
-  compile 'org.ow2.asm:asm-tree:7.1'
-  compile 'org.ow2.asm:asm-analysis:7.1'
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  testCompile project(":test:framework")
+  api 'org.ow2.asm:asm:7.1'
+  api 'org.ow2.asm:asm-tree:7.1'
+  api 'org.ow2.asm:asm-analysis:7.1'
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  testImplementation project(":test:framework")
 }
 
-loggerUsageCheck.enabled = false
+tasks.named("loggerUsageCheck").configure {
+  enabled = false
+}
 
-forbiddenApisMain.enabled = true // disabled by parent project
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures' // does not depend on core, only jdk signatures
 }
+
 jarHell.enabled = true // disabled by parent project
 
-thirdPartyAudit.ignoreMissingClasses (
-  // log4j
-  'org.osgi.framework.AdaptPermission',
-  'org.osgi.framework.AdminPermission',
-  'org.osgi.framework.Bundle',
-  'org.osgi.framework.BundleActivator',
-  'org.osgi.framework.BundleContext',
-  'org.osgi.framework.BundleEvent',
-  'org.osgi.framework.SynchronousBundleListener',
-  'org.osgi.framework.wiring.BundleWire',
-  'org.osgi.framework.wiring.BundleWiring'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // log4j
+          'org.osgi.framework.AdaptPermission',
+          'org.osgi.framework.AdminPermission',
+          'org.osgi.framework.Bundle',
+          'org.osgi.framework.BundleActivator',
+          'org.osgi.framework.BundleContext',
+          'org.osgi.framework.BundleEvent',
+          'org.osgi.framework.SynchronousBundleListener',
+          'org.osgi.framework.wiring.BundleWire',
+          'org.osgi.framework.wiring.BundleWiring'
+  )
+}

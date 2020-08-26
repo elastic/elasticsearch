@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,9 +37,7 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RandomScoreFunctionBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RandomScoreFunctionBuilder.class);
 
     public static final String NAME = "random_score";
     private String field;
@@ -161,11 +158,11 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             final MappedFieldType fieldType;
             if (field != null) {
-                fieldType = context.getMapperService().fullName(field);
+                fieldType = context.getMapperService().fieldType(field);
             } else {
-                deprecationLogger.deprecated(
-                        "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
-                fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+                deprecationLogger.deprecate("seed_requires_field",
+                    "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
+                fieldType = context.getMapperService().fieldType(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
                 if (context.getMapperService().documentMapper() == null) {

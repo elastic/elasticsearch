@@ -19,18 +19,27 @@ import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
+import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitter;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -40,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * An implementation that extracts data from elasticsearch using search and scroll on a client.
@@ -52,7 +62,7 @@ public class DataFrameDataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
-    private static final String EMPTY_STRING = "";
+    public static final String NULL_VALUE = "\0";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -60,12 +70,33 @@ public class DataFrameDataExtractor {
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
+    private final CachedSupplier<TrainTestSplitter> trainTestSplitter;
+    // These are fields that are sent directly to the analytics process
+    // They are not passed through a feature_processor
+    private final String[] organicFeatures;
+    // These are the output field names for the feature_processors
+    private final String[] processedFeatures;
+    private final Map<String, ExtractedField> extractedFieldsByName;
 
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
+        Set<String> processedFieldInputs = context.extractedFields.getProcessedFieldInputs();
+        this.organicFeatures = context.extractedFields.getAllFields()
+            .stream()
+            .map(ExtractedField::getName)
+            .filter(f -> processedFieldInputs.contains(f) == false)
+            .toArray(String[]::new);
+        this.processedFeatures = context.extractedFields.getProcessedFields()
+            .stream()
+            .map(ProcessedField::getOutputFieldNames)
+            .flatMap(List::stream)
+            .toArray(String[]::new);
+        this.extractedFieldsByName = new LinkedHashMap<>();
+        context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
         searchHasShardFailure = false;
+        this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
     }
 
     public Map<String, String> getHeaders() {
@@ -89,6 +120,7 @@ public class DataFrameDataExtractor {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
+
         Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
         if (!hits.isPresent()) {
             hasNext = false;
@@ -131,14 +163,14 @@ public class DataFrameDataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 // This ensures the search throws if there are failures and the scroll context gets cleared automatically
                 .setAllowPartialSearchResults(false)
-                .addSort(DataFrameAnalyticsIndex.ID_COPY, SortOrder.ASC)
+                .addSort(DestinationIndex.ID_COPY, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query);
         setFetchSource(searchRequestBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
-            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
 
         return searchRequestBuilder;
@@ -158,7 +190,7 @@ public class DataFrameDataExtractor {
         }
     }
 
-    private List<Row> processSearchResponse(SearchResponse searchResponse) throws IOException {
+    private List<Row> processSearchResponse(SearchResponse searchResponse) {
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
@@ -179,26 +211,79 @@ public class DataFrameDataExtractor {
         return rows;
     }
 
+    private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
+        ExtractedField field = extractedFieldsByName.get(organicFeature);
+        Object[] values = field.value(hit);
+        if (values.length == 1 && isValidValue(values[0])) {
+            return Objects.toString(values[0]);
+        }
+        if (values.length == 0 && context.supportsRowsWithMissingValues) {
+            // if values is empty then it means it's a missing value
+            return NULL_VALUE;
+        }
+        // we are here if we have a missing value but the analysis does not support those
+        // or the value type is not supported (e.g. arrays, etc.)
+        return null;
+    }
+
+    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit) {
+        Object[] values = processedField.value(hit, extractedFieldsByName::get);
+        if (values.length == 0 && context.supportsRowsWithMissingValues == false) {
+            return null;
+        }
+        final String[] extractedValue = new String[processedField.getOutputFieldNames().size()];
+        for (int i = 0; i < processedField.getOutputFieldNames().size(); i++) {
+            extractedValue[i] = NULL_VALUE;
+        }
+        // if values is empty then it means it's a missing value
+        if (values.length == 0) {
+            return extractedValue;
+        }
+
+        if (values.length != processedField.getOutputFieldNames().size()) {
+            throw ExceptionsHelper.badRequestException(
+                "field_processor [{}] output size expected to be [{}], instead it was [{}]",
+                processedField.getProcessorName(),
+                processedField.getOutputFieldNames().size(),
+                values.length);
+        }
+
+        for (int i = 0; i < processedField.getOutputFieldNames().size(); ++i) {
+            Object value = values[i];
+            if (value == null && context.supportsRowsWithMissingValues) {
+                continue;
+            }
+            if (isValidValue(value) == false) {
+                // we are here if we have a missing value but the analysis does not support those
+                // or the value type is not supported (e.g. arrays, etc.)
+                return null;
+            }
+            extractedValue[i] = Objects.toString(value);
+        }
+        return extractedValue;
+    }
+
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = new String[context.extractedFields.getAllFields().size()];
-        for (int i = 0; i < extractedValues.length; ++i) {
-            ExtractedField field = context.extractedFields.getAllFields().get(i);
-            Object[] values = field.value(hit);
-            if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
-                extractedValues[i] = Objects.toString(values[0]);
-            } else {
-                if (values.length == 0 && context.includeRowsWithMissingValues) {
-                    // if values is empty then it means it's a missing value
-                    extractedValues[i] = EMPTY_STRING;
-                } else {
-                    // we are here if we have a missing value but the analysis does not support those
-                    // or the value type is not supported (e.g. arrays, etc.)
-                    extractedValues = null;
-                    break;
-                }
+        String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
+        int i = 0;
+        for (String organicFeature : organicFeatures) {
+            String extractedValue = extractNonProcessedValues(hit, organicFeature);
+            if (extractedValue == null) {
+                return new Row(null, hit, true);
+            }
+            extractedValues[i++] = extractedValue;
+        }
+        for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
+            String[] processedValues = extractProcessedValue(processedField, hit);
+            if (processedValues == null) {
+                return new Row(null, hit, true);
+            }
+            for (String processedValue : processedValues) {
+                extractedValues[i++] = processedValue;
             }
         }
-        return new Row(extractedValues, hit);
+        boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
+        return new Row(extractedValues, hit, isTraining);
     }
 
     private List<Row> continueScroll() throws IOException {
@@ -231,7 +316,11 @@ public class DataFrameDataExtractor {
     }
 
     public List<String> getFieldNames() {
-        return context.extractedFields.getAllFields().stream().map(ExtractedField::getAlias).collect(Collectors.toList());
+        return Stream.concat(Arrays.stream(organicFeatures), Arrays.stream(processedFeatures)).collect(Collectors.toList());
+    }
+
+    public ExtractedFields getExtractedFields() {
+        return context.extractedFields;
     }
 
     public DataSummary collectDataSummary() {
@@ -239,12 +328,12 @@ public class DataFrameDataExtractor {
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         long rows = searchResponse.getHits().getTotalHits().value;
         LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
-        return new DataSummary(rows, context.extractedFields.getAllFields().size());
+        return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
-        final int numberOfFields = context.extractedFields.getAllFields().size();
+        final int numberOfFields = organicFeatures.length + processedFeatures.length;
 
         ClientHelper.executeWithHeadersAsync(context.headers,
             ClientHelper.ML_ORIGIN,
@@ -259,18 +348,36 @@ public class DataFrameDataExtractor {
     }
 
     private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+
+        QueryBuilder summaryQuery = context.query;
+        if (context.supportsRowsWithMissingValues == false) {
+            summaryQuery = QueryBuilders.boolQuery()
+                .filter(summaryQuery)
+                .filter(allExtractedFieldsExistQuery());
+        }
+
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setAllowPartialSearchResults(false)
             .setIndices(context.indices)
             .setSize(0)
-            .setQuery(context.query)
+            .setQuery(summaryQuery)
             .setTrackTotalHits(true);
     }
 
+    private QueryBuilder allExtractedFieldsExistQuery() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (ExtractedField field : context.extractedFields.getAllFields()) {
+            query.filter(QueryBuilders.existsQuery(field.getName()));
+        }
+        return query;
+    }
+
     public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
-        return context.extractedFields.getAllFields().stream()
-            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
-            .map(ExtractedField::getName)
-            .collect(Collectors.toUnmodifiableSet());
+        return ExtractedFieldsDetector.getCategoricalOutputFields(context.extractedFields, analysis);
+    }
+
+    private static boolean isValidValue(Object value) {
+        return value instanceof Number || value instanceof String;
     }
 
     public static class DataSummary {
@@ -286,14 +393,17 @@ public class DataFrameDataExtractor {
 
     public static class Row {
 
-        private SearchHit hit;
+        private final SearchHit hit;
 
         @Nullable
-        private String[] values;
+        private final String[] values;
 
-        private Row(String[] values, SearchHit hit) {
+        private final boolean isTraining;
+
+        private Row(String[] values, SearchHit hit, boolean isTraining) {
             this.values = values;
             this.hit = hit;
+            this.isTraining = isTraining;
         }
 
         @Nullable
@@ -307,6 +417,10 @@ public class DataFrameDataExtractor {
 
         public boolean shouldSkip() {
             return values == null;
+        }
+
+        public boolean isTraining() {
+            return isTraining;
         }
 
         public int getChecksum() {

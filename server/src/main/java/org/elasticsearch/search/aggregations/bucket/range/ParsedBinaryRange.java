@@ -45,7 +45,7 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return buckets;
     }
 
-    private static ObjectParser<ParsedBinaryRange, Void> PARSER =
+    private static final ObjectParser<ParsedBinaryRange, Void> PARSER =
             new ObjectParser<>(ParsedBinaryRange.class.getSimpleName(), true, ParsedBinaryRange::new);
     static {
         declareMultiBucketAggregationFields(PARSER,

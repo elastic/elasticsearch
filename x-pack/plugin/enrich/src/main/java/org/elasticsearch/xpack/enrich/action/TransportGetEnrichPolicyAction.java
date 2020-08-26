@@ -26,17 +26,27 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
+public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<
+    GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
 
     @Inject
-    public TransportGetEnrichPolicyAction(TransportService transportService,
-                                               ClusterService clusterService,
-                                               ThreadPool threadPool,
-                                               ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+    public TransportGetEnrichPolicyAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetEnrichPolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetEnrichPolicyAction.Request::new,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
@@ -54,15 +64,18 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(Task task, GetEnrichPolicyAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        GetEnrichPolicyAction.Request request,
+        ClusterState state,
+        ActionListener<GetEnrichPolicyAction.Response> listener
+    ) throws Exception {
         Map<String, EnrichPolicy> policies;
         if (request.getNames() == null || request.getNames().isEmpty()) {
             policies = EnrichStore.getPolicies(state);
         } else {
             policies = new HashMap<>();
-            for (String name: request.getNames()) {
+            for (String name : request.getNames()) {
                 if (name.isEmpty() == false) {
                     EnrichPolicy policy = EnrichStore.getPolicy(name, state);
                     if (policy != null) {

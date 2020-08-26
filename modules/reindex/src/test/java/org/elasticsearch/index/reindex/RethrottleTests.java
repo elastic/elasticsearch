@@ -86,7 +86,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numSlices * 10; i++) {
-            docs.add(client().prepareIndex("test", "test", Integer.toString(i)).setSource("foo", "bar"));
+            docs.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
 

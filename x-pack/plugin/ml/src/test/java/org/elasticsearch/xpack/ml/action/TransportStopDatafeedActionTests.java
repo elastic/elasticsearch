@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -14,60 +14,65 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 
 public class TransportStopDatafeedActionTests extends ESTestCase {
     public void testSortDatafeedIdsByTaskState_GivenDatafeedId() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
+        List<String> notStoppedDatafeeds = new ArrayList<>();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds);
+                Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
+        assertEquals(Collections.singletonList("datafeed_1"), notStoppedDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
+        notStoppedDatafeeds.clear();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds);
+                Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
+        assertEquals(Collections.emptyList(), notStoppedDatafeeds);
     }
 
     public void testSortDatafeedIdsByTaskState_GivenAll() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         addTask("datafeed_3", 0L, "node-1", DatafeedState.STOPPING, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
+        List<String> notStoppedDatafeeds = new ArrayList<>();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                new HashSet<>(Arrays.asList("datafeed_1", "datafeed_2", "datafeed_3")), tasks, startedDatafeeds, stoppingDatafeeds);
+                Arrays.asList("datafeed_1", "datafeed_2", "datafeed_3"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_3"), stoppingDatafeeds);
+        assertEquals(Arrays.asList("datafeed_1", "datafeed_3"), notStoppedDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(Collections.singleton("datafeed_2"), tasks, startedDatafeeds,
-                stoppingDatafeeds);
+                stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
-                               PersistentTasksCustomMetaData.Builder taskBuilder) {
+                               PersistentTasksCustomMetadata.Builder taskBuilder) {
         taskBuilder.addTask(MlTasks.datafeedTaskId(datafeedId), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
-                new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
+                new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment"));
         taskBuilder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }
 }

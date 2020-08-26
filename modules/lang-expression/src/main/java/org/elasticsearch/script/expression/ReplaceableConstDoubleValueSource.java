@@ -80,7 +80,7 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     }
 
     @Override
-    public DoubleValuesSource rewrite(IndexSearcher reader) throws IOException {
+    public DoubleValuesSource rewrite(IndexSearcher reader) {
         return this;
     }
 }

@@ -51,9 +51,11 @@ public final class Sets {
 
     public static <T> HashSet<T> newHashSet(Iterable<T> iterable) {
         Objects.requireNonNull(iterable);
-        return iterable instanceof Collection ? new HashSet<>((Collection)iterable) : newHashSet(iterable.iterator());
+        return iterable instanceof Collection ? new HashSet<>((Collection<T>) iterable) : newHashSet(iterable.iterator());
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
         HashSet<T> set = new HashSet<>(elements.length);

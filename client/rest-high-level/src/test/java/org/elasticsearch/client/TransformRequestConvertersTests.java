@@ -149,7 +149,12 @@ public class TransformRequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             timeValue = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
         }
-        StopTransformRequest stopRequest = new StopTransformRequest(id, waitForCompletion, timeValue);
+        Boolean waitForCheckpoint = null;
+        if (randomBoolean()) {
+            waitForCheckpoint = randomBoolean();
+        }
+
+        StopTransformRequest stopRequest = new StopTransformRequest(id, waitForCompletion, timeValue, waitForCheckpoint);
 
         Request request = TransformRequestConverters.stopTransform(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -167,6 +172,12 @@ public class TransformRequestConvertersTests extends ESTestCase {
             assertEquals(stopRequest.getTimeout(), TimeValue.parseTimeValue(request.getParameters().get("timeout"), "timeout"));
         } else {
             assertFalse(request.getParameters().containsKey("timeout"));
+        }
+        if (waitForCheckpoint != null) {
+            assertTrue(request.getParameters().containsKey("wait_for_checkpoint"));
+            assertEquals(stopRequest.getWaitForCheckpoint(), Boolean.parseBoolean(request.getParameters().get("wait_for_checkpoint")));
+        } else {
+            assertFalse(request.getParameters().containsKey("wait_for_checkpoint"));
         }
 
         assertFalse(request.getParameters().containsKey(ALLOW_NO_MATCH));

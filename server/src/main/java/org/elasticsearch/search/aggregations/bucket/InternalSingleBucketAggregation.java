@@ -24,13 +24,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * A base class for all the single bucket aggregations.
@@ -48,8 +52,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }
@@ -60,7 +64,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
         super(in);
         docCount = in.readVLong();
-        aggregations = new InternalAggregations(in);
+        aggregations = InternalAggregations.readFrom(in);
     }
 
     @Override
@@ -97,7 +101,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
@@ -107,6 +111,27 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
+    }
+
+    /**
+     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * before allowing sibling pipelines to materialize.
+     */
+    @Override
+    public final InternalAggregation reducePipelines(
+            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        assert reduceContext.isFinalReduce();
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : getAggregations().asList()) {
+                PipelineTree subTree = pipelineTree.subTree(agg.getName());
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+            }
+            InternalAggregations reducedSubAggs = InternalAggregations.from(aggs);
+            reduced = create(reducedSubAggs);
+        }
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
     }
 
     @Override
@@ -134,6 +159,35 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         return builder;
+    }
+
+    @Override
+    public final double sortValue(String key) {
+        if (key != null && false == key.equals("doc_count")) {
+            throw new IllegalArgumentException(
+                    "Unknown value key [" + key + "] for single-bucket aggregation [" + getName() +
+                    "]. Either use [doc_count] as key or drop the key all together.");
+        }
+        return docCount;
+    }
+
+    @Override
+    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        return aggregations.sortValue(head, tail);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        InternalAggregations rewritten = rewriter.apply(aggregations);
+        if (rewritten == null) {
+            return this;
+        }
+        return create(rewritten);
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        consumer.accept(aggregations);
     }
 
     @Override

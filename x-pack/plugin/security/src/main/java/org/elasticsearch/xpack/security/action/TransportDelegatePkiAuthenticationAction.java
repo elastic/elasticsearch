@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
@@ -38,7 +39,7 @@ import java.util.Map;
  * {@code PkiRealmSettings#DELEGATION_ENABLED_SETTING} set to {@code true} (default is {@code false}). A successfully trusted target
  * certificate is also subject to the validation of the subject distinguished name according to that respective's realm
  * {@code PkiRealmSettings#USERNAME_PATTERN_SETTING}.
- * 
+ *
  * IMPORTANT: The association between the subject public key in the target certificate and the corresponding private key is <b>not</b>
  * validated. This is part of the TLS authentication process and it is delegated to the proxy calling this API. The proxy is <b>trusted</b>
  * to have performed the TLS authentication, and this API translates that authentication into an Elasticsearch access token.
@@ -51,21 +52,24 @@ public final class TransportDelegatePkiAuthenticationAction
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportDelegatePkiAuthenticationAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            AuthenticationService authenticationService, TokenService tokenService) {
+                                                    AuthenticationService authenticationService, TokenService tokenService,
+                                                    SecurityContext securityContext) {
         super(DelegatePkiAuthenticationAction.NAME, transportService, actionFilters, DelegatePkiAuthenticationRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
+        this.securityContext = securityContext;
     }
 
     @Override
     protected void doExecute(Task task, DelegatePkiAuthenticationRequest request,
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
         final ThreadContext threadContext = threadPool.getThreadContext();
-        Authentication delegateeAuthentication = Authentication.getAuthentication(threadContext);
+        Authentication delegateeAuthentication = securityContext.getAuthentication();
         if (delegateeAuthentication == null) {
             listener.onFailure(new IllegalStateException("Delegatee authentication cannot be null"));
             return;

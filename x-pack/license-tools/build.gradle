@@ -1,26 +1,27 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(':x-pack:plugin:core')
-  compile project(':server')
-  testCompile project(':test:framework')
+  api project(':x-pack:plugin:core')
+  api project(':server')
+  testImplementation project(':test:framework')
 }
 
 project.forbiddenPatterns {
   exclude '**/*.key'
 }
 
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 
-task buildZip(type: Zip, dependsOn: jar) {
-  String parentDir = "license-tools-${version}"
+tasks.register("buildZip", Zip) {
+  dependsOn "jar"
+  String parentDir = "license-tools-${archiveVersion}"
   into(parentDir + '/lib') {
     from jar
-    from configurations.runtime
+    from configurations.runtimeClasspath
   }
   into(parentDir + '/bin') {
     from 'bin'
   }
 }
 
-assemble.dependsOn buildZip
+tasks.named("assemble").configure { dependsOn("buildZip") }

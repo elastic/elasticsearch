@@ -9,23 +9,29 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
@@ -35,18 +41,32 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
+public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFieldMapper.Builder> {
     private IndexService indexService;
     private DocumentMapperParser parser;
+
+    @Override
+    protected FlatObjectFieldMapper.Builder newBuilder() {
+        return new FlatObjectFieldMapper.Builder("flat-object");
+    }
 
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addBooleanModifier("split_queries_on_whitespace", true, FlatObjectFieldMapper.Builder::splitQueriesOnWhitespace);
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("store", "analyzer", "similarity");
     }
 
     @Override
@@ -316,12 +336,12 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDepthLimit() throws IOException {
-         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+        // First verify the default behavior when depth_limit is not set.
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
-                        .field("depth_limit", 2)
                     .endObject()
                 .endObject()
             .endObject()
@@ -340,8 +360,26 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
+        mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+
+        // Set a lower value for depth_limit and check that the field is rejected.
+        String newMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "flattened")
+                        .field("depth_limit", 2)
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper newMapper = mapper.merge(
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
+
         expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
+            newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
     }
 
     public void testEagerGlobalOrdinals() throws IOException {
@@ -362,12 +400,12 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIgnoreAbove() throws IOException {
-         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+        // First verify the default behavior when ignore_above is not set.
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
-                        .field("ignore_above", 10)
                     .endObject()
                 .endObject()
             .endObject()
@@ -386,7 +424,27 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(2, fields.length);
+
+        // Set a lower value for ignore_above and check that the field is skipped.
+        String newMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "flattened")
+                        .field("ignore_above", "10")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper newMapper = mapper.merge(
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
+
+        ParsedDocument newParsedDoc = newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");
+        assertEquals(0, newFields.length);
     }
 
     public void testNullValues() throws Exception {
@@ -444,14 +502,28 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fullName("field");
-        assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
+        assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
-        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fullName("field.key");
-        assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fieldType("field.key");
+        assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        FlatObjectFieldMapper mapper = new FlatObjectFieldMapper.Builder("field").build(context);
+        assertEquals(List.of(sourceValue), fetchSourceValue(mapper, sourceValue));
+
+        FlatObjectFieldMapper nullValueMapper = new FlatObjectFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

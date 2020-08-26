@@ -24,7 +24,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Checkpoint stats data for 1 checkpoint
  *
- * This is the user-facing side of DataFrameTransformCheckpoint, containing only the stats to be exposed.
+ * This is the user-facing side of TransformCheckpoint, containing only the stats to be exposed.
  */
 public class TransformCheckpointStats implements Writeable, ToXContentObject {
 
@@ -37,15 +37,18 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
     private final long timeUpperBoundMillis;
 
     static final ConstructingObjectParser<TransformCheckpointStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
-            "data_frame_transform_checkpoint_stats", true, args -> {
-        long checkpoint = args[0] == null ? 0L : (Long) args[0];
-        TransformIndexerPosition position = (TransformIndexerPosition) args[1];
-        TransformProgress checkpointProgress = (TransformProgress) args[2];
-        long timestamp = args[3] == null ? 0L : (Long) args[3];
-        long timeUpperBound = args[4] == null ? 0L : (Long) args[4];
+        "data_frame_transform_checkpoint_stats",
+        true,
+        args -> {
+            long checkpoint = args[0] == null ? 0L : (Long) args[0];
+            TransformIndexerPosition position = (TransformIndexerPosition) args[1];
+            TransformProgress checkpointProgress = (TransformProgress) args[2];
+            long timestamp = args[3] == null ? 0L : (Long) args[3];
+            long timeUpperBound = args[4] == null ? 0L : (Long) args[4];
 
-        return new TransformCheckpointStats(checkpoint, position, checkpointProgress, timestamp, timeUpperBound);
-    });
+            return new TransformCheckpointStats(checkpoint, position, checkpointProgress, timestamp, timeUpperBound);
+        }
+    );
 
     static {
         LENIENT_PARSER.declareLong(optionalConstructorArg(), TransformField.CHECKPOINT);
@@ -55,9 +58,13 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
         LENIENT_PARSER.declareLong(optionalConstructorArg(), TransformField.TIME_UPPER_BOUND_MILLIS);
     }
 
-    public TransformCheckpointStats(final long checkpoint, final TransformIndexerPosition position,
-                                             final TransformProgress checkpointProgress, final long timestampMillis,
-                                             final long timeUpperBoundMillis) {
+    public TransformCheckpointStats(
+        final long checkpoint,
+        final TransformIndexerPosition position,
+        final TransformProgress checkpointProgress,
+        final long timestampMillis,
+        final long timeUpperBoundMillis
+    ) {
         this.checkpoint = checkpoint;
         this.position = position;
         this.checkpointProgress = checkpointProgress;
@@ -118,12 +125,18 @@ public class TransformCheckpointStats implements Writeable, ToXContentObject {
             builder.field(TransformField.CHECKPOINT_PROGRESS.getPreferredName(), checkpointProgress);
         }
         if (timestampMillis > 0) {
-            builder.timeField(TransformField.TIMESTAMP_MILLIS.getPreferredName(), TransformField.TIMESTAMP.getPreferredName(),
-                timestampMillis);
+            builder.timeField(
+                TransformField.TIMESTAMP_MILLIS.getPreferredName(),
+                TransformField.TIMESTAMP.getPreferredName(),
+                timestampMillis
+            );
         }
         if (timeUpperBoundMillis > 0) {
-            builder.timeField(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), TransformField.TIME_UPPER_BOUND.getPreferredName(),
-                timeUpperBoundMillis);
+            builder.timeField(
+                TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName(),
+                TransformField.TIME_UPPER_BOUND.getPreferredName(),
+                timeUpperBoundMillis
+            );
         }
         builder.endObject();
         return builder;

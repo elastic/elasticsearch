@@ -1,14 +1,22 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
-dependencies {
-    testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
-    testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index'
+    includeXpack 'enrich'
+  }
 }
 
-testClusters.integTest  {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'basic'
-    setting 'xpack.monitoring.collection.enabled', 'true'
+dependencies {
+  testImplementation project(path: xpackModule('enrich'))
+  testImplementation project(path: xpackModule('enrich:qa:common'))
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.monitoring.collection.enabled', 'true'
 }

@@ -1,0 +1,65 @@
+[role="xpack"]
+[[ilm-searchable-snapshot]]
+=== Searchable snapshot
+
+Phases allowed: cold, frozen.
+
+Takes a snapshot of the managed index in the configured repository
+and mounts it as a searchable snapshot.
+If the managed index is part of a <<data-streams, data stream>>,
+the mounted index replaces the original index in the data stream.
+
+[NOTE]
+This action cannot be performed on a data stream's write index. Attempts to do
+so will fail. To convert the index to a searchable snapshot, first
+<<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
+creates a new write index. Because the index is no longer the stream's write
+index, the action can then convert it to a searchable snapshot.
+Using a policy that makes use of the <<ilm-rollover, rollover>> action
+in the hot phase will avoid this situation and the need for a manual rollover for future
+managed indices.
+
+By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
+To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
+
+[[ilm-searchable-snapshot-options]]
+==== Options
+
+`snapshot_repository`::
+(Required, string)
+Specifies where to store the snapshot. 
+See <<snapshots-register-repository>> for more information.
+
+`force_merge_index`::
+(Optional, boolean)
+Force merges the managed index to one segment.
+Defaults to `true`.
+If the managed index was already force merged using the
+<<ilm-forcemerge, force merge action>> in a previous action
+the `searchable snapshot` action force merge step will be a no-op.
+
+[NOTE]
+The `forcemerge` action is best effort. It might happen that some of
+the shards are relocating, in which case they will not be merged.
+The `searchable-snapshot` action will continue executing even if not all shards
+are force merged.
+
+[[ilm-searchable-snapshot-ex]]
+==== Examples
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "searchable_snapshot" : {
+            "snapshot_repository" : "backing_repo"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

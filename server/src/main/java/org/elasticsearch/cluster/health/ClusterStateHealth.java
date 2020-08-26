@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +55,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
      * @param clusterState The current cluster state. Must not be null.
      */
     public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metaData().getConcreteAllIndices());
+        this(clusterState, clusterState.metadata().getConcreteAllIndices());
     }
 
     /**
@@ -70,12 +70,12 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (indexRoutingTable == null) {
                 continue;
             }
 
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
 
             indices.put(indexHealth.getIndex(), indexHealth);
         }
@@ -134,7 +134,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
         int size = in.readVInt();
         indices = new HashMap<>(size);
         for (int i = 0; i < size; i++) {

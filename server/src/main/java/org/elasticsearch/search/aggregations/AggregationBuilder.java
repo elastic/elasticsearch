@@ -26,6 +26,9 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,7 +38,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -67,10 +70,10 @@ public abstract class AggregationBuilder
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override
-    public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
+    public abstract AggregationBuilder setMetadata(Map<String, Object> metadata);
 
     /** Return any associated metadata with this {@link AggregationBuilder}. */
-    public abstract Map<String, Object> getMetaData();
+    public abstract Map<String, Object> getMetadata();
 
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
@@ -102,18 +105,19 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
     /**
-     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metaData</code>.
+     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
      * Used by {@link #rewrite(QueryRewriteContext)}.
      */
-    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData);
+    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 
+    @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         if (rewritten != this) {
-            return rewritten.setMetaData(getMetaData()).subAggregations(rewrittenSubAggs);
+            return rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
         } else if (rewrittenSubAggs != factoriesBuilder) {
-            return shallowCopy(rewrittenSubAggs, getMetaData());
+            return shallowCopy(rewrittenSubAggs, getMetadata());
         } else {
             return this;
         }
@@ -130,19 +134,29 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the aggregation until it doesn't change anymore.
-     * @throws IOException if an {@link IOException} occurs
+     * Build a tree of {@link PipelineAggregator}s to modify the tree of
+     * aggregation results after the final reduction.
      */
-    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
-        AggregationBuilder builder = original;
-        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
-            builder = rewrittenBuilder;
-        }
-        return builder;
+    public PipelineTree buildPipelineTree() {
+        return factoriesBuilder.buildPipelineTree();
     }
+
+    /**
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per parent bucket used to validate sorts
+     * and pipeline aggregations. Just "zero", "one", and "many".
+     * <p>
+     * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
+     * instead of <strong>per parent bucket</strong>. 
+     */
+    public enum BucketCardinality {
+        NONE, ONE, MANY;
+    }
+    /**
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per owning parent bucket.
+     */
+    public abstract BucketCardinality bucketCardinality();
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

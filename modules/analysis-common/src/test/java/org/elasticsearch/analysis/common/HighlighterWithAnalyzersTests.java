@@ -57,9 +57,9 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("name")
                                         .field("type", "text")
@@ -105,7 +105,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
                         .putList("analysis.analyzer.search_autocomplete.filter",
                                 "lowercase", "wordDelimiter")));
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test").setId("1")
             .setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
         SearchResponse search = client().prepareSearch("test")
@@ -121,7 +121,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test", "body", "type=text,analyzer=custom_analyzer,"
+                .setMapping("body", "type=text,analyzer=custom_analyzer,"
                         + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         Settings.builder().put(indexSettings())
@@ -138,7 +138,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
 
         ensureGreen();
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test").setId("1")
             .setSource("body", "Test: http://www.facebook.com http://elasticsearch.org "
                     + "http://xing.com http://cnn.com http://quora.com http://twitter.com this is "
                     + "a test for highlighting feature Test: http://www.facebook.com "
@@ -173,12 +173,12 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
-            .addMapping("type1", "field1",
+            .setMapping("field1",
                 "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," +
                     "analyzer=standard,index_options=offsets"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource(
+        client().prepareIndex("test").setId("0").setSource(
             "field1", "The quick brown fox jumps over the lazy dog").get();
         refresh();
         for (String highlighterType : new String[] {"plain", "fvh", "unified"}) {
@@ -213,14 +213,14 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).setMapping(type1TermVectorMapping()));
 
         ensureGreen();
 
-        client().prepareIndex("first_test_index", "type1", "0").setSource(
+        client().prepareIndex("first_test_index").setId("0").setSource(
             "field0", "The quick brown fox jumps over the lazy dog",
             "field1", "The quick brown fox jumps over the lazy dog").get();
-        client().prepareIndex("first_test_index", "type1", "1").setSource("field1",
+        client().prepareIndex("first_test_index").setId("1").setSource("field1",
             "The quick browse button is a fancy thing, right bro?").get();
         refresh();
         logger.info("--> highlighting and searching on field0");
@@ -269,18 +269,18 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
             equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
-        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).addMapping("doc",
+        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).setMapping(
             "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
             "field3", "type=text,analyzer=synonym"));
         // with synonyms
-        client().prepareIndex("second_test_index", "doc", "0").setSource(
+        client().prepareIndex("second_test_index").setId("0").setSource(
             "type", "type2",
             "field4", "The quick brown fox jumps over the lazy dog",
             "field3", "The quick brown fox jumps over the lazy dog").get();
-        client().prepareIndex("second_test_index", "doc", "1").setSource(
+        client().prepareIndex("second_test_index").setId("1").setSource(
             "type", "type2",
             "field4", "The quick browse button is a fancy thing, right bro?").get();
-        client().prepareIndex("second_test_index", "doc", "2").setSource(
+        client().prepareIndex("second_test_index").setId("2").setSource(
             "type", "type2",
             "field4", "a quick fast blue car").get();
         refresh();
@@ -317,7 +317,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
     }
 
     public static XContentBuilder type1TermVectorMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("type1")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("term_vector", "with_positions_offsets").endObject()
             .startObject("field2").field("type", "text").field("term_vector", "with_positions_offsets").endObject()

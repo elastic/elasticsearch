@@ -21,30 +21,40 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -54,9 +64,7 @@ import java.util.Objects;
 public class RetentionLeaseSyncAction extends
         TransportWriteAction<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
-    public static ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
-
+    public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
     protected Logger getLogger() {
@@ -72,7 +80,7 @@ public class RetentionLeaseSyncAction extends
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexingPressure indexingPressure) {
         super(
                 settings,
                 ACTION_NAME,
@@ -82,14 +90,64 @@ public class RetentionLeaseSyncAction extends
                 threadPool,
                 shardStateAction,
                 actionFilters,
-                indexNameExpressionResolver,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT, false);
+                ThreadPool.Names.MANAGEMENT, false, indexingPressure);
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+    protected void doExecute(Task parentTask, Request request, ActionListener<Response> listener) {
+        assert false : "use RetentionLeaseSyncAction#sync";
+    }
+
+    final void sync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases,
+                    ActionListener<ReplicationResponse> listener) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            // we have to execute under the system context so that if security is enabled the sync is authorized
+            threadContext.markAsSystemContext();
+            final Request request = new Request(shardId, retentionLeases);
+            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
+            transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
+                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                task,
+                transportOptions,
+                new TransportResponseHandler<ReplicationResponse>() {
+                    @Override
+                    public ReplicationResponse read(StreamInput in) throws IOException {
+                        return newResponseInstance(in);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(ReplicationResponse response) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        listener.onResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        if (ExceptionsHelper.unwrap(e,
+                                                    IndexNotFoundException.class,
+                                                    AlreadyClosedException.class,
+                                                    IndexShardClosedException.class) == null) {
+                            getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
+                        }
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        listener.onFailure(e);
+                    }
+                });
+        }
+    }
+
+    @Override
+    protected void dispatchedShardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
@@ -101,14 +159,15 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(
-            final Request request,
-            final IndexShard replica) throws WriteStateException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.persistRetentionLeases();
-        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+    protected void dispatchedShardOperationOnReplica(Request request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+            return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+        });
     }
 
     @Override
@@ -139,6 +198,11 @@ public class RetentionLeaseSyncAction extends
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
             retentionLeases.writeTo(out);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new ReplicationTask(id, type, action, "retention_lease_sync shardId=" + shardId, parentTaskId, headers);
         }
 
         @Override

@@ -248,7 +248,7 @@ public class ContextExampleTests extends ScriptTestCase {
         "processors": [
           {
             "script": {
-              "source": "String[] split(String s, char d) { int count = 0; for (char c : s.toCharArray()) { if (c == d) { ++count; } } if (count == 0) { return new String[] {s}; } String[] r = new String[count + 1]; int i0 = 0, i1 = 0; count = 0; for (char c : s.toCharArray()) { if (c == d) { r[count++] = s.substring(i0, i1); i0 = i1 + 1; } ++i1; } r[count] = s.substring(i0, i1); return r; } String[] dateSplit = split(ctx.date, (char)\"-\"); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = \"0\" + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = \"0\" + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals(\"PM\"); String[] timeSplit = split(ctx.time.substring(0, ctx.time.length() - 2), (char)\":\"); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + \"-\" + month + \"-\" + day + \"T\" + (hours < 10 ? \"0\" + hours : \"\" + hours) + \":\" + (minutes < 10 ? \"0\" + minutes : \"\" + minutes) + \":00+08:00\"; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+              "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
             }
           }
         ]
@@ -259,31 +259,8 @@ public class ContextExampleTests extends ScriptTestCase {
 
     public void testIngestProcessorScript() {
         assertEquals(1535785200000L,
-            exec("String[] split(String s, char d) {" +
-                "    int count = 0;" +
-                "    for (char c : s.toCharArray()) {" +
-                "        if (c == d) {" +
-                "            ++count;" +
-                "        }" +
-                "    }" +
-                "    if (count == 0) {" +
-                "        return new String[] {s};" +
-                "    }" +
-                "    String[] r = new String[count + 1];" +
-                "    int i0 = 0, i1 = 0;" +
-                "    count = 0;" +
-                "    for (char c : s.toCharArray()) {" +
-                "        if (c == d) {" +
-                "            r[count++] = s.substring(i0, i1);" +
-                "            i0 = i1 + 1;" +
-                "        }" +
-                "        ++i1;" +
-                "    }" +
-                "    r[count] = s.substring(i0, i1);" +
-                "    return r;" +
-                "}" +
-                "def x = ['date': '2018-9-1', 'time': '3:00 PM'];" +
-                "String[] dateSplit = split(x.date, (char)'-');" +
+            exec("def x = ['date': '2018-9-1', 'time': '3:00 PM'];" +
+                "String[] dateSplit = x.date.splitOnToken('-');" +
                 "String year = dateSplit[0].trim();" +
                 "String month = dateSplit[1].trim();" +
                 "if (month.length() == 1) {" +
@@ -294,15 +271,18 @@ public class ContextExampleTests extends ScriptTestCase {
                 "    day = '0' + day;" +
                 "}" +
                 "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
-                "String[] timeSplit = split(x.time.substring(0, x.time.length() - 2), (char)':');" +
+                "String[] timeSplit = x.time.substring(0, x.time.length() - 2).splitOnToken(':');" +
                 "int hours = Integer.parseInt(timeSplit[0].trim());" +
-                "String minutes = timeSplit[1].trim();" +
+                "int minutes = Integer.parseInt(timeSplit[1].trim());" +
                 "if (pm) {" +
                 "    hours += 12;" +
                 "}" +
-                "String dts = year + '-' + month + '-' + day + " +
-                "'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + minutes + ':00+08:00';" +
-                "ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
+                "String dts = year + '-' + month + '-' + day + 'T' +" +
+                "        (hours < 10 ? '0' + hours : '' + hours) + ':' +" +
+                "        (minutes < 10 ? '0' + minutes : '' + minutes) +" +
+                "        ':00+08:00';" +
+                "ZonedDateTime dt = ZonedDateTime.parse(" +
+                "         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
                 "return dt.getLong(ChronoField.INSTANT_SECONDS) * 1000L"
             )
         );

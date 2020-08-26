@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,7 +60,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -76,40 +76,50 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     @Override
     protected void masterOperation(Task task, final GetRepositoriesRequest request, ClusterState state,
                                    final ActionListener<GetRepositoriesResponse> listener) {
-        MetaData metaData = state.metaData();
-        RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
-        if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
+        listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(getRepositories(state, request.repositories()))));
+    }
+
+    /**
+     * Get repository metadata for given repository names from given cluster state.
+     *
+     * @param state     Cluster state
+     * @param repoNames Repository names or patterns to get metadata for
+     * @return list of repository metadata
+     */
+    public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
+        Metadata metadata = state.metadata();
+        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
+        if (repoNames.length == 0 || (repoNames.length == 1 && "_all".equals(repoNames[0]))) {
             if (repositories != null) {
-                listener.onResponse(new GetRepositoriesResponse(repositories));
+                return repositories.repositories();
             } else {
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(Collections.emptyList())));
+                return Collections.emptyList();
             }
         } else {
             if (repositories != null) {
                 Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
-                for (String repositoryOrPattern : request.repositories()) {
+                for (String repositoryOrPattern : repoNames) {
                     if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                         repositoriesToGet.add(repositoryOrPattern);
                     } else {
-                        for (RepositoryMetaData repository : repositories.repositories()) {
+                        for (RepositoryMetadata repository : repositories.repositories()) {
                             if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
                                 repositoriesToGet.add(repository.name());
                             }
                         }
                     }
                 }
-                List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
+                List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
                 for (String repository : repositoriesToGet) {
-                    RepositoryMetaData repositoryMetaData = repositories.repository(repository);
-                    if (repositoryMetaData == null) {
-                        listener.onFailure(new RepositoryMissingException(repository));
-                        return;
+                    RepositoryMetadata repositoryMetadata = repositories.repository(repository);
+                    if (repositoryMetadata == null) {
+                        throw new RepositoryMissingException(repository);
                     }
-                    repositoryListBuilder.add(repositoryMetaData);
+                    repositoryListBuilder.add(repositoryMetadata);
                 }
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(repositoryListBuilder)));
+                return repositoryListBuilder;
             } else {
-                listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
+                throw new RepositoryMissingException(repoNames[0]);
             }
         }
     }

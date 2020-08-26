@@ -1,0 +1,70 @@
+[role="xpack"]
+[testenv="basic"]
+[[delete-inference]]
+= Delete {infer} trained model API
+[subs="attributes"]
+++++
+<titleabbrev>Delete {infer} trained model</titleabbrev>
+++++
+
+Deletes an existing trained {infer} model that is currently not referenced by an 
+ingest pipeline.
+
+experimental[]
+
+
+[[ml-delete-inference-request]]
+== {api-request-title}
+
+`DELETE _ml/inference/<model_id>`
+
+
+[[ml-delete-inference-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles or equivalent privileges:
+
+* `machine_learning_admin`
+
+For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
+
+
+[[ml-delete-inference-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[[ml-delete-inference-response-codes]]
+== {api-response-codes-title}
+
+`409`::
+  The code indicates that the trained {infer} model is referenced by an ingest 
+  pipeline and cannot be deleted.
+
+
+[[ml-delete-inference-example]]
+== {api-examples-title}
+
+The following example deletes the `regression-job-one-1574775307356` trained 
+model:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/inference/regression-job-one-1574775307356
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following result:
+
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----
+

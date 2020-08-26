@@ -16,15 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-    classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
-    extendedPlugins = ['lang-painless']
+  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  extendedPlugins = ['lang-painless']
 }
 
 dependencies {
-    compileOnly project(':modules:lang-painless')
-    compile project(':libs:elasticsearch-grok')
-    compile project(':libs:elasticsearch-dissect')
+  compileOnly project(':modules:lang-painless')
+  api project(':libs:elasticsearch-grok')
+  api project(':libs:elasticsearch-dissect')
 }
+
+restResources {
+  restApi {
+    includeCore '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
+  }
+}
+
+testClusters.all {
+  // Needed in order to test ingest pipeline templating:
+  // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
+  module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
+}
+
+thirdPartyAudit.ignoreMissingClasses(
+  // from log4j
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring'
+)

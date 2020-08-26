@@ -74,7 +74,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -133,10 +133,10 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i+1));
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         assertAcked(prepareCreate(DATELINE_IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME,
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
                     "type=geo_point", MULTI_VALUED_FIELD_NAME,
                     "type=geo_point", NUMBER_FIELD_NAME,
                     "type=long", "tag", "type=keyword"));
@@ -157,7 +157,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME,
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
                     "type=geo_point", MULTI_VALUED_FIELD_NAME,
                     "type=geo_point", NUMBER_FIELD_NAME,
                     "type=long,store=true",
@@ -186,7 +186,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
         builders.add(client().prepareIndex(IDX_ZERO_NAME).setSource(
                 jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject()));
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();

@@ -42,7 +42,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -67,3 +67,41 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
 
+---
+"Verify nodes usage works":
+  - do:
+      nodes.usage: {}
+  - is_true: nodes
+  - match: { _nodes.failed: 0 }
+---
+"Get index works":
+  - do:
+     indices.get:
+       index: queries
+  - match: { queries.mappings.properties.id.type: "keyword" }
+
+---
+"Component and composable templates can be retrieved":
+  - do:
+      cluster.get_component_template:
+        name: my-ct
+
+  - match: {component_templates.0.name: my-ct}
+  - match: {component_templates.0.component_template.version: 2}
+  - match: {component_templates.0.component_template._meta: {foo: bar, baz: {eggplant: true}}}
+  - match: {component_templates.0.component_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - is_true: component_templates.0.component_template.template.mappings
+  - match: {component_templates.0.component_template.template.aliases: {aliasname: {}}}
+
+  - do:
+      indices.get_index_template:
+        name: my-it
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - is_true: index_templates.0.index_template.template.mappings
+  - length: {index_templates.0.index_template.template.aliases: 3}
+  - is_true: index_templates.0.index_template.template.aliases.test_alias
+  - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "kimchy" }

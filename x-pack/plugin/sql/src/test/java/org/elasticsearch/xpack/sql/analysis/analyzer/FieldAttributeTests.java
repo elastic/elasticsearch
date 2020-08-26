@@ -5,30 +5,37 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import java.util.stream.Collectors;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,14 +52,14 @@ public class FieldAttributeTests extends ESTestCase {
 
     public FieldAttributeTests() {
         parser = new SqlParser();
-        functionRegistry = new FunctionRegistry();
+        functionRegistry = new SqlFunctionRegistry();
         verifier = new Verifier(new Metrics());
 
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
     }
 
     private LogicalPlan plan(String sql) {
@@ -112,7 +119,7 @@ public class FieldAttributeTests extends ESTestCase {
         FieldAttribute attr = attribute("some.string");
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.string"));
-        assertThat(attr.dataType(), is(DataType.TEXT));
+        assertThat(attr.dataType(), is(TEXT));
         assertTrue(attr.getExactInfo().hasExact());
         FieldAttribute exact = attr.exactAttribute();
         assertTrue(exact.getExactInfo().hasExact());
@@ -124,11 +131,11 @@ public class FieldAttributeTests extends ESTestCase {
         FieldAttribute attr = attribute("some.ambiguous");
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.ambiguous"));
-        assertThat(attr.dataType(), is(DataType.TEXT));
+        assertThat(attr.dataType(), is(TEXT));
         assertFalse(attr.getExactInfo().hasExact());
         assertThat(attr.getExactInfo().errorMsg(),
             is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> attr.exactAttribute());
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> attr.exactAttribute());
         assertThat(e.getMessage(),
                 is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
     }
@@ -142,17 +149,17 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testDottedFieldPath() {
-        assertThat(error("some"), is("Found 1 problem(s)\nline 1:8: Cannot use field [some] type [object] only its subfields"));
+        assertThat(error("some"), is("Found 1 problem\nline 1:8: Cannot use field [some] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathDeeper() {
         assertThat(error("some.dotted"),
-                is("Found 1 problem(s)\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
+                is("Found 1 problem\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathTypo() {
         assertThat(error("some.dotted.fild"),
-                is("Found 1 problem(s)\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
+                is("Found 1 problem\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
     }
 
     public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
@@ -171,18 +178,18 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
-                "Found 1 problem(s)\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"bar\", \"test\".\"test.bar\"]",
+                "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
+                        + "matches any of [line 1:22 [\"test\".\"bar\"], line 1:22 [\"test\".\"test.bar\"]]",
                 ex.getMessage());
 
         ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
         assertEquals(
-                "Found 1 problem(s)\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"test\", \"test\".\"test.test\"]",
+                "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
+                        + "matches any of [line 1:23 [\"test\".\"test\"], line 1:23 [\"test\".\"test.test\"]]",
                 ex.getMessage());
 
         LogicalPlan plan = plan("SELECT test.test FROM test AS x");
@@ -198,5 +205,76 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attribute, instanceOf(FieldAttribute.class));
         assertThat(attribute.qualifier(), is("test"));
         assertThat(attribute.name(), is("test.test"));
+    }
+
+    public void testAggregations() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        LogicalPlan plan = plan("SELECT sum(salary) AS s FROM test");
+        assertThat(plan, instanceOf(Aggregate.class));
+
+        Aggregate aggregate = (Aggregate) plan;
+        assertThat(aggregate.aggregates(), hasSize(1));
+        NamedExpression attribute = aggregate.aggregates().get(0);
+        assertThat(attribute, instanceOf(Alias.class));
+        assertThat(attribute.name(), is("s"));
+        assertThat(aggregate.groupings(), hasSize(0));
+
+        plan = plan("SELECT gender AS g, sum(salary) AS s FROM test GROUP BY g");
+        assertThat(plan, instanceOf(Aggregate.class));
+
+        aggregate = (Aggregate) plan;
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertThat(aggregates, hasSize(2));
+        assertThat(aggregates.get(0), instanceOf(Alias.class));
+        assertThat(aggregates.get(1), instanceOf(Alias.class));
+        List<String> names = aggregate.aggregates().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertThat(names, contains("g", "s"));
+
+        List<Expression> groupings = aggregate.groupings();
+        assertThat(groupings, hasSize(1));
+        FieldAttribute grouping = (FieldAttribute) groupings.get(0);
+        assertThat(grouping.name(), is("gender"));
+    }
+
+    public void testGroupByAmbiguity() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        VerificationException ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g], line 1:39 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, min(salary) AS m, max(salary) as m FROM test GROUP BY g, m"));
+        assertEquals(
+            "Found 2 problems\n" +
+                "line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g]]\n" +
+                "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:37 [m], line 1:55 [m]]",
+            ex.getMessage());
     }
 }

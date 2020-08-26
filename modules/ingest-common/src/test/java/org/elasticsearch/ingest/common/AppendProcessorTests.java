@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.MetaData;
+import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -126,25 +126,25 @@ public class AppendProcessorTests extends ESTestCase {
     public void testAppendMetadataExceptVersion() throws Exception {
         // here any metadata field value becomes a list, which won't make sense in most of the cases,
         // but support for append is streamlined like for set so we test it
-        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING);
+        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
         List<String> values = new ArrayList<>();
         Processor appendProcessor;
         if (randomBoolean()) {
             String value = randomAlphaOfLengthBetween(1, 10);
             values.add(value);
-            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), value);
+            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), value);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(randomAlphaOfLengthBetween(1, 10));
             }
-            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
+            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), values);
         }
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Object initialValue = ingestDocument.getSourceAndMetadata().get(randomMetaData.getFieldName());
+        Object initialValue = ingestDocument.getSourceAndMetadata().get(randomMetadata.getFieldName());
         appendProcessor.execute(ingestDocument);
-        List<?> list = ingestDocument.getFieldValue(randomMetaData.getFieldName(), List.class);
+        List<?> list = ingestDocument.getFieldValue(randomMetadata.getFieldName(), List.class);
         if (initialValue == null) {
             assertThat(list, equalTo(values));
         } else {
@@ -158,7 +158,7 @@ public class AppendProcessorTests extends ESTestCase {
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
         return new AppendProcessor(randomAlphaOfLength(10),
-            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
             ValueSource.wrap(fieldValue, TestTemplateService.instance()));
     }
 

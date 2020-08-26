@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
-import java.io.IOException;
-
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,6 +20,10 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -36,7 +35,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSamlLogoutAction extends SamlBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSamlLogoutAction.class));
     static final ObjectParser<SamlLogoutRequest, Void> PARSER = new ObjectParser<>("saml_logout", SamlLogoutRequest::new);
 
     static {
@@ -44,12 +42,22 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
         PARSER.declareString(SamlLogoutRequest::setRefreshToken, new ParseField("refresh_token"));
     }
 
-    public RestSamlLogoutAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestSamlLogoutAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/saml/logout", this,
-            POST, "/_xpack/security/saml/logout", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(POST, "/_security/saml/logout",
+                POST, "/_xpack/security/saml/logout")
+        );
     }
 
     @Override
@@ -66,6 +74,7 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
                         @Override
                         public RestResponse buildResponse(SamlLogoutResponse response, XContentBuilder builder) throws Exception {
                             builder.startObject();
+                            builder.field("id", response.getRequestId());
                             builder.field("redirect", response.getRedirectUrl());
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);

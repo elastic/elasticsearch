@@ -19,34 +19,24 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.test.InternalAggregationTestCase;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
 
 public class InternalWeightedAvgTests extends InternalAggregationTestCase<InternalWeightedAvg> {
 
     @Override
-    protected InternalWeightedAvg createTestInstance(
-        String name,
-        List<PipelineAggregator> pipelineAggregators,
-        Map<String, Object> metaData
-    ) {
+    protected InternalWeightedAvg createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalWeightedAvg(
             name,
             randomDoubleBetween(0, 100000, true),
             randomDoubleBetween(0, 100000, true),
-            formatter, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Reader<InternalWeightedAvg> instanceReader() {
-        return InternalWeightedAvg::new;
+            formatter, metadata);
     }
 
     @Override
@@ -78,8 +68,7 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         double sum = instance.getSum();
         double weight = instance.getWeight();
         DocValueFormat formatter = instance.getFormatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -99,16 +88,16 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
             }
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalWeightedAvg(name, sum, weight, formatter, pipelineAggregators, metaData);
+        return new InternalWeightedAvg(name, sum, weight, formatter, metadata);
     }
 }

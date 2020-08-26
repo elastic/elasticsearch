@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -61,17 +61,17 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             discoveryNodesBuilder.add(newNode("node" + i));
         }
 
-        final MetaData.Builder metadataBuilder = MetaData.builder();
+        final Metadata.Builder metadataBuilder = Metadata.builder();
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = randomIntBetween(1, 10); i >= 0; i--) {
-            final IndexMetaData indexMetaData = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT))
+            final IndexMetadata indexMetadata = IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT))
                 .numberOfShards(1).numberOfReplicas(randomIntBetween(0, numberOfNodes - 1)).build();
-            metadataBuilder.put(indexMetaData, true);
-            routingTableBuilder.addAsNew(indexMetaData);
+            metadataBuilder.put(indexMetadata, true);
+            routingTableBuilder.addAsNew(indexMetadata);
         }
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
-            .nodes(discoveryNodesBuilder).metaData(metadataBuilder).routingTable(routingTableBuilder.build()).build();
+            .nodes(discoveryNodesBuilder).metadata(metadataBuilder).routingTable(routingTableBuilder.build()).build();
 
         while (clusterState.getRoutingNodes().hasUnassignedShards()
                || clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false) {
@@ -108,9 +108,9 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetaData indexMetaData = randomFrom(clusterState.metaData().indices().values().toArray(IndexMetaData.class));
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder().put(indexMetaData.getSettings())
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name()))).build()).build();
 
         final RebalanceShortCircuitPlugin plugin = new RebalanceShortCircuitPlugin();
@@ -123,9 +123,9 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetaData indexMetaData = randomFrom(clusterState.metaData().indices().values().toArray(IndexMetaData.class));
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder().put(indexMetaData.getSettings())
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
                     randomFrom(EnableAllocationDecider.Rebalance.ALL,
                         EnableAllocationDecider.Rebalance.PRIMARIES,
@@ -145,16 +145,16 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE.name()),
             plugin);
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
+            .addAsNew(metadata.index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+            .metadata(metadata).routingTable(routingTable).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
         allocationService.reroute(clusterState, "reroute").routingTable();
         assertThat(plugin.canAllocateAttempts, equalTo(0));
@@ -216,15 +216,9 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             }
 
             @Override
-            public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
                 canAllocateAttempts++;
-                return super.canAllocate(indexMetaData, node, allocation);
-            }
-
-            @Override
-            public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-                canAllocateAttempts++;
-                return super.canAllocate(node, allocation);
+                return super.canAllocate(indexMetadata, node, allocation);
             }
         }
     }

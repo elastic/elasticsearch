@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -701,7 +702,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testUnknownQueryContextParsing() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -717,8 +718,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fullName("completion");
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
         assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());
@@ -728,9 +729,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
         ParseContext.Document document = new ParseContext.Document();
 
-        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("category");
-        document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
+        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
+        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);
@@ -739,11 +739,10 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
 
         document = new ParseContext.Document();
-        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType();
-        text.setName("category");
-        document.add(new Field(text.name(), "category1", text));
+        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType("category");
+        document.add(new Field(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         // Ignore stored field
-        document.add(new StoredField(text.name(), "category1", text));
+        document.add(new StoredField(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));

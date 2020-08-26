@@ -88,6 +88,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             if (ex instanceof IndexNotFoundException ||
                 ex instanceof IndexClosedException) {
                 listener.onFailure(ex);
+                return;
             }
             List<QueryExplanation> explanations = new ArrayList<>();
             explanations.add(new QueryExplanation(null,

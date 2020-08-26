@@ -12,7 +12,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
@@ -54,7 +53,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -66,6 +65,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -96,12 +96,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("foo"));
 
         e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(failure,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("foo"));
 
         e = expectThrows(RuntimeException.class,
@@ -118,7 +118,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(failure,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("rollup failure"));
     }
 
@@ -132,7 +132,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -150,7 +150,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -158,15 +158,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = new InternalAggregations(aggTree);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
@@ -177,7 +177,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
-                new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -186,8 +186,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
 
-        Aggregations mockAggsWithout = new InternalAggregations(Collections.emptyList());
-        when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
+        when(responseWithout.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
                 new MultiSearchResponse.Item(responseWithout, null)};
@@ -196,7 +195,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse response = RollupResponseTranslator.translateResponse(msearch,
-            new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY));
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
         assertThat(responseAggs.asList().size(), equalTo(0));
@@ -213,7 +212,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
-            new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -246,7 +245,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -254,21 +253,22 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = new InternalAggregations(aggTree);
+        Aggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
 
         SearchResponse finalResponse = RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{item}, context);
         assertNotNull(finalResponse);
@@ -282,7 +282,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
@@ -296,7 +297,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax protoMax = mock(InternalMax.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -305,7 +306,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax max = mock(InternalMax.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = new InternalAggregations(aggTreeWithoutFilter);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -316,7 +317,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(), containsString("Expected [bizzbuzz] to be a FilterAggregation"));
     }
 
@@ -326,15 +327,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax protoMax = mock(InternalMax.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, Collections.emptyList(), null);
+        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = new InternalAggregations(aggTreeWithoutFilter);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -345,7 +346,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
         assertThat(e.getMessage(),
                 equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
     }
@@ -354,9 +355,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, Collections.emptyList(), null);
+        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -372,7 +373,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -380,15 +381,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = new InternalAggregations(aggTree);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -399,7 +400,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
 
         SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
-                new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY));
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
         assertNotNull(responseAggs);
@@ -414,7 +415,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         GeoBoundsAggregationBuilder geo2
                 = new GeoBoundsAggregationBuilder("foo").field("bar");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
             iw -> {
@@ -437,15 +438,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testUnsupportedMultiBucket() throws IOException {
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("foo");
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("foo");
         QueryBuilder filter = QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("field", "foo"))
                 .should(QueryBuilders.termQuery("field", "bar"));
         SignificantTermsAggregationBuilder builder = new SignificantTermsAggregationBuilder(
-                "test", ValueType.STRING)
+                "test")
                 .field("field")
                 .backgroundFilter(filter);
 
@@ -478,7 +476,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         FilterAggregationBuilder filterBuilder = new FilterAggregationBuilder("filter", new TermQueryBuilder("foo", "bar"));
         filterBuilder.subAggregation(histoBuilder);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -496,18 +494,19 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // TODO SearchResponse.Clusters is not public, using null for now.  Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
+                        InternalAggregations.from(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
                         null, 1, 1, 0, 10, null, null), null);
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
+                        InternalAggregations.from(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
                         null, 1, 1, 0, 10, null, null), null);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledItem, rolledItem};
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
         ClassCastException e = expectThrows(ClassCastException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
         assertThat(e.getMessage(),
@@ -526,21 +525,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -572,21 +561,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -608,9 +587,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // Reduce the InternalDateHistogram response so we can fill buckets
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
 
-        InternalAggregation reduced = ((InternalDateHistogram)unrolled).doReduce(Collections.singletonList(unrolled), context);
+        InternalAggregation reduced = ((InternalDateHistogram)unrolled).reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo("{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\",\"key\":100," +
                 "\"doc_count\":1},{\"key_as_string\":\"1970-01-01T00:00:00.200Z\",\"key\":200,\"doc_count\":1}," +
                 "{\"key_as_string\":\"1970-01-01T00:00:00.300Z\",\"key\":300,\"doc_count\":0,\"histo._count\":{\"value\":0.0}}," +
@@ -629,31 +609,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
-
-        KeywordFieldMapper.Builder nrKeywordBuilder = new KeywordFieldMapper.Builder("partition");
-        KeywordFieldMapper.KeywordFieldType nrKeywordFT = nrKeywordBuilder.fieldType();
-        nrKeywordFT.setHasDocValues(true);
-        nrKeywordFT.setName("partition");
-
-        KeywordFieldMapper.Builder rKeywordBuilder = new KeywordFieldMapper.Builder("partition");
-        KeywordFieldMapper.KeywordFieldType rKeywordFT = rKeywordBuilder.fieldType();
-        rKeywordFT.setHasDocValues(true);
-        rKeywordFT.setName("partition");
+        KeywordFieldMapper.KeywordFieldType nrKeywordFT = new KeywordFieldMapper.KeywordFieldType("partition");
+        KeywordFieldMapper.KeywordFieldType rKeywordFT = new KeywordFieldMapper.KeywordFieldType("partition");
 
         // Note: term query for "a"
         List<InternalAggregation> results = new ArrayList<>(2);
@@ -740,21 +703,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -801,21 +754,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
                 NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -869,21 +812,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         InternalAggregation currentTree = doQuery(new MatchAllDocsQuery(),
                 iw -> {
@@ -924,17 +857,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SumAggregationBuilder rollup = new SumAggregationBuilder("avg")
                 .field("foo.avg." + RollupField.VALUE);
 
-        NumberFieldMapper.Builder nrValueMapper = new NumberFieldMapper.Builder("foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType nrFTvalue = nrValueMapper.fieldType();
-        nrFTvalue.setHasDocValues(true);
-        nrFTvalue.setName("foo");
-
-        NumberFieldMapper.Builder rValueMapper = new NumberFieldMapper.Builder("avg.foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = rValueMapper.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("foo.avg." + RollupField.VALUE);
+        MappedFieldType nrFTvalue = new NumberFieldMapper.NumberFieldType("foo", NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("foo.avg." + RollupField.VALUE,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -980,17 +905,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             rollupValue = 0;
         }
 
-        NumberFieldMapper.Builder nrValueMapper = new NumberFieldMapper.Builder("foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType nrFTvalue = nrValueMapper.fieldType();
-        nrFTvalue.setHasDocValues(true);
-        nrFTvalue.setName("foo");
-
-        NumberFieldMapper.Builder rValueMapper = new NumberFieldMapper.Builder("foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = rValueMapper.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName(fieldName);
+        MappedFieldType nrFTvalue = new NumberFieldMapper.NumberFieldType("foo", NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1010,21 +926,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testUnsupportedMetric() throws IOException {
 
 
-        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field("foo");
+        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(ValueType.LONG)
+            .field("foo");
         String fieldName = "foo.max." + RollupField.VALUE;
-        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field(fieldName);
+        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(ValueType.LONG)
+            .field(fieldName);
 
-        NumberFieldMapper.Builder nrValueMapper = new NumberFieldMapper.Builder("foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType nrFTvalue = nrValueMapper.fieldType();
-        nrFTvalue.setHasDocValues(true);
-        nrFTvalue.setName("foo");
+        MappedFieldType nrFTvalue = new NumberFieldMapper.NumberFieldType("foo", NumberFieldMapper.NumberType.LONG);
 
-        NumberFieldMapper.Builder rValueMapper = new NumberFieldMapper.Builder("foo",
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = rValueMapper.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName(fieldName);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1044,29 +954,20 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                 .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                 .field("stringfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("stringfield.terms." + RollupField.COUNT_FIELD));
 
-        KeywordFieldMapper.Builder nrBuilder = new KeywordFieldMapper.Builder("terms");
-        KeywordFieldMapper.KeywordFieldType nrFTterm = nrBuilder.fieldType();
-        nrFTterm.setHasDocValues(true);
-        nrFTterm.setName(nonRollupTerms.field());
+        KeywordFieldMapper.KeywordFieldType nrFTterm = new KeywordFieldMapper.KeywordFieldType(nonRollupTerms.field());
 
-        KeywordFieldMapper.Builder rBuilder = new KeywordFieldMapper.Builder("terms");
-        KeywordFieldMapper.KeywordFieldType rFTterm = rBuilder.fieldType();
-        rFTterm.setHasDocValues(true);
-        rFTterm.setName(rollupTerms.field());
+        KeywordFieldMapper.KeywordFieldType rFTterm = new KeywordFieldMapper.KeywordFieldType(rollupTerms.field());
 
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("terms." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("stringfield.terms." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("stringfield.terms." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1085,29 +986,19 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTermsNullValue() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
             .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
             .field("stringfield.terms." + RollupField.VALUE)
             .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                 .field("stringfield.terms." + RollupField.COUNT_FIELD));
 
-        KeywordFieldMapper.Builder nrBuilder = new KeywordFieldMapper.Builder("terms");
-        KeywordFieldMapper.KeywordFieldType nrFTterm = nrBuilder.fieldType();
-        nrFTterm.setHasDocValues(true);
-        nrFTterm.setName(nonRollupTerms.field());
+        KeywordFieldMapper.KeywordFieldType nrFTterm = new KeywordFieldMapper.KeywordFieldType(nonRollupTerms.field());
+        KeywordFieldMapper.KeywordFieldType rFTterm = new KeywordFieldMapper.KeywordFieldType(rollupTerms.field());
 
-        KeywordFieldMapper.Builder rBuilder = new KeywordFieldMapper.Builder("terms");
-        KeywordFieldMapper.KeywordFieldType rFTterm = rBuilder.fieldType();
-        rFTterm.setHasDocValues(true);
-        rFTterm.setName(rollupTerms.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("terms." + RollupField.COUNT_FIELD,
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("stringfield.terms." + RollupField.COUNT_FIELD,
             NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("stringfield.terms." + RollupField.COUNT_FIELD);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
             iw -> {
@@ -1133,29 +1024,19 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testLongTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.LONG)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.LONG)
                 .field("longField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.LONG)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.LONG)
                 .field("longfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("longfield.terms." + RollupField.COUNT_FIELD));
 
-        NumberFieldMapper.Builder nrBuilder = new NumberFieldMapper.Builder("terms", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType nrFTterm = nrBuilder.fieldType();
-        nrFTterm.setHasDocValues(true);
-        nrFTterm.setName(nonRollupTerms.field());
+        MappedFieldType nrFTterm = new NumberFieldMapper.NumberFieldType(nonRollupTerms.field(), NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTterm = new NumberFieldMapper.NumberFieldType(rollupTerms.field(), NumberFieldMapper.NumberType.LONG);
 
-        NumberFieldMapper.Builder rBuilder = new NumberFieldMapper.Builder("terms", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTterm = rBuilder.fieldType();
-        rFTterm.setHasDocValues(true);
-        rFTterm.setName(rollupTerms.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("terms." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("longfield.terms." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("longfield.terms." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1183,21 +1064,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("bar.histogram." + RollupField.COUNT_FIELD));
 
-        NumberFieldMapper.Builder nrBuilder = new NumberFieldMapper.Builder("histo", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType nrFTbar = nrBuilder.fieldType();
-        nrFTbar.setHasDocValues(true);
-        nrFTbar.setName(nonRollupHisto.field());
+        MappedFieldType nrFTbar = new NumberFieldMapper.NumberFieldType(nonRollupHisto.field(), NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTbar = new NumberFieldMapper.NumberFieldType(rollupHisto.field(), NumberFieldMapper.NumberType.LONG);
 
-        NumberFieldMapper.Builder rBuilder = new NumberFieldMapper.Builder("histo", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTbar = rBuilder.fieldType();
-        rFTbar.setHasDocValues(true);
-        rFTbar.setName(rollupHisto.field());
-
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("bar.histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("bar.histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1227,21 +1098,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
-        DateFieldMapper.Builder nrBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType nrFTtimestamp = nrBuilder.fieldType();
-        nrFTtimestamp.setHasDocValues(true);
-        nrFTtimestamp.setName(nonRollupHisto.field());
+        DateFieldMapper.DateFieldType nrFTtimestamp = new DateFieldMapper.DateFieldType(nonRollupHisto.field());
 
-        DateFieldMapper.Builder rBuilder = new DateFieldMapper.Builder("histo");
-        DateFieldMapper.DateFieldType rFTtimestamp = rBuilder.fieldType();
-        rFTtimestamp.setHasDocValues(true);
-        rFTtimestamp.setName(rollupHisto.field());
+        DateFieldMapper.DateFieldType rFTtimestamp = new DateFieldMapper.DateFieldType(rollupHisto.field());
 
-        NumberFieldMapper.Builder valueBuilder = new NumberFieldMapper.Builder("histo." + RollupField.COUNT_FIELD,
-                NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = valueBuilder.fieldType();
-        rFTvalue.setHasDocValues(true);
-        rFTvalue.setName("timestamp.date_histogram." + RollupField.COUNT_FIELD);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {
@@ -1350,7 +1212,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
             aggregator.postCollection();
-            return aggregator.buildAggregation(0L);
+            return aggregator.buildTopLevel();
         } finally {
             indexReader.close();
             directory.close();

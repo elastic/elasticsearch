@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -42,6 +41,7 @@ import java.util.List;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -106,7 +106,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[] { "2", "2.0", "" });
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndCategorization() throws IOException {
@@ -143,7 +143,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         }
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder() throws IOException {
@@ -166,7 +166,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
         verify(dataCountsReporter, times(2)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndAllRecordsAreOutOfOrder() throws IOException {
@@ -190,7 +190,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter, times(2)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, times(2)).reportLatestTimeIncrementalStats(anyLong());
         verify(dataCountsReporter, never()).reportRecordWritten(anyLong(), anyLong());
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
@@ -224,7 +224,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
         verify(dataCountsReporter, times(1)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_NullByte() throws IOException {
@@ -262,7 +262,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter, times(1)).reportRecordWritten(2, 3000);
         verify(dataCountsReporter, times(1)).reportRecordWritten(2, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(2);
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     @SuppressWarnings("unchecked")
@@ -274,11 +274,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
         when(dataCountsReporter.incrementalStats()).thenReturn(new DataCounts("foo"));
 
-        doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[0];
-            listener.onResponse(true);
-            return null;
-        }).when(dataCountsReporter).finishReporting(any());
+        doNothing().when(dataCountsReporter).finishReporting();
 
         InputStream inputStream = createInputStream("");
         CsvDataToProcessWriter writer = createWriter();

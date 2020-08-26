@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -30,17 +29,20 @@ import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeParsers.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
@@ -144,7 +146,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
+    public static void parseNorms(FieldMapper.Builder<?> builder, String fieldName, Object propNode) {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
@@ -152,7 +154,7 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
-    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+    public static void parseTextField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                       Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
@@ -167,24 +169,74 @@ public class TypeParsers {
         }
     }
 
+    public static void checkNull(String propName, Object propNode) {
+        if (false == propName.equals("null_value") && propNode == null) {
+            /*
+             * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
+             * than send them a null pointer exception later.
+             */
+            throw new MapperParsingException("[" + propName + "] must not have a [null] value");
+        }
+    }
+
+    /**
+     * Parse the {@code meta} key of the mapping.
+     */
+    public static Map<String, String> parseMeta(String name, Object metaObject) {
+        if (metaObject instanceof Map == false) {
+            throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
+                    "[" + metaObject + "] for field [" + name +"]");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, ?> meta = (Map<String, ?>) metaObject;
+        if (meta.size() > 5) {
+            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" +
+                    name + "]");
+        }
+        for (String key : meta.keySet()) {
+            if (key.codePointCount(0, key.length()) > 20) {
+                throw new MapperParsingException("[meta] keys can't be longer than 20 chars, but got [" + key +
+                        "] for field [" + name + "]");
+            }
+        }
+        for (Object value : meta.values()) {
+            if (value instanceof String) {
+                String sValue = (String) value;
+                if (sValue.codePointCount(0, sValue.length()) > 50) {
+                    throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
+                            "] for field [" + name + "]");
+                }
+            } else if (value == null) {
+                throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
+            } else {
+                throw new MapperParsingException("[meta] values can only be strings, but got " +
+                        value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
+            }
+        }
+        Map<String, String> sortedMeta = new TreeMap<>();
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            sortedMeta.put(entry.getKey(), (String) entry.getValue());
+        }
+        return Collections.unmodifiableMap(sortedMeta);
+    }
+
+
+
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+    public static void parseField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
-            if (false == propName.equals("null_value") && propNode == null) {
-                /*
-                 * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
-                 * than send them a null pointer exception later.
-                 */
-                throw new MapperParsingException("[" + propName + "] must not have a [null] value");
-            }
+            checkNull(propName, propNode);
             if (propName.equals("store")) {
                 builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
+                iterator.remove();
+            } else if (propName.equals("meta")) {
+                builder.meta(parseMeta(name, propNode));
                 iterator.remove();
             } else if (propName.equals("index")) {
                 builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
@@ -199,31 +251,35 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
-                builder.similarity(similarityProvider);
+                deprecationLogger.deprecate("similarity",
+                    "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
                 iterator.remove();
-            } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+            } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {
                     throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
                         "which is within a multi field.");
                 } else {
-                    parseCopyFields(propNode, builder);
+                    List<String> copyFields = parseCopyFields(propNode);
+                    FieldMapper.CopyTo.Builder cpBuilder = new FieldMapper.CopyTo.Builder();
+                    copyFields.forEach(cpBuilder::add);
+                    builder.copyTo(cpBuilder.build());
                 }
                 iterator.remove();
             }
         }
     }
 
-    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
-                                          String propName, Object propNode) {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
+                                          Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
+                    deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
                         "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
                         "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
                         "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
@@ -255,7 +311,6 @@ public class TypeParsers {
                 if (!(multiFieldEntry.getValue() instanceof Map)) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }
-                @SuppressWarnings("unchecked")
                 Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
 
                 String type;
@@ -275,7 +330,7 @@ public class TypeParsers {
                 if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                builder.addMultiField(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
+                multiFieldsBuilder.accept(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
             }
@@ -306,6 +361,7 @@ public class TypeParsers {
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
+    @SuppressWarnings("rawtypes")
     public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {
         if ("no".equals(termVector)) {
             builder.storeTermVectors(false);
@@ -330,20 +386,19 @@ public class TypeParsers {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static void parseCopyFields(Object propNode, FieldMapper.Builder builder) {
-        FieldMapper.CopyTo.Builder copyToBuilder = new FieldMapper.CopyTo.Builder();
+    public static List<String> parseCopyFields(Object propNode) {
+        List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {
             for (Object node : (List<Object>) propNode) {
-                copyToBuilder.add(nodeStringValue(node, null));
+                copyFields.add(nodeStringValue(node, null));
             }
         } else {
-            copyToBuilder.add(nodeStringValue(propNode, null));
+            copyFields.add(nodeStringValue(propNode, null));
         }
-        builder.copyTo(copyToBuilder.build());
+        return copyFields;
     }
 
-    private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");

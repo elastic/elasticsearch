@@ -1,4 +1,4 @@
-include::overview.asciidoc[]
+include::enable-audit-logging.asciidoc[]
 
 include::event-types.asciidoc[]
 

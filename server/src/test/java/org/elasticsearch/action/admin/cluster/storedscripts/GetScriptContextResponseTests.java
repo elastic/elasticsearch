@@ -24,24 +24,15 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 
 public class GetScriptContextResponseTests extends AbstractSerializingTestCase<GetScriptContextResponse> {
 
     @Override
     protected GetScriptContextResponse createTestInstance() {
         if (randomBoolean()) {
-            return new GetScriptContextResponse(Collections.emptyMap());
+            return new GetScriptContextResponse(Collections.emptySet());
         }
-        Map<String,Object> items = new HashMap<>();
-        for (int i = randomIntBetween(1, 10); i > 0; i--) {
-            items.put(randomAsciiLettersOfLengthBetween(1, 16), new Object());
-        }
-        return new GetScriptContextResponse(items);
-
+        return new GetScriptContextResponse(ScriptContextInfoSerializingTests.randomInstances());
     }
 
     @Override
@@ -56,10 +47,6 @@ public class GetScriptContextResponseTests extends AbstractSerializingTestCase<G
 
     @Override
     protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
-        Map<String,Object> items = new HashMap<>();
-        for (int i = randomIntBetween(1, 10); i > 0; i--) {
-            items.put(randomAsciiLettersOfLengthBetween(1, 16), new Object());
-        }
-        return new GetScriptContextResponse(items);
+        return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts.values()));
     }
 }

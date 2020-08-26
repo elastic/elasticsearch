@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
  * group and it'd be super confusing for it to just be called "cli" there.
@@ -6,6 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
@@ -14,102 +17,59 @@ archivesBaseName = 'elasticsearch-sql-cli'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    
-    // select just the parts of JLine that are needed
-    compile "org.jline:jline-terminal:${jlineVersion}"
-    compile("org.jline:jline-terminal-jna:${jlineVersion}") {
-        exclude group: "net.java.dev.jna"
+
+  // select just the parts of JLine that are needed
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
+
+  api xpackProject('plugin:sql:sql-client')
+  api xpackProject('plugin:sql:sql-action')
+  api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-x-content')
+  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  testImplementation project(":test:framework")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /sql-action.*/, to: 'elasticsearch'
+  mapping from: /sql-client.*/, to: 'elasticsearch'
+  mapping from: /jline-.*/, to: 'jline'
+}
+
+shadowJar {
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //sql does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+  signaturesFiles += files('src/forbidden/cli-signatures.txt')
+}
+
+tasks.register("runcli") {
+  description = 'Run the CLI and connect to elasticsearch running on 9200'
+  dependsOn "shadowJar"
+  doLast {
+    List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
+    if ('true'.equals(System.getProperty('debug', 'false'))) {
+      command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
-    compile "org.jline:jline-reader:${jlineVersion}"
-    compile "org.jline:jline-style:${jlineVersion}"
-    
-    compile xpackProject('plugin:sql:sql-client')
-    compile xpackProject('plugin:sql:sql-action')    
-    compile project(":libs:elasticsearch-cli")
+    command += ['-jar', shadowJar.archivePath.absolutePath]
+    logger.info("running the cli with: ${command}")
 
-    runtime "org.elasticsearch:jna:${versions.jna}"
-    testCompile project(":test:framework")
-}
-
-dependencyLicenses {
-    mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /lucene-.*/, to: 'lucene'
-    mapping from: /sql-action.*/, to: 'elasticsearch'
-    mapping from: /sql-client.*/, to: 'elasticsearch'
-    mapping from: /jline-.*/, to: 'jline'
-    ignoreSha 'elasticsearch-cli'
-    ignoreSha 'elasticsearch-core'
-    ignoreSha 'elasticsearch'
-    ignoreSha 'sql-action'
-    ignoreSha 'sql-client'
-}
-
-/*
- * Bundle all dependencies into the main jar and mark it as executable it
- * can be easily shipped around and used.
- */
-jar {
-    dependsOn configurations.runtimeClasspath
-    from({
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }) {
-        // We don't need the META-INF from the things we bundle. For now.
-        exclude 'META-INF/*'
-    }
-    manifest {
-        attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
-    }
-}
-
-/*
- * Build a jar that doesn't include the dependencies bundled that we can
- * include with QA tests along side Elasticsearch without breaking
- * jarhell.
- */
-configurations {
-    nodeps
-}
-task nodepsJar(type: Jar) {
-    appendix 'nodeps'
-    from sourceSets.main.output
-}
-artifacts  {
-    nodeps nodepsJar
-}
-
-forbiddenApisMain {
-    //sql does not depend on server, so only jdk signatures should be checked
-    replaceSignatureFiles 'jdk-signatures'
-    signaturesFiles += files('src/forbidden/cli-signatures.txt')
-}
-
-task runcli {
-    description = 'Run the CLI and connect to elasticsearch running on 9200'
-    dependsOn 'assemble'
-    doLast {
-        List command = [new File(project.runtimeJavaHome, 'bin/java').absolutePath]
-        if ('true'.equals(System.getProperty('debug', 'false'))) {
-        command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
-        }
-        command += ['-jar', jar.archivePath.absolutePath]
-        logger.info("running the cli with: ${command}")
-
-        new ProcessBuilder(command)
-            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-            .redirectInput(ProcessBuilder.Redirect.INHERIT)
-            .redirectError(ProcessBuilder.Redirect.INHERIT)
-            .start()
-            .waitFor()
-    }
-}
-
-// Use the jar for testing so we can get the proper version information
-test {
-    classpath -= compileJava.outputs.files
-    classpath -= configurations.compile
-    classpath -= configurations.runtime
-    classpath += jar.outputs.files
-    dependsOn jar
+    new ProcessBuilder(command)
+      .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+      .redirectInput(ProcessBuilder.Redirect.INHERIT)
+      .redirectError(ProcessBuilder.Redirect.INHERIT)
+      .start()
+      .waitFor()
+  }
 }

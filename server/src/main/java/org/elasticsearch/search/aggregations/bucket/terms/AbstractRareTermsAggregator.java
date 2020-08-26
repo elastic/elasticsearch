@@ -24,50 +24,44 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
-    U extends IncludeExclude.Filter, V> extends DeferableBucketAggregator {
+public abstract class AbstractRareTermsAggregator extends DeferableBucketAggregator {
 
     static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
 
     protected final long maxDocCount;
-    protected final double precision;
+    private final double precision;
     protected final DocValueFormat format;
-    protected final T valuesSource;
-    protected final U includeExclude;
+    private final int filterSeed;
 
-    MergingBucketsDeferringCollector deferringCollector;
-    LeafBucketCollector subCollectors;
-    final SetBackedScalingCuckooFilter filter;
+    protected MergingBucketsDeferringCollector deferringCollector;
 
-    AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
-                                Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                Map<String, Object> metaData, long maxDocCount, double precision,
-                                DocValueFormat format, T valuesSource, U includeExclude) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
-
-        // We seed the rng with the ShardID so results are deterministic and don't change randomly
-        this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.indexShard().shardId().hashCode()), precision);
-        this.filter.registerBreaker(this::addRequestCircuitBreakerBytes);
+    AbstractRareTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        long maxDocCount,
+        double precision,
+        DocValueFormat format
+    ) throws IOException {
+        super(name, factories, context, parent, metadata);
 
         this.maxDocCount = maxDocCount;
         this.precision = precision;
         this.format = format;
-        this.valuesSource = valuesSource;
-        this.includeExclude = includeExclude;
+        // We seed the rng with the ShardID so results are deterministic and don't change randomly
+        this.filterSeed = context.indexShard().shardId().hashCode();
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {
@@ -83,6 +77,12 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
                 + "], and also has a scoring child agg [" + scoringAgg + "].  This combination is not supported because " +
                 "it requires executing in [depth_first] mode, which the RareTerms agg cannot do.");
         }
+    }
+
+    protected SetBackedScalingCuckooFilter newFilter() {
+        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(10000, new Random(filterSeed), precision);
+        filter.registerBreaker(this::addRequestCircuitBreakerBytes);
+        return filter;
     }
 
     @Override
@@ -114,21 +114,4 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
         }
         return null;
     }
-
-    protected void doCollect(V val, int docId) throws IOException {
-        long bucketOrdinal = addValueToOrds(val);
-
-        if (bucketOrdinal < 0) { // already seen
-            bucketOrdinal = -1 - bucketOrdinal;
-            collectExistingBucket(subCollectors, docId, bucketOrdinal);
-        } else {
-            collectBucket(subCollectors, docId, bucketOrdinal);
-        }
-    }
-
-    /**
-     * Add's the value to the ordinal map.  Return the newly allocated id if it wasn't in the ordinal map yet,
-     * or <code>-1-id</code> if it was already present
-     */
-    abstract long addValueToOrds(V value);
 }

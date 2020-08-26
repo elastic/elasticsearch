@@ -21,7 +21,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 // installKDC uses tabs in it for the Kerberos ACL file.
 // Ignore it for pattern checking.
 forbiddenPatterns {
-    exclude "**/installkdc.sh"
+  exclude "**/installkdc.sh"
 }
 
 List<String> services = ["peppa", "hdfs"]
@@ -33,18 +33,18 @@ preProcessFixture.doLast {
 }
 
 postProcessFixture {
-    inputs.dir("${testFixturesDir}/shared")
-    services.each { service ->
-        File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
-        File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
-        outputs.file(confFile)
-        doLast {
-            assert confTemplate.exists()
-            String confContents = confTemplate.text
-                .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
-            confFile.text = confContents
-        }
+  inputs.dir("${testFixturesDir}/shared")
+  services.each { service ->
+    File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
+    File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
+    outputs.file(confFile)
+    doLast {
+      assert confTemplate.exists()
+      String confContents = confTemplate.text
+        .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
+      confFile.text = confContents
     }
+  }
 }
 
 project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }

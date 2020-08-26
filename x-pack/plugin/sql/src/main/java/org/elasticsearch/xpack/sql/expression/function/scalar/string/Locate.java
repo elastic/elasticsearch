@@ -5,26 +5,29 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns the starting position of the first occurrence of the pattern within the source string.
@@ -33,14 +36,14 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  * position indicated by the value of start. The first character position in the source string is indicated by the value 1.
  * If the pattern is not found within the source string, the value 0 is returned.
  */
-public class Locate extends ScalarFunction {
+public class Locate extends ScalarFunction implements OptionalArgument {
 
-    private final Expression pattern, source, start;
+    private final Expression pattern, input, start;
     
-    public Locate(Source source, Expression pattern, Expression src, Expression start) {
-        super(source, start != null ? Arrays.asList(pattern, src, start) : Arrays.asList(pattern, src));
+    public Locate(Source source, Expression pattern, Expression input, Expression start) {
+        super(source, start != null ? Arrays.asList(pattern, input, start) : Arrays.asList(pattern, input));
         this.pattern = pattern;
-        this.source = src;
+        this.input = input;
         this.start = start;
     }
     
@@ -55,7 +58,7 @@ public class Locate extends ScalarFunction {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -67,76 +70,78 @@ public class Locate extends ScalarFunction {
     protected Pipe makePipe() {
         return new LocateFunctionPipe(source(), this,
             Expressions.pipe(pattern),
-            Expressions.pipe(source),
+            Expressions.pipe(input),
             start == null ? null : Expressions.pipe(start));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Locate::new, pattern, source, start);
+        return NodeInfo.create(this, Locate::new, pattern, input, start);
     }
 
     @Override
     public boolean foldable() {
         return pattern.foldable()
-                && source.foldable()
+                && input.foldable()
                 && (start == null || start.foldable());
     }
 
     @Override
     public Object fold() {
-        return doProcess(pattern.fold(), source.fold(), (start == null ? null : start.fold()));
+        return doProcess(pattern.fold(), input.fold(), (start == null ? null : start.fold()));
     }
     
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate patternScript = asScript(pattern);
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate startScript = start == null ? null : asScript(start);
 
-        return asScriptFrom(patternScript, sourceScript, startScript);
+        return asScriptFrom(patternScript, inputScript, startScript);
     }
 
-    private ScriptTemplate asScriptFrom(ScriptTemplate patternScript, ScriptTemplate sourceScript, ScriptTemplate startScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate patternScript, ScriptTemplate inputScript, ScriptTemplate startScript) {
         if (start == null) {
             return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
                     "locate",
                     patternScript.template(),
-                    sourceScript.template()),
+                    inputScript.template()),
                     paramsBuilder()
-                        .script(patternScript.params()).script(sourceScript.params())
+                        .script(patternScript.params()).script(inputScript.params())
                         .build(), dataType());
         }
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "locate",
                 patternScript.template(),
-                sourceScript.template(),
+                inputScript.template(),
                 startScript.template()),
                 paramsBuilder()
-                    .script(patternScript.params()).script(sourceScript.params())
+                    .script(patternScript.params()).script(inputScript.params())
                     .script(startScript.params())
                     .build(), dataType());
     }
     
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
+        if (start != null && newChildren.size() != 3) {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
+        } else if (start == null && newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
 
-        return new Locate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Locate(source(), newChildren.get(0), newChildren.get(1), start == null ? null : newChildren.get(2));
     }
 }

@@ -1,7 +1,8 @@
 {
   "ilm.put_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-put-lifecycle.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-put-lifecycle.html",
+      "description":"Creates a lifecycle policy"
     },
     "stability":"stable",
     "url":{

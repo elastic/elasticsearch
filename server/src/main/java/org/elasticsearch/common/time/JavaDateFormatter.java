@@ -189,7 +189,7 @@ class JavaDateFormatter implements DateFormatter {
             for (DateTimeFormatter formatter : parsers) {
                 ParsePosition pos = new ParsePosition(0);
                 Object object = formatter.toFormat().parseObject(input, pos);
-                if (parsingSucceeded(object, input, pos) == true) {
+                if (parsingSucceeded(object, input, pos)) {
                     return (TemporalAccessor) object;
                 }
             }

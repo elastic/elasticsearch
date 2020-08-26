@@ -75,11 +75,11 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject()
            .endObject()
         .endObject();
-        createIndex("test", Settings.EMPTY, "_doc", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
     }
 
     public void testMatchQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -108,7 +108,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiMatchQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -141,7 +141,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryStringQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -172,7 +172,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -203,7 +203,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testExists() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -396,7 +396,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
 
 
     public void testLoadDocValuesFields() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -426,7 +426,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldSort() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -437,7 +437,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject())
             .get();
 
-        client().prepareIndex("test", "_doc", "2")
+        client().prepareIndex("test").setId("2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -448,7 +448,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject())
             .get();
 
-        client().prepareIndex("test", "_doc", "3")
+        client().prepareIndex("test").setId("3")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -486,7 +486,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         headers.put("origin", "https://www.elastic.co");
         Map<String, Object> source = Collections.singletonMap("headers", headers);
 
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(source)
             .get();

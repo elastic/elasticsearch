@@ -87,7 +87,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     @Override
     protected final void masterOperation(Task task, final DeprecationInfoAction.Request request, ClusterState state,
                                          final ActionListener<DeprecationInfoAction.Response> listener) {
-        if (licenseState.isDeprecationAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.DEPRECATION)) {
 
             NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
             ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,
@@ -106,8 +106,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     datafeeds -> {
                         listener.onResponse(
                             DeprecationInfoAction.Response.from(state, xContentRegistry, indexNameExpressionResolver,
-                                request.indices(), request.indicesOptions(), datafeeds,
-                                response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
+                                request, datafeeds, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
                                 ML_SETTINGS_CHECKS));
                     },
                     listener::onFailure

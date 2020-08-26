@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,21 +23,10 @@ public class KillProcessAction extends ActionType<KillProcessAction.Response> {
         super(NAME, KillProcessAction.Response::new);
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, KillProcessAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Request extends JobTaskRequest<Request> {
 
         public Request(String jobId) {
             super(jobId);
-        }
-
-        public Request() {
-            super();
         }
 
         public Request(StreamInput in) throws IOException {

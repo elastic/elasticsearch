@@ -25,7 +25,7 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
      * non-blank lines.
      */
     @Override
-    public boolean canCreateFromSample(List<String> explanation, String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
         if (sample.indexOf('\n') < 0) {
             explanation.add("Not text because sample contains no newlines");
             return false;

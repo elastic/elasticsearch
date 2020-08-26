@@ -12,22 +12,22 @@ The `script_score` query is useful if, for example, a scoring function is expens
 
 [[script-score-query-ex-request]]
 ==== Example request
-The following `script_score` query assigns each returned document a score equal to the `likes` field value divided by `10`.
+The following `script_score` query assigns each returned document a score equal to the `my-int` field value divided by `10`.
 
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "doc['likes'].value / 10 "
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": "doc['my-int'].value / 10 "
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -48,9 +48,12 @@ scores be positive or `0`.
 --
 
 `min_score`::
-(Optional, float) Documents with a <<relevance-scores,relevance score>> lower
+(Optional, float) Documents with a score lower
 than this floating point number are excluded from the search results.
 
+`boost`::
+(Optional, float) Documents' scores produced by `script` are
+multiplied by `boost` to produce final documents' scores. Defaults to `1.0`.
 
 [[script-score-query-notes]]
 ==== Notes
@@ -87,7 +90,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "saturation(doc['likes'].value, 1)"
+    "source" : "saturation(doc['my-int'].value, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -99,7 +102,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "sigmoid(doc['likes'].value, 2, 1)"
+    "source" : "sigmoid(doc['my-int'].value, 2, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -221,6 +224,10 @@ and default time zone. Also calculations with `now` are not supported.
 <<vector-functions, Functions for vector fields>> are accessible through
 `script_score` query.
 
+===== Allow expensive queries
+Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
+
 [[script-score-faster-alt]]
 ===== Faster alternatives
 The `script_score` query calculates the score for
@@ -281,7 +288,7 @@ as described in <<random-score-function, random score function>>.
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10(doc['field'].value * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -297,7 +304,7 @@ a value `1` if a document doesn't have a field `field`:
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -336,27 +343,27 @@ Using an <<search-explain, explain request>> provides an explanation of how the 
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : """
-                  long likes = doc['likes'].value;
-                  double normalizedLikes = likes / 10;
-                  if (explanation != null) {
-                    explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
-                  }
-                  return normalizedLikes;
-                """
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": """
+          long count = doc['count'].value;
+          double normalizedCount = count / 10;
+          if (explanation != null) {
+            explanation.set('normalized count = count / 10 = ' + count + ' / 10 = ' + normalizedCount);
+          }
+          return normalizedCount;
+        """
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

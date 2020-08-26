@@ -8,7 +8,7 @@ It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct t
 pure Java driver that converts JDBC calls to {es-sql}.
 
 [[sql-jdbc-installation]]
-[float]
+[discrete]
 === Installation
 
 The JDBC driver can be obtained from:
@@ -16,7 +16,7 @@ The JDBC driver can be obtained from:
 Dedicated page::
 https://www.elastic.co/downloads/jdbc-client[elastic.co] provides links, typically for manual downloads.
 Maven dependency::
-http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
+https://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
 
 ["source","xml",subs="attributes"]
 ----
@@ -40,7 +40,7 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 ----
 
 [[jdbc-setup]]
-[float]
+[discrete]
 === Setup
 
 The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
@@ -51,9 +51,9 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://[[http|https]://]*[host[:port]]*/[prefix]*<[?[option=value]&]*
+jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\?[option=value]&]*
 ----
-`jdbc:es://`:: Prefix. Mandatory.
+`jdbc:[es|elasticsearch]://`:: Prefix. Mandatory.
 
 `[[http|https]://]`:: Type of HTTP connection to make. Possible values are
 `http` (default) or `https`. Optional.
@@ -70,15 +70,15 @@ Optional.
 The driver recognized the following properties:
 
 [[jdbc-cfg]]
-[float]
+[discrete]
 ===== Essential
-
+[[jdbc-cfg-timezone]]
 `timezone` (default JVM timezone)::
 Timezone used by the driver _per connection_ indicated by its `ID`. 
 *Highly* recommended to set it (to, say, `UTC`) as the JVM timezone can vary, is global for the entire JVM and can't be changed easily when running under a security manager.
 
 [[jdbc-cfg-network]]
-[float]
+[discrete]
 ===== Network
 
 `connect.timeout` (default 30s)::
@@ -97,7 +97,7 @@ Page size (in entries). The number of results returned per page by the server.
 Query timeout (in seconds). That is the maximum amount of time waiting for a query to return.
 
 [[jdbc-cfg-auth]]
-[float]
+[discrete]
 ==== Basic Authentication
 
 `user`:: Basic Authentication user name
@@ -105,7 +105,7 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 `password`:: Basic Authentication password
 
 [[jdbc-cfg-ssl]]
-[float]
+[discrete]
 ==== SSL
 
 `ssl` (default false):: Enable SSL
@@ -124,23 +124,23 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
-[float]
+[discrete]
 ==== Proxy
 
 `proxy.http`:: Http proxy host name
 
 `proxy.socks`:: SOCKS proxy host name
 
-[float]
+[discrete]
 ==== Mapping
 `field.multi.value.leniency` (default `true`):: Whether to be lenient and return the first value (without any guarantees of what that
 will be - typically the first in natural ascending order) for fields with multiple values (true) or throw an exception.
 
-[float]
+[discrete]
 ==== Index
 `index.include.frozen` (default `false`):: Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
 
-[float]
+[discrete]
 ==== Additional
 
 `validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
@@ -154,7 +154,7 @@ To put all of it together, the following URL:
 jdbc:es://http://server:3456/?timezone=UTC&page.size=250
 ----
 
-Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
+opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
 
 === API usage
 
@@ -208,7 +208,8 @@ connection. For example:
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
 
-NOTE:: {es-sql} doesn't provide a connection pooling mechanism, thus the connections
+[NOTE]
+{es-sql} doesn't provide a connection pooling mechanism, thus the connections
 the JDBC driver creates are not pooled. In order to achieve pooled connections,
 a third-party connection pooling mechanism is required. Configuring and setting up the
 third-party provider is outside the scope of this documentation.

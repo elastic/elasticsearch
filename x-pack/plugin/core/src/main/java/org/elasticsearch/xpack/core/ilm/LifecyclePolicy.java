@@ -47,7 +47,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public static final ParseField PHASES_FIELD = new ParseField("phases");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
             (a, name) -> {
                 List<Phase> phases = (List<Phase>) a[0];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
@@ -174,9 +174,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
 
-        // final step so that policy can properly update cluster-state with last action completed
-        steps.add(TerminalPolicyStep.INSTANCE);
-        Step.StepKey lastStepKey = TerminalPolicyStep.KEY;
+        Step.StepKey lastStepKey = null;
 
         Phase phase = null;
         // add steps for each phase, in reverse
@@ -185,7 +183,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             Phase previousPhase = phaseIterator.previous();
 
             // add `after` step for phase before next
-            if (phase != null) {
+            if (previousPhase != null) {
                 // after step should have the name of the previous phase since the index is still in the
                 // previous phase until the after condition is reached
                 Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
@@ -210,13 +208,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
         }
 
-        if (phase != null) {
-            // The very first after step is in a phase before the hot phase so call this "new"
-            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-            Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
-            steps.add(phaseAfterStep);
-            lastStepKey = phaseAfterStep.getKey();
-        }
+        // The very first after step is in a phase before the hot phase so call this "new"
+        Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+        Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+        steps.add(phaseAfterStep);
+        lastStepKey = phaseAfterStep.getKey();
 
         // init step so that policy is guaranteed to have
         steps.add(new InitializePolicyContextStep(InitializePolicyContextStep.KEY, lastStepKey));
@@ -246,7 +242,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
     /**
      * Validate the name for an policy against some static rules. Intended to match
-     * {@link org.elasticsearch.cluster.metadata.MetaDataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
+     * {@link org.elasticsearch.cluster.metadata.MetadataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
      * @param policy the policy name to validate
      * @throws IllegalArgumentException if the name is invalid
      */

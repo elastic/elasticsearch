@@ -65,14 +65,14 @@ public class Reaper implements Closeable {
         }
         Path inputDir = Paths.get(args[0]);
 
-        try (Reaper reaper = new Reaper(inputDir)){
+        try (Reaper reaper = new Reaper(inputDir)) {
             System.in.read();
             reaper.reap();
         }
     }
 
     private void reap() {
-        try (Stream<Path> stream = Files.list(inputDir)){
+        try (Stream<Path> stream = Files.list(inputDir)) {
             final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
 
             for (Path inputFile : inputFiles) {
@@ -118,7 +118,7 @@ public class Reaper implements Closeable {
     @Override
     public void close() {
         if (failed == false) {
-            try (Stream<Path> stream = Files.walk(inputDir)){
+            try (Stream<Path> stream = Files.walk(inputDir)) {
                 stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

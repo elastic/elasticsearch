@@ -1,0 +1,31 @@
+{
+  "searchable_snapshots.stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-api-stats.html",
+      "description": "Retrieve various statistics about searchable snapshots."
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_searchable_snapshots/stats",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/{index}/_searchable_snapshots/stats",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

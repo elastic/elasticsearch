@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -48,7 +48,7 @@ public class PersistentTasksService {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);
 
-    private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
+    public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -150,17 +150,17 @@ public class PersistentTasksService {
                                                final @Nullable TimeValue timeout,
                                                final WaitForPersistentTaskListener<?> listener) {
         final Predicate<ClusterState> clusterStatePredicate = clusterState ->
-            predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));
+            predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId));
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         final ClusterState clusterState = observer.setAndGetObservedState();
         if (clusterStatePredicate.test(clusterState)) {
-            listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));
+            listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId));
         } else {
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(state, taskId));
+                    listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
                 }
 
                 @Override
@@ -183,11 +183,11 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTasksCondition(final Predicate<PersistentTasksCustomMetaData> predicate,
+    public void waitForPersistentTasksCondition(final Predicate<PersistentTasksCustomMetadata> predicate,
                                                 final @Nullable TimeValue timeout,
                                                 final ActionListener<Boolean> listener) {
         final Predicate<ClusterState> clusterStatePredicate = clusterState ->
-            predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));
+            predicate.test(clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         if (clusterStatePredicate.test(observer.setAndGetObservedState())) {

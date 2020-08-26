@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -130,7 +130,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     }
 
     List<RollupJobCaps> getJobCapsByIndexPattern(String index) {
-        return jobCaps.stream().filter(cap -> index.equals(MetaData.ALL) ||
+        return jobCaps.stream().filter(cap -> index.equals(Metadata.ALL) ||
                     cap.getIndexPattern().equals(index)).collect(Collectors.toList());
     }
 

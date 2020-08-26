@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -37,16 +34,12 @@ import static org.hamcrest.Matchers.is;
 public class ShardPathTests extends ESTestCase {
     public void testLoadShardPath() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
-            Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF")
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-            Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
-            ShardPath shardPath =
-                    ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, "");
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
             assertEquals("foo", shardPath.getShardId().getIndexName());
@@ -58,32 +51,24 @@ public class ShardPathTests extends ESTestCase {
     public void testFailLoadShardPathOnMultiState() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             final String indexUUID = "0xDEADBEEF";
-            Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, indexUUID)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-            Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             assumeTrue("This test tests multi data.path but we only got one", paths.length > 1);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), paths);
-            Exception e = expectThrows(IllegalStateException.class, () ->
-                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), paths);
+            Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("more than one shard state found"));
         }
     }
 
     public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
-            Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foobar")
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-            Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", "foobar", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
-            Exception e = expectThrows(IllegalStateException.class, () ->
-                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
         }
     }
@@ -107,32 +92,28 @@ public class ShardPathTests extends ESTestCase {
 
     public void testGetRootPaths() throws IOException {
         boolean useCustomDataPath = randomBoolean();
-        final Settings indexSettings;
         final Settings nodeSettings;
         final String indexUUID = "0xDEADBEEF";
-        Settings.Builder indexSettingsBuilder = Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
         final Path customPath;
+        final String customDataPath;
         if (useCustomDataPath) {
             final Path path = createTempDir();
-            indexSettings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
+            customDataPath = "custom";
             nodeSettings = Settings.builder().put(Environment.PATH_SHARED_DATA_SETTING.getKey(), path.toAbsolutePath().toAbsolutePath())
                     .build();
             customPath = path.resolve("custom").resolve("0");
         } else {
             customPath = null;
-            indexSettings = indexSettingsBuilder.build();
+            customDataPath = "";
             nodeSettings = Settings.EMPTY;
         }
         try (NodeEnvironment env = newNodeEnvironment(nodeSettings)) {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), path);
-            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId,
-                IndexSettingsModule.newIndexSettings(shardId.getIndex(), indexSettings, nodeSettings));
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), path);
+            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, customDataPath);
             boolean found = false;
             for (Path p : env.nodeDataPaths()) {
                 if (p.equals(shardPath.getRootStatePath())) {

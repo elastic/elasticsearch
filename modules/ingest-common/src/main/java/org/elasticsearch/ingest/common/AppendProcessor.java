@@ -41,8 +41,8 @@ public final class AppendProcessor extends AbstractProcessor {
     private final TemplateScript.Factory field;
     private final ValueSource value;
 
-    AppendProcessor(String tag, TemplateScript.Factory field, ValueSource value) {
-        super(tag);
+    AppendProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value) {
+        super(tag, description);
         this.field = field;
         this.value = value;
     }
@@ -76,12 +76,12 @@ public final class AppendProcessor extends AbstractProcessor {
 
         @Override
         public AppendProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+                                      String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
                 "field", field, scriptService);
-            return new AppendProcessor(processorTag, compiledTemplate, ValueSource.wrap(value, scriptService));
+            return new AppendProcessor(processorTag, description, compiledTemplate, ValueSource.wrap(value, scriptService));
         }
     }
 }

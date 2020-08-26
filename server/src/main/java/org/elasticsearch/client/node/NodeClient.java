@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
@@ -42,6 +43,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
+    @SuppressWarnings("rawtypes")
     private Map<ActionType, TransportAction> actions;
 
     private TaskManager taskManager;
@@ -52,17 +54,20 @@ public class NodeClient extends AbstractClient {
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
     }
 
+    @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService) {
+                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -128,5 +133,10 @@ public class NodeClient extends AbstractClient {
     @Override
     public Client getRemoteClusterClient(String clusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+    }
+
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

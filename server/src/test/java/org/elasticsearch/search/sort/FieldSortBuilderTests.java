@@ -19,21 +19,39 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,11 +61,16 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
+import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -56,7 +79,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     /**
      * {@link #provideMappedFieldType(String)} will return a
      */
-    private static String MAPPED_STRING_FIELDNAME = "_stringField";
+    private static final String MAPPED_STRING_FIELDNAME = "_stringField";
 
     @Override
     protected FieldSortBuilder createTestItem() {
@@ -68,6 +91,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             "_first",
             Integer.toString(randomInt()),
             randomInt());
+
+
 
 
     public FieldSortBuilder randomFieldSortBuilder() {
@@ -273,7 +298,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
+        assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
         nestedSort.setFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"));
         sortBuilder = new FieldSortBuilder("fieldName").setNestedSort(nestedSort);
@@ -295,16 +320,28 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
-            assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+            assertEquals("[1:18] [field_sort] unknown field [reverse]", e.getMessage());
         }
     }
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(MAPPED_STRING_FIELDNAME)) {
-            KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-            fieldType.setName(name);
-            fieldType.setHasDocValues(true);
+            return new KeywordFieldMapper.KeywordFieldType(name);
+        } else if (name.startsWith("custom-")) {
+            final MappedFieldType fieldType;
+            if (name.startsWith("custom-keyword")) {
+                fieldType = new KeywordFieldMapper.KeywordFieldType(name);
+            } else if (name.startsWith("custom-date")) {
+                fieldType = new DateFieldMapper.DateFieldType(name);
+            } else {
+                String type = name.split("-")[1];
+                if (type.equals("INT")) {
+                    type = "integer";
+                }
+                NumberFieldMapper.NumberType numberType = NumberFieldMapper.NumberType.valueOf(type.toUpperCase(Locale.ENGLISH));
+                fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);
+            }
             return fieldType;
         } else {
             return super.provideMappedFieldType(name);
@@ -375,6 +412,196 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
+    }
+
+    public void testGetPrimaryFieldSort() {
+        assertNull(getPrimaryFieldSortOrNull(null));
+        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder()));
+        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(SortBuilders.scoreSort())));
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
+        assertEquals(sortBuilder, getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(sortBuilder)));
+        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder()
+            .sort(SortBuilders.scoreSort()).sort(sortBuilder)));
+        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder()
+            .sort(SortBuilders.geoDistanceSort("field", 0d, 0d)).sort(sortBuilder)));
+    }
+
+    public void testGetMaxNumericSortValue() throws IOException {
+        QueryShardContext context = createMockShardContext();
+        for (NumberFieldMapper.NumberType numberType : NumberFieldMapper.NumberType.values()) {
+            String fieldName = "custom-" + numberType.numericType();
+            assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+            assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+
+            try (Directory dir = newDirectory()) {
+                int numDocs = randomIntBetween(10, 30);
+                final Comparable[] values = new Comparable[numDocs];
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                    for (int i = 0; i < numDocs; i++) {
+                        Document doc = new Document();
+                        switch (numberType) {
+                            case LONG:
+                                long v1 = randomLong();
+                                values[i] = v1;
+                                doc.add(new LongPoint(fieldName, v1));
+                                break;
+
+                            case INTEGER:
+                                int v2 = randomInt();
+                                values[i] = (long) v2;
+                                doc.add(new IntPoint(fieldName, v2));
+                                break;
+
+                            case DOUBLE:
+                                double v3 = randomDouble();
+                                values[i] = v3;
+                                doc.add(new DoublePoint(fieldName, v3));
+                                break;
+
+                            case FLOAT:
+                                float v4 = randomFloat();
+                                values[i] = v4;
+                                doc.add(new FloatPoint(fieldName, v4));
+                                break;
+
+                            case HALF_FLOAT:
+                                float v5 = randomFloat();
+                                values[i] = (double) v5;
+                                doc.add(new HalfFloatPoint(fieldName, v5));
+                                break;
+
+                            case BYTE:
+                                byte v6 = randomByte();
+                                values[i] = (long) v6;
+                                doc.add(new IntPoint(fieldName, v6));
+                                break;
+
+                            case SHORT:
+                                short v7 = randomShort();
+                                values[i] = (long) v7;
+                                doc.add(new IntPoint(fieldName, v7));
+                                break;
+
+                            default:
+                                throw new AssertionError("unknown type " + numberType);
+                        }
+                        writer.addDocument(doc);
+                    }
+                    Arrays.sort(values);
+                    try (DirectoryReader reader = writer.getReader()) {
+                        QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
+                        if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT) {
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)));
+                        } else {
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
+                            assertEquals(values[numDocs - 1],
+                                getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                            assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testGetMaxNumericDateValue() throws IOException {
+        QueryShardContext context = createMockShardContext();
+        String fieldName = "custom-date";
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(10, 30);
+            final long[] values = new long[numDocs];
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    values[i] = randomNonNegativeLong();
+                    doc.add(new LongPoint(fieldName, values[i]));
+                    writer.addDocument(doc);
+                }
+                Arrays.sort(values);
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                }
+            }
+        }
+    }
+
+    public void testGetMaxKeywordValue() throws IOException {
+        QueryShardContext context = createMockShardContext();
+        String fieldName = "custom-keyword";
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(10, 30);
+            final BytesRef[] values = new BytesRef[numDocs];
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    values[i] = new BytesRef(randomAlphaOfLengthBetween(5, 10));
+                    doc.add(new TextField(fieldName, values[i].utf8ToString(), Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+                Arrays.sort(values);
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                }
+            }
+        }
+    }
+
+    public void testIsBottomSortShardDisjoint() throws Exception {
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(5, 10);
+            long maxValue = -1;
+            long minValue = Integer.MAX_VALUE;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
+                FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW })));
+                }
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    long value = randomLongBetween(1, Integer.MAX_VALUE);
+                    doc.add(new LongPoint("custom-date", value));
+                    doc.add(new SortedNumericDocValuesField("custom-date", value));
+                    writer.addDocument(doc);
+                    maxValue = Math.max(maxValue, value);
+                    minValue = Math.min(minValue, value);
+                }
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.order(SortOrder.DESC);
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.setNestedSort(new NestedSortBuilder("empty"));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.setNestedSort(null);
+                    fieldSort.missing("100");
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                }
+            }
+        }
     }
 
     @Override

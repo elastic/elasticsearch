@@ -63,13 +63,31 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
      */
-    public static <K, V> Map<K, V> copyMayWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
+    public static <K, V> Map<K, V> copyMapWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
         assertImmutableMap(map, key, value);
         return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /**
+     * Remove the specified key from the provided immutable map by copying the underlying map and filtering out the specified
+     * key if that key exists.
+     *
+     * @param map   the immutable map to remove the key from
+     * @param key   the key to be removed
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
+     * @return an immutable map that contains the items from the specified map with the provided key removed
+     */
+    public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
+        Objects.requireNonNull(map);
+        Objects.requireNonNull(key);
+        assertImmutableMap(map, key, map.get(key));
+        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static <K, V> void assertImmutableMap(final Map<K, V> map, final K key, final V value) {
@@ -97,6 +115,25 @@ public class Maps {
     public static <K, V> Map<K, V> ofEntries(final Collection<Map.Entry<K, V>> entries) {
         @SuppressWarnings("unchecked") final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
         return map;
+    }
+
+    /**
+     * Returns {@code true} if the two specified maps are equal to one another. Two maps are considered equal if both represent identical
+     * mappings where values are checked with Objects.deepEquals. The primary use case is to check if two maps with array values are equal.
+     *
+     * @param left  one map to be tested for equality
+     * @param right the other map to be tested for equality
+     * @return {@code true} if the two maps are equal
+     */
+    public static <K, V> boolean deepEquals(Map<K, V> left, Map<K, V> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        return left.entrySet().stream()
+                .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
 }

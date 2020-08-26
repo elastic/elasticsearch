@@ -112,7 +112,7 @@ public class WaitForHttpResource {
             ssl = null;
         }
         IOException failure = null;
-        for (; ; ) {
+        while (true) {
             try {
                 checkResource(ssl);
                 return true;
@@ -161,11 +161,12 @@ public class WaitForHttpResource {
     private void configureBasicAuth(HttpURLConnection connection) {
         if (username != null) {
             if (password == null) {
-                throw new IllegalStateException("Basic Auth user [" + username
-                    + "] has been set, but no password has been configured");
+                throw new IllegalStateException("Basic Auth user [" + username + "] has been set, but no password has been configured");
             }
-            connection.setRequestProperty("Authorization",
-                "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8)));
+            connection.setRequestProperty(
+                "Authorization",
+                "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8))
+            );
         }
     }
 

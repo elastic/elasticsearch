@@ -22,10 +22,10 @@ improvements throughout this page to provide the full context.
 
 If you’re interested in more on how we approach ensuring resiliency in
 Elasticsearch, you may be interested in Igor Motov’s talk
-http://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
+https://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
 
 You may also be interested in our blog post
-http://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
+https://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
 which details our thought processes when addressing resiliency in both
 Elasticsearch and the work our developers do upstream in Apache Lucene.
 
@@ -40,7 +40,7 @@ are fully informed when you are architecting your system.
 
 == Work in Progress
 
-[float]
+[discrete]
 === Known Unknowns (STATUS: ONGOING)
 
 We consider this topic to be the most important in our quest for
@@ -55,7 +55,7 @@ If you encounter an issue, https://github.com/elastic/elasticsearch/issues[pleas
 
 We are committed to tracking down and fixing all the issues that are posted.
 
-[float]
+[discrete]
 ==== Jepsen Tests
 
 The Jepsen platform is specifically designed to test distributed systems. It is not a single test and is regularly adapted
@@ -63,7 +63,7 @@ to create new scenarios. We have currently ported all published Jepsen scenarios
 framework. As the Jepsen tests evolve, we will continue porting new scenarios that are not covered yet. We are committed to investigating
 all new scenarios and will report issues that we find on this page and in our GitHub repository.
 
-[float]
+[discrete]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
 
 If the node holding a primary shard is disconnected for whatever reason, the
@@ -88,7 +88,7 @@ Further issues remain with the retry mechanism:
 
 See {GIT}9967[#9967]. (STATUS: ONGOING)
 
-[float]
+[discrete]
 === OOM resiliency (STATUS: ONGOING)
 
 The family of circuit breakers has greatly reduced the occurrence of OOM
@@ -102,20 +102,20 @@ space.  The following issues have been identified:
 
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 
-[float]
+[discrete]
 === Relocating shards omitted by reporting infrastructure (STATUS: ONGOING)
 
 Indices stats and indices segments requests reach out to all nodes that have shards of that index. Shards that have relocated from a node
 while the stats request arrives will make that part of the request fail and are just ignored in the overall stats result. {GIT}13719[#13719]
 
-[float]
+[discrete]
 === Documentation of guarantees and handling of failures (STATUS: ONGOING)
 
 This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch and what happens
 in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test
  will document the expected results, the associated test code, and an explicit PASS or FAIL status for each simulated case.
 
-[float]
+[discrete]
 === Run Jepsen (STATUS: ONGOING)
 
 We have ported the known scenarios in the Jepsen blogs that check loss of acknowledged writes to our testing infrastructure.
@@ -124,7 +124,7 @@ that no failures are found.
 
 == Completed
 
-[float]
+[discrete]
 === Documents indexed during a network partition cannot be uniquely identified (STATUS: DONE, v7.0.0)
 
 When a primary has been partitioned away from the cluster there is a short
@@ -148,7 +148,7 @@ and sequence number fields, even in the presence of network partitions, and
 has been used to replace the `_version` field in operations that require
 uniquely identifying the document, such as optimistic concurrency control.
 
-[float]
+[discrete]
 === Replicas can fall out of sync when a primary shard fails (STATUS: DONE, v7.0.0)
 
 When a primary shard fails, a replica shard will be promoted to be the primary
@@ -165,7 +165,7 @@ the discrepancies between shard copies at the document level, which allows
 to efficiently sync up the remaining replicas with the newly-promoted primary
 shard.
 
-[float]
+[discrete]
 === Repeated network partitions can cause cluster state updates to be lost (STATUS: DONE, v7.0.0)
 
 During a networking partition, cluster state updates (like mapping changes or
@@ -192,7 +192,7 @@ sub-issues. See particularly {GIT}32171[#32171] and
 https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla[the
 TLA+ formal model] used to verify these changes.
 
-[float]
+[discrete]
 === Divergence between primary and replica shard copies when documents deleted (STATUS: DONE, V6.3.0)
 
 Certain combinations of delays in performing activities related to the deletion
@@ -232,7 +232,7 @@ formal model of the replica's behaviour] using TLA+. Running the TLC model
 checker on this model found all three issues. We then applied the proposed
 fixes to the model and validated that the fixed design behaved as expected.
 
-[float]
+[discrete]
 === Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: DONE, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in
@@ -243,7 +243,7 @@ https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elas
 where the `testAckedIndexing` test was specifically added to check that we don't lose acknowledged writes in various failure scenarios.
 
 
-[float]
+[discrete]
 === Loss of documents during network partition (STATUS: DONE, v5.0.0)
 
 If a network partition separates a node from the master, there is some window of time before the node detects it. The length of the window is dependent on the type of the partition. This window is extremely small if a socket is broken. More adversarial partitions, for example, silently dropping requests without breaking the socket can take longer (up to 3x30s using current defaults).
@@ -251,7 +251,7 @@ If a network partition separates a node from the master, there is some window of
 If the node hosts a primary shard at the moment of partition, and ends up being isolated from the cluster (which could have resulted in {GIT}2488[split-brain] before), some documents that are being indexed into the primary may be lost if they fail to reach one of the allocated replicas (due to the partition) and that replica is later promoted to primary by the master ({GIT}7572[#7572]).
 To prevent this situation, the primary needs to wait for the master to acknowledge replica shard failures before acknowledging the write to the client. {GIT}14252[#14252]
 
-[float]
+[discrete]
 === Safe primary relocations (STATUS: DONE, v5.0.0)
 
 When primary relocation completes, a cluster state is propagated that deactivates the old primary and marks the new primary as active. As
@@ -265,7 +265,7 @@ In the reverse situation where a cluster state update that completes primary rel
 on the relocation target, each of the nodes believes the other to be the active primary. This leads to the issue of indexing requests
 chasing the primary being quickly sent back and forth between the nodes, potentially making them both go OOM. {GIT}12573[#12573]
 
-[float]
+[discrete]
 === Do not allow stale shards to automatically be promoted to primary (STATUS: DONE, v5.0.0)
 
 In some scenarios, after the loss of all valid copies, a stale replica shard can be automatically assigned as a primary, preferring old data
@@ -275,7 +275,7 @@ this tracking information to allocate primary shards. When all shard copies are 
 for one of the good shard copies to reappear. In case where all good copies are lost, a manual override command can be used to allocate a
 stale shard copy.
 
-[float]
+[discrete]
 === Make index creation resilient to index closing and full cluster crashes (STATUS: DONE, v5.0.0)
 
 Recovering an index requires a quorum (with an exception for 2) of shard copies to be available to allocate a primary. This means that
@@ -287,7 +287,7 @@ but none of the shards have been started. If such an index was inadvertently clo
 shard will be allocated upon reopening the index.
 
 
-[float]
+[discrete]
 === Use two phase commit for Cluster State publishing (STATUS: DONE, v5.0.0)
 
 A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-fault-detection.html[monitors the cluster nodes]
@@ -301,7 +301,7 @@ a new phase to cluster state publishing where the proposed cluster state is sent
 but is not yet committed. Only once enough nodes actively acknowledge
 the change, it is committed and commit messages are sent to the nodes. See {GIT}13062[#13062].
 
-[float]
+[discrete]
 === Wait on incoming joins before electing local node as master (STATUS: DONE, v2.0.0)
 
 During master election each node pings in order to discover other nodes and validate the liveness of existing
@@ -312,7 +312,7 @@ node should wait for the incoming joins from other nodes, thus validating that t
 nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
 {GIT}12161[#12161]
 
-[float]
+[discrete]
 === Mapping changes should be applied synchronously (STATUS: DONE, v2.0.0)
 
 When introducing new fields using dynamic mapping, it is possible that the same
@@ -323,12 +323,12 @@ can result in a corrupt shard.  To prevent this, new fields should not
 be added to a shard's mapping until confirmed by the master.
 {GIT}8688[#8688] (STATUS: DONE)
 
-[float]
+[discrete]
 === Add per-segment and per-commit ID to help replication (STATUS: DONE, v2.0.0)
 
 {JIRA}5895[LUCENE-5895] adds a unique ID for each segment and each commit point. File-based replication (as performed by snapshot/restore) can use this ID to know whether the segment/commit on the source and destination machines are the same.  Fixed in Lucene 5.0.
 
-[float]
+[discrete]
 === Write index metadata on data nodes where shards allocated (STATUS: DONE, v2.0.0)
 
 Today, index metadata is written only on nodes that are master-eligible, not on
@@ -338,7 +338,7 @@ However, users running with a single master node are at risk of losing
 their index metadata if the master fails.  Instead, this metadata should
 also be written on any node where a shard is allocated. {GIT}8823[#8823], {GIT}9952[#9952]
 
-[float]
+[discrete]
 === Better file distribution with multiple data paths (STATUS: DONE, v2.0.0)
 
 Today, a node configured with multiple data paths distributes writes across
@@ -347,7 +347,7 @@ failure of a single disk corrupts many shards at once.  Instead, by allocating
 an entire shard to a single data path, the extent of the damage can be limited
 to just the shards on that disk. {GIT}9498[#9498]
 
-[float]
+[discrete]
 === Lucene checksums phase 3 (STATUS: DONE, v2.0.0)
 
 Almost all files in Elasticsearch now have checksums which are validated before use.  A few changes remain:
@@ -357,12 +357,12 @@ Almost all files in Elasticsearch now have checksums which are validated before 
 * {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges. (STATUS: DONE, Fixed in v2.0.0)
 * {GIT}8403[#8403] to add validation of checksums on Lucene `segments_N` files. (STATUS: DONE, v2.0.0)
 
-[float]
+[discrete]
 === Report shard-level statuses on write operations (STATUS: DONE, v2.0.0)
 
 Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7994[#7994]. (STATUS: DONE, v2.0.0)
 
-[float]
+[discrete]
 === Take filter cache key size into account (STATUS: DONE, v2.0.0)
 
 Commonly used filters are cached in Elasticsearch. That cache is limited in size
@@ -380,7 +380,7 @@ This puts an effective limit on the number of entries in the cache. See {GIT}830
 
 The issue has been completely solved by the move to Lucene's query cache. See {GIT}10897[#10897]
 
-[float]
+[discrete]
 === Ensure shard state ID is incremental (STATUS: DONE, v1.5.1)
 
 It is possible in very extreme cases during a complicated full cluster restart,
@@ -389,7 +389,7 @@ Elasticsearch now ensures that the state ID always moves
 forwards, and throws an exception when a legacy ID is higher than the
 current ID.  See {GIT}10316[#10316] (STATUS: DONE, v1.5.1)
 
-[float]
+[discrete]
 === Verification of index UUIDs (STATUS: DONE, v1.5.0)
 
 When deleting and recreating indices rapidly, it is possible that cluster state
@@ -398,7 +398,7 @@ Elasticsearch now checks the index UUID to ensure that cluster state updates
 refer to the same index version that is present on the local node.
 See {GIT}9541[#9541] and {GIT}10200[#10200] (STATUS: DONE, Fixed in v1.5.0)
 
-[float]
+[discrete]
 === Disable recovery from known buggy versions (STATUS: DONE, v1.5.0)
 
 Corruptions have been known to occur when doing a rolling restart from older, buggy versions.
@@ -406,7 +406,7 @@ Now, shards from versions before v1.4.0 are copied over in full and recovery fro
 before v1.3.2 are disabled entirely. See {GIT}9925[#9925] (STATUS: DONE, Fixed in v1.5.0)
 
 
-[float]
+[discrete]
 === Upgrade 3.x segments metadata on engine startup (STATUS: DONE, v1.5.0)
 
 Upgrading the metadata of old 3.x segments on node upgrade can be error prone
@@ -414,7 +414,7 @@ and can result in corruption when merges are being run concurrently. Instead,
 Elasticsearch will now upgrade the metadata of 3.x segments before the engine
 starts.  See {GIT}9899[#9899] (STATUS; DONE, fixed in v1.5.0)
 
-[float]
+[discrete]
 === Prevent setting minimum_master_nodes to more than the current node count (STATUS: DONE, v1.5.0)
 
 Setting `zen.discovery.minimum_master_nodes` to a value higher than the current node count
@@ -423,7 +423,7 @@ way to fix this is to add more master-eligible nodes.  {GIT}8321[#8321] adds a m
 to validate settings before applying them, and {GIT}9051[#9051] extends this validation
 support to settings applied during a cluster restore. (STATUS: DONE, Fixed in v1.5.0)
 
-[float]
+[discrete]
 === Simplify and harden shard recovery and allocation (STATUS: DONE, v1.5.0)
 
 Randomized testing combined with chaotic failures has revealed corner cases
@@ -440,17 +440,17 @@ these operations in order to make them more deterministic.  These include:
 * Rapid creation and deletion of an index can cause reuse of old index metadata {GIT}9489[#9489]. (STATUS: DONE, Fixed in v1.5.0)
 * Flush immediately after the last concurrent recovery finishes to clear out the translog before a new recovery starts {GIT}9439[#9439]. (STATUS: DONE, Fixed in v1.5.0)
 
-[float]
+[discrete]
 === Prevent use of known-bad Java versions (STATUS: DONE, v1.5.0)
 
 Certain versions of the JVM are known to have bugs which can cause index corruption.  {GIT}7580[#7580] prevents Elasticsearch startup if known bad versions are in use.
 
-[float]
+[discrete]
 === Make recovery be more resilient to partial network partitions (STATUS: DONE, v1.5.0)
 
 When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that node to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encountered issues. In {GIT}8720[#8720], we added test simulations for these and solved several issues that were flagged by them.
 
-[float]
+[discrete]
 === Improving Zen Discovery (STATUS: DONE, v1.4.0.Beta1)
 
 Recovery from failure is a complicated process, especially in an asynchronous distributed system like Elasticsearch. With several processes happening in parallel, it is important to ensure that recovery proceeds swiftly and safely. While fixing the {GIT}2488[split-brain issue] we have been hunting down corner cases that were not handled optimally, adding tests to demonstrate the issues, and working on fixes:
@@ -460,7 +460,7 @@ Recovery from failure is a complicated process, especially in an asynchronous di
 * After joining a cluster, validate that the join was successful and that the master has been set in the local cluster state. {GIT}6969[#6969]. (STATUS: DONE, v1.4.0.Beta1)
 * Write additional tests that use the test infrastructure to verify proper behavior during network disconnections and garbage collections. {GIT}7082[#7082] (STATUS: DONE, v1.4.0.Beta1)
 
-[float]
+[discrete]
 === Lucene checksums phase 2 (STATUS:DONE, v1.4.0.Beta1)
 
 When Lucene opens a segment for reading, it validates the checksum on the smaller segment files -- those which it reads entirely into memory -- but not the large files like term frequencies and positions, as this would be very expensive. During merges, term vectors and stored fields are validated, as long the segments being merged come from the same version of Lucene. Checksumming for term vectors and stored fields is important because merging consists of performing optimized byte copies. Term frequencies, term positions, payloads, doc values, and norms are currently not checked during merges, although Lucene provides the option to do so.  These files are less prone to silent corruption as they are actively decoded during merge, and so are more likely to throw exceptions if there is any corruption.
@@ -471,17 +471,17 @@ The following changes have been made:
 * {JIRA}5842[LUCENE-5842] validates the structure of the checksum footer of the postings lists, doc values, stored fields and term vectors when opening a new segment, to ensure that these files have not been truncated. (STATUS: DONE, Fixed in Lucene 4.10 and v1.4.0.Beta1)
 * {GIT}8407[#8407] validates Lucene checksums for legacy files. (STATUS: DONE; Fixed in v1.3.6)
 
-[float]
+[discrete]
 === Don't allow unsupported codecs (STATUS: DONE, v1.4.0.Beta1)
 
 Lucene 4 added a number of alternative codecs for experimentation purposes, and Elasticsearch exposed the ability to change codecs.  Since then, Lucene has settled on the best choice of codec and provides backwards compatibility only for the default codec.  {GIT}7566[#7566] removes the ability to set alternate codecs.
 
-[float]
+[discrete]
 === Use checksums to identify entire segments (STATUS: DONE, v1.4.0.Beta1)
 
 A hash collision makes it possible for two different files to have the same length and the same checksum. Instead, a segment's identity should rely on checksums from all of the files in a single segment, which greatly reduces the chance of a collision. This change has been merged ({GIT}7351[#7351]).
 
-[float]
+[discrete]
 === Fix ''Split Brain can occur even with minimum_master_nodes'' (STATUS: DONE, v1.4.0.Beta1)
 
 Even when minimum master nodes is set, split brain can still occur under certain conditions, e.g. disconnection between master eligible nodes, which can lead to data loss. The scenario is described in detail in {GIT}2488[issue 2488]:
@@ -490,19 +490,19 @@ Even when minimum master nodes is set, split brain can still occur under certain
 * Added tests that simulated the bug described in issue 2488. You can take a look at the https://github.com/elastic/elasticsearch/commit/7bf3ffe73c44f1208d1f7a78b0629eb48836e726[original commit] of a reproduction on master. (STATUS: DONE, v1.2.0)
 * The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed, and work has been done to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta1)
 
-[float]
+[discrete]
 === Translog Entry Checksum (STATUS: DONE, v1.4.0.Beta1)
 
 Each translog entry in Elasticsearch should have its own checksum, and potentially additional information, so that we can properly detect corrupted translog entries and act accordingly. You can find more detail in issue {GIT}6554[#6554].
 
 To start, we will begin by adding checksums to the translog to detect corrupt entries. Once this work has been completed, we will add translog entry markers so that corrupt entries can be skipped in the translog if/when desired.
 
-[float]
+[discrete]
 === Request-Level Memory Circuit Breaker (STATUS: DONE, v1.4.0.Beta1)
 
 We are in the process of introducing multiple circuit breakers in Elasticsearch, which can “borrow” space from each other in the event that one runs out of memory. This architecture will allow limits for certain parts of memory, but still allow flexibility in the event that another reserve like field data is not being used. This change includes adding a breaker for the BigArrays internal object used for some aggregations. See issue {GIT}6739[#6739] for more details.
 
-[float]
+[discrete]
 === Doc Values (STATUS: DONE, v1.4.0.Beta1)
 
 Fielddata is one of the largest consumers of heap memory, and thus one of the primary reasons for running out of memory and causing node instability. Elasticsearch has had the “doc values” option for a while, which allows you to build these structures at index time so that they live on disk instead of in memory. Up until recently, doc values were significantly slower than in-memory fielddata.
@@ -511,32 +511,32 @@ By benchmarking and profiling both Lucene and Elasticsearch, we identified the b
 
 See {GIT}6967[#6967], {GIT}6908[#6908], {GIT}4548[#4548], {GIT}3829[#3829], {GIT}4518[#4518], {GIT}5669[#5669], {JIRA}5748[LUCENE-5748], {JIRA}5703[LUCENE-5703], {JIRA}5750[LUCENE-5750], {JIRA}5721[LUCENE-5721], {JIRA}5799[LUCENE-5799].
 
-[float]
+[discrete]
 === Index corruption when upgrading Lucene 3.x indices (STATUS: DONE, v1.4.0.Beta1)
 
 Upgrading indices create with Lucene 3.x (Elasticsearch v0.20 and before) to Lucene 4.7 - 4.9 (Elasticsearch v1.1.0 to v1.3.x), could result in index corruption. {JIRA}5907[LUCENE-5907] fixes this issue in Lucene 4.10.
 
-[float]
+[discrete]
 === Improve error handling when deleting files (STATUS: DONE, v1.4.0.Beta1)
 
 Lucene uses reference counting to prevent files that are still in use from being deleted.  Lucene testing discovered a bug ({JIRA}5919[LUCENE-5919]) when decrementing the ref count on a batch of files. If deleting some of the files resulted in an exception (e.g. due to interference from a virus scanner), the files that had their ref counts decremented successfully could later have their ref counts deleted again, incorrectly, resulting in files being physically deleted before their time. This is fixed in Lucene 4.10.
 
-[float]
+[discrete]
 === Using Lucene Checksums to verify shards during snapshot/restore (STATUS:DONE, v1.3.3)
 
 The snapshot process should verify checksums for each file that is being snapshotted to make sure that created snapshot doesn’t contain corrupted files. If a corrupted file is detected, the snapshot should fail with an error. In order to implement this feature we need to have correct and verifiable checksums stored with segment files, which is only possible for files that were written by the officially supported append-only codecs. See {GIT}7159[#7159].
 
-[float]
+[discrete]
 === Rare compression corruption during shard recovery (STATUS: DONE, v1.3.2)
 
 During recovery, the primary shard is copied over the network to become a new replica shard. In rare cases, it was possible for a hash collision to trigger a bug in the compression library that is used to produce corruption in the replica shard. This bug was exposed by the change to validate checksums during recovery. We tracked down the bug in the in compression library and submitted a patch, which was accepted and merged by the upstream project. See {GIT}7210[#7210].
 
-[float]
+[discrete]
 === Safer recovery of replica shards (STATUS: DONE, v1.3.0)
 
 If a primary shard fails or is closed while a replica is using it for recovery, we need to ensure that the replica is properly failed as well, and allow recovery to start from the new primary. Also check that an active copy of a shard is available on another node before physically removing an inactive shard from disk. {GIT}6825[#6825], {GIT}6645[#6645], {GIT}6995[#6995].
 
-[float]
+[discrete]
 === Using Lucene Checksums to verify shards during recovery (STATUS: DONE, v1.3.0)
 
 Elasticsearch can use Lucene checksums to validate files while {GIT}6776[recovering a replica shard from a primary].
@@ -545,17 +545,17 @@ This issue exposed a bug in Elasticsearch’s handling of primary shard failure 
 
 In order to verify the checksumming mechanism, we added functionality to our testing infrastructure that can corrupt an arbitrary index file and at any point, such as while it’s traveling over the wire or residing on disk. The tests utilizing this feature expect full or partial recovery from the failure while neither losing data nor spreading the corruption.
 
-[float]
+[discrete]
 === Detect File Corruption (STATUS: DONE, v1.3.0)
 
 When a corrupted index can be detected during merging or refresh, Elasticsearch will fail the shard if a checksum failure is detected. You can read the full details in pull request {GIT}6776[#6776].
 
-[float]
+[discrete]
 === Network disconnect events could be lost, causing a zombie node to stay in the cluster state (STATUS: DONE, v1.3.0)
 
 Previously, there was a very short window in which we could lose a node disconnect event. To prevent this from occurring, we added extra handling of connection errors to our nodes & master fault detection pinging to make sure the node disconnect event is detected. See issue {GIT}6686[#6686].
 
-[float]
+[discrete]
 === Other fixes to Lucene to address resiliency (STATUS: DONE, v1.3.0)
 
 * NativeLock is released if Lock is closed after failing on obtain {JIRA}5738[LUCENE-5738].
@@ -563,7 +563,7 @@ Previously, there was a very short window in which we could lose a node disconne
 * FSDirectory’s fsync() is lenient, now throws exceptions when errors occur {JIRA}5570[LUCENE-5570]
 * fsync() directory when committing {JIRA}5588[LUCENE-5588]
 
-[float]
+[discrete]
 === Backwards Compatibility Testings (STATUS: DONE, v1.3.0)
 
 Since founding Elasticsearch Inc, we grew our test base from ~1k tests to about 4k in just about over a year. We invested massively into our testing infrastructure, running our tests continuously on different operating systems, bare metal hardware and cloud environments, all while randomizing JVMs and their settings.
@@ -578,24 +578,24 @@ The work on our testing infrastructure is more than just issue prevention, it al
 
 You can read more about backwards compatibility tests in issue {GIT}6497[#6497].
 
-[float]
+[discrete]
 === Full Translog Writes on all Platforms (STATUS: DONE, v1.2.2 and v1.3.0)
 
 We have recently received bug reports of transaction log corruption that can occur when indexing very large documents (in the area of 300 KB). Although some Linux users reported this behavior, it appears the problem occurs more frequently when running Windows. We traced the source of the problem to the fact that when serializing documents to the transaction log, the Operating System can actually write only part of the document before returning from the write call. We can now detect this situation and make sure that the entire document is properly written. You can read the full details in pull request {GIT}6576[#6576].
 
-[float]
+[discrete]
 === Lucene Checksums (STATUS: DONE, v1.2.0)
 
 Before Apache Lucene version 4.8, checksums were not computed on generated index files. The result was that it was difficult to identify when or if a Lucene index got corrupted, whether by hardware failure, JVM bug or for an entirely different reason.
 
 For an idea of the checksum efforts in progress in Apache Lucene, see issues {JIRA}2446[LUCENE-2446], {JIRA}5580[LUCENE-5580] and {JIRA}5602[LUCENE-5602]. The gist is that Lucene 4.8+ now computes full checksums on all index files and it verifies them when opening metadata or other smaller files as well as other files during merges.
 
-[float]
+[discrete]
 === Detect errors faster by locally failing a shard upon an indexing error (STATUS: DONE, v1.2.0)
 
 Previously, Elasticsearch notified the master of the shard failure and waited for the master to close the local copy of the shard, thus assigning it to other nodes. This architecture caused delays in failure detection, potentially causing unneeded failures of other incoming requests. In rare cases, such as concurrency racing conditions or certain network partitions configurations, we could lose these failure notifications. We solved this issue by locally failing shards upon indexing errors. See issue {GIT}5847[#5847].
 
-[float]
+[discrete]
 === Snapshot/Restore API (STATUS: DONE, v1.0.0)
 
 In Elasticsearch version 1.0, we significantly improved the backup process by introducing the Snapshot/Restore API. While it was always possible to make backups of Elasticsearch, the Snapshot/Restore API made the backup process much easier.
@@ -606,19 +606,19 @@ Since that first release in version 1.0, the API has continued to evolve. In ver
 
 The Snapshot/Restore API supports a number of different repository types for storing backups. Currently, it’s possible to make backups to a shared file system, Amazon S3, HDFS, and Azure storage. We are continuing to work on adding other types of storage systems, as well as improving the robustness of the snapshot/restore process.
 
-[float]
+[discrete]
 === Circuit Breaker: Fielddata (STATUS: DONE, v1.0.0)
 
 Currently, the circuit breaker protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
 
-[float]
+[discrete]
 === Use of Paginated Data Structures to Ease Garbage Collection (STATUS: DONE, v1.0.0 & v1.2.0)
 
 Elasticsearch has moved from an object-based cache to a page-based cache recycler as described in issue {GIT}4557[#4557]. This change makes garbage collection easier by limiting fragmentation, since all pages have the same size and are recycled. It also allows managing the size of the cache not based on the number of objects it contains, but on the memory that it uses.
 
 These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to e.g. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
 
-[float]
+[discrete]
 === Dedicated Master Nodes Resiliency (STATUS: DONE, v1.0.0)
 
 In order to run a more resilient cluster, we recommend running dedicated master nodes to ensure master nodes are not affected by resources consumed by data nodes. We also have made master nodes more resilient to heavy resource usage, mainly associated with large clusters / cluster states.
@@ -630,21 +630,21 @@ These changes include:
 * Improve master handling of large scale mapping updates from data nodes by batching them into a single cluster event. (See issue {GIT}4373[#4373].)
 * Add an ack mechanism where next phase cluster updates are processed only when nodes acknowledged they received the previous cluster state. (See issues {GIT}3736[#3736], {GIT}3786[#3786], {GIT}4114[#4114], {GIT}4169[#4169], {GIT}4228[#4228] and {GIT}4421[#4421], which also include enhancements to the ack mechanism implementation.)
 
-[float]
+[discrete]
 === Multi Data Paths May Falsely Report Corrupt Index (STATUS: DONE, v1.0.0)
 
 When using multiple data paths, an index could be falsely reported as corrupted. This has been fixed with pull request {GIT}4674[#4674].
 
-[float]
+[discrete]
 === Randomized Testing (STATUS: DONE, v1.0.0)
 
-In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of http://berlinbuzzwords.de/sites/berlinbuzzwords.de/files/media/documents/dawidweiss-randomizedtesting-pub.pdf[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
+In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of https://github.com/randomizedtesting/randomizedtesting[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
 
 Each of our integration tests runs against a cluster with a random number of nodes, and indices have a random number of shards and replicas. Merge settings change for every run, indexing is done in serial or async fashion or even wrapped in a bulk operation and thread pool sizes vary to ensure that we don’t produce a deadlock no matter what happens. The list of places we use this randomization infrastructure is long, and growing every day, and has saved us headaches several times before we shipped a particular feature.
 
 At Elasticsearch, we live the philosophy that we can miss a bug once, but never a second time. We make our tests more evil as you go, introducing randomness in all the areas where we discovered bugs. We figure if our tests don’t fail, we are not trying hard enough! If you are interested in how we have evolved our test infrastructure over time check out https://github.com/elastic/elasticsearch/issues?q=label%3Atest[issues labeled with ``test'' on GitHub].
 
-[float]
+[discrete]
 === Lucene Loses Data On File Descriptors Failure (STATUS: DONE, v0.90.0)
 
 When a process runs out of file descriptors, Lucene can causes an index to be completely deleted. This issue was fixed in Lucene ({JIRA}4870[version 4.2.1]) and fixed in an early version of Elasticsearch. See issue {GIT}2812[#2812].

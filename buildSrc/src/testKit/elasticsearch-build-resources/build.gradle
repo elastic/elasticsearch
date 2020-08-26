@@ -1,38 +1,26 @@
+import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+
 plugins {
-    id 'elasticsearch.build'
+  id 'base'
+  id 'elasticsearch.global-build-info'
 }
 
-ext.licenseFile = file("$buildDir/dummy/license")
-ext.noticeFile = file("$buildDir/dummy/notice")
-
-buildResources {
-    copy 'checkstyle.xml'
+File buildResourcesDir = new File(project.getBuildDir(), 'build-tools-exported')
+TaskProvider buildResourcesTask = tasks.register('buildResources', ExportElasticsearchBuildResourcesTask) {
+  outputDir = buildResourcesDir
+  copy 'checkstyle_suppressions.xml'
+  copy 'checkstyle.xml'
 }
 
-task sampleCopyAll(type: Sync) {
-    /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
-    from buildResources
-    into "$buildDir/sampleCopyAll"
+tasks.register("sampleCopy", Sync) {
+  /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
+  from buildResourcesTask
+  into "$buildDir/sampleCopy"
 }
 
-task sample {
-    // This does not work, task dependencies can't be providers
-    // dependsOn buildResources.resource('minimumRuntimeVersion')
-    // Nor does this, despite https://github.com/gradle/gradle/issues/3811
-    // dependsOn buildResources.outputDir
-    // for now it's just
-    dependsOn buildResources
-    // we have to reference it at configuration time in order to be picked up
-    ext.checkstyle_suppressions = buildResources.copy('checkstyle_suppressions.xml')
-    doLast {
-        println "This task is using ${file(checkstyle_suppressions)}"
-    }
-}
-
-task noConfigAfterExecution {
-    dependsOn buildResources
-    doLast {
-        println "This should cause an error because we are refferencing " +
-                "${buildResources.copy('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
-    }
+tasks.register("noConfigAfterExecution") {
+  dependsOn buildResourcesTask
+  doLast {
+    buildResourcesTask.get().copy('foo')
+  }
 }

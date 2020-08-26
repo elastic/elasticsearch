@@ -21,6 +21,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -36,7 +37,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-public class SourceLookup implements Map {
+public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
 
@@ -54,7 +55,11 @@ public class SourceLookup implements Map {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    // Scripting requires this method to be public. Using source()
+    // is not possible because certain checks use source == null as
+    // as a determination if source is enabled/disabled, but it should
+    // never be a null Map for scripting even when disabled.
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }
@@ -128,12 +133,24 @@ public class SourceLookup implements Map {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(loadSourceIfNeeded());
+    /**
+     * For the provided path, return its value in the source.
+     *
+     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
+     * can be returned.
+     *
+     * @param path the value's path in the source.
+     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
+     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
+     *
+     * @return the value associated with the path in the source or 'null' if the path does not exist.
+     */
+    public Object extractValue(String path, @Nullable Object nullValue) {
+        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
     }
 
-    public Object extractValue(String path) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded());
+    public Object filter(FetchSourceContext context) {
+        return context.getFilter().apply(loadSourceIfNeeded());
     }
 
     @Override
@@ -162,22 +179,22 @@ public class SourceLookup implements Map {
     }
 
     @Override
-    public Set keySet() {
+    public Set<String> keySet() {
         return loadSourceIfNeeded().keySet();
     }
 
     @Override
-    public Collection values() {
+    public Collection<Object> values() {
         return loadSourceIfNeeded().values();
     }
 
     @Override
-    public Set entrySet() {
+    public Set<Map.Entry<String, Object>> entrySet() {
         return loadSourceIfNeeded().entrySet();
     }
 
     @Override
-    public Object put(Object key, Object value) {
+    public Object put(String key, Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -187,6 +204,7 @@ public class SourceLookup implements Map {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void putAll(Map m) {
         throw new UnsupportedOperationException();
     }

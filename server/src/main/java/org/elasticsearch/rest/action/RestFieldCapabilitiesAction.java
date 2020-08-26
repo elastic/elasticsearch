@@ -24,21 +24,23 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
-    public RestFieldCapabilitiesAction(RestController controller) {
-        controller.registerHandler(GET, "/_field_caps", this);
-        controller.registerHandler(POST, "/_field_caps", this);
-        controller.registerHandler(GET, "/{index}/_field_caps", this);
-        controller.registerHandler(POST, "/{index}/_field_caps", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_field_caps"),
+            new Route(POST, "/_field_caps"),
+            new Route(GET, "/{index}/_field_caps"),
+            new Route(POST, "/{index}/_field_caps"));
     }
 
     @Override
@@ -57,6 +59,11 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser != null) {
+                fieldRequest.indexFilter(RestActions.getQueryContent("index_filter", parser));
+            }
+        });
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

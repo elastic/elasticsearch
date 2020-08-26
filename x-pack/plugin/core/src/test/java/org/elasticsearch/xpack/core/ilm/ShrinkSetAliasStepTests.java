@@ -11,31 +11,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAliasStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public ShrinkSetAliasStep createRandomInstance() {
@@ -72,9 +61,9 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
     }
 
     public void testPerformAction() {
-        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        AliasMetaData.Builder aliasBuilder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
+        AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(3, 10));
         }
@@ -84,42 +73,33 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         if (randomBoolean()) {
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(3, 10));
         }
-        String aliasMetaDataFilter = randomBoolean() ? null : "{\"term\":{\"year\":2016}}";
-        aliasBuilder.filter(aliasMetaDataFilter);
+        String aliasMetadataFilter = randomBoolean() ? null : "{\"term\":{\"year\":2016}}";
+        aliasBuilder.filter(aliasMetadataFilter);
         aliasBuilder.writeIndex(randomBoolean());
-        AliasMetaData aliasMetaData = aliasBuilder.build();
-        IndexMetaData indexMetaData = indexMetaDataBuilder.putAlias(aliasMetaData).build();
+        AliasMetadata aliasMetadata = aliasBuilder.build();
+        IndexMetadata indexMetadata = indexMetadataBuilder.putAlias(aliasMetadata).build();
         ShrinkSetAliasStep step = createRandomInstance();
 
-        String sourceIndex = indexMetaData.getIndex().getName();
+        String sourceIndex = indexMetadata.getIndex().getName();
         String shrunkenIndex = step.getShrunkIndexPrefix() + sourceIndex;
         List<AliasActions> expectedAliasActions = Arrays.asList(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex),
-            IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(aliasMetaData.alias())
-                .searchRouting(aliasMetaData.searchRouting()).indexRouting(aliasMetaData.indexRouting())
-                .filter(aliasMetaDataFilter).writeIndex(null));
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(aliasMetadata.alias())
+                .searchRouting(aliasMetadata.searchRouting()).indexRouting(aliasMetadata.indexRouting())
+                .filter(aliasMetadataFilter).writeIndex(null));
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
-                assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                listener.onResponse(new AcknowledgedResponse(true));
-                return null;
-            }
-
+        Mockito.doAnswer( invocation -> {
+            IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
+            assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            listener.onResponse(new AcknowledgedResponse(true));
+            return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -140,30 +120,20 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
     }
 
     public void testPerformActionFailure() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
         ShrinkSetAliasStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QualifiedNameContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableIdentifierContext;
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 

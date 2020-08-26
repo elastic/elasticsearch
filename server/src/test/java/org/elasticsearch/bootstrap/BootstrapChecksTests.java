@@ -22,7 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -32,6 +32,7 @@ import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.hamcrest.Matcher;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -149,8 +151,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final int max = randomIntBetween(initial + 1, Integer.MAX_VALUE);
         final AtomicLong initialHeapSize = new AtomicLong(initial);
         final AtomicLong maxHeapSize = new AtomicLong(max);
+        final boolean isMemoryLocked = randomBoolean();
 
         final BootstrapChecks.HeapSizeCheck check = new BootstrapChecks.HeapSizeCheck() {
+
             @Override
             long getInitialHeapSize() {
                 return initialHeapSize.get();
@@ -160,6 +164,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             long getMaxHeapSize() {
                 return maxHeapSize.get();
             }
+
+            @Override
+            boolean isMemoryLocked() {
+                return isMemoryLocked;
+            }
+
         };
 
         final NodeValidationException e =
@@ -170,6 +180,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 e.getMessage(),
                 containsString("initial heap size [" + initialHeapSize.get() + "] " +
                         "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
+        final String memoryLockingMessage = "and prevents memory locking from locking the entire heap";
+        final Matcher<String> memoryLockingMatcher;
+        if (isMemoryLocked) {
+            memoryLockingMatcher = containsString(memoryLockingMessage);
+        } else {
+            memoryLockingMatcher = not(containsString(memoryLockingMessage));
+        }
+        assertThat(e.getMessage(), memoryLockingMatcher);
 
         initialHeapSize.set(maxHeapSize.get());
 
@@ -705,14 +723,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
 
         final BootstrapContext zen2Context = createTestContext(Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
 
         // not always enforced
         BootstrapChecks.check(zen2Context, false, checks);
 
         // not enforced for non-zen2 discovery
         BootstrapChecks.check(createTestContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            randomFrom("single-node", randomAlphaOfLength(5))).build(), MetaData.EMPTY_META_DATA), true, checks);
+            randomFrom("single-node", randomAlphaOfLength(5))).build(), Metadata.EMPTY_METADATA), true, checks);
 
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));
@@ -722,7 +740,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
         {
             final BootstrapContext context = createTestContext(b
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), MetaData.EMPTY_META_DATA);
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
             BootstrapChecks.check(context, true, checks);
         };
 

@@ -20,17 +20,13 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_enrich", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testInsufficientPermissionsOnNonExistentIndex() throws Exception {
@@ -42,7 +38,9 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity(generatePolicySource("some-other-index"));
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
-        assertThat(exc.getMessage(),
-            containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]"));
+        assertThat(
+            exc.getMessage(),
+            containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]")
+        );
     }
 }

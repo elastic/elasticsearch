@@ -103,7 +103,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         }
     }
 
-    @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
@@ -130,8 +129,8 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
         for (String user: users.keySet()) {
-            Map<?, ?> metaDataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
-            Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
+            Map<?, ?> metadataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
+            Boolean reserved = metadataMap == null ? null : (Boolean) metadataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
                 getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());

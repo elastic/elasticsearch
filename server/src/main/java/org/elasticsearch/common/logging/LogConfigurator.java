@@ -48,6 +48,8 @@ import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -242,6 +244,12 @@ public class LogConfigurator {
                     + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
                     + "`[%node_name]%marker ` in these locations:\n  {}", deprecatedLocationsString);
         }
+
+        // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
+        // third party libraries may do that. Note that we do NOT close the streams because other code may have
+        // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
+        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
     }
 
     private static void configureStatusLogger() {

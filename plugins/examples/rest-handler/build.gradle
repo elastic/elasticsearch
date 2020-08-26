@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -16,8 +18,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'rest-handler'
@@ -30,22 +33,15 @@ esplugin {
 // No unit tests in this example
 test.enabled = false
 
-task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn testClasses
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  executable = new File(project.runtimeJavaHome, 'bin/java')
+tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
+  dependsOn sourceSets.javaRestTest.runtimeClasspath
+  env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
+  executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
 
-integTest {
+javaRestTest {
   dependsOn exampleFixture
-  runner {
-    nonInputProperties.systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"  
-  }
+  nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
 }
 
-testingConventions.naming {
-  IT {
-    baseClass 'org.elasticsearch.test.ESTestCase'
-  }
-}

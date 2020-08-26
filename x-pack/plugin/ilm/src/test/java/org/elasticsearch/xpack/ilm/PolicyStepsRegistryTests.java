@@ -9,8 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -22,13 +22,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -59,8 +59,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     private static final Step.StepKey MOCK_STEP_KEY = new Step.StepKey("mock", "mock", "mock");
     private static final NamedXContentRegistry REGISTRY = new NamedXContentRegistry(new IndexLifecycle(Settings.EMPTY).getNamedXContent());
 
-    private IndexMetaData emptyMetaData(Index index) {
-        return IndexMetaData.builder(index.getName()).settings(settings(Version.CURRENT))
+    private IndexMetadata emptyMetadata(Index index) {
+        return IndexMetadata.builder(index.getName()).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
@@ -95,7 +95,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -107,7 +107,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(metas, null, null, REGISTRY, client);
-        Step actualStep = registry.getStep(indexMetaData, step.getKey());
+        Step actualStep = registry.getStep(indexMetadata, step.getKey());
         assertThat(actualStep.getKey(), equalTo(step.getKey()));
     }
 
@@ -117,14 +117,14 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, NamedXContentRegistry.EMPTY, null);
-        Step actualStep = registry.getStep(emptyMetaData(index), errorStepKey);
+        Step actualStep = registry.getStep(emptyMetadata(index), errorStepKey);
         assertThat(actualStep, equalTo(expectedStep));
     }
 
     public void testGetStepUnknownPolicy() {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, NamedXContentRegistry.EMPTY, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> registry.getStep(emptyMetaData(new Index("test", "uuid")), MOCK_STEP_KEY));
+            () -> registry.getStep(emptyMetadata(new Index("test", "uuid")), MOCK_STEP_KEY));
         assertThat(e.getMessage(),
             containsString("failed to retrieve step {\"phase\":\"mock\",\"action\":\"mock\",\"name\":\"mock\"}" +
                 " as index [test] has no policy"));
@@ -135,7 +135,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         LifecyclePolicy policy = LifecyclePolicyTests.randomTimeseriesLifecyclePolicy("policy");
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 1, randomNonNegativeLong());
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -146,7 +146,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(metas, null, null, REGISTRY, client);
-        Step step = registry.getStep(indexMetaData, InitializePolicyContextStep.KEY);
+        Step step = registry.getStep(indexMetadata, InitializePolicyContextStep.KEY);
         assertNotNull(step);
     }
 
@@ -163,7 +163,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -175,7 +175,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(metas, null, null, REGISTRY, client);
-        Step actualStep = registry.getStep(indexMetaData,
+        Step actualStep = registry.getStep(indexMetadata,
             new Step.StepKey(step.getKey().getPhase(), step.getKey().getAction(), step.getKey().getName() + "-bad"));
         assertNull(actualStep);
     }
@@ -198,10 +198,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("new");
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(IndexMetaData.builder("test")
+            .put(IndexMetadata.builder("test")
                 .settings(Settings.builder()
                     .put("index.uuid", "uuid")
                     .put("index.number_of_shards", 1)
@@ -212,16 +212,17 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -243,15 +244,15 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             LifecycleExecutionState.Builder newIndexState = LifecycleExecutionState.builder();
             newIndexState.setPhase(step.getKey().getPhase());
             currentState = ClusterState.builder(currentState)
-                .metaData(MetaData.builder(currentState.metaData())
-                    .put(IndexMetaData.builder(currentState.metaData().index("test"))
-                        .settings(Settings.builder().put(currentState.metaData().index("test").getSettings()))
+                .metadata(Metadata.builder(currentState.metadata())
+                    .put(IndexMetadata.builder(currentState.metadata().index("test"))
+                        .settings(Settings.builder().put(currentState.metadata().index("test").getSettings()))
                         .putCustom(ILM_CUSTOM_METADATA_KEY, newIndexState.build().asMap())))
                 .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
             registry.update(currentState);
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
-            assertThat(registry.getStep(metaData.index(index), step.getKey()), equalTo(step));
+            assertThat(registry.getStep(metadata.index(index), step.getKey()), equalTo(step));
         }
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
@@ -265,8 +266,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // remove policy
         lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
-            .metaData(
-                MetaData.builder(metaData)
+            .metadata(
+                Metadata.builder(metadata)
                     .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
         registry.update(currentState);
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
@@ -287,16 +288,17 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
             new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client);
@@ -309,7 +311,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(),
                 randomNonNegativeLong(), randomNonNegativeLong())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
-            .metaData(MetaData.builder(metaData).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
+            .metadata(Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
         registry.update(currentState);
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
@@ -347,10 +349,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("warm");
         lifecycleState.setPhaseDefinition(phaseJson);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(IndexMetaData.builder("test")
+            .put(IndexMetadata.builder("test")
                 .settings(Settings.builder()
                     .put("index.uuid", "uuid")
                     .put("index.number_of_shards", 1)
@@ -361,16 +363,17 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -384,7 +387,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        Step gotStep = registry.getStep(metaData.index(index), shrinkStep.getKey());
+        Step gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(1));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
 
@@ -392,16 +395,16 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         policyMap = Collections.singletonMap(updatedPolicy.getName(), new LifecyclePolicyMetadata(updatedPolicy, headers,
             randomNonNegativeLong(), randomNonNegativeLong()));
         lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
-        metaData = MetaData.builder(metaData)
+        metadata = Metadata.builder(metadata)
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
-        currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        currentState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         // Update the policies
         registry.update(currentState);
@@ -410,7 +413,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        gotStep = registry.getStep(metaData.index(index), shrinkStep.getKey());
+        gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
     }

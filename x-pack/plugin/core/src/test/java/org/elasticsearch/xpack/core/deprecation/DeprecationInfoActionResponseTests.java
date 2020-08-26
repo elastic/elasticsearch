@@ -9,9 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -67,8 +67,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         mapping.field("enabled", false);
         mapping.endObject().endObject();
 
-        MetaData metadata = MetaData.builder().put(IndexMetaData.builder("test")
-            .putMapping("testUnderscoreAll", Strings.toString(mapping))
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
+            .putMapping(Strings.toString(mapping))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0))
@@ -76,7 +76,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metadata).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
@@ -87,7 +87,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean mlIssueFound = randomBoolean();
         DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
-        List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> indexIssueFound ? foundIssue : null);
+        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> indexIssueFound ? foundIssue : null);
         List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> mlSettingsChecks =
                 List.of((idx, unused) -> mlIssueFound ? foundIssue : null);
 
@@ -99,8 +99,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 : emptyList(),
             emptyList());
 
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state, NamedXContentRegistry.EMPTY,
-            resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
+            resolver, request, datafeeds,
             nodeDeprecationIssues, indexSettingsChecks, clusterSettingsChecks, mlSettingsChecks);
 
         if (clusterIssueFound) {

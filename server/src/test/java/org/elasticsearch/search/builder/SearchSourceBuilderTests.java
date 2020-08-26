@@ -105,6 +105,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testShallowCopy() {
+        for (int i = 0; i < 10; i++) {
+            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder copy = original.shallowCopy();
+            assertEquals(original, copy);
+        }
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
@@ -377,17 +385,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testParseIndicesBoost() throws IOException {
         {
-            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
-                assertEquals(2, searchSourceBuilder.indexBoosts().size());
-                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
-                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
-                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
-            }
-        }
-
-        {
             String restContent = "{" +
                 "    \"indices_boost\" : [\n" +
                 "        { \"foo\" : 1.0 },\n" +
@@ -441,8 +438,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {

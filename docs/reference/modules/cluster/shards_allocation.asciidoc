@@ -1,15 +1,9 @@
-[[shards-allocation]]
-=== Cluster level shard allocation
-
-Shard allocation is the process of allocating shards to nodes. This can
-happen during initial recovery, replica allocation, rebalancing, or
-when nodes are added or removed.
-
-[float]
-=== Shard allocation settings
+[[cluster-shard-allocation-settings]]
+==== Cluster-level shard allocation settings
 
 The following _dynamic_ settings may be used to control shard allocation and recovery:
 
+[[cluster-routing-allocation-enable]]
 `cluster.routing.allocation.enable`::
 +
 --
@@ -58,8 +52,8 @@ one of the active allocation ids in the cluster state.
       Defaults to `false`, meaning that no check is performed by default. This
       setting only applies if multiple nodes are started on the same machine.
 
-[float]
-=== Shard rebalancing settings
+[[shards-rebalancing-settings]]
+==== Shard rebalancing settings
 
 The following _dynamic_ settings may be used to control the rebalancing of
 shards across the cluster:
@@ -94,11 +88,11 @@ Specify when shard rebalancing is allowed:
       allowed cluster wide. Defaults to `2`. Note that this setting
       only controls the number of concurrent shard relocations due
       to imbalances in the cluster. This setting does not limit shard
-      relocations due to <<allocation-filtering,allocation filtering>>
-      or <<forced-awareness,forced awareness>>.
+      relocations due to <<cluster-shard-allocation-filtering,allocation
+      filtering>> or <<forced-awareness,forced awareness>>.
 
-[float]
-=== Shard balancing heuristics
+[[shards-rebalancing-heuristics]]
+==== Shard balancing heuristics settings
 
 The following settings are used together to determine where to place each
 shard.  The cluster is balanced when no allowed rebalancing operation can bring the weight

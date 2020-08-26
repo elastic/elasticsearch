@@ -3,7 +3,7 @@
 [[elasticsearch-croneval]]
 == elasticsearch-croneval
 
-Validates and evaluates a cron expression. 
+Validates and evaluates a <<cron-expressions,cron expression>>. 
 
 [discrete]
 === Synopsis
@@ -19,18 +19,21 @@ bin/elasticsearch-croneval <expression>
 === Description
 
 This command enables you to verify that your
-https://en.wikipedia.org/wiki/Cron[cron] expressions are valid for use with the
-{es} {alert-features} and produce the expected results.
+cron expressions are valid for use with
+{es} and produce the expected results.
 
 This command is provided in the `$ES_HOME/bin` directory.
 
-[discrete]
 === Parameters
 
 `-c, --count` <Integer>::
   The number of future times this expression will be triggered. The default
   value is `10`.
-  
+
+`-d, --detail`::
+  Shows detail for invalid cron expression. It will print the stacktrace if the
+  expression is not valid.
+
 `-h, --help`::
   Returns all of the command parameters.
 
@@ -41,7 +44,7 @@ This command is provided in the `$ES_HOME/bin` directory.
   Shows verbose output.
 
 [discrete]
-=== Examples
+=== Example
 
 If the cron expression is valid, the following command displays the next
 20 times that the schedule will be triggered:

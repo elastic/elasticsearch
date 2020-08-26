@@ -176,7 +176,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
-            request.setOptions(allowTypesRemovalWarnings());
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());

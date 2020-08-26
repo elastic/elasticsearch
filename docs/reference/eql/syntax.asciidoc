@@ -1,0 +1,722 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-syntax]]
+== EQL syntax reference
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
+
+experimental::[]
+
+[IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>.
+
+[discrete]
+[[eql-basic-syntax]]
+=== Basic syntax
+
+EQL queries require an event category and a matching condition. The `where`
+keyword connects them.
+
+[source,eql]
+----
+event_category where condition
+----
+
+For example, the following EQL query matches `process` events with a
+`process.name` field value of `svchost.exe`:
+
+[source,eql]
+----
+process where process.name == "svchost.exe"
+----
+
+[discrete]
+[[eql-syntax-event-categories]]
+==== Event categories
+
+In {es}, an event category is a valid, indexed value of the
+<<eql-required-fields,event category field>>. You can set the event category
+field using the `event_category_field` parameter of the EQL search API.
+
+[discrete]
+[[eql-syntax-match-any-event-category]]
+===== Match any event category
+
+To match events of any category, use the `any` keyword. You can also use the
+`any` keyword to search for documents without a event category field.
+
+For example, the following EQL query matches any documents with a
+`network.protocol` field value of `http`:
+
+[source,eql]
+----
+any where network.protocol == "http"
+----
+
+[discrete]
+[[eql-syntax-conditions]]
+==== Conditions
+
+A condition consists of one or more criteria an event must match.
+You can specify and combine these criteria using the following operators:
+
+[discrete]
+[[eql-syntax-comparison-operators]]
+===== Comparison operators
+
+[source,eql]
+----
+<   <=   ==   !=   >=   >
+----
+
+You cannot use comparison operators to compare a variable, such as a field
+value, to another variable, even if those variables are modified using a
+<<eql-functions,function>>.
+
+.*Example*
+[%collapsible]
+====
+The following EQL query compares the `process.parent_name` field
+value to a static value, `foo`. This comparison is supported.
+
+However, the query also compares the `process.parent.name` field value to the
+`process.name` field. This comparison is not supported and will return an
+error for the entire query.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.parent.name == process.name
+----
+
+Instead, you can rewrite the query to compare both the `process.parent.name`
+and `process.name` fields to static values.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.name == "foo"
+----
+====
+
+[IMPORTANT]
+====
+Avoid using the equal operator (`==`) to perform exact matching on
+<<text,`text`>> field values.
+
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
+====
+
+.*Definitions*
+[%collapsible]
+====
+`<` (less than)::
+Returns `true` if the value to the left of the operator is less than the value
+to the right. Otherwise returns `false`.
+
+`<=` (less than or equal) ::
+Returns `true` if the value to the left of the operator is less than or equal to
+the value to the right. Otherwise returns `false`.
+
+`==` (equal)::
+Returns `true` if the values to the left and right of the operator are equal.
+Otherwise returns `false`.
+
+`!=` (not equal)::
+Returns `true` if the values to the left and right of the operator are not
+equal. Otherwise returns `false`.
+
+`>=` (greater than or equal) ::
+Returns `true` if the value to the left of the operator is greater than or equal
+to the value to the right. Otherwise returns `false`.
+
+`>` (greater than)::
+Returns `true` if the value to the left of the operator is greater than the
+value to the right. Otherwise returns `false`.
+====
+
+[discrete]
+[[eql-syntax-logical-operators]]
+===== Logical operators
+
+[source,eql]
+----
+and  or  not
+----
+
+.*Definitions*
+[%collapsible]
+====
+`and`::
+Returns `true` only if the condition to the left and right _both_ return `true`.
+Otherwise returns `false.
+
+`or`::
+Returns `true` if one of the conditions to the left or right `true`.
+Otherwise returns `false.
+
+`not`::
+Returns `true` if the condition to the right is `false`.
+====
+
+[discrete]
+[[eql-syntax-lookup-operators]]
+===== Lookup operators
+
+[source,eql]
+----
+user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+----
+
+.*Definitions*
+[%collapsible]
+====
+`in`::
+Returns `true` if the value is contained in the provided list.
+
+`not in`::
+Returns `true` if the value is not contained in the provided list.
+====
+
+[discrete]
+[[eql-syntax-math-operators]]
+===== Math operators
+
+[source,eql]
+----
++  -  *  /  %
+----
+
+.*Definitions*
+[%collapsible]
+====
+`+` (add)::
+Adds the values to the left and right of the operator.
+
+`-` (Subtract)::
+Subtracts the value to the right of the operator from the value to the left.
+
+`*` (Subtract)::
+Multiplies the values to the left and right of the operator.
+
+`/` (Divide)::
+Divides the value to the left of the operator by the value to the right.
+
+`%` (modulo)::
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
+====
+
+[[eql-divide-operator-float-rounding]]
+[WARNING]
+====
+If both the dividend and divisor are integers, the divide (`\`) operation
+_rounds down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+=====
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`.
+
+[source,eql]
+----
+process where ( 4 / process.args_count ) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the divide operation
+returns a float of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where ( 4.0 / process.args_count ) == 1
+----
+=====
+====
+
+[discrete]
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed with double quotes (`"`) or single quotes (`'`).
+
+[source,eql]
+----
+"hello world"
+"hello world with 'substring'"
+----
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards
+
+You can use the wildcard operator (`*`) within a string to match specific
+patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
+operators:
+
+[source,eql]
+----
+field == "example*wildcard"
+field != "example*wildcard"
+----
+
+[discrete]
+[[eql-syntax-match-any-condition]]
+===== Match any condition
+
+To match events solely on event category, use the `where true` condition.
+
+For example, the following EQL query matches any `file` events:
+
+[source,eql]
+----
+file where true
+----
+
+To match any event, you can combine the `any` keyword with the `where true`
+condition:
+
+[source,eql]
+----
+any where true
+----
+
+[discrete]
+[[eql-syntax-escaped-characters]]
+===== Escaped characters
+
+When used within a string, special characters, such as a carriage return or
+double quote (`"`), must be escaped with a preceding backslash (`\`).
+
+[source,eql]
+----
+"example \t of \n escaped \r characters"
+----
+
+.*Escape sequences*
+[%collapsible]
+====
+[options="header"]
+|====
+| Escape sequence | Literal character
+|`\n`             | A newline (linefeed) character
+|`\r`             | A carriage return character
+|`\t`             | A tab character
+|`\\`             | A backslash (`\`) character
+|`\"`             | A double quote (`"`) character
+|`\'`             | A single quote (`'`) character
+|====
+====
+
+[discrete]
+[[eql-syntax-raw-strings]]
+===== Raw strings
+
+Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
+literal characters.
+
+[source,eql]
+----
+?"String with a literal 'blackslash' \ character included"
+----
+
+You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
+the backslash remains in the resulting string.
+
+[source,eql]
+----
+?"\""
+----
+
+[NOTE]
+====
+Raw strings cannot contain only a single backslash or end in an odd number of
+backslashes.
+====
+
+[discrete]
+[[eql-syntax-non-alpha-field-names]]
+==== Non-alphanumeric field names
+
+Field names containing non-alphanumeric characters, such as underscores (`_`),
+dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
+
+[source,eql]
+----
+`my_field`
+`my.field`
+`my-field`
+`my field`
+----
+
+[discrete]
+[[eql-sequences]]
+=== Sequences
+
+You can use EQL sequences to describe and match an ordered series of events.
+Each item in a sequence is an event category and event condition,
+surrounded by square brackets (`[ ]`). Events are listed in ascending
+chronological order, with the most recent event listed last.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query matches this series of ordered events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+[discrete]
+[[eql-with-maxspan-keywords]]
+==== `with maxspan` keywords
+
+You can use the `with maxspan` keywords to constrain a sequence to a specified
+timespan. All events in a matching sequence must occur within this duration,
+starting at the first event's timestamp.
+
+The `maxspan` keyword accepts <<time-units,time value>> arguments.
+
+[source,eql]
+----
+sequence with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses a `maxspan` value of `15m` (15 minutes).
+Events in a matching sequence must occur within 15 minutes of the first event's
+timestamp.
+
+[source,eql]
+----
+sequence with maxspan=15m
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+[discrete]
+[[eql-by-keyword]]
+==== `by` keyword
+
+You can use the `by` keyword with sequences to only match events that share the
+same field values. If a field value should be shared across all events, you
+can use `sequence by`.
+
+[source,eql]
+----
+sequence by field_foo
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses the `by` keyword to constrain matching events
+to:
+
+* Events with the same `user.name` value
+* `file` events with a `file.path` value equal to the following `process`
+   event's `process.path` value.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ] by user.name, file.path
+  [ process where true ] by user.name, process.path
+----
+
+Because the `user.name` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following sequence is equivalent to the
+prior one.
+
+[source,eql]
+----
+sequence by user.name
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+You can combine the `sequence by` and `with maxspan` keywords to constrain a
+sequence by both field values and a timespan.
+
+[source,eql]
+----
+sequence by field_foo with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses the `sequence by` keyword and `with maxspan`
+keywords to match only a sequence of events that:
+
+* Share the same `user.name` field values
+* Occur within `15m` (15 minutes) of the first matching event
+
+[source,eql]
+----
+sequence by user.name with maxspan=15m
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+[discrete]
+[[eql-until-keyword]]
+==== `until` keyword
+
+You can use the `until` keyword to specify an expiration event for sequences.
+Matching sequences must end before this event, which is not included the
+results. If this event occurs within a sequence, the sequence is not considered
+a match.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+until [ event_category_2 where condition_2 ]
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query uses the `until` keyword to end sequences
+before a process termination event. Process termination events have an event
+category of `process` and `event.type` value of `termination`.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+until [ process where event.type == "termination" ]
+----
+====
+
+[TIP]
+====
+The `until` keyword can be helpful when searching for process sequences in
+Windows event logs, such as those ingested using
+{winlogbeat-ref}/index.html[Winlogbeat].
+
+In Windows, a process ID (PID) is unique only while a process is running. After
+a process terminates, its PID can be reused.
+
+You can search for a sequence of events with the same PID value using the `by`
+and `sequence by` keywords.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `sequence by` keyword to match a sequence of
+events that share the same `process.pid` value.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+----
+=====
+
+However, due to PID reuse, this can result in a matching sequence that
+contains events across unrelated processes. To prevent false positives, you can
+use the `until` keyword to end matching sequences before a process termination
+event.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `until` keyword to end sequences before
+`process` events with an `event.type` of `termination`. These events indicate a
+process has been terminated.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+until [ process where event.type == "termination" ]
+----
+=====
+
+====
+
+[discrete]
+[[eql-functions]]
+=== Functions
+
+{es} supports several of EQL's built-in functions. You can use these functions
+to convert data types, perform math, manipulate strings, and more.
+
+For a list of supported functions, see <<eql-function-ref>>.
+
+[TIP]
+====
+Using functions in EQL queries can result in slower search speeds. If you
+often use functions to transform indexed data, you can speed up search by making
+these changes during indexing instead. However, that often means slower index
+speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index contains the `file.path` field. `file.path` contains the full path to a
+file, including the file extension.
+
+When running EQL searches, users often use the `endsWith` function with the
+`file.path` field to match file extensions:
+
+[source,eql]
+----
+file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
+----
+
+While this works, it can be repetitive to write and can slow search speeds. To
+speed up search, you can do the following instead:
+
+. <<indices-put-mapping,Add a new field>>, `file.extension`, to the index. The
+  `file.extension` field will contain only the file extension from the
+  `file.path` field.
+. Use an <<ingest,ingest pipeline>> containing the <<grok-processor,`grok`>>
+  processor or another preprocessor tool to extract the file extension from the
+  `file.path` field before indexing.
+. Index the extracted file extension to the `file.extension` field.
+
+These changes may slow indexing but allow for faster searches. Users
+can use the `file.extension` field instead of multiple `endsWith` function
+calls:
+
+[source,eql]
+----
+file where file.extension in ("exe", "dll")
+----
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
+====
+
+[discrete]
+[[eql-pipes]]
+=== Pipes
+
+EQL pipes filter, aggregate, and post-process events returned by
+an EQL query. You can use pipes to narrow down EQL query results or make them
+more specific.
+
+Pipes are delimited using the pipe (`|`) character.
+
+[source,eql]
+----
+event_category where condition | pipe
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query uses the `tail` pipe to return only the 10 most recent
+events matching the query.
+
+[source,eql]
+----
+authentication where agent.id == 4624
+| tail 10
+----
+====
+
+You can pass the output of a pipe to another pipe. This lets you use multiple
+pipes with a single query.
+
+For a list of supported pipes, see <<eql-pipe-ref>>.
+
+[discrete]
+[[eql-syntax-limitations]]
+=== Limitations
+
+{es} EQL does not support the following features and syntax.
+
+[discrete]
+[[eql-nested-fields]]
+==== EQL search on nested fields
+
+You cannot use EQL to search the values of a <<nested,`nested`>> field or the
+sub-fields of a `nested` field. However, data streams and indices containing
+`nested` field mappings are otherwise supported.
+
+[discrete]
+[[eql-unsupported-syntax]]
+==== Unsupported syntax
+
+{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
+queries that contain:
+
+* Array functions:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+
+* {eql-ref}/joins.html[Joins]
+
+* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+** `child of`
+** `descendant of`
+** `event of`
+
+* The following {eql-ref}/pipes.html[pipes]:
+** {eql-ref}/pipes.html#count[`count`]
+** {eql-ref}/pipes.html#filter[`filter`]
+** {eql-ref}/pipes.html#sort[`sort`]
+** {eql-ref}/pipes.html#unique[`unique`]
+** {eql-ref}/pipes.html#unique-count[`unique_count`]

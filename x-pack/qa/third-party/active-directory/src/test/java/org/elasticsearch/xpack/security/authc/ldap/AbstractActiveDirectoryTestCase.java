@@ -90,7 +90,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
-        sslService = new SSLService(globalSettings, environment);
+        sslService = new SSLService(environment);
     }
 
     Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,

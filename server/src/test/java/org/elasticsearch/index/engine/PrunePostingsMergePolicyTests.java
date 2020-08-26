@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -51,7 +52,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             iwc.setSoftDeletesField("_soft_deletes");
             MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
                 new PrunePostingsMergePolicy(newLogMergePolicy(), "id"));
-            iwc.setMergePolicy(mp);
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             boolean sorted = randomBoolean();
             if (sorted) {
                 iwc.setIndexSort(new Sort(new SortField("sort", SortField.Type.INT)));

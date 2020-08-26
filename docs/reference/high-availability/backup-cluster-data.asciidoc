@@ -6,7 +6,7 @@
 
 To back up your cluster's data, you can use the <<modules-snapshots,snapshot API>>.
 
-include::{es-repo-dir}/modules/snapshots.asciidoc[tag=snapshot-intro]
+include::../snapshot-restore/index.asciidoc[tag=snapshot-intro]
 
 [TIP]
 ====

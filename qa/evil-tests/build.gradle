@@ -27,7 +27,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile 'com.google.jimfs:jimfs:1.1'
+  testImplementation 'com.google.jimfs:jimfs:1.1'
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
@@ -37,16 +37,16 @@ test {
 }
 
 thirdPartyAudit {
-    ignoreMissingClasses (
-        'com.ibm.icu.lang.UCharacter'
-    )
+  ignoreMissingClasses(
+    'com.ibm.icu.lang.UCharacter'
+  )
 
-    ignoreViolations (
-      // uses internal java api: sun.misc.Unsafe
-      'com.google.common.cache.Striped64',
-      'com.google.common.cache.Striped64$1',
-      'com.google.common.cache.Striped64$Cell',
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
-    )
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+  )
 }

@@ -91,37 +91,38 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f.name(), equalTo("object1.multi1.string"));
         assertThat(f.binaryValue(), equalTo(new BytesRef("2010-01-01")));
 
-        assertThat(mapperService.fullName("name"), notNullValue());
-        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fullName("name").indexOptions());
-        assertThat(mapperService.fullName("name").stored(), equalTo(true));
-        assertThat(mapperService.fullName("name").tokenized(), equalTo(true));
+        assertThat(mapperService.fieldType("name"), notNullValue());
+        assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
-        assertThat(mapperService.fullName("name.indexed"), notNullValue());
-        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fullName("name.indexed").indexOptions());
-        assertThat(mapperService.fullName("name.indexed").stored(), equalTo(false));
-        assertThat(mapperService.fullName("name.indexed").tokenized(), equalTo(true));
+        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
+        assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name.indexed").isSearchable());
+        assertFalse(mapperService.fieldType("name.indexed").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
-        assertThat(mapperService.fullName("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
-        assertEquals(IndexOptions.NONE, mapperService.fullName("name.not_indexed").indexOptions());
-        assertThat(mapperService.fullName("name.not_indexed").stored(), equalTo(true));
-        assertThat(mapperService.fullName("name.not_indexed").tokenized(), equalTo(true));
+        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
+        assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
+        assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
-        assertThat(mapperService.fullName("name.test1"), notNullValue());
-        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fullName("name.test1").indexOptions());
-        assertThat(mapperService.fullName("name.test1").stored(), equalTo(true));
-        assertThat(mapperService.fullName("name.test1").tokenized(), equalTo(true));
-        assertThat(mapperService.fullName("name.test1").eagerGlobalOrdinals(), equalTo(true));
+        assertThat(mapperService.fieldType("name.test1"), notNullValue());
+        assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name.test1").isSearchable());
+        assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
+        assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
-        assertThat(mapperService.fullName("object1.multi1"), notNullValue());
-        assertThat(mapperService.fullName("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
-        assertThat(mapperService.fullName("object1.multi1.string"), notNullValue());
-        assertThat(mapperService.fullName("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fullName("object1.multi1.string").indexOptions());
-        assertThat(mapperService.fullName("object1.multi1.string").tokenized(), equalTo(false));
+        assertThat(mapperService.fieldType("object1.multi1"), notNullValue());
+        assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
+        assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
+        assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertTrue(mapperService.fieldType("object1.multi1.string").isSearchable());
+        assertNotNull(mapperService.fieldType("object1.multi1.string").getTextSearchInfo());
+        assertFalse(mapperService.fieldType("object1.multi1.string").getTextSearchInfo().isTokenized());
     }
 
     public void testBuildThenParse() throws Exception {

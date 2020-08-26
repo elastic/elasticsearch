@@ -36,7 +36,8 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 
-public class LeafFieldsLookup implements Map {
+@SuppressWarnings({"unchecked", "rawtypes"})
+public class LeafFieldsLookup implements Map<Object, Object> {
 
     private final MapperService mapperService;
 
@@ -128,7 +129,7 @@ public class LeafFieldsLookup implements Map {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = mapperService.fullName(name);
+            MappedFieldType fieldType = mapperService.fieldType(name);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }
@@ -144,7 +145,7 @@ public class LeafFieldsLookup implements Map {
                     values.add(mapper.type());
                 }
             } else {
-                values = new ArrayList<Object>(2);
+                values = new ArrayList<>(2);
                 SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
                 try {
                     reader.document(docId, visitor);

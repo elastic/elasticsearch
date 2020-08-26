@@ -22,12 +22,8 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -69,7 +65,7 @@ public class TestTranslog {
      * See {@link TestTranslog#corruptFile(Logger, Random, Path, boolean)} for details of the corruption applied.
      */
     public static void corruptRandomTranslogFile(Logger logger, Random random, Path translogDir) throws IOException {
-        corruptRandomTranslogFile(logger, random, translogDir, minTranslogGenUsedInRecovery(translogDir));
+        corruptRandomTranslogFile(logger, random, translogDir, Translog.readCheckpoint(translogDir).minTranslogGeneration);
     }
 
     /**
@@ -92,11 +88,21 @@ public class TestTranslog {
                 // if we crashed while rolling a generation then we might have copied `translog.ckp` to its numbered generation file but
                 // have not yet written a new `translog.ckp`. During recovery we must also verify that this file is intact, so it's ok to
                 // corrupt this file too (either by writing the wrong information, correctly formatted, or by properly corrupting it)
-                final Checkpoint checkpointCopy = LuceneTestCase.usually(random) ? checkpoint
-                        : new Checkpoint(checkpoint.offset + random.nextInt(2), checkpoint.numOps + random.nextInt(2),
-                            checkpoint.generation + random.nextInt(2), checkpoint.minSeqNo + random.nextInt(2),
-                            checkpoint.maxSeqNo + random.nextInt(2), checkpoint.globalCheckpoint + random.nextInt(2),
-                            checkpoint.minTranslogGeneration + random.nextInt(2), checkpoint.trimmedAboveSeqNo + random.nextInt(2));
+                final Checkpoint checkpointCopy;
+                if (LuceneTestCase.usually(random)) {
+                    checkpointCopy = checkpoint;
+                } else {
+                    long newTranslogGeneration = checkpoint.generation + random.nextInt(2);
+                    long newMinTranslogGeneration = Math.min(newTranslogGeneration, checkpoint.minTranslogGeneration + random.nextInt(2));
+                    long newMaxSeqNo = checkpoint.maxSeqNo + random.nextInt(2);
+                    long newMinSeqNo = Math.min(newMaxSeqNo, checkpoint.minSeqNo + random.nextInt(2));
+                    long newTrimmedAboveSeqNo = Math.min(newMaxSeqNo, checkpoint.trimmedAboveSeqNo + random.nextInt(2));
+
+                    checkpointCopy = new Checkpoint(checkpoint.offset + random.nextInt(2), checkpoint.numOps + random.nextInt(2),
+                        newTranslogGeneration, newMinSeqNo,
+                        newMaxSeqNo, checkpoint.globalCheckpoint + random.nextInt(2),
+                        newMinTranslogGeneration, newTrimmedAboveSeqNo);
+                }
                 Checkpoint.write(FileChannel::open, unnecessaryCheckpointCopyPath, checkpointCopy,
                     StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
 
@@ -175,19 +181,6 @@ public class TestTranslog {
                 logger.info("corruptFile: truncating file {} from length {} to length {}", fileToCorrupt, fileSize, corruptPosition);
                 fileChannel.truncate(corruptPosition);
             }
-        }
-    }
-
-    /**
-     * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
-     */
-    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
-        try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
-            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            final String translogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            IndexCommit recoveringCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-            return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }
     }
 

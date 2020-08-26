@@ -40,6 +40,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scroll;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -176,6 +177,22 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         } else {
             assertThat(params, hasEntry("version", Boolean.FALSE.toString()));
         }
+    }
+
+    public void testInitialSearchDisallowPartialResults() {
+        final String allowPartialParamName = "allow_partial_search_results";
+        final int v6_3 = 6030099;
+
+        BytesReference query = new BytesArray("{}");
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+
+        Version disallowVersion = Version.fromId(between(v6_3, Version.CURRENT.id));
+        Map<String, String> params = initialSearch(searchRequest, query, disallowVersion).getParameters();
+        assertEquals("false", params.get(allowPartialParamName));
+
+        Version allowVersion = Version.fromId(between(0, v6_3-1));
+        params = initialSearch(searchRequest, query, allowVersion).getParameters();
+        assertThat(params.keySet(), not(contains(allowPartialParamName)));
     }
 
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {

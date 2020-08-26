@@ -27,7 +27,6 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -44,7 +43,7 @@ public class NettyAllocator {
         } else {
             ByteBufAllocator delegate;
             if (useUnpooled()) {
-                delegate = new NoDirectBuffers(UnpooledByteBufAllocator.DEFAULT);
+                delegate = UnpooledByteBufAllocator.DEFAULT;
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize = PooledByteBufAllocator.defaultPageSize();
@@ -60,10 +59,6 @@ public class NettyAllocator {
         }
     }
 
-    public static boolean useCopySocket() {
-        return ALLOCATOR instanceof NoDirectBuffers;
-    }
-
     public static ByteBufAllocator getAllocator() {
         return ALLOCATOR;
     }
@@ -72,7 +67,7 @@ public class NettyAllocator {
         if (ALLOCATOR instanceof NoDirectBuffers) {
             return CopyBytesSocketChannel.class;
         } else {
-            return NioSocketChannel.class;
+            return Netty4NioSocketChannel.class;
         }
     }
 
@@ -148,26 +143,17 @@ public class NettyAllocator {
 
         @Override
         public ByteBuf directBuffer() {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer();
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity) {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer(initialCapacity);
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity, int maxCapacity) {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer(initialCapacity, maxCapacity);
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override

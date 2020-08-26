@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -282,6 +282,11 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
+        if ("enterprise".equals(licenseType)) {
+            builder.version(License.VERSION_ENTERPRISE)
+                .maxResourceUnits(randomIntBetween(5, 500))
+                .maxNodes(-1);
+        }
         final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
@@ -357,7 +362,7 @@ public class TestUtils {
         public final List<Version> trialVersionUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, () -> 0);
         }
 
         @Override
@@ -378,7 +383,7 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(settings, () -> 0);
         }
 
         @Override
@@ -387,7 +392,11 @@ public class TestUtils {
         }
     }
 
-    public static void putLicense(MetaData.Builder builder, License license) {
-        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
+    public static XPackLicenseState newTestLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+    }
+
+    public static void putLicense(Metadata.Builder builder, License license) {
+        builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }
 }

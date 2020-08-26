@@ -13,10 +13,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -29,14 +29,16 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
 
     private final Settings settings;
     private final ThreadPool threadPool;
+    private final SecurityContext securityContext;
     private final NativeUsersStore usersStore;
 
     @Inject
     public TransportSetEnabledAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, NativeUsersStore usersStore) {
+                                     ActionFilters actionFilters, SecurityContext securityContext, NativeUsersStore usersStore) {
         super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
         this.settings = settings;
         this.threadPool = threadPool;
+        this.securityContext = securityContext;
         this.usersStore = usersStore;
     }
 
@@ -44,7 +46,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     protected void doExecute(Task task, SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
-        if (Authentication.getAuthentication(threadPool.getThreadContext()).getUser().principal().equals(request.username())) {
+        if (securityContext.getUser().principal().equals(request.username())) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
             return;
         } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {

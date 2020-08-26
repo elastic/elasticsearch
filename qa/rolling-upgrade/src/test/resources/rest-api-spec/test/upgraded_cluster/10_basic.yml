@@ -30,6 +30,7 @@
         id: q4
         refresh: true
         body:
+          id: q4
           query:
             bool:
               minimum_should_match: 2
@@ -57,7 +58,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -94,7 +95,9 @@
         index: .tasks
         body:
           query:
-            match_all: {}
+            match:
+              task.description:
+                query: 'reindexed_index_copy'
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: '/.+:\d+/' }
   - set: {hits.hits.0._id: task_id}
@@ -125,4 +128,56 @@
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
 
+---
+"Component and composable templates can be retrieved and updated":
+  - do:
+      cluster.get_component_template:
+        name: my-ct
 
+  - match: {component_templates.0.name: my-ct}
+  - match: {component_templates.0.component_template.version: 2}
+  - match: {component_templates.0.component_template._meta: {foo: bar, baz: {eggplant: true}}}
+  - match: {component_templates.0.component_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {component_templates.0.component_template.template.mappings: {dynamic: false}}
+  - match: {component_templates.0.component_template.template.aliases: {aliasname: {}}}
+
+  - do:
+      indices.get_index_template:
+        name: my-it
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - is_true: index_templates.0.index_template.template.mappings
+  - length: {index_templates.0.index_template.template.aliases: 3}
+  - is_true: index_templates.0.index_template.template.aliases.test_alias
+  - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "kimchy" }
+  - do:
+      cluster.put_component_template:
+        name: my-ct
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              dynamic: true
+            aliases:
+              aliasname: {}
+          version: 2
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: my-ct
+
+  - match: {component_templates.0.name: my-ct}
+  - match: {component_templates.0.component_template.version: 2}
+  - match: {component_templates.0.component_template._meta: {foo: bar, baz: {eggplant: true}}}
+  - match: {component_templates.0.component_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - is_true: component_templates.0.component_template.template.mappings
+  - match: {component_templates.0.component_template.template.aliases: {aliasname: {}}}

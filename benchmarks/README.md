@@ -53,9 +53,9 @@ To get realistic results, you should exercise care when running benchmarks. Here
   `performance` CPU governor.
 * Vary the problem input size with `@Param`.
 * Use the integrated profilers in JMH to dig deeper if benchmark results to not match your hypotheses:
-    * Run the generated uberjar directly and use `-prof gc` to check whether the garbage collector runs during a microbenchmarks and skews
+    * Add `-prof gc` to the options to check whether the garbage collector runs during a microbenchmarks and skews
    your results. If so, try to force a GC between runs (`-gc true`) but watch out for the caveats.
-    * Use `-prof perf` or `-prof perfasm` (both only available on Linux) to see hotspots.
+    * Add `-prof perf` or `-prof perfasm` (both only available on Linux) to see hotspots.
 * Have your benchmarks peer-reviewed.
 
 ### Don't
@@ -63,3 +63,29 @@ To get realistic results, you should exercise care when running benchmarks. Here
 * Blindly believe the numbers that your microbenchmark produces but verify them by measuring e.g. with `-prof perfasm`.
 * Run more threads than your number of CPU cores (in case you run multi-threaded microbenchmarks).
 * Look only at the `Score` column and ignore `Error`. Instead take countermeasures to keep `Error` low / variance explainable.
+
+## Disassembling
+
+Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and FCML's `hsdis`.
+`perf` is generally available via `apg-get install perf` or `pacman -S perf`. FCML is a little more involved. This worked
+on 2020-08-01:
+
+```
+wget https://github.com/swojtasiak/fcml-lib/releases/download/v1.2.2/fcml-1.2.2.tar.gz
+tar xf fcml*
+cd fcml*
+./configure
+make
+cd example/hsdis
+make
+cp .libs/libhsdis.so.0.0.0
+sudo cp .libs/libhsdis.so.0.0.0 /usr/lib/jvm/java-14-adoptopenjdk/lib/hsdis-amd64.so
+```
+
+If you want to disassemble a single method do something like this:
+
+```
+gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
+```
+
+If you want `perf` to find the hot methods for you then do add `-prof:perfasm`.

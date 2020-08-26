@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,19 +39,19 @@ import java.util.stream.Stream;
 public class RestClusterGetSettingsActionTests extends ESTestCase {
 
     public void testFilterPersistentSettings() {
-        runTestFilterSettingsTest(MetaData.Builder::persistentSettings, ClusterGetSettingsResponse::getPersistentSettings);
+        runTestFilterSettingsTest(Metadata.Builder::persistentSettings, ClusterGetSettingsResponse::getPersistentSettings);
     }
 
     public void testFilterTransientSettings() {
-        runTestFilterSettingsTest(MetaData.Builder::transientSettings, ClusterGetSettingsResponse::getTransientSettings);
+        runTestFilterSettingsTest(Metadata.Builder::transientSettings, ClusterGetSettingsResponse::getTransientSettings);
     }
 
     private void runTestFilterSettingsTest(
-            final BiConsumer<MetaData.Builder, Settings> md, final Function<ClusterGetSettingsResponse, Settings> s) {
-        final MetaData.Builder mdBuilder = new MetaData.Builder();
+            final BiConsumer<Metadata.Builder, Settings> md, final Function<ClusterGetSettingsResponse, Settings> s) {
+        final Metadata.Builder mdBuilder = new Metadata.Builder();
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
         md.accept(mdBuilder, settings);
-        final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metaData(mdBuilder);
+        final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(mdBuilder);
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         final Setting.Property[] properties = {Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope};
         final Set<Setting<?>> settingsSet = Stream.concat(

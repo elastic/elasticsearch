@@ -3,21 +3,20 @@
 [[sql-syntax-select]]
 === SELECT
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-SELECT select_expr [, ...]
+SELECT [TOP [ count ] ] select_expr [, ...]
 [ FROM table_name ]
 [ WHERE condition ]
 [ GROUP BY grouping_element [, ...] ]
 [ HAVING condition]
 [ ORDER BY expression [ ASC | DESC ] [, ...] ]
 [ LIMIT [ count ] ]
+[ PIVOT ( aggregation_expr FOR column IN ( value [ [ AS ] alias ] [, ...] ) ) ]
 ----
 
-.Description
-
-Retrieves rows from zero or more tables.
+*Description*: Retrieves rows from zero or more tables.
 
 The general execution of `SELECT` is as follows:
 
@@ -26,7 +25,7 @@ The general execution of `SELECT` is as follows:
 . If the `GROUP BY` clause is specified, or if there are aggregate function calls, the output is combined into groups of rows that match on one or more values, and the results of aggregate functions are computed. If the `HAVING` clause is present, it eliminates groups that do not satisfy the given condition. (See <<sql-syntax-group-by, GROUP BY Clause>> and <<sql-syntax-having, HAVING Clause>> below.)
 . The actual output rows are computed using the `SELECT` output expressions for each selected row or row group.
 . If the `ORDER BY` clause is specified, the returned rows are sorted in the specified order. If `ORDER BY` is not given, the rows are returned in whatever order the system finds fastest to produce. (See <<sql-syntax-order-by,ORDER BY Clause>> below.)
-. If the `LIMIT` is specified, the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> below.)
+. If the `LIMIT` or `TOP` is specified (cannot use both in the same query), the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> and <<sql-syntax-top, TOP clause>> below.)
 
 
 [[sql-syntax-select-list]]
@@ -69,6 +68,30 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[wildcardWithOrder]
 ----
 
 which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
+
+[[sql-syntax-top]]
+==== TOP
+
+The `TOP` clause can be used before the <<sql-syntax-select-list, `SELECT` list>> or the <<sql-syntax-select-wildcard, `wildcard`> to
+restrict (limit) the number of rows returned using the format:
+
+[source, sql]
+----
+SELECT TOP <count> <select list> ...
+----
+
+where
+
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
+than the limit). If `0` is specified, no results are returned.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[topBasic]
+----
+
+[NOTE]
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
 
 [[sql-syntax-from]]
 ==== FROM Clause
@@ -235,7 +258,7 @@ The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROU
 
 [source, sql]
 ----
-GROUP BY condition
+HAVING condition
 ----
 
 where:
@@ -337,7 +360,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
 ----
 
 IMPORTANT: Ordering by aggregation is possible for up to *10000* entries for memory consumption reasons.
-In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
+In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> or <<sql-syntax-top, `TOP`>> to reduce the number
 of results.
 
 [[sql-syntax-order-by-score]]
@@ -372,22 +395,75 @@ all are equally relevant.
 [[sql-syntax-limit]]
 ==== LIMIT
 
-The `LIMIT` clause restricts (limits) the number of rows returns using the format:
+The `LIMIT` clause restricts (limits) the number of rows returned using the format:
 
 [source, sql]
 ----
-LIMIT ( count | ALL )
+LIMIT ( <count> | ALL )
 ----
 
 where
 
-count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches than the limit). If `0` is specified, no results are returned.
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
+than the limit). If `0` is specified, no results are returned.
 
 ALL:: indicates there is no limit and thus all results are being returned.
-
-To return 
 
 [source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
 ----
+
+[NOTE]
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
+
+[[sql-syntax-pivot]]
+==== PIVOT
+
+The `PIVOT` clause performs a cross tabulation on the results of the query: it aggregates the results and rotates rows into columns. The rotation is done by turning unique values from one column in the expression - the pivoting column - into multiple columns in the output. The column values are aggregations on the remaining columns specified in the expression.
+
+The clause can be broken down in three parts: the aggregation, the `FOR`- and the `IN`-subclause.
+
+The `aggregation_expr` subclause specifies an expression containing an <<sql-functions-aggs, aggregation function>> to be applied on one of the source columns. Only one aggregation can be provided, currently.
+
+The `FOR`-subclause specifies the pivoting column: the distinct values of this column will become the candidate set of values to be rotated.
+
+The `IN`-subclause defines a filter: the intersection between the set provided here and the candidate set from the `FOR`-subclause will be rotated to become the headers of the columns appended to the end result. The filter can not be a subquery, one must provide here literal values, obtained in advance.
+
+The pivoting operation will perform an implicit <<sql-syntax-group-by, GROUP BY>> on all source columns not specified in the `PIVOT` clause, along with the values filtered through the `IN`-clause. Consider the following statement:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[sumWithoutSubquery]
+----
+
+The query execution could logically be broken down in the following steps:
+
+. a <<sql-syntax-group-by, GROUP BY>> on the column in the `FOR`-clause: `languages`;
+. the resulting values are filtered through the set provided in the `IN`-clause;
+. the now filtered column is pivoted to form the headers of the two additional columns appended to the result: `1` and `2`;
+. a <<sql-syntax-group-by, GROUP BY>> on all columns of the source table `test_emp`, except `salary` (part of the aggregation subclause) and `languages` (part of the `FOR`-clause);
+. the values in these appended columns are the `SUM` aggregations of `salary`, grouped by the respective language.
+
+
+The table-value expression to cross-tabulate can also be the result of a subquery:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValue]
+----
+
+The pivoted columns can be aliased (and quoting is required to accommodate white spaces), with or without a supporting `AS` token:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithTwoValuesAndAlias]
+----
+
+The resulting cross tabulation can further have the <<sql-syntax-order-by,ORDER BY>> and <<sql-syntax-limit, LIMIT>> clauses applied:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/pivot.csv-spec[averageWithOneValueAndOrder]
+----
+

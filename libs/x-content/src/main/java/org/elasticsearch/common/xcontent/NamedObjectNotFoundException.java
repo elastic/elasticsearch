@@ -24,12 +24,17 @@ package org.elasticsearch.common.xcontent;
  * parse for a particular name
  */
 public class NamedObjectNotFoundException extends XContentParseException {
+    private final Iterable<String> candidates;
 
-    public NamedObjectNotFoundException(String message) {
-        this(null, message);
+    public NamedObjectNotFoundException(XContentLocation location, String message, Iterable<String> candidates) {
+        super(location, message);
+        this.candidates = candidates;
     }
 
-    public NamedObjectNotFoundException(XContentLocation location, String message) {
-        super(location, message);
+    /**
+     * The possible matches.
+     */
+    public Iterable<String> getCandidates() {
+        return candidates;
     }
 }

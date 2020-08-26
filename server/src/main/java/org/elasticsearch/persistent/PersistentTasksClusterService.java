@@ -28,15 +28,16 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,6 +79,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         periodicRechecker.setInterval(recheckInterval);
     }
 
+    // visible for testing only
+    PeriodicRechecker getPeriodicRechecker() {
+        return periodicRechecker;
+    }
+
     @Override
     public void close() {
         periodicRechecker.close();
@@ -96,7 +102,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetaData.Builder builder = builder(currentState);
+                PersistentTasksCustomMetadata.Builder builder = builder(currentState);
                 if (builder.hasTask(taskId)) {
                     throw new ResourceAlreadyExistsException("task with id {" + taskId + "} already exist");
                 }
@@ -115,7 +121,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                PersistentTasksCustomMetadata tasks = newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
                     listener.onResponse(task);
@@ -148,14 +154,14 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(id, allocationId)) {
                     tasksInProgress.removeTask(id);
                     return update(currentState, tasksInProgress);
                 } else {
                     if (tasksInProgress.hasTask(id)) {
                         logger.warn("The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated",
-                                PersistentTasksCustomMetaData.getTaskWithId(currentState, id).getTaskName(), id, allocationId);
+                                PersistentTasksCustomMetadata.getTaskWithId(currentState, id).getTaskName(), id, allocationId);
                     } else {
                         logger.warn("The task [{}] wasn't found, status is not updated", id);
                     }
@@ -171,7 +177,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
-                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
         });
     }
@@ -186,7 +192,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(id)) {
                     return update(currentState, tasksInProgress.removeTask(id));
                 } else {
@@ -202,7 +208,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
-                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
         });
     }
@@ -219,10 +225,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                           final long taskAllocationId,
                                           final PersistentTaskState taskState,
                                           final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("update task state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
                     return update(currentState, tasksInProgress.updateTaskState(taskId, taskState));
                 } else {
@@ -242,7 +248,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         });
     }
@@ -265,7 +271,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         clusterService.submitStateUpdateTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
                     logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
                     return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
@@ -281,7 +287,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         });
     }
@@ -317,6 +323,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
                 reassignPersistentTasks();
             }
+        } else {
+            periodicRechecker.cancel();
         }
     }
 
@@ -333,14 +341,17 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                // There must be a task that's worth rechecking because there was one
-                // that caused this method to be called and the method failed to assign it
-                periodicRechecker.rescheduleIfNecessary();
+                if (e instanceof NotMasterException == false) {
+                    // There must be a task that's worth rechecking because there was one
+                    // that caused this method to be called and the method failed to assign it,
+                    // but only do this if the node is still the master
+                    periodicRechecker.rescheduleIfNecessary();
+                }
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (isAnyTaskUnassigned(newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+                if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
@@ -353,7 +364,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
-        final PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        final PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks == null) {
             return false;
         }
@@ -363,7 +374,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         if (persistentTasksChanged(event)
             || event.nodesChanged()
             || event.routingTableChanged()
-            || event.metaDataChanged()
+            || event.metadataChanged()
             || masterChanged) {
 
             for (PersistentTask<?> task : tasks.tasks()) {
@@ -381,7 +392,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Returns true if any persistent task is unassigned.
      */
-    private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetaData tasks) {
+    private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetadata tasks) {
         return tasks != null && tasks.tasks().stream().anyMatch(task -> task.getAssignment().isAssigned() == false);
     }
 
@@ -394,7 +405,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     ClusterState reassignTasks(final ClusterState currentState) {
         ClusterState clusterState = currentState;
 
-        final PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        final PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks != null) {
             logger.trace("reassigning {} persistent tasks", tasks.tasks().size());
             final DiscoveryNodes nodes = currentState.nodes();
@@ -420,8 +431,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     /** Returns true if the persistent tasks are not equal between the previous and the current cluster state **/
     static boolean persistentTasksChanged(final ClusterChangedEvent event) {
-        String type = PersistentTasksCustomMetaData.TYPE;
-        return Objects.equals(event.state().metaData().custom(type), event.previousState().metaData().custom(type)) == false;
+        String type = PersistentTasksCustomMetadata.TYPE;
+        return Objects.equals(event.state().metadata().custom(type), event.previousState().metadata().custom(type)) == false;
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
@@ -429,14 +440,14 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
     }
 
-    private static PersistentTasksCustomMetaData.Builder builder(ClusterState currentState) {
-        return PersistentTasksCustomMetaData.builder(currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
+    private static PersistentTasksCustomMetadata.Builder builder(ClusterState currentState) {
+        return PersistentTasksCustomMetadata.builder(currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE));
     }
 
-    private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetaData.Builder tasksInProgress) {
+    private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetadata.Builder tasksInProgress) {
         if (tasksInProgress.isChanged()) {
-            return ClusterState.builder(currentState).metaData(
-                    MetaData.builder(currentState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasksInProgress.build())
+            return ClusterState.builder(currentState).metadata(
+                    Metadata.builder(currentState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasksInProgress.build())
             ).build();
         } else {
             return currentState;
@@ -450,7 +461,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Class to periodically try to reassign unassigned persistent tasks.
      */
-    private class PeriodicRechecker extends AbstractAsyncTask {
+    class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
             super(logger, threadPool, recheckInterval, false);
@@ -466,7 +477,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             if (clusterService.localNode().isMasterNode()) {
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
-                if (isAnyTaskUnassigned(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+                if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     reassignPersistentTasks();
                 }
             }

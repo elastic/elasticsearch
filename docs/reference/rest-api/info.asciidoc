@@ -36,7 +36,7 @@ The information provided by this API includes:
   The default value is `true`.
 
 [discrete]
-[[info-api--example]]
+[[info-api-example]]
 === {api-examples-title}
 
 The following example queries the info API:
@@ -75,10 +75,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "flattened" : {
-         "available" : true,
-         "enabled" : true
-      },
       "frozen_indices" : {
          "available" : true,
          "enabled" : true
@@ -107,6 +103,10 @@ Example response:
          "available": true,
          "enabled": true
       },
+      "searchable_snapshots" : {
+         "available" : true,
+         "enabled" : true
+      },
       "security" : {
          "available" : true,
          "enabled" : false
@@ -116,6 +116,10 @@ Example response:
          "enabled" : true
       },
       "spatial" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "eql" : {
          "available" : true,
          "enabled" : true
       },
@@ -138,6 +142,10 @@ Example response:
       "watcher" : {
          "available" : true,
          "enabled" : true
+      },
+      "data_streams" : {
+         "available" : true,
+         "enabled" : true,
       }
    },
    "tagline" : "You know, for X"
@@ -149,6 +157,8 @@ Example response:
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
 // TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql": $body.$_path,/]
+// eql is disabled by default on release builds and enabled everywhere else during the initial implementation phase until its release
 // So much s/// but at least we test that the layout is close to matching....
 
 The following example only returns the build and features information:

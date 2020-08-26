@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.transport.PortsRange;
+
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -66,7 +68,7 @@ public final class NetworkAddress {
      * @return formatted string
      */
     public static String format(InetAddress address) {
-        return format(address, -1);
+        return format(address, new PortsRange(""));
     }
 
     /**
@@ -88,21 +90,64 @@ public final class NetworkAddress {
         return format(address.getAddress(), address.getPort());
     }
 
-    // note, we don't validate port, because we only allow InetSocketAddress
-    static String format(InetAddress address, int port) {
+    /**
+     * Formats a network address and port for display purposes.
+     * <p>
+     * This formats the address with {@link #format(InetAddress)}
+     * and appends the port number. IPv6 addresses will be bracketed.
+     * Any host information, if present is ignored.
+     * <p>
+     * Example output:
+     * <ul>
+     *   <li>IPv4: {@code 127.0.0.1:9300}</li>
+     *   <li>IPv6: {@code [::1]:9300}</li>
+     * </ul>
+     * @param address IPv4 or IPv6 address
+     * @param port port
+     * @return formatted string
+     */
+    public static String format(InetAddress address, int port) {
+        return format(address, new PortsRange(String.valueOf(port)));
+    }
+
+    /**
+     * Formats a network address and port range for display purposes.
+     * <p>
+     * This formats the address with {@link #format(InetAddress)}
+     * and appends the port range in brackets. In case there is only one
+     * port, the result is the same with {@link #format(InetAddress, int)}.
+     * <p>
+     * Example output:
+     * <ul>
+     *   <li>IPv4 no port: {@code 127.0.0.1}</li>
+     *   <li>IPv4 single port: {@code 127.0.0.1:9300}</li>
+     *   <li>IPv4 multiple ports: {@code 127.0.0.1:[9300-9400]}</li>
+     *   <li>IPv6 multiple ports: {@code [::1]:[9300-9400]}</li>
+     * </ul>
+     * @param address IPv4 or IPv6 address
+     * @param portsRange range of ports
+     * @return formatted string
+     */
+    public static String format(InetAddress address, PortsRange portsRange) {
         Objects.requireNonNull(address);
 
         StringBuilder builder = new StringBuilder();
 
-        if (port != -1 && address instanceof Inet6Address) {
+        int numberOfPorts = portsRange.ports().length;
+
+        if (numberOfPorts != 0 && address instanceof Inet6Address) {
             builder.append(InetAddresses.toUriString(address));
         } else {
             builder.append(InetAddresses.toAddrString(address));
         }
 
-        if (port != -1) {
+        if (numberOfPorts != 0) {
             builder.append(':');
-            builder.append(port);
+            if (numberOfPorts == 1) {
+                builder.append(portsRange.getPortRangeString());
+            } else {
+                builder.append("[").append(portsRange.getPortRangeString()).append("]");
+            }
         }
 
         return builder.toString();

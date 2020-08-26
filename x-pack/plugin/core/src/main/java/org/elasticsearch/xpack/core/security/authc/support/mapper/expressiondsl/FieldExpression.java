@@ -119,15 +119,11 @@ public final class FieldExpression implements RoleMapperExpression {
         private static CharacterRunAutomaton buildAutomaton(Object value) {
             if (value instanceof String) {
                 final String str = (String) value;
-                if (Regex.isSimpleMatchPattern(str) || isLuceneRegex(str)) {
+                if (Regex.isSimpleMatchPattern(str) || Automatons.isLuceneRegex(str)) {
                     return new CharacterRunAutomaton(Automatons.patterns(str));
                 }
             }
             return null;
-        }
-
-        private static boolean isLuceneRegex(String str) {
-            return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
         }
 
         public Object getValue() {
@@ -150,6 +146,11 @@ public final class FieldExpression implements RoleMapperExpression {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.value(value);
+        }
+
+        @Override
+        public String toString() {
+            return Objects.toString(value);
         }
 
         @Override

@@ -9,7 +9,7 @@ Latin Unicode block (first 127 ASCII characters) to their ASCII equivalent, if
 one exists. For example, the filter changes `à` to `a`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.html[ASCIIFoldingFilter].
+{lucene-analysis-docs}/miscellaneous/ASCIIFoldingFilter.html[ASCIIFoldingFilter].
 
 [[analysis-asciifolding-tokenfilter-analyze-ex]]
 ==== Example
@@ -83,16 +83,16 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /asciifold_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_asciifolding" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["asciifolding"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_asciifolding": {
+          "tokenizer": "standard",
+          "filter": [ "asciifolding" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -118,21 +118,21 @@ For example, the following request creates a custom `asciifolding` filter with
 --------------------------------------------------
 PUT /asciifold_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_asciifolding" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["my_ascii_folding"]
-                }
-            },
-            "filter" : {
-                "my_ascii_folding" : {
-                    "type" : "asciifolding",
-                    "preserve_original" : true
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_asciifolding": {
+          "tokenizer": "standard",
+          "filter": [ "my_ascii_folding" ]
         }
+      },
+      "filter": {
+        "my_ascii_folding": {
+          "type": "asciifolding",
+          "preserve_original": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('async-search'))
+  testImplementation project(':x-pack:plugin:async-search:qa')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
+  user username: "user1", password: 'x-pack-test-password', role: "user1"
+  user username: "user2", password: 'x-pack-test-password', role: "user2"
+  user username: "user_dls", password: 'x-pack-test-password', role: "user_dls"
+}

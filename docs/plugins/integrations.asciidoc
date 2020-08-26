@@ -4,14 +4,14 @@
 
 Integrations are not plugins, but are external tools or modules that make it easier to work with Elasticsearch.
 
-[float]
+[discrete]
 [[cms-integrations]]
 === CMS integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
 
-* http://drupal.org/project/search_api_elasticsearch[Drupal]:
+* https://drupal.org/project/search_api_elasticsearch[Drupal]:
   Drupal Elasticsearch integration via Search API.
 
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
@@ -28,17 +28,17 @@ Integrations are not plugins, but are external tools or modules that make it eas
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
 
-* http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
+* https://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
   XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
 
-[float]
+[discrete]
 [[data-integrations]]
 === Data import/export and validation
 
 NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch
 releases 2.0 and later do not support rivers.
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
@@ -50,7 +50,7 @@ releases 2.0 and later do not support rivers.
 * {logstash-ref}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
@@ -75,11 +75,11 @@ releases 2.0 and later do not support rivers.
 * https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
   A library to migrate elasticsearch mappings.
 
-[float]
+[discrete]
 [[deployment]]
 === Deployment
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * https://github.com/elastic/ansible-elasticsearch[Ansible playbook for Elasticsearch]:
@@ -88,25 +88,18 @@ releases 2.0 and later do not support rivers.
 * https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
 
-[float]
+[discrete]
 [[framework-integrations]]
 === Framework integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
-
-* http://www.searchtechnologies.com/aspire-for-elasticsearch[Aspire for Elasticsearch]:
-  Aspire, from Search Technologies, is a powerful connector and processing
-  framework designed for unstructured data. It has connectors to internal and
-  external repositories including SharePoint, Documentum, Jive, RDB, file
-  systems, websites and more, and can transform and normalize this data before
-  indexing in Elasticsearch.
 
 * https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
   An Apache camel component to integrate Elasticsearch
@@ -117,13 +110,13 @@ releases 2.0 and later do not support rivers.
 * https://github.com/FriendsOfSymfony/FOSElasticaBundle[FOSElasticaBundle]:
   Symfony2 Bundle wrapping Elastica.
 
-* http://grails.org/plugin/elasticsearch[Grails]:
+* https://plugins.grails.org/plugin/puneetbehl/elasticsearch[Grails]:
   Elasticsearch Grails plugin.
 
-* http://haystacksearch.org/[Haystack]:
+* https://haystacksearch.org/[Haystack]:
   Modular search for Django
 
-* http://hibernate.org/search/[Hibernate Search]
+* https://hibernate.org/search/[Hibernate Search]
   Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
 
 * https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
@@ -145,8 +138,8 @@ releases 2.0 and later do not support rivers.
 * https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html[Micronaut Elasticsearch Integration]:
   Integration of Micronaut with Elasticsearch
 
-* https://docs.streampipes.org/docs/user-guide-introduction[StreamPipes]:
-  StreamPipes is a framework that enables users to work with data streams allowing to store data in Elasticsearch.
+* https://streampipes.apache.org[Apache StreamPipes]:
+  StreamPipes is a framework that enables users to work with IoT data sources.
 
 * https://metamodel.apache.org/[Apache MetaModel]:
   Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
@@ -157,44 +150,46 @@ releases 2.0 and later do not support rivers.
 * https://micrometer.io[Micrometer]:
   Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
 
-[float]
+[discrete]
 [[hadoop-integrations]]
 === Hadoop integrations
 
-[float]
+[discrete]
 ==== Supported by Elasticsearch:
 
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/criteo/garmadon[Garmadon]:
   Garmadon is a solution for Hadoop Cluster realtime introspection.
 
 
-[float]
+[discrete]
 [[monitoring-integrations]]
 === Health and Performance Monitoring
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://github.com/radu-gheorghe/check-es[check-es]:
   Nagios/Shinken plugins for checking on Elasticsearch
 
-* http://sematext.com/spm/index.html[SPM for Elasticsearch]:
+* https://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
-
+* https://www.zabbix.com/integrations/elasticsearch[Zabbix monitoring template]:
+  Monitor the performance and status of your {es} nodes and cluster with Zabbix
+  and receive events information.
 
 [[other-integrations]]
-[float]
+[discrete]
 === Other integrations
 
-[float]
+[discrete]
 ==== Supported by the community:
 
 * https://www.wireshark.org/[Wireshark]:
@@ -202,4 +197,3 @@ releases 2.0 and later do not support rivers.
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web
-

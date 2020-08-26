@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -39,20 +40,36 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-        storedContext.restore();
         bytesStream.setVersion(version);
-        bytesStream.skip(TcpHeader.HEADER_SIZE);
+        bytesStream.skip(TcpHeader.headerSize(version));
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
-        try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+        int variableHeaderLength = -1;
+        final long preHeaderPosition = bytesStream.position();
+
+        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            writeVariableHeader(bytesStream);
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+        }
+
+        try (CompressibleBytesOutputStream stream =
+                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
-            threadContext.writeTo(stream);
+            if (variableHeaderLength == -1) {
+                writeVariableHeader(stream);
+            }
             reference = writeMessage(stream);
         }
+
         bytesStream.seek(0);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE);
+        final int contentSize = reference.length() - TcpHeader.headerSize(version);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
+    }
+
+    protected void writeVariableHeader(StreamOutput stream) throws IOException {
+        threadContext.writeTo(stream);
     }
 
     protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
@@ -77,7 +94,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             return message;
         } else {
-            return new CompositeBytesReference(message, zeroCopyBuffer);
+            return CompositeBytesReference.of(message, zeroCopyBuffer);
         }
     }
 
@@ -92,13 +109,13 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         @Override
-        protected BytesReference writeMessage(CompressibleBytesOutputStream out) throws IOException {
+        protected void writeVariableHeader(StreamOutput stream) throws IOException {
+            super.writeVariableHeader(stream);
             if (version.before(Version.V_8_0_0)) {
                 // empty features array
-                out.writeStringArray(Strings.EMPTY_ARRAY);
+                stream.writeStringArray(Strings.EMPTY_ARRAY);
             }
-            out.writeString(action);
-            return super.writeMessage(out);
+            stream.writeString(action);
         }
 
         private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {

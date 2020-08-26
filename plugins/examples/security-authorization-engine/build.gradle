@@ -1,5 +1,5 @@
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'security-authorization-engine'
@@ -12,21 +12,21 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
-
-integTest {
+//no unit tests
+test.enabled = false
+javaRestTest {
   dependsOn buildZip
-  runner {
-    systemProperty 'tests.security.manager', 'false'
-  }
+  systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.integTest {
+testClusters.javaRestTest {
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   // This is important, so that all the modules are available too.
@@ -37,4 +37,3 @@ testClusters.integTest {
   user role: 'custom_superuser'
 }
 
-check.dependsOn integTest

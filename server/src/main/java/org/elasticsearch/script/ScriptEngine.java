@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A script language implementation.
@@ -41,8 +42,18 @@ public interface ScriptEngine extends Closeable {
      * @param params compile-time parameters (such as flags to the compiler)
      * @return A compiled script of the FactoryType from {@link ScriptContext}
      */
-    <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context, Map<String, String> params);
+    <FactoryType> FactoryType compile(
+        String name,
+        String code,
+        ScriptContext<FactoryType> context,
+        Map<String, String> params
+    );
 
     @Override
     default void close() throws IOException {}
+
+    /**
+     * Script contexts supported by this engine.
+     */
+    Set<ScriptContext<?>> getSupportedContexts();
 }

@@ -1,0 +1,92 @@
+{
+    "properties" : {
+        "bool" : { "type" : "boolean" },
+        "int" : { "type" : "integer" },
+        "text" : { "type" : "text" },
+        "keyword" : { "type" : "keyword" },
+        "unsupported" : { "type" : "ip_range" },
+        "date" : { "type" : "date"},
+        "shape": { "type" : "geo_shape" },
+        "x" : {
+            "type" : "text",
+            "fields" : {
+                "y" : {
+                    "type" : "foobar",
+                    "fields" : {
+                        "z" : {
+                            "properties" : {
+                                "v" : {
+                                    "type" : "keyword"
+                                },
+                                "w" : {
+                                    "type" : "foo"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "some" : {
+            "properties" : {
+                "dotted" : {
+                    "properties" : {
+                        "field" : {
+                            "type" : "keyword"
+                        }
+                    }
+                },
+                "string" : {
+                    "type" : "text",
+                    "fields" : {
+                        "normalized" : {
+                            "type" : "keyword",
+                            "normalizer" : "some_normalizer"
+                        },
+                        "typical" : {
+                            "type" : "keyword"
+                        }
+                    }
+                },
+                "ambiguous" : {
+                    "type" : "text",
+                    "fields" : {
+                        "one" : {
+                            "type" : "keyword"
+                        },
+                        "two" : {
+                            "type" : "keyword"
+                        },
+                        "normalized" : {
+                            "type" : "keyword",
+                            "normalizer" : "some_normalizer"
+                        }
+                    }
+                }
+            }
+        },
+        "dep" : {
+            "type" : "nested",
+            "properties" : {
+                "dep_name" : {
+                    "type" : "text"
+                },
+                "dep_id" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword",
+                            "ignore_above" : 256
+                        }
+                    }
+                },
+                "end_date" : {
+                    "type" : "date"
+                },
+                "start_date" : {
+                    "type" : "date"
+                }
+            }
+        }
+    }
+}

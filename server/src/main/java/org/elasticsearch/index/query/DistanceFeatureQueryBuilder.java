@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -29,17 +27,11 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.unit.TimeValue;
-
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -120,30 +112,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         if (fieldType == null) {
             return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }
-        Object originObj = origin.origin();
-        if (fieldType instanceof DateFieldType) {
-            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
-            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
-            if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getMillis());
-            } else { // NANOSECONDS
-                return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getNanos());
-            }
-        } else if (fieldType instanceof GeoPointFieldType) {
-            GeoPoint originGeoPoint;
-            if (originObj instanceof GeoPoint) {
-                originGeoPoint = (GeoPoint) originObj;
-            } else if (originObj instanceof String) {
-                originGeoPoint = GeoUtils.parseFromString((String) originObj);
-            } else {
-                throw new IllegalArgumentException("Illegal type ["+ origin.getClass() + "] for [origin]! " +
-                    "Must be of type [geo_point] or [string] for geo_point fields!");
-            }
-            double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
-            return LatLonPoint.newDistanceFeatureQuery(field, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
-        }
-        throw new IllegalArgumentException("Illegal data type of [" + fieldType.typeName() + "]!"+
-            "[" + NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
+        return fieldType.distanceFeatureQuery(origin.origin(), pivot, boost, context);
     }
 
     String fieldName() {
@@ -213,7 +182,9 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
         @Override
         public final boolean equals(Object other) {
-            if ((other instanceof Origin) == false) return false;
+            if ((other instanceof Origin) == false) {
+                return false;
+            }
             Object otherOrigin = ((Origin) other).origin();
             return this.origin().equals(otherOrigin);
         }

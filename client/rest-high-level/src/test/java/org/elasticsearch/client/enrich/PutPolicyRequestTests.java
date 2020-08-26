@@ -94,7 +94,7 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
         assertThat(clientTestInstance.getIndices(), equalTo(serverInstance.getPolicy().getIndices()));
         if (clientTestInstance.getQuery() != null) {
             XContentType type = serverInstance.getPolicy().getQuery().getContentType();
-            assertThat(PutPolicyRequest.asMap(clientTestInstance.getQuery(), type),
+            assertThat(PutPolicyRequest.asMap(clientTestInstance.getQuery(), XContentType.JSON),
                 equalTo(PutPolicyRequest.asMap(serverInstance.getPolicy().getQuery().getQuery(), type)));
         } else {
             assertThat(serverInstance.getPolicy().getQuery(), nullValue());

@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
 
@@ -38,7 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,22 +59,22 @@ public final class IngestDocument {
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
-    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
+        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
         if (routing != null) {
-            this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);
+            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
         }
         if (version != null) {
-            sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
+            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
-            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -426,6 +425,32 @@ public final class IngestDocument {
         setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
     }
 
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        Object value = valueSource.copyAndResolve(model);
+        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
+            if (value == null) {
+                return;
+            }
+            String valueStr = (String) value;
+            if (valueStr.isEmpty()) {
+                return;
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
     private void setFieldValue(String path, Object value, boolean append) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
@@ -567,10 +592,10 @@ public final class IngestDocument {
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<MetaData, Object> extractMetadata() {
-        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
-        for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, sourceAndMetadata.remove(metaData.getFieldName()));
+    public Map<Metadata, Object> extractMetadata() {
+        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
+        for (Metadata metadata : Metadata.values()) {
+            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
         }
         return metadataMap;
     }
@@ -578,10 +603,10 @@ public final class IngestDocument {
     /**
      * Does the same thing as {@link #extractMetadata} but does not mutate the map.
      */
-    public Map<MetaData, Object> getMetadata() {
-        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
-        for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, sourceAndMetadata.get(metaData.getFieldName()));
+    public Map<Metadata, Object> getMetadata() {
+        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
+        for (Metadata metadata : Metadata.values()) {
+            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
         }
         return metadataMap;
     }
@@ -646,14 +671,29 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
-        if (executedPipelines.add(pipeline)) {
+        if (executedPipelines.add(pipeline.getId())) {
+            Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
-                executedPipelines.remove(pipeline);
+                executedPipelines.remove(pipeline.getId());
+                if (previousPipeline != null) {
+                    ingestMetadata.put("pipeline", previousPipeline);
+                } else {
+                    ingestMetadata.remove("pipeline");
+                }
                 handler.accept(result, e);
             });
         } else {
             handler.accept(null, new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId()));
         }
+    }
+
+    /**
+     * @return a pipeline stack; all pipelines that are in execution by this document in reverse order
+     */
+    List<String> getPipelineStack() {
+        List<String> pipelineStack = new ArrayList<>(executedPipelines);
+        Collections.reverse(pipelineStack);
+        return pipelineStack;
     }
 
     @Override
@@ -681,17 +721,18 @@ public final class IngestDocument {
                 '}';
     }
 
-    public enum MetaData {
+    public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
-        TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
-        VERSION_TYPE("_version_type");
+        VERSION_TYPE("_version_type"),
+        IF_SEQ_NO("_if_seq_no"),
+        IF_PRIMARY_TERM("_if_primary_term");
 
         private final String fieldName;
 
-        MetaData(String fieldName) {
+        Metadata(String fieldName) {
             this.fieldName = fieldName;
         }
 

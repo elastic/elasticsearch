@@ -23,16 +23,15 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.WrappingProcessor;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-
-import org.elasticsearch.ingest.WrappingProcessor;
-import org.elasticsearch.script.ScriptService;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -55,8 +54,8 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     private final Processor processor;
     private final boolean ignoreMissing;
 
-    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
-        super(tag);
+    ForEachProcessor(String tag, String description, String field, Processor processor, boolean ignoreMissing) {
+        super(tag, description);
         this.field = field;
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
@@ -76,32 +75,35 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else {
-            List<Object> newValues = new CopyOnWriteArrayList<>();
-            innerExecute(0, values, newValues, ingestDocument, handler);
+            innerExecute(0, values, new ArrayList<>(values.size()), ingestDocument, handler);
         }
     }
 
     void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
                       BiConsumer<IngestDocument, Exception> handler) {
+        for (; index < values.size(); index++) {
+            AtomicBoolean shouldContinueHere = new AtomicBoolean();
+            Object value = values.get(index);
+            Object previousValue = document.getIngestMetadata().put("_value", value);
+            int nextIndex = index + 1;
+            processor.execute(document, (result, e) -> {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                if (e != null || result == null) {
+                    handler.accept(result, e);
+                } else if (shouldContinueHere.getAndSet(true)) {
+                    innerExecute(nextIndex, values, newValues, document, handler);
+                }
+            });
+
+            if (shouldContinueHere.getAndSet(true) == false) {
+                return;
+            }
+        }
+
         if (index == values.size()) {
             document.setFieldValue(field, new ArrayList<>(newValues));
             handler.accept(document, null);
-            return;
         }
-
-        Object value = values.get(index);
-        Object previousValue = document.getIngestMetadata().put("_value", value);
-        processor.execute(document, (result, e) -> {
-            if (e != null)  {
-                newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                handler.accept(null, e);
-            } else if (result == null) {
-                handler.accept(null, null);
-            } else {
-                newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                innerExecute(index + 1, values, newValues, document, handler);
-            }
-        });
     }
 
     @Override
@@ -132,7 +134,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
 
         @Override
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
-                                       Map<String, Object> config) throws Exception {
+                                       String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
@@ -143,7 +145,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
                 ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor, ignoreMissing);
+            return new ForEachProcessor(tag, description, field, processor, ignoreMissing);
         }
     }
 }

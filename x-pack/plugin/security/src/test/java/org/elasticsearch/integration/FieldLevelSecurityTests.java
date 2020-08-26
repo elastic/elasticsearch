@@ -11,6 +11,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
@@ -38,6 +41,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import java.util.Arrays;
@@ -156,12 +162,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text",
             "field2", "type=text",
             "field3", "type=text",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -313,10 +319,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .get();
 
         boolean realtime = randomBoolean();
@@ -411,9 +417,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
 
         boolean realtime = randomBoolean();
         // user1 is granted access to field1 only:
@@ -523,15 +529,15 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMSearchApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("test2")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
-        client().prepareIndex("test1", "type1", "1")
+        client().prepareIndex("test1").setId("1")
                 .setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
-        client().prepareIndex("test2", "type1", "1")
+        client().prepareIndex("test2").setId("1")
                 .setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
         client().admin().indices().prepareRefresh("test1", "test2").get();
 
@@ -672,13 +678,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testScroll() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setSettings(Settings.builder()
+                    .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         final int numDocs = scaledRandomIntBetween(2, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "type1", String.valueOf(i))
+            client().prepareIndex("test").setId(String.valueOf(i))
                     .setSource("field1", "value1", "field2", "value2", "field3", "value3")
                     .get();
         }
@@ -722,12 +729,58 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
+    static String openSearchContext(String userName, TimeValue keepAlive, String... indices) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
+            indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        final OpenPointInTimeResponse response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
+            .execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        return response.getSearchContextId();
+    }
+
+    public void testReaderId() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+            .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+        );
+
+        final int numDocs = scaledRandomIntBetween(2, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i))
+                .setSource("field1", "value1", "field2", "value2", "field3", "value3")
+                .get();
+        }
+        refresh("test");
+
+        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
+        SearchResponse response = null;
+        try {
+            for (int from = 0; from < numDocs; from++) {
+                response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch()
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1L))
+                    .setSize(1)
+                    .setFrom(from)
+                    .setQuery(constantScoreQuery(termQuery("field1", "value1")))
+                    .setFetchSource(true)
+                    .get();
+                assertThat(response.getHits().getTotalHits().value, is((long) numDocs));
+                assertThat(response.getHits().getHits().length, is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+            }
+        } finally {
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+        }
+    }
+
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -760,12 +813,120 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
+    public void testScrollWithQueryCache() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setMapping("field1", "type=text", "field2", "type=text")
+        );
+
+        final int numDocs = scaledRandomIntBetween(2, 4);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i))
+                    .setSource("field1", "value1", "field2", "value2")
+                    .get();
+        }
+        refresh("test");
+
+        final QueryBuilder cacheableQueryBuilder = constantScoreQuery(termQuery("field1", "value1"));
+
+        SearchResponse user1SearchResponse = null;
+        SearchResponse user2SearchResponse = null;
+        int scrolledDocsUser1 = 0;
+        final int numScrollSearch = scaledRandomIntBetween(20, 30);
+
+        try {
+            for (int i = 0; i < numScrollSearch; i++) {
+                if (randomBoolean()) {
+                    if (user2SearchResponse == null) {
+                        user2SearchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(
+                                "user2", USERS_PASSWD)))
+                                .prepareSearch("test")
+                                .setQuery(cacheableQueryBuilder)
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .setSize(1)
+                                .setFetchSource(true)
+                                .get();
+                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                    } else {
+                        // make sure scroll is empty
+                        user2SearchResponse = client()
+                                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2",
+                                        USERS_PASSWD)))
+                                .prepareSearchScroll(user2SearchResponse.getScrollId())
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .get();
+                        assertThat(user2SearchResponse.getHits().getTotalHits().value, is((long) 0));
+                        assertThat(user2SearchResponse.getHits().getHits().length, is(0));
+                        if (randomBoolean()) {
+                            // maybe reuse the scroll even if empty
+                            client().prepareClearScroll().addScrollId(user2SearchResponse.getScrollId()).get();
+                            user2SearchResponse = null;
+                        }
+                    }
+                } else {
+                    if (user1SearchResponse == null) {
+                        user1SearchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(
+                                "user1", USERS_PASSWD)))
+                                .prepareSearch("test")
+                                .setQuery(cacheableQueryBuilder)
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .setSize(1)
+                                .setFetchSource(true)
+                                .get();
+                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        assertThat(user1SearchResponse.getHits().getHits().length, is(1));
+                        assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                        assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                        scrolledDocsUser1++;
+                    } else {
+                        user1SearchResponse = client()
+                                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                                .prepareSearchScroll(user1SearchResponse.getScrollId())
+                                .setScroll(TimeValue.timeValueMinutes(10L))
+                                .get();
+                        assertThat(user1SearchResponse.getHits().getTotalHits().value, is((long) numDocs));
+                        if (scrolledDocsUser1 < numDocs) {
+                            assertThat(user1SearchResponse.getHits().getHits().length, is(1));
+                            assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                            assertThat(user1SearchResponse.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                            scrolledDocsUser1++;
+                        } else {
+                            assertThat(user1SearchResponse.getHits().getHits().length, is(0));
+                            if (randomBoolean()) {
+                                // maybe reuse the scroll even if empty
+                                if (user1SearchResponse.getScrollId() != null) {
+                                    client().prepareClearScroll().addScrollId(user1SearchResponse.getScrollId()).get();
+                                }
+                                user1SearchResponse = null;
+                                scrolledDocsUser1 = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (user1SearchResponse != null) {
+                String scrollId = user1SearchResponse.getScrollId();
+                if (scrollId != null) {
+                    client().prepareClearScroll().addScrollId(scrollId).get();
+                }
+            }
+            if (user2SearchResponse != null) {
+                String scrollId = user2SearchResponse.getScrollId();
+                if (scrollId != null) {
+                    client().prepareClearScroll().addScrollId(scrollId).get();
+                }
+            }
+        }
+    }
+
     public void testRequestCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -803,12 +964,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text,store=true",
             "field2", "type=text,store=true",
             "field3", "type=text,store=true",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -919,9 +1080,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -991,11 +1152,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testSort() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=long",
             "field2", "type=long",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", 1d, "field2", 2d)
+        client().prepareIndex("test").setId("1").setSource("field1", 1d, "field2", 2d)
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1045,12 +1206,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
      public void testHighlighting() {
-         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+         assertAcked(client().admin().indices().prepareCreate("test").setMapping(
              "field1", "type=text",
              "field2", "type=text",
              "field3", "type=text",
              "alias", "type=alias,path=field1"));
-         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
              .setRefreshPolicy(IMMEDIATE)
              .get();
 
@@ -1098,11 +1259,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
      }
 
     public void testAggs() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text,fielddata=true",
             "field2", "type=text,fielddata=true",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1153,11 +1314,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1237,11 +1398,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1346,22 +1507,22 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("test")
-              .addMapping("doc", mapping));
+              .setMapping(mapping));
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "doc", "p1").setSource("join_field", "parent").get();
+        client().prepareIndex("test").setId("p1").setSource("join_field", "parent").get();
         Map<String, Object> source = new HashMap<>();
         source.put("field1", "red");
         Map<String, Object> joinField = new HashMap<>();
         joinField.put("name", "child");
         joinField.put("parent", "p1");
         source.put("join_field", joinField);
-        client().prepareIndex("test", "doc", "c1").setSource(source).setRouting("p1").get();
+        client().prepareIndex("test").setId("c1").setSource(source).setRouting("p1").get();
         source = new HashMap<>();
         source.put("field1", "yellow");
         source.put("join_field", joinField);
-        client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
+        client().prepareIndex("test").setId("c2").setSource(source).setRouting("p1").get();
         refresh();
         verifyParentChild();
     }
@@ -1403,9 +1564,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource("field1", "value1", "field2", "value1")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1452,8 +1613,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testQuery_withRoleWithFieldWildcards() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+                        .setMapping("field1", "type=text", "field2", "type=text"));
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1479,13 +1640,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testExistQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text",
             "field2", "type=text",
             "field3", "type=text",
             "alias", "type=alias,path=field1"));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 

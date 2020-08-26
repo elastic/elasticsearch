@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class ShardGenerations {
@@ -52,6 +54,31 @@ public final class ShardGenerations {
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
+    }
+
+    private static final Pattern IS_NUMBER = Pattern.compile("^\\d+$");
+
+    /**
+     * Filters out unreliable numeric shard generations read from {@link RepositoryData} or {@link IndexShardSnapshotStatus}, returning
+     * {@code null} in their place.
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/57798">Issue #57988</a>
+     *
+     * @param shardGeneration shard generation to fix
+     * @return given shard generation or {@code null} if it was filtered out or {@code null} was passed
+     */
+    @Nullable
+    public static String fixShardGeneration(@Nullable String shardGeneration) {
+        if (shardGeneration == null) {
+            return null;
+        }
+        return IS_NUMBER.matcher(shardGeneration).matches() ? null : shardGeneration;
+    }
+
+    /**
+     * Returns the total number of shards tracked by this instance.
+     */
+    public int totalShards() {
+        return shardGenerations.values().stream().mapToInt(List::size).sum();
     }
 
     /**

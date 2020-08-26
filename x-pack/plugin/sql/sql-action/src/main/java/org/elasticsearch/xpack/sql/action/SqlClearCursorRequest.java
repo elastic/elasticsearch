@@ -19,16 +19,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_ID;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.VERSION;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_ID;
 
 /**
  * Request to clean all SQL resources associated with the cursor
  */
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
-    private static final ConstructingObjectParser<SqlClearCursorRequest, RequestInfo> PARSER =
+    private static final ConstructingObjectParser<SqlClearCursorRequest, Void> PARSER =
         // here the position in "objects" is the same as the fields parser declarations below 
         new ConstructingObjectParser<>(SqlClearCursorAction.NAME, objects -> {
             RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]),
@@ -39,8 +41,9 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     static {
         // "cursor" is required constructor parameter
         PARSER.declareString(constructorArg(), CURSOR);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODE);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CLIENT_ID);
+        PARSER.declareString(optionalConstructorArg(), MODE);
+        PARSER.declareString(optionalConstructorArg(), CLIENT_ID);
+        PARSER.declareString(optionalConstructorArg(), VERSION);
     }
 
     private String cursor;

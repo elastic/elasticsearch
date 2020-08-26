@@ -133,7 +133,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     
     
     
-    private static final ConstructingObjectParser<PinnedQueryBuilder, XContentParser> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<PinnedQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> 
                 {
                     QueryBuilder organicQuery = (QueryBuilder) a[0];

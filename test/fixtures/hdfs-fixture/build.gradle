@@ -20,7 +20,7 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile "org.apache.hadoop:hadoop-minicluster:2.8.1"
+  api "org.apache.hadoop:hadoop-minicluster:2.8.5"
 }
 
 test.enabled = false

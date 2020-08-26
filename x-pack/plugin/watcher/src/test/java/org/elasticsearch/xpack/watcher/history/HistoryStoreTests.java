@@ -73,7 +73,7 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
         historyStore = new HistoryStore(bulkProcessor);
     }
 
@@ -105,7 +105,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testIndexNameGeneration() {
-        String indexTemplateVersion = INDEX_TEMPLATE_VERSION;
+        String indexTemplateVersion = Integer.toString(INDEX_TEMPLATE_VERSION);
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC)),
             equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC)),

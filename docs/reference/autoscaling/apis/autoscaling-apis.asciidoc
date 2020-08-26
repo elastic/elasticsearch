@@ -1,0 +1,21 @@
+[role="xpack"]
+[testenv="platinum"]
+[[autoscaling-apis]]
+== Autoscaling APIs
+
+You can use the following APIs to perform autoscaling operations.
+
+[discrete]
+[[autoscaling-api-top-level]]
+=== Top-Level
+
+* <<autoscaling-get-autoscaling-decision,Get autoscaling decision>>
+* <<autoscaling-delete-autoscaling-policy,Delete autoscaling policy>>
+* <<autoscaling-get-autoscaling-policy,Get autoscaling policy>>
+* <<autoscaling-put-autoscaling-policy,Put autoscaling policy>>
+
+// top-level
+include::get-autoscaling-decision.asciidoc[]
+include::delete-autoscaling-policy.asciidoc[]
+include::get-autoscaling-policy.asciidoc[]
+include::put-autoscaling-policy.asciidoc[]

@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -92,6 +93,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
+    public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -154,6 +156,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             ignoreUnknownFields ? DelayedDataCheckConfig.LENIENT_PARSER : DelayedDataCheckConfig.STRICT_PARSER,
             DELAYED_DATA_CHECK_CONFIG);
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
+        parser.declareObject(Builder::setIndicesOptions,
+            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
+            INDICES_OPTIONS);
         return parser;
     }
 
@@ -179,11 +184,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
+    private final IndicesOptions indicesOptions;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            QueryProvider queryProvider, AggProvider aggProvider, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
-                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches) {
+                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -197,6 +203,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.headers = Collections.unmodifiableMap(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
+        this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -223,11 +230,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            maxEmptySearches = in.readOptionalVInt();
-        } else {
-            maxEmptySearches = null;
-        }
+        maxEmptySearches = in.readOptionalVInt();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     /**
@@ -380,6 +384,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return aggProvider != null && aggProvider.getAggs() != null && aggProvider.getAggs().size() > 0;
     }
 
+    public boolean aggsRewritten() {
+        return aggProvider != null && aggProvider.isRewroteAggs();
+    }
+
+    public AggProvider getAggProvider() {
+        return aggProvider;
+    }
+
     public List<SearchSourceBuilder.ScriptField> getScriptFields() {
         return scriptFields == null ? Collections.emptyList() : scriptFields;
     }
@@ -398,6 +410,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public Integer getMaxEmptySearches() {
         return maxEmptySearches;
+    }
+
+    public IndicesOptions getIndicesOptions() {
+        return indicesOptions;
     }
 
     @Override
@@ -428,9 +444,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(chunkingConfig);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalVInt(maxEmptySearches);
-        }
+        out.writeOptionalVInt(maxEmptySearches);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -438,7 +453,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(Job.ID.getPreferredName(), jobId);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
@@ -461,7 +476,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (delayedDataCheckConfig != null) {
@@ -470,6 +485,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
+        builder.startObject(INDICES_OPTIONS.getPreferredName());
+        indicesOptions.toXContent(builder, params);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -503,13 +522,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig)
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
-                && Objects.equals(this.maxEmptySearches, that.maxEmptySearches);
+                && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
+                && Objects.equals(this.indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
-                headers, delayedDataCheckConfig, maxEmptySearches);
+                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
     }
 
     @Override
@@ -583,6 +603,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
+        private IndicesOptions indicesOptions;
 
         public Builder() { }
 
@@ -606,100 +627,116 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.headers = new HashMap<>(config.headers);
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
+            this.indicesOptions = config.indicesOptions;
         }
 
-        public void setId(String datafeedId) {
+        public Builder setId(String datafeedId) {
             id = ExceptionsHelper.requireNonNull(datafeedId, ID.getPreferredName());
+            return this;
         }
 
         public String getId() {
             return id;
         }
 
-        public void setJobId(String jobId) {
+        public Builder setJobId(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            return this;
         }
 
-        public void setHeaders(Map<String, String> headers) {
+        public Builder setHeaders(Map<String, String> headers) {
             this.headers = ExceptionsHelper.requireNonNull(headers, HEADERS.getPreferredName());
+            return this;
         }
 
-        public void setIndices(List<String> indices) {
+        public Builder setIndices(List<String> indices) {
             this.indices = ExceptionsHelper.requireNonNull(indices, INDICES.getPreferredName());
+            return this;
         }
 
-        public void setQueryDelay(TimeValue queryDelay) {
+        public Builder setQueryDelay(TimeValue queryDelay) {
             TimeUtils.checkNonNegativeMultiple(queryDelay, TimeUnit.MILLISECONDS, QUERY_DELAY);
             this.queryDelay = queryDelay;
+            return this;
         }
 
-        public void setFrequency(TimeValue frequency) {
+        public Builder setFrequency(TimeValue frequency) {
             TimeUtils.checkPositiveMultiple(frequency, TimeUnit.SECONDS, FREQUENCY);
             this.frequency = frequency;
+            return this;
         }
 
-        public void setQueryProvider(QueryProvider queryProvider) {
+        public Builder setQueryProvider(QueryProvider queryProvider) {
             this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY.getPreferredName());
+            return this;
         }
 
         // For testing only
-        public void setParsedQuery(QueryBuilder queryBuilder) {
+        public Builder setParsedQuery(QueryBuilder queryBuilder) {
             try {
                 this.queryProvider = ExceptionsHelper.requireNonNull(QueryProvider.fromParsedQuery(queryBuilder), QUERY.getPreferredName());
             } catch (IOException exception) {
                 // eat exception as it should never happen
                 logger.error("Exception trying to setParsedQuery", exception);
             }
+            return this;
         }
 
         // For testing only
-        public void setParsedAggregations(AggregatorFactories.Builder aggregations) {
+        public Builder setParsedAggregations(AggregatorFactories.Builder aggregations) {
             try {
                 this.aggProvider = AggProvider.fromParsedAggs(aggregations);
             } catch (IOException exception) {
                 // eat exception as it should never happen
                 logger.error("Exception trying to setParsedAggregations", exception);
             }
+            return this;
         }
 
-        private void setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider aggProvider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
             this.aggProvider = aggProvider;
+            return this;
         }
 
-        public void setAggProvider(AggProvider aggProvider) {
+        public Builder setAggProvider(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
+            return this;
         }
 
-        public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
+        public Builder setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
             for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
                 sorted.add(scriptField);
             }
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
+            return this;
         }
 
-        public void setScrollSize(int scrollSize) {
+        public Builder setScrollSize(int scrollSize) {
             if (scrollSize < 0) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                         DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
                 throw ExceptionsHelper.badRequestException(msg);
             }
             this.scrollSize = scrollSize;
+            return this;
         }
 
-        public void setChunkingConfig(ChunkingConfig chunkingConfig) {
+        public Builder setChunkingConfig(ChunkingConfig chunkingConfig) {
             this.chunkingConfig = chunkingConfig;
+            return this;
         }
 
-        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+        public Builder setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
             this.delayedDataCheckConfig = delayedDataCheckConfig;
+            return this;
         }
 
-        public void setMaxEmptySearches(int maxEmptySearches) {
+        public Builder setMaxEmptySearches(int maxEmptySearches) {
             if (maxEmptySearches == -1) {
                 this.maxEmptySearches = null;
             } else if (maxEmptySearches <= 0) {
@@ -709,6 +746,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             } else {
                 this.maxEmptySearches = maxEmptySearches;
             }
+            return this;
+        }
+
+        public Builder setIndicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
+        }
+
+        public IndicesOptions getIndicesOptions() {
+            return this.indicesOptions;
         }
 
         public DatafeedConfig build() {
@@ -725,8 +772,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
+            if (indicesOptions == null) {
+                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
-                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches);
+                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
         }
 
         void validateScriptFields() {

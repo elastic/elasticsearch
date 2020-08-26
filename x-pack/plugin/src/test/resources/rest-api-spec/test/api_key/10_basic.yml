@@ -119,8 +119,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "api_key_user" }
-  - match: { roles.0:  "role-b" }
-  - match: { roles.1:  "role-a" }
+  - length: { roles: 0 }
   - match: { authentication_realm.name: "_es_api_key" }
   - match: { authentication_realm.type: "_es_api_key" }
 
@@ -172,6 +171,16 @@ teardown:
         id: "$api_key_id"
   - match: { "api_keys.0.id": "$api_key_id" }
   - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys" : 1 }
   - match: { "api_keys.0.username": "api_key_user" }
   - match: { "api_keys.0.invalidated": false }
   - is_true: "api_keys.0.creation"

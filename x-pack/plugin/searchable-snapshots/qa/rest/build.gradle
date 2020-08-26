@@ -1,0 +1,32 @@
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+}
+
+final File repoDir = file("$buildDir/testclusters/repo")
+
+integTest {
+  systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.license.self_generated.type', 'trial'
+}
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'searchable_snapshots'
+  }
+}

@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -131,19 +132,28 @@ public class SuggestTests extends ESTestCase {
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
         BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
         assertEquals(
-                "{\"suggest\":"
-                        + "{\"suggestionName\":"
-                            + "[{\"text\":\"entryText\","
-                            + "\"offset\":42,"
-                            + "\"length\":313,"
-                            + "\"options\":[{\"text\":\"someText\","
-                                        + "\"highlighted\":\"somethingHighlighted\","
-                                        + "\"score\":1.3,"
-                                        + "\"collate_match\":true}]"
-                            + "}]"
-                        + "}"
-                +"}",
-                xContent.utf8ToString());
+            stripWhitespace(
+                "{"
+                    + "  \"suggest\": {"
+                    + "    \"suggestionName\": ["
+                    + "      {"
+                    + "        \"text\": \"entryText\","
+                    + "        \"offset\": 42,"
+                    + "        \"length\": 313,"
+                    + "        \"options\": ["
+                    + "          {"
+                    + "            \"text\": \"someText\","
+                    + "            \"highlighted\": \"somethingHighlighted\","
+                    + "            \"score\": 1.3,"
+                    + "            \"collate_match\": true"
+                    + "          }"
+                    + "        ]"
+                    + "      }"
+                    + "    ]"
+                    + "  }"
+                    + "}"
+            ),
+            xContent.utf8ToString());
     }
 
     public void testFilter() throws Exception {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -96,6 +97,10 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     public boolean isValid() {
         return queryConfig.isValid();
+    }
+
+    public boolean requiresRemoteCluster() {
+        return Arrays.stream(index).anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
     }
 
     @Override

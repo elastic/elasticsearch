@@ -19,11 +19,11 @@ package org.elasticsearch.script.expression;
  * under the License.
  */
 
-import java.util.Calendar;
-
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.util.Calendar;
 
 /**
  * Expressions API for date fields.
@@ -56,7 +56,7 @@ final class DateField {
     static final String GET_MINUTES_METHOD      = "getMinutes";
     static final String GET_SECONDS_METHOD      = "getSeconds";
 
-    static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
+    static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case VALUE_VARIABLE:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
@@ -69,7 +69,7 @@ final class DateField {
         }
     }
 
-    static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
+    static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case GETVALUE_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);

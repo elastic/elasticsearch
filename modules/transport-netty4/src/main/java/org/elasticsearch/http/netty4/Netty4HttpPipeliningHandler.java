@@ -22,10 +22,10 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
 
 import java.nio.channels.ClosedChannelException;
@@ -37,7 +37,7 @@ import java.util.List;
 public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<Netty4HttpResponse, ChannelPromise> aggregator;
+    private final HttpPipeliningAggregator<ChannelPromise> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -53,20 +53,20 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
+        assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
+        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty4HttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
-        Netty4HttpResponse response = (Netty4HttpResponse) msg;
+        assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
+        HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
         boolean success = false;
         try {
-            List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1(), readyResponse.v2());
+            List<Tuple<HttpPipelinedResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
+            for (Tuple<HttpPipelinedResponse, ChannelPromise> readyResponse : readyResponses) {
+                ctx.write(readyResponse.v1().getDelegateRequest(), readyResponse.v2());
             }
             success = true;
         } catch (IllegalStateException e) {
@@ -80,11 +80,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<Netty4HttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<HttpPipelinedResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<Netty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (Tuple<HttpPipelinedResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {

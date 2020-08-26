@@ -36,6 +36,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -211,9 +212,9 @@ public class PeerFinderTests extends ESTestCase {
         localNode = newDiscoveryNode("local-node");
 
         ConnectionManager innerConnectionManager
-            = new ConnectionManager(settings, capturingTransport);
+            = new ClusterConnectionManager(settings, capturingTransport);
         StubbableConnectionManager connectionManager
-            = new StubbableConnectionManager(innerConnectionManager, settings, capturingTransport);
+            = new StubbableConnectionManager(innerConnectionManager);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
             final boolean isConnected = connectedNodes.contains(discoveryNode);
             final boolean isDisconnected = disconnectedNodes.contains(discoveryNode);

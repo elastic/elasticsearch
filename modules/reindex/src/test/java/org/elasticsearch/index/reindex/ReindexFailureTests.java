@@ -45,7 +45,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * conflict on every request.
          */
         indexRandom(true,
-                client().prepareIndex("dest", "_doc", "test").setSource("test", 10) /* Its a string in the source! */);
+                client().prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -70,7 +70,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
         indexRandom(true,
-                client().prepareIndex("dest", "_doc", "1").setSource("test", "test"));
+                client().prepareIndex("dest").setId("1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -121,7 +121,8 @@ public class ReindexFailureTests extends ReindexTestCase {
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
                         .or(containsString("no such index [source]"))
-                        );
+                        .or(containsString("Partial shards failure"))
+                );
                 return;
             }
         }
@@ -131,7 +132,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source", "_doc", Integer.toString(i)).setSource("test", "words words"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

@@ -35,31 +35,45 @@ import java.util.List;
 
 /** Simple tests for {@link ScriptException} */
 public class ScriptExceptionTests extends ESTestCase {
-    
+
     /** ensure we can round trip in serialization */
     public void testRoundTrip() throws IOException {
-        ScriptException e = new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"), 
+        ScriptException e = new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"),
                                                 "sourceData", "langData");
-        
+
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         StreamOutput output = new DataOutputStreamOutput(new DataOutputStream(bytes));
         e.writeTo(output);
         output.close();
-        
+
         StreamInput input = new InputStreamStreamInput(new ByteArrayInputStream(bytes.toByteArray()));
         ScriptException e2 = new ScriptException(input);
         input.close();
-        
+
         assertEquals(e.getMessage(), e2.getMessage());
         assertEquals(e.getScriptStack(), e2.getScriptStack());
         assertEquals(e.getScript(), e2.getScript());
         assertEquals(e.getLang(), e2.getLang());
+        assertNull(e.getPos());
+
+        // Ensure non-null position also works
+        e = new ScriptException(e.getMessage(), e.getCause(), e.getScriptStack(), e.getScript(), e.getLang(),
+            new ScriptException.Position(1, 0, 2));
+        bytes = new ByteArrayOutputStream();
+        output = new DataOutputStreamOutput(new DataOutputStream(bytes));
+        e.writeTo(output);
+        output.close();
+
+        input = new InputStreamStreamInput(new ByteArrayInputStream(bytes.toByteArray()));
+        e2 = new ScriptException(input);
+        input.close();
+        assertEquals(e.getPos(), e2.getPos());
     }
-    
+
     /** Test that our elements are present in the json output */
     public void testJsonOutput() {
-        ScriptException e = new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"), 
-                                                "sourceData", "langData");
+        ScriptException e = new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"),
+                                                "sourceData", "langData", new ScriptException.Position(2, 1, 3));
         String json = e.toJsonString();
         assertTrue(json.contains(e.getMessage()));
         assertTrue(json.contains(e.getCause().getMessage()));
@@ -67,6 +81,9 @@ public class ScriptExceptionTests extends ESTestCase {
         assertTrue(json.contains("stack2"));
         assertTrue(json.contains(e.getScript()));
         assertTrue(json.contains(e.getLang()));
+        assertTrue(json.contains("1"));
+        assertTrue(json.contains("2"));
+        assertTrue(json.contains("3"));
     }
 
     /** ensure the script stack is immutable */
@@ -78,7 +95,7 @@ public class ScriptExceptionTests extends ESTestCase {
         });
     }
 
-    /** ensure no parameters can be null */
+    /** ensure no parameters can be null except pos*/
     public void testNoLeniency() {
         expectThrows(NullPointerException.class, () -> {
            new ScriptException(null, new Exception(), Collections.emptyList(), "a", "b");

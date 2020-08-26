@@ -29,7 +29,8 @@ public class RollupIndexerJobStatsTests extends AbstractSerializingTestCase<Roll
     public static RollupIndexerJobStats randomStats() {
         return new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
             randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

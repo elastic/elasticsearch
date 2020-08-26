@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -50,7 +52,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
                      ClusterService clusterService, XPackLicenseState licenseState,
-                     ThreadContext threadContext) {
+                     ThreadContext threadContext, SSLService sslService) {
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
@@ -58,15 +60,17 @@ public class Exporters extends AbstractLifecycleComponent {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, getSettings());
-        HttpExporter.registerSettingValidators(clusterService);
-        // this ensures, that logging is happening by adding an empty consumer per affix setting
-        for (Setting.AffixSetting<?> affixSetting : getSettings()) {
+        final List<Setting.AffixSetting<?>> dynamicSettings =
+            getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, dynamicSettings);
+        HttpExporter.registerSettingValidators(clusterService, sslService);
+        // this ensures that logging is happening by adding an empty consumer per affix setting
+        for (Setting.AffixSetting<?> affixSetting : dynamicSettings) {
             clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});
         }
     }
 
-    private void setExportersSetting(Settings exportersSetting) {
+    public void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycle.started()) {
             Map<String, Exporter> updated = initExporters(exportersSetting);
             closeExporters(logger, this.exporters.getAndSet(updated));
@@ -170,7 +174,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         // wait until we have a usable cluster state
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
-            ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) ||
+            ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID()) ||
             state.version() == ClusterState.UNKNOWN_VERSION) {
             logger.trace("skipping exporters because the cluster state is not loaded");
 
@@ -239,7 +243,12 @@ public class Exporters extends AbstractLifecycleComponent {
                 } else {
                     listener.onFailure(exceptionRef.get());
                 }
-            }, listener::onFailure));
+            }, (exception) -> {
+                if (exceptionRef.get() != null) {
+                    exception.addSuppressed(exceptionRef.get());
+                }
+                listener.onFailure(exception);
+            }));
         }
     }
 
@@ -250,6 +259,7 @@ public class Exporters extends AbstractLifecycleComponent {
         List<Setting.AffixSetting<?>> settings = new ArrayList<>();
         settings.addAll(Exporter.getSettings());
         settings.addAll(HttpExporter.getSettings());
+        settings.addAll(LocalExporter.getSettings());
         return settings;
     }
 

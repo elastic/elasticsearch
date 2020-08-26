@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
@@ -32,6 +33,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,15 +44,15 @@ public interface Transport extends LifecycleComponent {
     /**
      * Registers a new request handler
      */
-    <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg);
-
-    /**
-     * Returns the registered request handler registry for the given action or <code>null</code> if it's not registered
-     * @param action the action to look up
-     */
-    RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action);
+    default <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        getRequestHandlers().registerHandler(reg);
+    }
 
     void setMessageListener(TransportMessageListener listener);
+
+    default boolean isSecure() {
+        return false;
+    }
 
     /**
      * The address the transport is bound on.
@@ -82,6 +84,8 @@ public interface Transport extends LifecycleComponent {
     TransportStats getStats();
 
     ResponseHandlers getResponseHandlers();
+
+    RequestHandlers getRequestHandlers();
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
@@ -183,7 +187,7 @@ public interface Transport extends LifecycleComponent {
          * Removes and return the {@link ResponseContext} for the given request ID or returns
          * <code>null</code> if no context is associated with this request ID.
          */
-        public ResponseContext remove(long requestId) {
+        public ResponseContext<? extends TransportResponse> remove(long requestId) {
             return handlers.remove(requestId);
         }
 
@@ -194,7 +198,7 @@ public interface Transport extends LifecycleComponent {
          */
         public long add(ResponseContext<? extends TransportResponse> holder) {
             long requestId = newRequestId();
-            ResponseContext existing = handlers.put(requestId, holder);
+            ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
             return requestId;
         }
@@ -210,12 +214,12 @@ public interface Transport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
          */
-        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext> predicate) {
+        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext<? extends TransportResponse>> predicate) {
             final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
             for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
                 ResponseContext<? extends TransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
-                    ResponseContext remove = handlers.remove(entry.getKey());
+                    ResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
                     if (remove != null) {
                         holders.add(holder);
                     }
@@ -238,6 +242,29 @@ public interface Transport extends LifecycleComponent {
             } else {
                 return context.handler();
             }
+        }
+    }
+
+    final class RequestHandlers {
+
+        private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
+
+        synchronized <Request extends TransportRequest> void registerHandler(RequestHandlerRegistry<Request> reg) {
+            if (requestHandlers.containsKey(reg.getAction())) {
+                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
+            }
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
+        }
+
+        // TODO: Only visible for testing. Perhaps move StubbableTransport from
+        //  org.elasticsearch.test.transport to org.elasticsearch.transport
+        public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
+            requestHandlers = Maps.copyMapWithAddedOrReplacedEntry(requestHandlers, reg.getAction(), reg);
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T extends TransportRequest> RequestHandlerRegistry<T> getHandler(String action) {
+            return (RequestHandlerRegistry<T>) requestHandlers.get(action);
         }
     }
 }

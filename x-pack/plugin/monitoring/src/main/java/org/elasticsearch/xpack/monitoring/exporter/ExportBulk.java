@@ -88,7 +88,7 @@ public abstract class ExportBulk {
                     bulk.add(docs);
                 } catch (ExportException e) {
                     if (exception == null) {
-                        exception = new ExportException("failed to add documents to export bulks");
+                        exception = new ExportException("failed to add documents to export bulks", e);
                     }
                     exception.addExportException(e);
                 }

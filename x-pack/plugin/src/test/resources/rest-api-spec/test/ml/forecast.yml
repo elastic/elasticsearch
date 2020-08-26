@@ -62,3 +62,10 @@ setup:
       ml.forecast:
         job_id: "forecast-job"
         expires_in: "-1s"
+---
+"Test forecast given max_model_memory is too large":
+  - do:
+      catch: /\[max_model_memory\] must be less than 500mb/
+      ml.forecast:
+        job_id: "forecast-job"
+        max_model_memory: "1000mb"

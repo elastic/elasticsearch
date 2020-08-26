@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -85,10 +86,17 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
         client().performRequest(new Request("POST", "/_license/start_basic?acknowledge=true"));
     }
 
-    private void checkLicenseType(String type) throws IOException {
-        Map<String, Object> license = getAsMap("/_license");
-        assertThat(license, notNullValue());
-        assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+    private void checkLicenseType(String type) throws Exception {
+        assertBusy(() -> {
+            try {
+                Map<String, Object> license = getAsMap("/_license");
+                assertThat(license, notNullValue());
+                assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
+
     }
 
     private void checkSSLEnabled() throws IOException {
@@ -98,6 +106,7 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(usage, "security.ssl.transport.enabled"), equalTo(true));
     }
 
+    @SuppressWarnings("unchecked")
     private void checkCertificateAPI() throws IOException {
         Response response = client().performRequest(new Request("GET", "/_ssl/certificates"));
         ObjectPath path = ObjectPath.createFromResponse(response);

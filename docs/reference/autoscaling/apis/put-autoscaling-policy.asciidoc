@@ -1,0 +1,87 @@
+[role="xpack"]
+[testenv="platinum"]
+[[autoscaling-put-autoscaling-policy]]
+=== Put autoscaling policy API
+++++
+<titleabbrev>Put autoscaling policy</titleabbrev>
+++++
+
+Put autoscaling policy.
+
+[[autoscaling-put-autoscaling-policy-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/<name>
+{
+  "policy": {
+    "deciders": {
+      "always": {
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[s/<name>/name/]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/name
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[[autoscaling-put-autoscaling-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_autoscaling` cluster privileges. For more information, see
+<<security-privileges>>.
+
+[[autoscaling-put-autoscaling-policy-desc]]
+==== {api-description-title}
+
+This API puts an autoscaling policy with the provided name.
+
+[[autoscaling-put-autoscaling-policy-examples]]
+==== {api-examples-title}
+
+This example puts an autoscaling policy named `my_autoscaling_policy` using the
+always autoscaling decider.
+
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "policy": {
+    "deciders": {
+      "always": {
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

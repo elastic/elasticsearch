@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
 
-    public void testAccessMetaDataViaTemplate() {
+    public void testAccessMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
         IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
@@ -41,7 +41,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 bar"));
     }
 
-    public void testAccessMapMetaDataViaTemplate() {
+    public void testAccessMapMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> innerObject = new HashMap<>();
         innerObject.put("bar", "hello bar");
@@ -58,7 +58,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 hello bar hello baz hello qux and fubar"));
     }
 
-    public void testAccessListMetaDataViaTemplate() {
+    public void testAccessListMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         document.put("list1", Arrays.asList("foo", "bar", null));
         List<Map<String, Object>> list = new ArrayList<>();

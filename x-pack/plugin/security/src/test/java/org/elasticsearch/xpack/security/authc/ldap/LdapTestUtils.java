@@ -40,7 +40,7 @@ public class LdapTestUtils {
         secureSettings.setString("xpack.security.authc.realms.ldap.bar.ssl.truststore.secure_password", "changeit");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        SSLService sslService = new SSLService(settings, env);
+        SSLService sslService = new SSLService(env);
 
         LDAPURL ldapurl = new LDAPURL(url);
         LDAPConnectionOptions options = new LDAPConnectionOptions();

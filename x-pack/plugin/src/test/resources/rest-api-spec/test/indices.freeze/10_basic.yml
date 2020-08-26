@@ -77,25 +77,6 @@
 
 - match: {hits.total: 0}
 
-- do:
-    index:
-      index: ordinary
-      id:    "1"
-      body:  { "foo": "Hello: 1" }
-      refresh: wait_for
-
-- do:
-    search:
-      rest_total_hits_as_int: true
-      index: [test, ordinary]
-      ignore_throttled: false
-      body:
-        query:
-          match:
-            foo: hello
-
-- match: {hits.total: 3}
-
 ---
 "Test index options":
 - do:
@@ -141,3 +122,40 @@
             foo: hello
 
 - match: {hits.total: 1}
+
+---
+"Cannot freeze write index for data stream":
+  - skip:
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.freeze:
+        index: ".ds-simple-data-stream1-000001"
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+

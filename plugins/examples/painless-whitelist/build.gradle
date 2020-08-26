@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'painless-whitelist'
@@ -32,8 +32,8 @@ dependencies {
   compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
 }
 
-testClusters.integTest {
-  testDistribution = 'oss'
+testClusters.all {
+  testDistribution = 'OSS'
 }
 
 test.enabled = false

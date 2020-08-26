@@ -45,7 +45,7 @@ is evaluated.  The following table lists all available operators:
 | <<greater-than-operator, Greater Than>>                   | <<painless-operators-boolean, Boolean>>     | >           | 7            | left -> right
 | <<greater-than-or-equal-operator, Greater Than Or Equal>> | <<painless-operators-boolean, Boolean>>     | >=          | 7            | left -> right
 | <<less-than-operator, Less Than>>                         | <<painless-operators-boolean, Boolean>>     | <           | 7            | left -> right
-| <<less-than-or-equal-operator, Less Than Or Equal>>       | <<painless-operators-boolean, Boolean>>     | <=          | 7            | left -> right
+| <<less-than-or-equal-operator, Less Than Or Equal>>       | <<painless-operators-boolean, Boolean>>     | +++<=+++    | 7            | left -> right
 | <<instanceof-operator, Instanceof>>                       | <<painless-operators-boolean, Boolean>>     | instanceof  | 8            | left -> right
 | <<equality-equals-operator, Equality Equals>>             | <<painless-operators-boolean, Boolean>>     | ==          | 9            | left -> right
 | <<equality-not-equals-operator, Equality Not Equals>>     | <<painless-operators-boolean, Boolean>>     | !=          | 9            | left -> right

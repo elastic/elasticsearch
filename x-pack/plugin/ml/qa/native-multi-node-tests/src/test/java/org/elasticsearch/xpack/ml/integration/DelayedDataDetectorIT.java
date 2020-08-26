@@ -50,7 +50,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void putDataintoIndex() {
         client().admin().indices().prepareCreate(index)
-            .addMapping("type", "time", "type=date", "value", "type=long")
+            .setMapping("time", "type=date", "value", "type=long")
             .get();
         numDocs = randomIntBetween(32, 128);
         long oneDayAgo = now - 86400000;

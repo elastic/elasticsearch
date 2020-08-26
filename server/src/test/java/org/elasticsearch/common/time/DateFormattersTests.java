@@ -65,7 +65,6 @@ public class DateFormattersTests extends ESTestCase {
             equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
     }
 
-
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact

@@ -1,10 +1,10 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(xpackModule('security'))
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:16.0.1'
+  testImplementation project(xpackModule('security'))
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testRuntimeOnly 'com.google.guava:guava:16.0.1'
 }
 
 // add test resources from security, so certificate tool tests can use example certs

@@ -8,17 +8,19 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,19 +53,18 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         /**
-         * Parses request for memory estimation.
-         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and {@link EstimateMemoryUsageAction} but parsing differs
+         * Parses request for use in the explain action.
+         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and
+         * {@link ExplainDataFrameAnalyticsAction} but parsing differs
          * between these two usages.
          */
-        public static Request parseRequestForMemoryEstimation(XContentParser parser) {
+        public static Request parseRequestForExplain(XContentParser parser) {
             DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
-            DataFrameAnalyticsConfig config = configBuilder.buildForMemoryEstimation();
+            DataFrameAnalyticsConfig config = configBuilder.buildForExplain();
             return new PutDataFrameAnalyticsAction.Request(config);
         }
 
         private DataFrameAnalyticsConfig config;
-
-        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -86,7 +87,40 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException error = null;
+            error = checkConfigIdIsValid(config, error);
+            error = SourceDestValidator.validateRequest(error, config.getDest().getIndex());
+            error = checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(config, error);
+            return error;
+        }
+
+        private ActionRequestValidationException checkConfigIdIsValid(DataFrameAnalyticsConfig config,
+                                                                      ActionRequestValidationException error) {
+            if (MlStrings.isValidId(config.getId()) == false) {
+                error = ValidateActions.addValidationError(Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID,
+                    config.getId()), error);
+            }
+            if (!MlStrings.hasValidLengthForId(config.getId())) {
+                error = ValidateActions.addValidationError(Messages.getMessage(Messages.ID_TOO_LONG, DataFrameAnalyticsConfig.ID,
+                    config.getId(), MlStrings.ID_LENGTH_LIMIT), error);
+            }
+            return error;
+        }
+
+        private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
+                DataFrameAnalyticsConfig config, ActionRequestValidationException error) {
+            if (config.getAnalyzedFields() == null) {
+                return error;
+            }
+            for (String analyzedInclude : config.getAnalyzedFields().includes()) {
+                if (config.getSource().isFieldExcluded(analyzedInclude)) {
+                    return ValidateActions.addValidationError("field [" + analyzedInclude + "] is included in ["
+                        + DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName() + "] but not in ["
+                        + DataFrameAnalyticsConfig.SOURCE.getPreferredName() + "."
+                        + DataFrameAnalyticsSource._SOURCE.getPreferredName() + "]", error);
+                }
+            }
+            return error;
         }
 
         @Override
@@ -148,12 +182,4 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             return Objects.hash(config);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PutDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

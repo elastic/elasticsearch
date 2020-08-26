@@ -19,8 +19,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * under the License.
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -28,40 +27,32 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client'
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
-
 dependencies {
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
 
-  testCompile project(":client:test")
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testCompile "org.elasticsearch:securemock:${versions.securemock}"
-  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation project(":client:test")
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(CheckForbiddenApis) {
+tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
-  replaceSignatureFiles ('jdk-signatures', 'http-signatures')
+  replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
 
 forbiddenPatterns {
   exclude '**/*.der'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
@@ -69,7 +60,7 @@ forbiddenApisTest {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-jarHell.enabled=false
+jarHell.enabled = false
 
 testingConventions {
   naming.clear()
@@ -80,7 +71,7 @@ testingConventions {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',

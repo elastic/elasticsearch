@@ -1,19 +1,22 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(":x-pack:plugin:core")
+  testImplementation project(":x-pack:plugin:core")
 }
 
 // bring in graph rest test suite
-task copyGraphRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/graph/**'
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'indices', 'index'
+    includeXpack 'graph'
+  }
+  restTests {
+    includeXpack 'graph'
+  }
 }
-
-integTest.dependsOn copyGraphRestTests
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'

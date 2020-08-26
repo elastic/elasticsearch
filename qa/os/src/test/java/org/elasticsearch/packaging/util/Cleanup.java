@@ -20,21 +20,23 @@
 package org.elasticsearch.packaging.util;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
+import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 
 public class Cleanup {
 
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/elasticsearch",
+        "/etc/elasticsearch/elasticsearch.keystore",
         "/etc/elasticsearch",
         "/var/lib/elasticsearch",
         "/var/log/elasticsearch",
@@ -59,14 +61,16 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(() -> {
-            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-            sh.runIgnoreExitCode(
-                "Get-WmiObject Win32_Process | " +
-                "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | " +
-                "ForEach-Object { $_.Terminate() }"
-            );
-        });
+        Platforms.onWindows(
+            () -> {
+                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+                sh.runIgnoreExitCode(
+                    "Get-WmiObject Win32_Process | "
+                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                        + "ForEach-Object { $_.Terminate() }"
+                );
+            }
+        );
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
@@ -78,20 +82,11 @@ public class Cleanup {
         // when we run es as a role user on windows, add the equivalent here
 
         // delete files that may still exist
-        lsGlob(getTempDir(), "elasticsearch*").forEach(FileUtils::rm);
-        final List<String> filesToDelete = Platforms.WINDOWS
-            ? ELASTICSEARCH_FILES_WINDOWS
-            : ELASTICSEARCH_FILES_LINUX;
-        filesToDelete.stream()
-            .map(Paths::get)
-            .filter(Files::exists)
-            .forEach(FileUtils::rm);
-
-        // disable elasticsearch service
-        // todo add this for windows when adding tests for service intallation
-        if (Platforms.LINUX && isSystemd()) {
-            sh.run("systemctl unmask systemd-sysctl.service");
-        }
+        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+        final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
+        // windows needs leniency due to asinine releasing of file locking async from a process exiting
+        Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
+        filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
     }
 
     private static void purgePackagesLinux() {

@@ -6,12 +6,16 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
@@ -243,6 +247,18 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             builder.endObject();
         }
         return builder;
+    }
+
+    /**
+     * Get the categorization analyzer structured as a generic map.
+     * This can be used to provide the structure that the XContent serialization but as a Java map rather than text.
+     * Since it is created by round-tripping through text it is not particularly efficient and is expected to be
+     * used only rarely.
+     */
+    public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
+        String strRep = Strings.toString(this);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, strRep);
+        return parser.mapOrdered();
     }
 
     @Override

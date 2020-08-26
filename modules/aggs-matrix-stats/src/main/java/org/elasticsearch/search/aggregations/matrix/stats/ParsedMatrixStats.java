@@ -151,7 +151,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         return values.get(fieldName);
     }
 
-    private static ObjectParser<ParsedMatrixStats, Void> PARSER =
+    private static final ObjectParser<ParsedMatrixStats, Void> PARSER =
             new ObjectParser<>(ParsedMatrixStats.class.getSimpleName(), true, ParsedMatrixStats::new);
     static {
         declareAggregationFields(PARSER);
@@ -187,7 +187,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         Map<String, Double> covariances;
         Map<String, Double> correlations;
 
-        private static ObjectParser<ParsedMatrixStatsResult, Void> RESULT_PARSER =
+        private static final ObjectParser<ParsedMatrixStatsResult, Void> RESULT_PARSER =
                 new ObjectParser<>(ParsedMatrixStatsResult.class.getSimpleName(), true, ParsedMatrixStatsResult::new);
         static {
             RESULT_PARSER.declareString((result, name) -> result.name = name,

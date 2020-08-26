@@ -21,6 +21,8 @@ public class InternalUserSerializationHelper {
                 return XPackUser.INSTANCE;
             } else if (XPackSecurityUser.is(username)) {
                 return XPackSecurityUser.INSTANCE;
+            } else if (AsyncSearchUser.is(username)) {
+                return AsyncSearchUser.INSTANCE;
             }
             throw new IllegalStateException("user [" + username + "] is not an internal user");
         }
@@ -36,6 +38,9 @@ public class InternalUserSerializationHelper {
         } else if (XPackSecurityUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackSecurityUser.NAME);
+        } else if (AsyncSearchUser.is(user)) {
+            output.writeBoolean(true);
+            output.writeString(AsyncSearchUser.NAME);
         } else {
             User.writeTo(user, output);
         }

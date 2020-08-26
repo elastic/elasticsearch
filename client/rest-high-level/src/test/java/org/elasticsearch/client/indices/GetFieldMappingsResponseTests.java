@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.client.indices.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -52,18 +52,18 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
     }
 
     private static GetFieldMappingsResponse createTestInstance() {
-        Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
+        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
         // if mappings is empty, means that fields are not found
         if (randomBoolean()) {
             int indices = randomInt(10);
             for (int i = 0; i < indices; i++) {
-                Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
+                Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
                 int fields = randomInt(10);
                 for (int k = 0; k < fields; k++) {
                     final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
                     final String fieldName = randomAlphaOfLength(8);
-                    FieldMappingMetaData metaData = new FieldMappingMetaData(fieldName, new BytesArray(mapping));
-                    fieldMappings.put(fieldName, metaData);
+                    FieldMappingMetadata metadata = new FieldMappingMetadata(fieldName, new BytesArray(mapping));
+                    fieldMappings.put(fieldName, metadata);
                 }
                 mappings.put(randomAlphaOfLength(8), fieldMappings);
             }
@@ -74,10 +74,10 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
     // As the client class GetFieldMappingsResponse doesn't have toXContent method, adding this method here only for the test
     private static void toXContent(GetFieldMappingsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
-        for (Map.Entry<String, Map<String, FieldMappingMetaData>> indexEntry : response.mappings().entrySet()) {
+        for (Map.Entry<String, Map<String, FieldMappingMetadata>> indexEntry : response.mappings().entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject("mappings");
-            for (Map.Entry<String, FieldMappingMetaData> fieldEntry : indexEntry.getValue().entrySet()) {
+            for (Map.Entry<String, FieldMappingMetadata> fieldEntry : indexEntry.getValue().entrySet()) {
                 builder.startObject(fieldEntry.getKey());
                 builder.field("full_name", fieldEntry.getValue().fullName());
                 builder.field("mapping", fieldEntry.getValue().sourceAsMap());
@@ -88,4 +88,5 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
         }
         builder.endObject();
     }
+
 }

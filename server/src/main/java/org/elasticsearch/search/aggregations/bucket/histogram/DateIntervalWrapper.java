@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -54,8 +53,7 @@ import java.util.Objects;
  * for the enum and the complicated "state machine" logic
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(DateHistogramAggregationBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);
     private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or " +
         "[calendar_interval] in the future.";
 
@@ -86,7 +84,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private DateHistogramInterval dateHistogramInterval;
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
-    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, Void> parser) {
+    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, String> parser) {
 
         // NOTE: this field is deprecated and will be removed
         parser.declareField((wrapper, interval) -> {
@@ -137,7 +135,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /** Get the current interval in milliseconds that is set on this builder. */
     @Deprecated
     public long interval() {
-        DEPRECATION_LOGGER.deprecated(DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate("date-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             return TimeValue.parseTimeValue(dateHistogramInterval.toString(), "interval").getMillis();
         }
@@ -158,14 +156,14 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must be 1 or greater for aggregation [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_INTERVAL);
-        DEPRECATION_LOGGER.deprecated(DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate("date-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = new DateHistogramInterval(interval + "ms");
     }
 
     /** Get the current date interval that is set on this builder. */
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
-        DEPRECATION_LOGGER.deprecated(DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate("date-histogram-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
             return dateHistogramInterval;
         }
@@ -186,7 +184,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_DATE_HISTO);
-        DEPRECATION_LOGGER.deprecated(DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate("date-histogram-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = dateHistogramInterval;
     }
 
@@ -275,7 +273,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         }
     }
 
-    public Rounding createRounding(ZoneId timeZone) {
+    public Rounding createRounding(ZoneId timeZone, long offset) {
         Rounding.Builder tzRoundingBuilder;
         if (isEmpty()) {
             throw new IllegalArgumentException("Invalid interval specified, must be non-null and non-empty");
@@ -302,6 +300,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);
         }
+        tzRoundingBuilder.offset(offset);
         return tzRoundingBuilder.build();
     }
 

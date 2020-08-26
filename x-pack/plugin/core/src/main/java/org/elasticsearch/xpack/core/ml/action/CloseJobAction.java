@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,15 +37,17 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        @Deprecated
+        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_JOBS);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString(Request::setJobId, Job.ID);
             PARSER.declareString((request, val) ->
                     request.setCloseTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
-            PARSER.declareBoolean(Request::setAllowNoJobs, ALLOW_NO_JOBS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -60,7 +60,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
 
         private String jobId;
         private boolean force = false;
-        private boolean allowNoJobs = true;
+        private boolean allowNoMatch = true;
         // A big state can take a while to persist.  For symmetry with the _open endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
@@ -80,7 +80,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             force = in.readBoolean();
             openJobIds = in.readStringArray();
             local = in.readBoolean();
-            allowNoJobs = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
@@ -91,7 +91,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             out.writeBoolean(force);
             out.writeStringArray(openJobIds);
             out.writeBoolean(local);
-            out.writeBoolean(allowNoJobs);
+            out.writeBoolean(allowNoMatch);
         }
 
         public Request(String jobId) {
@@ -123,12 +123,12 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             this.force = force;
         }
 
-        public boolean allowNoJobs() {
-            return allowNoJobs;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoJobs(boolean allowNoJobs) {
-            this.allowNoJobs = allowNoJobs;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         public boolean isLocal() { return local; }
@@ -160,7 +160,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }
@@ -168,7 +168,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
         @Override
         public int hashCode() {
             // openJobIds are excluded
-            return Objects.hash(jobId, timeout, force, allowNoJobs);
+            return Objects.hash(jobId, timeout, force, allowNoMatch);
         }
 
         @Override
@@ -184,14 +184,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoJobs, other.allowNoJobs);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
-            super(client, action, new Request());
+                    Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 

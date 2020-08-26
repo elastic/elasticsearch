@@ -19,11 +19,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 
 public class ScrollCursor implements Cursor {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(ScrollCursor.class);
 
     public static final String NAME = "s";
 
@@ -90,7 +90,7 @@ public class ScrollCursor implements Cursor {
         return limit;
     }
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
             log.trace("About to execute scroll query {}", scrollId);
         }
@@ -105,7 +105,7 @@ public class ScrollCursor implements Cursor {
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         cleanCursor(client, scrollId, wrap(
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));
@@ -113,6 +113,9 @@ public class ScrollCursor implements Cursor {
     
     static void handle(SearchResponse response, Supplier<SearchHitRowSet> makeRowHit, Consumer<Page> onPage, Consumer<Page> clearScroll,
             Schema schema) {
+        if (log.isTraceEnabled()) {
+            Querier.logSearchResponse(response, log);
+        }
         SearchHit[] hits = response.getHits().getHits();
         // clean-up
         if (hits.length > 0) {

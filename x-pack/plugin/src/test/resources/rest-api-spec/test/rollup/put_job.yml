@@ -1,7 +1,11 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
       indices.create:
         index: foo
         body:
@@ -76,6 +80,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 
@@ -170,7 +176,7 @@ setup:
 "Try to include headers":
 
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -202,7 +208,7 @@ setup:
 "Validation failures":
 
   - do:
-      catch: /Could not find a \[numeric\] or \[date\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      catch: /Could not find a \[numeric\] or \[date,date_nanos\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -270,6 +276,8 @@ setup:
                 type: keyword
 
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

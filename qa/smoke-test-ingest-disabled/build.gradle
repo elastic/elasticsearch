@@ -20,11 +20,12 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-    testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
+  testImplementation project(':modules:ingest-common')
 }
 
 testClusters.integTest {
-    setting 'node.ingest', 'false'
+  setting 'node.roles', '[data,master,remote_cluster_client]'
 }

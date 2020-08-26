@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
@@ -46,24 +46,33 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
-        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
-        for (String tokenChars : Arrays.asList("letters", "number", "DIRECTIONALITY_UNDEFINED")) {
-            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
-                .put("token_chars", tokenChars).build();
-            try {
-                new NGramTokenizerFactory(indexProperties, null, name, settings).create();
-                fail();
-            } catch (IllegalArgumentException expected) {
-                // OK
-            }
-        }
+        final IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
         for (String tokenChars : Arrays.asList("letter", " digit ", "punctuation", "DIGIT", "CoNtRoL", "dash_punctuation")) {
             final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
                 .put("token_chars", tokenChars).build();
-            indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
-
             new NGramTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
+        }
+        {
+            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+                    .put("token_chars", "DIRECTIONALITY_UNDEFINED").build();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> new NGramTokenizerFactory(indexProperties, null, name, settings).create());
+            assertEquals("Unknown token type: 'directionality_undefined'", ex.getMessage().substring(0, 46));
+            assertTrue(ex.getMessage().contains("custom"));
+        }
+        {
+            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "custom")
+                    .put("custom_token_chars", "_-").build();
+            new NGramTokenizerFactory(indexProperties, null, name, settings).create();
+            // no exception
+        }
+        {
+            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "custom")
+                    .build();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                    () -> new NGramTokenizerFactory(indexProperties, null, name, settings).create());
+            assertEquals("Token type: 'custom' requires setting `custom_token_chars`", ex.getMessage());
         }
     }
 
@@ -78,6 +87,19 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             .create();
         tokenizer.setReader(new StringReader("1.34"));
         assertTokenStreamContents(tokenizer, new String[] {"1.", "1.3", "1.34", ".3", ".34", "34"});
+    }
+
+    public void testCustomTokenChars() throws IOException {
+        final Index index = new Index("test", "_na_");
+        final String name = "ngr";
+        final Settings indexSettings = newAnalysisSettingsBuilder().put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 2).build();
+
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+            .putList("token_chars", "letter", "custom").put("custom_token_chars","_-").build();
+        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
+            .create();
+        tokenizer.setReader(new StringReader("Abc -gh _jk =lm"));
+        assertTokenStreamContents(tokenizer, new String[] {"Ab", "Abc", "bc", "-g", "-gh", "gh", "_j", "_jk", "jk", "lm"});
     }
 
     public void testPreTokenization() throws IOException {
@@ -132,7 +154,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 builder.put("side", "back");
             }
             Settings settings = builder.build();
-            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetadata.SETTING_VERSION_CREATED, v.id).build();
             Tokenizer tokenizer = new MockTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream edgeNGramTokenFilter =

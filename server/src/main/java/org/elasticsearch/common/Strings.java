@@ -742,8 +742,14 @@ public class Strings {
      * which is usually used as everything
      */
     public static boolean isAllOrWildcard(String[] data) {
-        return CollectionUtils.isEmpty(data) ||
-               data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
+        return CollectionUtils.isEmpty(data) || data.length == 1 && isAllOrWildcard(data[0]);
+    }
+
+    /**
+     * Returns `true` if the string is `_all` or `*`.
+     */
+    public static boolean isAllOrWildcard(String data) {
+        return "_all".equals(data) || "*".equals(data);
     }
 
     /**
@@ -753,6 +759,16 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent) {
         return toString(toXContent, false, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * The content is not pretty-printed nor human readable.
+     */
+    public static String toString(ToXContent toXContent, ToXContent.Params params) {
+        return toString(toXContent, params, false, false);
     }
 
     /**
@@ -770,12 +786,22 @@ public class Strings {
      *
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     */
+    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
-            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            toXContent.toXContent(builder, params);
             if (toXContent.isFragment()) {
                 builder.endObject();
             }

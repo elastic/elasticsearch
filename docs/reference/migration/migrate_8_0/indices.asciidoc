@@ -1,11 +1,93 @@
-[float]
+[discrete]
 [[breaking_80_indices_changes]]
-=== Force Merge API changes
+=== Indices changes
 
-Previously, the Force Merge API allowed the parameters `only_expunge_deletes`
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+
+
+.The force merge API's `max_num_segments` and `only_expunge_deletes` parameters cannot both be specified in the same request.
+[%collapsible]
+====
+*Details* +
+Previously, the force merge API allowed the parameters `only_expunge_deletes`
 and `max_num_segments` to be set to a non default value at the same time. But
 the `max_num_segments` was silently ignored when `only_expunge_deletes` is set
 to `true`, leaving the false impression that it has been applied.
 
-The Force Merge API now rejects requests that have a `max_num_segments` greater
-than or equal to 0 when the `only_expunge_deletes` is set to true.
+*Impact* +
+When using the {ref}/indices-forcemerge.html[force merge API], do not specify
+values for both the `max_num_segments` and `only_expunge_deletes` parameters.
+Requests that include values for both parameters will return an error.
+====
+
+.The `index.force_memory_term_dictionary` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `index.force_memory_term_dictionary` setting was introduced in 7.0 as a
+temporary measure to allow users to opt-out of the optimization that leaves the
+term dictionary on disk when appropriate. This optimization is now mandatory
+and the setting is removed.
+
+*Impact* +
+Discontinue use of the `index.force_memory_term_dictionary` index setting.
+Requests that include this setting will return an error.
+====
+
+.The put index template API's `template` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+In 6.0, we deprecated the `template` parameter in put index template requests
+in favor of using `index_patterns`. Support for the `template` parameter is now
+removed in 8.0.
+
+*Impact* +
+Use the {ref}/indices-templates-v1.html[put index template API]'s
+`index_patterns` parameter. Requests that include the `template` parameter will
+return an error.
+====
+
+.Synced flush has been removed.
+[%collapsible]
+====
+*Details* +
+Synced flush was deprecated in 7.6 and is removed in 8.0. Use a regular flush
+instead as it has the same effect as a synced flush in 7.6 and later.
+
+*Impact* +
+Use the {ref}/indices-flush.html[flush API]. Requests to the
+`/<index>/flush/synced` or `/flush/synced` endpoints will return an error.
+====
+
+.The `index.soft_deletes.enabled` setting has been removed.
+[%collapsible]
+====
+*Details* +
+Creating indices with soft deletes disabled was deprecated in 7.6 and
+is no longer supported in 8.0. The `index.soft_deletes.enabled` setting
+can no longer be set to `false`. 
+
+*Impact* +
+Discontinue use of the `index.soft_deletes.enabled` index setting. Requests that
+set `index.soft_deletes.enabled` to `false` will return an error.
+====
+
+.The `index.translog.retention.age` and `index.translog.retention.size` settings have been removed.
+[%collapsible]
+====
+*Details* +
+Translog retention settings `index.translog.retention.age` and
+`index.translog.retention.size` were effectively ignored in 7.4, deprecated in
+7.7, and removed in 8.0 in favor of
+{ref}/index-modules-history-retention.html[soft deletes].
+
+*Impact* +
+Discontinue use of the `index.translog.retention.age` and
+`index.translog.retention.size` index settings. Requests that
+include these settings will return an error.
+====

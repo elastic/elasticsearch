@@ -33,24 +33,20 @@ import java.io.IOException;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
-    private NodeInfo nodeInfo;
-    private NodeStats nodeStats;
-    private ShardStats[] shardsStats;
+    private final NodeInfo nodeInfo;
+    private final NodeStats nodeStats;
+    private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
         clusterStatus = null;
         if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
+            clusterStatus = ClusterHealthStatus.readFrom(in);
         }
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        int size = in.readVInt();
-        shardsStats = new ShardStats[size];
-        for (int i = 0; i < size; i++) {
-            shardsStats[i] = new ShardStats(in);
-        }
+        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
     public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
@@ -97,9 +93,6 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         }
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
-        out.writeVInt(shardsStats.length);
-        for (ShardStats ss : shardsStats) {
-            ss.writeTo(out);
-        }
+        out.writeArray(shardsStats);
     }
 }

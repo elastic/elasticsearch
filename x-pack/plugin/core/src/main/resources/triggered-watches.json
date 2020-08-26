@@ -36,5 +36,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.watcher.template.version}
 }

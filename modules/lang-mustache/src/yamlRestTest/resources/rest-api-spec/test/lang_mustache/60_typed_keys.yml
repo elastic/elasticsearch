@@ -1,0 +1,144 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      indices.put_template:
+        name: index_template
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              ip:
+                 type: ip
+              integer:
+                 type: integer
+              float:
+                 type: float
+              name:
+                 type: keyword
+
+  - do:
+     allowed_warnings:
+      - "index [test-0] matches multiple legacy templates [global, index_template], composable templates will only match a single template"
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test-0"}}'
+          - '{"ip": "10.0.0.1", "integer": 38, "float": 12.5713, "name": "Ruth", "bool": true}'
+          - '{"index": {"_index": "test-0"}}'
+          - '{"ip": "10.0.0.2", "integer": 42, "float": 15.3393, "name": "Jackie", "surname": "Bowling", "bool": false}'
+          - '{"index": {"_index": "test-1"}}'
+          - '{"ip": "10.0.0.3", "integer": 29, "float": 19.0517, "name": "Stephanie", "bool": true}'
+          - '{"index": {"_index": "test-1"}}'
+          - '{"ip": "10.0.0.4", "integer": 19, "float": 19.3717, "surname": "Hamilton", "bool": true}'
+          - '{"index": {"_index": "test-2"}}'
+          - '{"ip": "10.0.0.5", "integer": 0, "float": 17.3349, "name": "Natalie", "bool": false}'
+
+---
+"Search template with typed_keys parameter":
+
+  - do:
+      put_script:
+        id: template_1
+        body:
+          script:
+            lang: mustache
+            source:
+              query:
+                match:
+                  bool: "{{bool_value}}"
+              aggs:
+                test_missing:
+                  missing:
+                    field: "{{missing_field}}"
+              suggest:
+                term_suggest:
+                  text: "{{suggest_text}}"
+                  term:
+                    field: "{{suggest_field}}"
+
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        rest_total_hits_as_int: true
+        index: test-*
+        typed_keys: true
+        body:
+          id: template_1
+          params:
+            bool_value: true
+            missing_field: name
+            suggest_field: name
+            suggest_text: Hamilt
+
+  - match:    { hits.total: 3 }
+  - match:    { aggregations.missing#test_missing.doc_count: 1 }
+  - is_true:  suggest.term#term_suggest
+
+---
+"Multisearch template with typed_keys parameter":
+
+  - do:
+      put_script:
+        id: registered_template
+        body:
+          script:
+            lang: mustache
+            source:
+              query:
+                range:
+                  integer:
+                   gte: "{{starting_value}}"
+              aggs:
+                test_histogram:
+                  histogram:
+                    field:    "{{histo.field}}"
+                    interval: "{{histo.interval}}"
+              suggest:
+                phrase_suggester:
+                  text: "{{keywords}}"
+                  phrase:
+                    field: name
+
+  - match: { acknowledged: true }
+
+  - do:
+      msearch_template:
+        rest_total_hits_as_int: true
+        typed_keys: true
+        body:
+          - index: test-*
+          - source:
+              query:
+                match:
+                 name: "{{name_value}}"
+              aggs:
+                test_global:
+                 global: {}
+                 aggs:
+                  test_ip_range:
+                    ip_range:
+                      field: "{{ip_field}}"
+                      ranges:
+                        to: "10.0.0.6"
+            params:
+              name_value: "Stephanie"
+              ip_field: "ip"
+          - index: test-0,test-1
+          - id: registered_template
+            params:
+              starting_value: 30
+              histo:
+                field: float
+                interval: 5
+              keywords: Ruht
+
+  - match:  { responses.0.hits.total: 1 }
+  - match:  { responses.0.aggregations.global#test_global.doc_count: 5 }
+  - match:  { responses.0.aggregations.global#test_global.ip_range#test_ip_range.buckets.0.doc_count: 5 }
+  - match:  { responses.1.hits.total: 2 }
+  - match:  { responses.1.aggregations.histogram#test_histogram.buckets.0.doc_count: 1 }
+  - is_true:  responses.1.suggest.phrase#phrase_suggester

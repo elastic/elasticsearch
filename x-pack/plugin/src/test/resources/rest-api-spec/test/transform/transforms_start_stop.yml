@@ -51,6 +51,7 @@ setup:
 teardown:
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
         timeout: "10m"
         wait_for_completion: true
@@ -59,6 +60,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         timeout: "10m"
         wait_for_completion: true
@@ -131,6 +133,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -168,6 +171,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -193,6 +197,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -201,25 +206,38 @@ teardown:
   - do:
       catch: missing
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "missing-transform"
 
 ---
 "Test stop missing transform by expression":
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         allow_no_match: true
         transform_id: "missing-transform*"
 
   - do:
       catch: missing
       transform.stop_transform:
+        wait_for_checkpoint: false
         allow_no_match: false
         transform_id: "missing-transform*"
+
+---
+"Test stop transform with force and wait_for_checkpoint true ":
+  - do:
+      catch: /cannot set both \[force\] and \[wait_for_checkpoint\] to true/
+      transform.stop_transform:
+        wait_for_checkpoint: true
+        force: true
+        transform_id: "airline-transform-start-stop-continuous"
 
 ---
 "Test stop already stopped transform":
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
   - match: { acknowledged: true }
 
@@ -269,6 +287,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -283,6 +302,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-later"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -317,6 +337,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "_all"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -355,3 +376,59 @@ teardown:
         index: airline-data-time-alias
   - match: { airline-data-time-alias.mappings.properties.time.type: date }
   - match: { airline-data-time-alias.mappings.properties.avg_response.type: double }
+---
+"Test start transform with missing pipeline":
+  - do:
+      transform.put_transform:
+        defer_validation: true
+        transform_id: "airline-transform-with-missing-pipeline"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-pipeline", "pipeline": "missing-transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: {acknowledged: true}
+  - do:
+      catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/
+      transform.start_transform:
+        transform_id: "airline-transform-with-missing-pipeline"
+---
+"Test start transform with pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "transform-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "some_field",
+                  "value" : 42
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-with-pipeline"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-pipeline", "pipeline": "transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: {acknowledged: true}
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-with-pipeline"

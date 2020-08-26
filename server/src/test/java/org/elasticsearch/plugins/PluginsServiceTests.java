@@ -24,6 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -34,6 +35,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
@@ -54,8 +56,11 @@ import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
@@ -93,10 +98,11 @@ public class PluginsServiceTests extends ESTestCase {
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
+        // does not override pre existing settings
         assertEquals(
             IndexModule.Type.SIMPLEFS.getSettingsKey(),
             newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-        ); // does not override pre existing settings
+        );
     }
 
     public void testAdditionalSettingsClash() {
@@ -688,5 +694,165 @@ public class PluginsServiceTests extends ESTestCase {
                         .put("plugin.mandatory", "fake")
                         .build();
         newPluginsService(settings);
+    }
+
+    public void testPluginFromParentClassLoader() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+            fake,
+            "description", "description",
+            "name", "fake",
+            "version", "1.0.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", TestPlugin.class.getName()); // set a class defined outside the bundle (in parent class-loader of plugin)
+
+        final Settings settings =
+            Settings.builder()
+                .put("path.home", pathHome)
+                .put("plugin.mandatory", "fake")
+                .build();
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(exception, hasToString(containsString("Plugin [fake] must reference a class loader local Plugin class [" +
+            TestPlugin.class.getName() + "] (class loader [" + PluginsServiceTests.class.getClassLoader() + "])")));
+    }
+
+    public void testExtensiblePlugin() {
+        TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
+        PluginsService.loadExtensions(List.of(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin)
+        ));
+
+        assertThat(extensiblePlugin.extensions, notNullValue());
+        assertThat(extensiblePlugin.extensions, hasSize(0));
+
+        extensiblePlugin = new TestExtensiblePlugin();
+        TestPlugin testPlugin = new TestPlugin();
+        PluginsService.loadExtensions(List.of(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin),
+            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false), testPlugin)
+        ));
+
+        assertThat(extensiblePlugin.extensions, notNullValue());
+        assertThat(extensiblePlugin.extensions, hasSize(2));
+        assertThat(extensiblePlugin.extensions.get(0), instanceOf(TestExtension1.class));
+        assertThat(extensiblePlugin.extensions.get(1), instanceOf(TestExtension2.class));
+        assertThat(((TestExtension2) extensiblePlugin.extensions.get(1)).plugin, sameInstance(testPlugin));
+    }
+
+    public void testNoExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        class TestExtension implements TestExtensionPoint {
+            private TestExtension() {
+            }
+        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e, hasToString(containsString("no public constructor for extension [" + TestExtension.class.getName() +
+            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+    }
+
+    public void testMultipleExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        class TestExtension implements TestExtensionPoint {
+            public TestExtension() {
+            }
+            public TestExtension(TestPlugin plugin) {
+
+            }
+        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e, hasToString(containsString("no unique public constructor for extension [" + TestExtension.class.getName() +
+            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+    }
+
+    public void testBadSingleParameterConstructor() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + "), not (" +
+                String.class.getName() + ")")));
+    }
+
+    public void testTooManyParametersExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("signature of constructor for extension [" + TooManyParametersConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + ")")));
+    }
+
+    public void testThrowingConstructor() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("failed to create extension [" + ThrowingConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
+    }
+
+    private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
+        private List<TestExtensionPoint> extensions;
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            assert extensions == null;
+            extensions = loader.loadExtensions(TestExtensionPoint.class);
+            // verify unmodifiable.
+            expectThrows(UnsupportedOperationException.class, () -> extensions.add(new TestExtension1()));
+        }
+    }
+
+    public static class TestPlugin extends Plugin {
+    }
+
+    public interface TestExtensionPoint {
+    }
+
+    public static class TestExtension1 implements TestExtensionPoint {
+    }
+
+    public static class TestExtension2 implements TestExtensionPoint {
+        public Plugin plugin;
+
+        public TestExtension2(TestPlugin plugin) {
+            this.plugin = plugin;
+        }
+    }
+
+    public static class BadSingleParameterConstructorExtension implements TestExtensionPoint {
+        public BadSingleParameterConstructorExtension(String bad) {
+        }
+    }
+
+    public static class TooManyParametersConstructorExtension implements TestExtensionPoint {
+        public TooManyParametersConstructorExtension(String bad) {
+        }
+    }
+
+    public static class ThrowingConstructorExtension implements TestExtensionPoint {
+        public ThrowingConstructorExtension() {
+            throw new IllegalArgumentException("test constructor failure");
+        }
     }
 }

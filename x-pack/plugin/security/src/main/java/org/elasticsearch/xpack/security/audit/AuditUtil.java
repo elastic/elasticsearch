@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,7 +65,7 @@ public class AuditUtil {
                     + existing + "] already registered");
             }
         }
-        final String requestId = UUIDs.randomBase64UUID();
+        final String requestId = UUIDs.randomBase64UUID(Randomness.get());
         // Store as a header (not transient) so that it is passed over the network if this request requires execution on other nodes
         threadContext.putHeader(AUDIT_REQUEST_ID, requestId);
         return requestId;

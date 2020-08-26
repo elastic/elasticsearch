@@ -165,7 +165,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geomet
 
     @Override
     public org.elasticsearch.geometry.Circle buildGeometry() {
-        throw new UnsupportedOperationException("CIRCLE geometry is not supported");
+       return new org.elasticsearch.geometry.Circle(center.x, center.y, unit.toMeters(radius));
     }
 
     @Override

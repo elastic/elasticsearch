@@ -29,7 +29,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiTerms;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -112,7 +112,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("field", new WhitespaceAnalyzer());
         PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new WhitespaceAnalyzer(), mapping);
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(wrapper));
+        IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(wrapper));
         Document doc = new Document();
         doc.add(new Field("field", "someText", TextField.TYPE_NOT_STORED));
         writer.addDocument(doc);

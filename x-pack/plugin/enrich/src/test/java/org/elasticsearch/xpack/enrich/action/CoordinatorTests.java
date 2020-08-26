@@ -34,11 +34,14 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction.Coordinator;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CoordinatorTests extends ESTestCase {
@@ -189,30 +192,54 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testQueueing() throws Exception {
+    public void testNoBlockingWhenQueueing() throws Exception {
         MockLookupFunction lookupFunction = new MockLookupFunction();
+        // Only one request allowed in flight. Queue size maxed at 1.
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);
+
+        // Pre-load the queue to be at capacity and spoof the coordinator state to seem like max requests in flight.
         coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.wrap(() -> {})));
+        coordinator.remoteRequestsCurrent.incrementAndGet();
 
-        AtomicBoolean completed = new AtomicBoolean(false);
+        // Try to schedule an item into the coordinator, should emit an exception
         SearchRequest searchRequest = new SearchRequest();
-        Thread t = new Thread(() -> {
-            coordinator.schedule(searchRequest, ActionListener.wrap(() -> {}));
-            completed.set(true);
-        });
-        t.start();
-        assertBusy(() -> {
-            assertThat(t.getState(), equalTo(Thread.State.WAITING));
-            assertThat(completed.get(), is(false));
-        });
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
 
-        coordinator.coordinateLookups();
-        assertBusy(() -> {
-            assertThat(completed.get(), is(true));
-        });
+        // Ensure rejection since queue is full
+        Exception rejectionException = capturedException.get();
+        assertThat(rejectionException.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
-        lookupFunction.capturedConsumers.get(0).accept(
-            new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(emptySearchResponse(), null)}, 1L), null);
+        // Ensure that nothing was scheduled because max requests is already in flight
+        assertThat(lookupFunction.capturedConsumers, is(empty()));
+
+        // Try to schedule again while max requests is not full. Ensure that despite the rejection, the queued request is sent.
+        coordinator.remoteRequestsCurrent.decrementAndGet();
+        capturedException.set(null);
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
+        rejectionException = capturedException.get();
+        assertThat(rejectionException.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
+        assertThat(lookupFunction.capturedRequests.size(), is(1));
+        assertThat(lookupFunction.capturedConsumers.size(), is(1));
+
+        // Schedule once more now, the queue should be able to accept the item, but will not schedule it yet
+        capturedException.set(null);
+        coordinator.schedule(searchRequest, ActionListener.wrap(response -> {}, capturedException::set));
+        rejectionException = capturedException.get();
+        assertThat(rejectionException, is(nullValue()));
+        assertThat(coordinator.queue.size(), is(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), is(1));
+        assertThat(lookupFunction.capturedRequests.size(), is(1));
+        assertThat(lookupFunction.capturedConsumers.size(), is(1));
+
+        // Fulfill the captured consumer which will schedule the next item in the queue.
+        lookupFunction.capturedConsumers.get(0)
+            .accept(
+                new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L),
+                null
+            );
+
+        // Ensure queue was drained and that the item in it was scheduled
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
         assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
@@ -231,14 +258,18 @@ public class CoordinatorTests extends ESTestCase {
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-                ActionType<Response> action, Request request) {
+                ActionType<Response> action,
+                Request request
+            ) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void execute(ActionType<Response> action,
-                                                                                                 Request request,
-                                                                                                 ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 requests.add((EnrichShardMultiSearchAction.Request) request);
             }
 
@@ -267,7 +298,7 @@ public class CoordinatorTests extends ESTestCase {
 
         MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(emptySearchResponse(), null);
         itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
-        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item1,  item1, item1}, 1), null));
+        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item1, item1, item1 }, 1), null));
 
         Exception failure = new RuntimeException();
         itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
@@ -275,7 +306,7 @@ public class CoordinatorTests extends ESTestCase {
 
         MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(emptySearchResponse(), null);
         itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
-        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item2,  item2, item2}, 1), null));
+        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item2, item2, item2 }, 1), null));
 
         MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
         assertThat(result.getResponses().length, equalTo(9));
@@ -291,8 +322,15 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     private static SearchResponse emptySearchResponse() {
-        InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+        InternalSearchResponse response = new InternalSearchResponse(
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            InternalAggregations.EMPTY,
+            null,
+            null,
+            false,
+            null,
+            1
+        );
         return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 

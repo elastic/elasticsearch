@@ -1,7 +1,8 @@
 {
   "ml.get_job_stats":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html",
+      "description":"Retrieves usage information for anomaly detection jobs."
     },
     "stability":"stable",
     "url":{
@@ -27,10 +28,16 @@
       ]
     },
     "params":{
-      "allow_no_jobs":{
+      "allow_no_match":{
         "type":"boolean",
         "required":false,
         "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
+      },
+      "allow_no_jobs":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)",
+        "deprecated":true
       }
     }
   }

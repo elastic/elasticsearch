@@ -82,8 +82,8 @@
 ---
 "Close index response with result per index":
   - skip:
-      version: " - 7.99.99"
-      reason: "close index response reports result per index starting version 8.0.0"
+      version: " - 7.2.99"
+      reason: "close index response reports result per index starting version 7.3.0"
 
   - do:
       indices.create:
@@ -115,4 +115,3 @@
   - match: { indices.index_1.closed: true }
   - match: { indices.index_2.closed: true }
   - match: { indices.index_3.closed: true }
-

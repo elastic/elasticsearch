@@ -1,8 +1,19 @@
 [[ingest-node-set-security-user-processor]]
-=== Set Security User Processor
-Sets user-related details (such as `username`,  `roles`, `email`, `full_name`
-and `metadata` ) from the current
+=== Set security user processor
+++++
+<titleabbrev>Set security user</titleabbrev>
+++++
+
+Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,
+`metadata`, `api_key`, `realm` and `authentication_type`) from the current
 authenticated user to the current document by pre-processing the ingest.
+The `api_key` property exists only if the user authenticates with an
+API key. It is an object containing the `id` and `name` fields of the API key.
+The `realm` property is also an object with two fields, `name` and `type`.
+When using API key authentication, the `realm` property refers to the realm
+from which the API key is created.
+The `authentication_type` property is a string that can take value from
+`REALM`, `API_KEY`, `TOKEN` and `ANONYMOUS`.
 
 IMPORTANT: Requires an authenticated user for the index request.
 
@@ -10,9 +21,9 @@ IMPORTANT: Requires an authenticated user for the index request.
 .Set Security User Options
 [options="header"]
 |======
-| Name          | Required  | Default                                                   | Description
-| `field`       | yes       | -                                                         | The field to store the user information into.
-| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
+| Name          | Required  | Default                                                                                              | Description
+| `field`       | yes       | -                                                                                                    | The field to store the user information into.
+| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`, `api_key`, `realm`, `authentication_type`]   | Controls what user related properties are added to the `field`.
 include::common-options.asciidoc[]
 |======
 

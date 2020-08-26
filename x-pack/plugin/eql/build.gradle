@@ -1,0 +1,125 @@
+import org.elasticsearch.gradle.info.BuildParams
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-eql'
+  description 'The Elasticsearch plugin that powers EQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.eql.plugin.EqlPlugin'
+  extendedPlugins = ['x-pack-ql', 'lang-painless']
+}
+
+ext {
+  // EQL dependency versions
+  antlrVersion = "4.5.3"
+}
+
+archivesBaseName = 'x-pack-eql'
+
+// All integration tests live in qa modules
+integTest.enabled = false
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly(project(':modules:lang-painless')) {
+    exclude group: "org.ow2.asm"
+  }
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  compileOnly project(path: xpackModule('ql'), configuration: 'default')
+
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:transport-netty4') // for http in RestEqlCancellationIT
+  testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
+
+  testImplementation 'io.ous:jtoml:2.0.0'
+}
+
+
+/****************************************************************
+ *  Enable QA/rest integration tests for snapshot builds only   *
+ *  TODO: Enable for all builds upon this feature release       *
+ ****************************************************************/
+if (BuildParams.isSnapshotBuild()) {
+  // add all sub-projects of the qa sub-project
+  gradle.projectsEvaluated {
+    project.subprojects
+      .find { it.path == project.path + ":qa" }
+      .subprojects
+      .findAll { it.path.startsWith(project.path + ":qa") }
+      .each { check.dependsOn it.check }
+  }
+}
+
+/**********************************************
+ *          EQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate "org.antlr:antlr4:${antlrVersion}"
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
+
+tasks.register("cleanGenerated", Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'EqlBase*.java'
+  }
+}
+
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  main = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.eql.parser',
+    '-listener',
+    '-visitor',
+    '-o', outputPath,
+    "${file(grammarPath)}/EqlBase.g4"
+}
+
+tasks.register("regen") {
+  dependsOn "regenParser"
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/EqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/EqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QEqlBase\\E\\w+)',
+      replace: '\\1',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+      patternset(includes: 'EqlBase*.java')
+    }
+  }
+}

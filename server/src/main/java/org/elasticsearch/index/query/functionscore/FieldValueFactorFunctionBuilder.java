@@ -144,7 +144,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        MappedFieldType fieldType = context.getMapperService().fullName(field);
+        MappedFieldType fieldType = context.getMapperService().fieldType(field);
         IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
             if(missing == null) {

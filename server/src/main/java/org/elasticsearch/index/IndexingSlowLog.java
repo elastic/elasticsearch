@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,22 +44,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
-    private final Index index;
-    private boolean reformat;
-    private long indexWarnThreshold;
-    private long indexInfoThreshold;
-    private long indexDebugThreshold;
-    private long indexTraceThreshold;
-    /**
-     * How much of the source to log in the slowlog - 0 means log none and
-     * anything greater than 0 means log at least that many <em>characters</em>
-     * of the source.
-     */
-    private int maxSourceCharsToLog;
-
-    private final Logger indexLogger;
-
-    private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
+    public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING =
         Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1),
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
@@ -73,9 +59,21 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING =
         Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, Property.Dynamic, Property.IndexScope);
-    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING =
-        new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
-            Property.IndexScope);
+
+    private final Logger indexLogger;
+    private final Index index;
+
+    private boolean reformat;
+    private long indexWarnThreshold;
+    private long indexInfoThreshold;
+    private long indexDebugThreshold;
+    private long indexTraceThreshold;
+    /*
+     * How much of the source to log in the slowlog - 0 means log none and anything greater than 0 means log at least that many
+     * <em>characters</em> of the source.
+     */
+    private int maxSourceCharsToLog;
+
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log
@@ -92,7 +90,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index." + indexSettings.getUUID());
+        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+        Loggers.setLevel(this.indexLogger, Level.TRACE);
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -109,8 +108,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         indexSettings.getScopedSettings()
                 .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING, this::setTraceThreshold);
         this.indexTraceThreshold = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING, this::setLevel);
-        setLevel(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING));
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
                 this::setMaxSourceCharsToLog);
         this.maxSourceCharsToLog = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
@@ -118,10 +115,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     private void setMaxSourceCharsToLog(int maxSourceCharsToLog) {
         this.maxSourceCharsToLog = maxSourceCharsToLog;
-    }
-
-    private void setLevel(SlowLogLevel level) {
-        Loggers.setLevel(this.indexLogger, level.name());
     }
 
     private void setWarnThreshold(TimeValue warnThreshold) {
@@ -167,10 +160,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
 
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-            //message for json logs is provided by jsonFields
-            String plaintextMessage = message(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-
-            return new ESLogMessage(plaintextMessage).withFields(jsonFields);
+            return new ESLogMessage().withFields(jsonFields);
         }
 
         private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
@@ -180,7 +170,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             map.put("id", doc.id());
-            map.put("routing", doc.routing());
+            if (doc.routing() != null) {
+                map.put("routing", doc.routing());
+            }
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
                 return map;
@@ -203,36 +195,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 throw new UncheckedIOException(message, e);
             }
             return map;
-        }
-
-        private static String message(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(index).append(" ");
-            sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
-            sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("id[").append(doc.id()).append("], ");
-            if (doc.routing() == null) {
-                sb.append("routing[]");
-            } else {
-                sb.append("routing[").append(doc.routing()).append("]");
-            }
-
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
-                return sb.toString();
-            }
-            try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
-                sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog).trim()).append("]");
-            } catch (IOException e) {
-                sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
-                /*
-                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-                 * will be logged at the warn level.
-                 */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
-                throw new UncheckedIOException(message, e);
-            }
-            return sb.toString();
         }
     }
 
@@ -258,10 +220,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     int getMaxSourceCharsToLog() {
         return maxSourceCharsToLog;
-    }
-
-    SlowLogLevel getLevel() {
-        return SlowLogLevel.parse(indexLogger.getLevel().name());
     }
 
 }

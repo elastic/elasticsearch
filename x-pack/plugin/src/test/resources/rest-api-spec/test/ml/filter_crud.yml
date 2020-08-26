@@ -1,11 +1,15 @@
 ---
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
+      allowed_warnings:
+        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
       index:
         index: .ml-meta
         id: filter_imposter-filter
@@ -128,28 +132,6 @@ setup:
         filter_id: "filter-foo2"
         description: "This filter has a description"
         items: ["123", "lmnop"]
-
----
-"Test invalid param combinations":
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        size: 1
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-        size: 1
 
 ---
 "Test create filter given invalid filter_id":
@@ -342,6 +324,8 @@ setup:
       indices.delete:
         index: ".ml-meta"
   - do:
+      allowed_warnings:
+        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
       indices.create:
         index: ".ml-meta"
 

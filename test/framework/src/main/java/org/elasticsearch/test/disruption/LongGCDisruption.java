@@ -32,6 +32,8 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -56,9 +58,21 @@ public class LongGCDisruption extends SingleNodeDisruption {
     private Set<Thread> suspendedThreads;
     private Thread blockDetectionThread;
 
+    private final AtomicBoolean sawSlowSuspendBug = new AtomicBoolean(false);
+
     public LongGCDisruption(Random random, String disruptedNode) {
         super(random);
         this.disruptedNode = disruptedNode;
+    }
+
+    /**
+     * Checks if during disruption we ran into a known JVM issue that makes {@link Thread#suspend()} calls block for multiple seconds
+     * was observed.
+     * @see <a href=https://bugs.openjdk.java.net/browse/JDK-8218446>JDK-8218446</a>
+     * @return true if during thread suspending a call to {@link Thread#suspend()} took more than 3s
+     */
+    public boolean sawSlowSuspendBug() {
+        return sawSlowSuspendBug.get();
     }
 
     @Override
@@ -251,7 +265,11 @@ public class LongGCDisruption extends SingleNodeDisruption {
                          * assuming that it is safe.
                          */
                         boolean definitelySafe = true;
+                        final long startTime = System.nanoTime();
                         thread.suspend();
+                        if (System.nanoTime() - startTime > TimeUnit.SECONDS.toNanos(3L)) {
+                            sawSlowSuspendBug.set(true);
+                        }
                         // double check the thread is not in a shared resource like logging; if so, let it go and come back
                         safe:
                         for (StackTraceElement stackElement : thread.getStackTrace()) {

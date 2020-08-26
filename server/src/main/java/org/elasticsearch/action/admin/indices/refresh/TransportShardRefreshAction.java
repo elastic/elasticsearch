@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,9 +47,9 @@ public class TransportShardRefreshAction
     @Inject
     public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       ActionFilters actionFilters) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
+                BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
     }
 
     @Override
@@ -69,9 +68,12 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
-        replica.refresh("api");
-        logger.trace("{} refresh request executed on replica", replica.shardId());
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            replica.refresh("api");
+            logger.trace("{} refresh request executed on replica", replica.shardId());
+            return new ReplicaResult();
+        });
     }
 }

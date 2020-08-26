@@ -21,7 +21,8 @@ package org.elasticsearch.repositories.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -30,9 +31,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.function.Function;
@@ -69,9 +70,9 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-                        ThreadPool threadPool) {
-        super(metadata, namedXContentRegistry, threadPool, BlobPath.cleanPath());
+    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+                        ClusterService clusterService, RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, BlobPath.cleanPath());
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -103,9 +104,9 @@ public class FsRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() throws Exception {
-        final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
+        final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
         final Path locationFile = environment.resolveRepoFile(location);
-        return new FsBlobStore(environment.settings(), locationFile, isReadOnly());
+        return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 
     @Override

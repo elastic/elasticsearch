@@ -26,10 +26,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.containsString;
  * cluster....
  */
 public class ReindexSourceTargetValidationTests extends ESTestCase {
-    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)
                 .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
@@ -130,17 +130,17 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 
-    private static IndexMetaData index(String name, String... aliases) {
+    private static IndexMetadata index(String name, String... aliases) {
         return index(name, null, aliases);
     }
 
-    private static IndexMetaData index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
+    private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1));
         for (String alias: aliases) {
-            builder.putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex).build());
+            builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();
     }

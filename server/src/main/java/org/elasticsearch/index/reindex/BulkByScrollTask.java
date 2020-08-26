@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -383,7 +384,7 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         @SuppressWarnings("unchecked")
-        static ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
+        static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
             "bulk_by_scroll_task_status_retries",
             true,
             a -> new Tuple(a[0], a[1])
@@ -982,6 +983,15 @@ public class BulkByScrollTask extends CancellableTask {
                     }
                 }
                 throw new XContentParseException("Unable to parse StatusFromException. Expected fields not found.");
+            }
+        }
+
+        @Override
+        public String toString() {
+            if (exception != null) {
+                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+            } else {
+                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
             }
         }
 

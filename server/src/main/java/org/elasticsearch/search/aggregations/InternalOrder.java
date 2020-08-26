@@ -25,9 +25,10 @@ import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,72 +38,22 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Implementations for {@link Bucket} ordering strategies.
  */
-public class InternalOrder extends BucketOrder {
-
-    private final byte id;
-    private final String key;
-    protected final boolean asc;
-    protected final Comparator<Bucket> comparator;
-
-    /**
-     * Creates an ordering strategy that sorts {@link Bucket}s by some property.
-     *
-     * @param id         unique ID for this ordering strategy.
-     * @param key        key of the property to sort on.
-     * @param asc        direction to sort by: {@code true} for ascending, {@code false} for descending.
-     * @param comparator determines how buckets will be ordered.
-     */
-    public InternalOrder(byte id, String key, boolean asc, Comparator<Bucket> comparator) {
-        this.id = id;
-        this.key = key;
-        this.asc = asc;
-        this.comparator = comparator;
-    }
-
-    @Override
-    byte id() {
-        return id;
-    }
-
-    @Override
-    public Comparator<Bucket> comparator(Aggregator aggregator) {
-        return comparator;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(key, asc ? "asc" : "desc").endObject();
-    }
-
-    /**
-     * Validate a bucket ordering strategy for an {@link Aggregator}.
-     *
-     * @param order      bucket ordering strategy to sort on.
-     * @param aggregator aggregator to sort.
-     * @return unmodified bucket ordering strategy.
-     * @throws AggregationExecutionException if validation fails
-     */
-    public static BucketOrder validate(BucketOrder order, Aggregator aggregator) throws AggregationExecutionException {
-        if (order instanceof CompoundOrder) {
-            for (BucketOrder innerOrder : ((CompoundOrder) order).orderElements) {
-                validate(innerOrder, aggregator);
-            }
-        } else if (order instanceof Aggregation) {
-            ((Aggregation) order).path().validate(aggregator);
-        }
-        return order;
-    }
-
+public abstract class InternalOrder extends BucketOrder {
+    // TODO merge the contents of this file into BucketOrder. The way it is now is relic.
     /**
      * {@link Bucket} ordering strategy to sort by a sub-aggregation.
      */
     public static class Aggregation extends InternalOrder {
-
         static final byte ID = 0;
+        private final SortOrder order;
+        private final AggregationPath path;
 
         /**
          * Create a new ordering strategy to sort by a sub-aggregation.
@@ -112,51 +63,56 @@ public class InternalOrder extends BucketOrder {
          * @see AggregationPath
          */
         Aggregation(String path, boolean asc) {
-            super(ID, path, asc, new AggregationComparator(path, asc));
+            order = asc ? SortOrder.ASC : SortOrder.DESC;
+            this.path = AggregationPath.parse(path);
         }
 
-        /**
-         * @return parsed path to the sub-aggregation to sort on.
-         */
         public AggregationPath path() {
-            return ((AggregationComparator) comparator).path;
+            return path;
         }
 
         @Override
-        public Comparator<Bucket> comparator(Aggregator aggregator) {
-            if (aggregator instanceof TermsAggregator) {
-                // Internal Optimization for terms aggregation to avoid constructing buckets for ordering purposes
-                return ((TermsAggregator) aggregator).bucketComparator(path(), asc);
+        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
+            try {
+                BucketComparator bucketComparator = path.bucketComparator(aggregator, order);
+                return (lhs, rhs) -> bucketComparator.compare(ordinalReader.applyAsLong(lhs), ordinalReader.applyAsLong(rhs));
+            } catch (IllegalArgumentException e) {
+                throw new AggregationExecutionException("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
             }
-            return comparator;
         }
 
-        /**
-         * {@link Bucket} ordering strategy to sort by a sub-aggregation.
-         */
-        static class AggregationComparator implements Comparator<Bucket> {
+        @Override
+        public Comparator<Bucket> comparator() {
+            return (lhs, rhs) -> {
+                double l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
+                double r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                return Comparators.compareDiscardNaN(l, r, order == SortOrder.ASC);
+            };
+        }
 
-            private final AggregationPath path;
-            private final boolean asc;
+        @Override
+        byte id() {
+            return ID;
+        }
 
-            /**
-             * Create a new {@link Bucket} ordering strategy to sort by a sub-aggregation.
-             *
-             * @param path path to the sub-aggregation to sort on.
-             * @param asc  direction to sort by: {@code true} for ascending, {@code false} for descending.
-             * @see AggregationPath
-             */
-            AggregationComparator(String path, boolean asc) {
-                this.asc = asc;
-                this.path = AggregationPath.parse(path);
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field(path.toString(), order.toString()).endObject();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(path, order);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
             }
-
-            @Override
-            public int compare(Bucket b1, Bucket b2) {
-                double v1 = path.resolveValue(b1);
-                double v2 = path.resolveValue(b2);
-                return Comparators.compareDiscardNaN(v1, v2, asc);
-            }
+            Aggregation other = (Aggregation) obj;
+            return Objects.equals(path, other.path)
+                && Objects.equals(order, other.order);
         }
     }
 
@@ -224,8 +180,31 @@ public class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public Comparator<Bucket> comparator(Aggregator aggregator) {
-            return new CompoundOrderComparator(orderElements, aggregator);
+        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
+            List<Comparator<T>> comparators = orderElements.stream()
+                    .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
+                    .collect(toList());
+            return (lhs, rhs) -> {
+                Iterator<Comparator<T>> itr = comparators.iterator();
+                int result;
+                do {
+                    result = itr.next().compare(lhs, rhs);
+                } while (result == 0 && itr.hasNext());
+                return result;
+            };
+        }
+
+        @Override
+        public Comparator<Bucket> comparator() {
+            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
+            return (lhs, rhs) -> {
+                Iterator<Comparator<Bucket>> itr = comparators.iterator();
+                int result;
+                do {
+                    result = itr.next().compare(lhs, rhs);
+                } while (result == 0 && itr.hasNext());
+                return result;
+            };
         }
 
         @Override
@@ -244,34 +223,64 @@ public class InternalOrder extends BucketOrder {
             CompoundOrder other = (CompoundOrder) obj;
             return Objects.equals(orderElements, other.orderElements);
         }
+    }
 
-        /**
-         * {@code Comparator} for sorting buckets by multiple criteria.
-         */
-        static class CompoundOrderComparator implements Comparator<Bucket> {
+    /**
+     * {@link BucketOrder} implementation for simple, fixed orders like
+     * {@link InternalOrder#COUNT_ASC}. Complex implementations should not
+     * use this.
+     */
+    private static class SimpleOrder extends InternalOrder {
+        private final byte id;
+        private final String key;
+        private final SortOrder order;
+        private final Comparator<Bucket> comparator;
 
-            private List<BucketOrder> compoundOrder;
-            private Aggregator aggregator;
+        SimpleOrder(byte id, String key, SortOrder order, Comparator<Bucket> comparator) {
+            this.id = id;
+            this.key = key;
+            this.order = order;
+            this.comparator = comparator;
+        }
 
-            /**
-             * Create a new {@code Comparator} for sorting buckets by multiple criteria.
-             *
-             * @param compoundOrder a list of {@link BucketOrder}s to sort on, in order of priority.
-             * @param aggregator    {@link BucketOrder#comparator(Aggregator)}
-             */
-            CompoundOrderComparator(List<BucketOrder> compoundOrder, Aggregator aggregator) {
-                this.compoundOrder = compoundOrder;
-                this.aggregator = aggregator;
+        @Override
+        public Comparator<Bucket> comparator() {
+            return comparator;
+        }
+
+        @Override
+        byte id() {
+            return id;
+        }
+
+        @Override
+        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
+            Comparator<Bucket> comparator = comparator();
+            return (lhs, rhs) -> comparator.compare(lhs, rhs);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field(key, order.toString()).endObject();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, key, order);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
             }
-
-            @Override
-            public int compare(Bucket b1, Bucket b2) {
-                int result = 0;
-                for (Iterator<BucketOrder> itr = compoundOrder.iterator(); itr.hasNext() && result == 0; ) {
-                    result = itr.next().comparator(aggregator).compare(b1, b2);
-                }
-                return result;
+            if (getClass() != obj.getClass()) {
+                return false;
             }
+            SimpleOrder other = (SimpleOrder) obj;
+            return Objects.equals(id, other.id)
+                && Objects.equals(key, other.key)
+                && Objects.equals(order, other.order);
         }
     }
 
@@ -283,22 +292,22 @@ public class InternalOrder extends BucketOrder {
     /**
      * Order by the (higher) count of each bucket.
      */
-    static final InternalOrder COUNT_DESC = new InternalOrder(COUNT_DESC_ID, "_count", false, comparingCounts().reversed());
+    static final InternalOrder COUNT_DESC = new SimpleOrder(COUNT_DESC_ID, "_count", SortOrder.DESC, comparingCounts().reversed());
 
     /**
      * Order by the (lower) count of each bucket.
      */
-    static final InternalOrder COUNT_ASC = new InternalOrder(COUNT_ASC_ID, "_count", true, comparingCounts());
+    static final InternalOrder COUNT_ASC = new SimpleOrder(COUNT_ASC_ID, "_count", SortOrder.ASC, comparingCounts());
 
     /**
      * Order by the key of each bucket descending.
      */
-    static final InternalOrder KEY_DESC = new InternalOrder(KEY_DESC_ID, "_key", false, comparingKeys().reversed());
+    static final InternalOrder KEY_DESC = new SimpleOrder(KEY_DESC_ID, "_key", SortOrder.DESC, comparingKeys().reversed());
 
     /**
      * Order by the key of each bucket ascending.
      */
-    static final InternalOrder KEY_ASC = new InternalOrder(KEY_ASC_ID, "_key", true, comparingKeys());
+    static final InternalOrder KEY_ASC = new SimpleOrder(KEY_ASC_ID, "_key", SortOrder.ASC, comparingKeys());
 
     /**
      * @return compare by {@link Bucket#getDocCount()}.
@@ -438,7 +447,7 @@ public class InternalOrder extends BucketOrder {
             out.writeByte(order.id());
             if (order instanceof Aggregation) {
                 Aggregation aggregationOrder = (Aggregation) order;
-                out.writeBoolean(aggregationOrder.asc);
+                out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
             } else if (order instanceof CompoundOrder) {
                 CompoundOrder compoundOrder = (CompoundOrder) order;
@@ -508,24 +517,5 @@ public class InternalOrder extends BucketOrder {
                     return aggregation(orderKey, orderAsc);
             }
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, key, asc);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        InternalOrder other = (InternalOrder) obj;
-        return Objects.equals(id, other.id)
-            && Objects.equals(key, other.key)
-            && Objects.equals(asc, other.asc);
     }
 }

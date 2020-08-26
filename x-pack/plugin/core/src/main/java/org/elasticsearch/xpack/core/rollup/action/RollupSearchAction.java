@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class RollupSearchAction extends ActionType<SearchResponse> {
 
     public static final RollupSearchAction INSTANCE = new RollupSearchAction();
-    public static final String NAME = "indices:admin/xpack/rollup/search";
+    public static final String NAME = "indices:data/read/xpack/rollup/search";
 
     private RollupSearchAction() {
         super(NAME, SearchResponse::new);

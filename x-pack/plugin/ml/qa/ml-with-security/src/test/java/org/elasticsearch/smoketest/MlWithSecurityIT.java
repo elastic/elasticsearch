@@ -59,11 +59,6 @@ public class MlWithSecurityIT extends XPackRestIT {
     }
 
     @Override
-    protected boolean isWatcherTest() {
-        return false;
-    }
-
-    @Override
     protected boolean isMachineLearningTest() {
         return true;
     }

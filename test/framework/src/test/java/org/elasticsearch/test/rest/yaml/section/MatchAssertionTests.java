@@ -21,6 +21,10 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.ESTestCase;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
+
 public class MatchAssertionTests extends ESTestCase  {
 
     public void testNull() {
@@ -38,5 +42,14 @@ public class MatchAssertionTests extends ESTestCase  {
             MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", "/exp/");
             expectThrows(AssertionError.class, () -> matchAssertion.doAssert(null, "/exp/"));
         }
+    }
+
+    public void testNullInMap() {
+        XContentLocation xContentLocation = new XContentLocation(0, 0);
+        MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", singletonMap("a", null));
+        matchAssertion.doAssert(singletonMap("a", null), matchAssertion.getExpectedValue());
+        AssertionError e = expectThrows(AssertionError.class, () ->
+            matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("expected [null] but not found"));
     }
 }

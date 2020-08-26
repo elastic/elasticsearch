@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,7 +51,7 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -69,12 +70,17 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
+            if (bytes instanceof BytesArray) {
+                final BytesArray array = (BytesArray) bytes;
+                return xContentType.xContent().createParser(
+                        xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
+            }
             return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
@@ -100,15 +106,24 @@ public class XContentHelper {
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                InputStream compressedStreamInput = compressor.threadLocalStreamInput(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+            } else if (bytes instanceof BytesArray) {
+                final BytesArray arr = (BytesArray) bytes;
+                final byte[] raw = arr.array();
+                final int offset = arr.offset();
+                final int length = arr.length();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
+                return new Tuple<>(Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
-            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             try (InputStream stream = input) {
                 return new Tuple<>(Objects.requireNonNull(contentType),
                     convertToMap(XContentFactory.xContent(contentType), stream, ordered));
@@ -147,6 +162,21 @@ public class XContentHelper {
         }
     }
 
+    /**
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
+            throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
         return convertToJson(bytes, reformatJson, false);
@@ -161,6 +191,19 @@ public class XContentHelper {
         return convertToJson(bytes, reformatJson, false, xContentType);
     }
 
+    /**
+     * Accepts a JSON string, parses it and prints it without pretty-printing it. This is useful
+     * where a piece of JSON is formatted for legibility, but needs to be stripped of unnecessary
+     * whitespace e.g. for comparison in a test.
+     *
+     * @param json the JSON to format
+     * @return reformatted JSON
+     * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
+     */
+    public static String stripWhitespace(String json) throws IOException {
+        return convertToJson(new BytesArray(json), true, XContentType.JSON);
+    }
+
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
@@ -169,17 +212,29 @@ public class XContentHelper {
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        try (InputStream stream = bytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-            parser.nextToken();
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            if (prettyPrint) {
-                builder.prettyPrint();
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                return toJsonString(prettyPrint, parser);
             }
-            builder.copyCurrentStructure(parser);
-            return Strings.toString(builder);
+        } else {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                return toJsonString(prettyPrint, parser);
+            }
         }
+    }
+
+    private static String toJsonString(boolean prettyPrint, XContentParser parser) throws IOException {
+        parser.nextToken();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        if (prettyPrint) {
+            builder.prettyPrint();
+        }
+        builder.copyCurrentStructure(parser);
+        return Strings.toString(builder);
     }
 
     /**
@@ -236,10 +291,9 @@ public class XContentHelper {
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
                 } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    List defaultList = (List) defaultEntry.getValue();
-                    List contentList = (List) content.get(defaultEntry.getKey());
+                    List<Object> defaultList = (List<Object>) defaultEntry.getValue();
+                    List<Object> contentList = (List<Object>) content.get(defaultEntry.getKey());
 
-                    List mergedList = new ArrayList();
                     if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
                         Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
@@ -258,26 +312,26 @@ public class XContentHelper {
                                 processed.put(entry.getKey(), map);
                             }
                         }
-                        for (Map<String, Object> map : processed.values()) {
-                            mergedList.add(map);
-                        }
+
+                        content.put(defaultEntry.getKey(), new ArrayList<>(processed.values()));
                     } else {
                         // if both are lists, simply combine them, first the defaults, then the content
                         // just make sure not to add the same value twice
-                        mergedList.addAll(defaultList);
+                        List<Object> mergedList = new ArrayList<>(defaultList);
+
                         for (Object o : contentList) {
                             if (!mergedList.contains(o)) {
                                 mergedList.add(o);
                             }
                         }
+                        content.put(defaultEntry.getKey(), mergedList);
                     }
-                    content.put(defaultEntry.getKey(), mergedList);
                 }
             }
         }
     }
 
-    private static boolean allListValuesAreMapsOfOne(List list) {
+    private static boolean allListValuesAreMapsOfOne(List<Object> list) {
         for (Object o : list) {
             if (!(o instanceof Map)) {
                 return false;
@@ -300,7 +354,7 @@ public class XContentHelper {
                                      ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
             }
         } else {
@@ -319,7 +373,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
             }
         } else {
@@ -367,7 +421,36 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        BytesRef br = bytes.toBytesRef();
-        return XContentFactory.xContentType(br.bytes, br.offset, br.length);
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        }
+        try {
+            final InputStream inputStream = bytes.streamInput();
+            assert inputStream.markSupported();
+            return XContentFactory.xContentType(inputStream);
+        } catch (IOException e) {
+            assert false : "Should not happen, we're just reading bytes from memory";
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Returns the contents of an object as an unparsed BytesReference
+     *
+     * This is useful for things like mappings where we're copying bytes around but don't
+     * actually need to parse their contents, and so avoids building large maps of maps
+     * unnecessarily
+     */
+    public static BytesReference childBytes(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new XContentParseException(parser.getTokenLocation(),
+                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+        }
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+        return BytesReference.bytes(builder);
     }
 }

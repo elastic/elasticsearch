@@ -1,11 +1,10 @@
 [[index-lifecycle-management-api]]
 == {ilm-cap} API
 
-You can use the following APIs to manage policies on indices. See
-<<index-lifecycle-management,Managing the index lifecycle>> for more information
-about Index Lifecycle Management.
+You use the following APIs to set up policies to automatically manage the index lifecycle. 
+For more information about {ilm} ({ilm-init}), see <<index-lifecycle-management>>.
 
-[float]
+[discrete]
 [[ilm-api-policy-endpoint]]
 === Policy management APIs
 
@@ -13,7 +12,7 @@ about Index Lifecycle Management.
 * <<ilm-get-lifecycle,Get lifecycle policy>>
 * <<ilm-delete-lifecycle,Delete lifecycle policy>>
 
-[float]
+[discrete]
 [[ilm-api-index-endpoint]]
 === Index management APIs
 
@@ -21,13 +20,13 @@ about Index Lifecycle Management.
 * <<ilm-retry-policy,Retry policy on indices>>
 * <<ilm-remove-policy,Remove policy from index>>
 
-[float]
+[discrete]
 [[ilm-api-management-endpoint]]
 === Operation management APIs
 
-* <<ilm-get-status,Get ILM operation mode>>
-* <<ilm-start,Start ILM>>
-* <<ilm-stop,Stop ILM>>
+* <<ilm-get-status,Get {ilm-init} operation mode>>
+* <<ilm-start,Start {ilm-init}>>
+* <<ilm-stop,Stop {ilm-init}>>
 * <<ilm-explain-lifecycle,Explain API>>
 
 

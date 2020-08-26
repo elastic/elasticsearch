@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ public class ProcessPipes {
     public static final String PERSIST_IS_PIPE_ARG = "--persistIsPipe";
 
     private final NamedPipeHelper namedPipeHelper;
+    private final String jobId;
 
     /**
      * <code>null</code> indicates a pipe won't be used
@@ -48,7 +50,7 @@ public class ProcessPipes {
     private final String restorePipeName;
     private final String persistPipeName;
 
-    private InputStream logStream;
+    private CppLogMessageHandler logStreamHandler;
     private OutputStream commandStream;
     private OutputStream processInStream;
     private InputStream processOutStream;
@@ -65,9 +67,10 @@ public class ProcessPipes {
      *              May be null or empty for processes not associated with a specific job.
      */
     public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, String processName, String jobId,
-                        boolean wantLogPipe, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
+                        boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
                         boolean wantRestorePipe, boolean wantPersistPipe) {
         this.namedPipeHelper = namedPipeHelper;
+        this.jobId = jobId;
 
         // The way the pipe names are formed MUST match what is done in the controller main()
         // function, as it does not get any command line arguments when started as a daemon.  If
@@ -80,7 +83,7 @@ public class ProcessPipes {
         }
         String prefix = prefixBuilder.toString();
         String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());
-        logPipeName = wantLogPipe ? String.format(Locale.ROOT, "%slog%s", prefix, suffix) : null;
+        logPipeName = String.format(Locale.ROOT, "%slog%s", prefix, suffix);
         commandPipeName = wantCommandPipe ? String.format(Locale.ROOT, "%scommand%s", prefix, suffix) : null;
         processInPipeName = wantProcessInPipe ? String.format(Locale.ROOT, "%sinput%s", prefix, suffix) : null;
         processOutPipeName = wantProcessOutPipe ? String.format(Locale.ROOT, "%soutput%s", prefix, suffix) : null;
@@ -92,9 +95,7 @@ public class ProcessPipes {
      * Augments a list of command line arguments, for example that built up by the AutodetectBuilder class.
      */
     public void addArgs(List<String> command) {
-        if (logPipeName != null) {
-            command.add(LOG_PIPE_ARG + logPipeName);
-        }
+        command.add(LOG_PIPE_ARG + logPipeName);
         if (commandPipeName != null) {
             command.add(COMMAND_PIPE_ARG + commandPipeName);
         }
@@ -118,19 +119,35 @@ public class ProcessPipes {
     }
 
     /**
-     * Connect the pipes created by the C++ process.  This must be called after the corresponding C++ process has been started.
+     * Connect the log pipe created by the C++ process.  The must be connected before any other pipes <em>and a thread must be
+     * started to read from it</em>so that there is no risk of messages logged in between creation of the other pipes on the C++
+     * side from blocking due to filling up the named pipe's buffer, and hence deadlocking communications between that process
+     * and this JVM.
      * @param timeout Needs to be long enough for the C++ process perform all startup tasks that precede creation of named pipes.
      *                There should not be very many of these, so a short timeout should be fine.  However, at least a couple of
      *                seconds is recommended due to the vagaries of process scheduling and the way VMs can completely stall for
      *                some hypervisor actions.
      */
-    public void connectStreams(Duration timeout) throws IOException {
+    public void connectLogStream(Duration timeout) throws IOException {
+        logStreamHandler = new CppLogMessageHandler(jobId, namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout));
+    }
+
+    /**
+     * Connect the other pipes created by the C++ process after the logging pipe has been connected.  This must be called after
+     * the corresponding C++ process has been started, and after {@link #connectLogStream}.
+     * @param timeout Needs to be long enough for the C++ process perform all startup tasks that precede creation of named pipes.
+     *                There should not be very many of these, so a short timeout should be fine.  However, at least a couple of
+     *                seconds is recommended due to the vagaries of process scheduling and the way VMs can completely stall for
+     *                some hypervisor actions.
+     */
+    public void connectOtherStreams(Duration timeout) throws IOException {
+        assert logStreamHandler != null : "Must connect log stream before other streams";
+        if (logStreamHandler == null) {
+            throw new NullPointerException("Must connect log stream before other streams");
+        }
         // The order here is important.  It must match the order that the C++ process tries to connect to the pipes, otherwise
         // a timeout is guaranteed.  Also change api::CIoManager in the C++ code if changing the order here.
         try {
-            if (logPipeName != null) {
-                logStream = namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout);
-            }
             if (commandPipeName != null) {
                 commandStream = namedPipeHelper.openNamedPipeOutputStream(commandPipeName, timeout);
             }
@@ -157,8 +174,8 @@ public class ProcessPipes {
     }
 
     private void closeUnusedStreams() throws IOException {
-        if (logStream != null) {
-            logStream.close();
+        if (logStreamHandler != null) {
+            logStreamHandler.close();
         }
         if (commandStream != null) {
             commandStream.close();
@@ -177,15 +194,11 @@ public class ProcessPipes {
         }
     }
 
-    public Optional<InputStream> getLogStream() {
-        // Distinguish between pipe not wanted and pipe wanted but not successfully connected
-        if (logPipeName == null) {
-            return Optional.empty();
-        }
-        if (logStream == null) {
+    public CppLogMessageHandler getLogStreamHandler() {
+        if (logStreamHandler == null) {
             throw new IllegalStateException("process streams must be connected before use");
         }
-        return Optional.of(logStream);
+        return logStreamHandler;
     }
 
     public Optional<OutputStream> getCommandStream() {

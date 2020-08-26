@@ -1,5 +1,5 @@
 [[analysis-tokenfilters]]
-== Token Filters
+== Token filter reference
 
 Token filters accept a stream of tokens from a
 <<analysis-tokenizers,tokenizer>> and can modify tokens
@@ -22,13 +22,13 @@ include::tokenfilters/classic-tokenfilter.asciidoc[]
 
 include::tokenfilters/common-grams-tokenfilter.asciidoc[]
 
-include::tokenfilters/compound-word-tokenfilter.asciidoc[]
-
 include::tokenfilters/condition-tokenfilter.asciidoc[]
 
 include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
 
 include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
+
+include::tokenfilters/dictionary-decompounder-tokenfilter.asciidoc[]
 
 include::tokenfilters/edgengram-tokenfilter.asciidoc[]
 
@@ -39,6 +39,8 @@ include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
 include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
 
 include::tokenfilters/hunspell-tokenfilter.asciidoc[]
+
+include::tokenfilters/hyphenation-decompounder-tokenfilter.asciidoc[]
 
 include::tokenfilters/keep-types-tokenfilter.asciidoc[]
 

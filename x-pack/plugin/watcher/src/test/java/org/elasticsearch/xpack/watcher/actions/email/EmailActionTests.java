@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -170,7 +171,7 @@ public class EmailActionTests extends ESTestCase {
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
         assertThat(((EmailAction.Result.Success) result).account(), equalTo(account));
         Email actualEmail = ((EmailAction.Result.Success) result).email();
-        assertThat(actualEmail.id(), is("_id_" + wid.value()));
+        assertThat(actualEmail.id(), startsWith("_id_" + wid.value() + "_"));
         assertThat(actualEmail, notNullValue());
         assertThat(actualEmail.subject(), is(subject == null ? null : subject.getTemplate()));
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getTemplate()));
@@ -178,6 +179,12 @@ public class EmailActionTests extends ESTestCase {
         if (dataAttachment != null) {
             assertThat(actualEmail.attachments(), hasKey("data"));
         }
+
+        // a second execution with the same parameters may not yield the same message id
+        result = executable.execute("_id", ctx, payload);
+        String oldMessageId = actualEmail.id();
+        String newMessageId = ((EmailAction.Result.Success) result).email().id();
+        assertThat(oldMessageId, is(not(newMessageId)));
     }
 
     public void testParser() throws Exception {

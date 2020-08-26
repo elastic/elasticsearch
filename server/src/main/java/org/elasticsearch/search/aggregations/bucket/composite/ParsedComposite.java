@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposite.ParsedBucket> implements CompositeAggregation {
-    private static ObjectParser<ParsedComposite, Void> PARSER =
+    private static final ObjectParser<ParsedComposite, Void> PARSER =
         new ObjectParser<>(ParsedComposite.class.getSimpleName(), true, ParsedComposite::new);
 
     static {

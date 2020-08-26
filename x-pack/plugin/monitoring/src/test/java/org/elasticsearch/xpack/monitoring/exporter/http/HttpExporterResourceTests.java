@@ -16,7 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -383,8 +383,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 // +1 for the "first"
                 expectedGets += 1 + successful + unsuccessful;
                 expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-            // deleting watches
             } else {
+                // deleting watches
                 // - 1 from necessary failure after it!
                 final int successful = randomIntBetween(1, EXPECTED_WATCHES - 1);
 
@@ -730,12 +730,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void whenWatcherCanBeUsed(final boolean validLicense) {
-        final MetaData metaData = mock(MetaData.class);
+        final Metadata metadata = mock(Metadata.class);
 
-        when(state.metaData()).thenReturn(metaData);
-        when(metaData.clusterUUID()).thenReturn("the_clusters_uuid");
+        when(state.metadata()).thenReturn(metadata);
+        when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(validLicense);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
 
         final HttpEntity entity =
                 new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);

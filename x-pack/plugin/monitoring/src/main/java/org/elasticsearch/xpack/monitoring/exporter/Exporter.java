@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -26,9 +25,11 @@ import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
 
+    public static Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
+
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
 
     public static final Setting.AffixSetting<String> TYPE_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
@@ -83,13 +84,13 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
     public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
      * <p>
@@ -97,14 +98,20 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting
                 .affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.blacklist",
-                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope));
+                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope),
+                    TYPE_DEPENDENCY);
 
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
-    private static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
-                    key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+    static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING =
+                Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
+                        key -> new Setting<DateFormatter>(
+                                key,
+                                Exporter.INDEX_FORMAT,
+                                DateFormatter::forPattern,
+                                Property.Dynamic,
+                                Property.NodeScope), TYPE_DEPENDENCY);
 
     private static final String INDEX_FORMAT = "yyyy.MM.dd";
 
@@ -150,14 +157,8 @@ public abstract class Exporter implements AutoCloseable {
     protected abstract void doClose();
 
     protected static DateFormatter dateTimeFormatter(final Config config) {
-        Setting<String> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
-        String format = setting.exists(config.settings()) ? setting.get(config.settings()) : INDEX_FORMAT;
-        try {
-            return DateFormatter.forPattern(format).withZone(ZoneOffset.UTC);
-        } catch (IllegalArgumentException e) {
-            throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() + "] invalid index name time format: ["
-                    + format + "]", e);
-        }
+        Setting<DateFormatter> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
+        return setting.get(config.settings());
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {

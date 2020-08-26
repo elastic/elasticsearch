@@ -45,6 +45,9 @@ _kerberos_::
 A realm that authenticates a user using Kerberos authentication. Users are
 authenticated on the basis of Kerberos tickets. See <<kerberos-realm>>.
 
+_oidc_::
+A realm that facilitates authentication using OpenID Connect. It enables {es} to serve as an OpenID Connect Relying Party (RP) and provide single sign-on (SSO) support in {kib}. See <<oidc-guide>>.
+
 The {security-features} also support custom realms. If you need to integrate
 with another authentication system, you can build a custom realm plugin. For
 more information, see <<custom-realms>>.

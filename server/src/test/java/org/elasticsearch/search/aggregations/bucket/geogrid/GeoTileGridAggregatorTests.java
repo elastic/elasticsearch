@@ -46,5 +46,4 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
         builder.precision(precision);
         assertEquals(precision, builder.precision());
     }
-
 }

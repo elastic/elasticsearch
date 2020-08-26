@@ -1,0 +1,20 @@
+{
+  "slm.stop":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-stop.html",
+      "description":"Turns off snapshot lifecycle management (SLM)."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/stop",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

@@ -1,8 +1,33 @@
 [[release-notes-8.0.0-alpha1]]
 == {es} version 8.0.0-alpha1
 
+coming[8.0.0]
+
 The changes listed below have been released for the first time in {es}
 8.0.0-alpha1.
 
-coming[8.0.0]
+[[breaking-8.0.0-alpha1]]
+[discrete]
+=== Breaking changes
+
+Aggregations::
+* Disallow specifying the same percentile multiple times in percentiles aggregation {es-pull}52257[#52257]
+
+Mapping::
+* Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
+  (e.g. incorrect analyzer settings or unknown field types). {es-pull}51233[#51233]
+
+Update by query::
+* Unsupported fields provided as part of the script section of the update by query API are now rejected.
+
+Deprecations::
+* Remove undocumented endpoints of hot threads API {es-pull}55109[#55109]
+
+Slow loggers::
+* `index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
+by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
+all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
+
+
 

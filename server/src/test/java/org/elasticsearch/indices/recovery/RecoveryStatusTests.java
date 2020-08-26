@@ -23,7 +23,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         MultiFileWriter multiFileWriter = new MultiFileWriter(indexShard.store(),
             indexShard.recoveryState().getIndex(), "recovery.test.", logger, () -> {});
         try (IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput("foo.bar",
-            new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION), indexShard.store())) {
+            new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION), indexShard.store())) {
             indexOutput.writeInt(1);
             IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
@@ -49,7 +49,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         }
 
         try {
-            multiFileWriter.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw",
+            multiFileWriter.openAndPutIndexOutput("foo.bar", new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw",
                 MIN_SUPPORTED_LUCENE_VERSION), indexShard.store());
             fail("file foo.bar is already opened and registered");
         } catch (IllegalStateException ex) {

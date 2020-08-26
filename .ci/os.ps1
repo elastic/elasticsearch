@@ -1,3 +1,5 @@
+param($GradleTasks='destructiveDistroTest')
+
 If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 {
     # Relaunch as an elevated process:
@@ -5,7 +7,7 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-$AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw) 
+$AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw)
 $env:ES_BUILD_JAVA=$AppProps.ES_BUILD_JAVA
 $env:ES_RUNTIME_JAVA=$AppProps.ES_RUNTIME_JAVA
 
@@ -25,7 +27,6 @@ Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 
 $ErrorActionPreference="Continue"
-# TODO: remove the task exclusions once dependencies are set correctly and these don't run for Windows or buldiung the deb on windows is fixed
-& .\gradlew.bat -g "C:\Users\$env:username\.gradle" --parallel --scan --console=plain destructiveDistroTest
+& .\gradlew.bat -g "C:\Users\$env:username\.gradle" --parallel --no-daemon --scan --console=plain $GradleTasks
 
 exit $LastExitCode

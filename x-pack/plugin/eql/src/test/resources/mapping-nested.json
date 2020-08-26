@@ -1,0 +1,33 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "processes" : {
+            "type" : "nested",
+            "properties" : {
+                "pid" : {
+                    "type" : "long"
+                },
+                "path" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword"
+                        }
+                    }
+                }
+            }
+        },
+        "long_field" : {
+            "type" : "long"
+        }
+    }
+}

@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -144,7 +143,10 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
                 Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
                 assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized for user [test_ilm]"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
+                    " for user [test_ilm]" +
+                    " on indices [not-ilm]," +
+                    " this action is granted by the privileges [monitor,manage,all]"));
             }
         });
     }
@@ -273,8 +275,6 @@ public class PermissionsIT extends ESRestTestCase {
      * Tests when the user is limited by alias of an index is able to write to index
      * which was rolled over by an ILM policy.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41440")
-    @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/41440")
     public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy() throws Exception {
         /*
          * Setup:

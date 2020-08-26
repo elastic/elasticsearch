@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +32,8 @@ import java.util.Objects;
 public class InternalMax extends InternalNumericMetricsAggregation.SingleValue implements Max {
     private final double max;
 
-    public InternalMax(String name, double max, DocValueFormat formatter,
-                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalMax(String name, double max, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.max = max;
     }
@@ -71,12 +69,12 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalMax reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max, format, pipelineAggregators(), getMetaData());
+        return new InternalMax(name, max, format, getMetadata());
     }
 
     @Override

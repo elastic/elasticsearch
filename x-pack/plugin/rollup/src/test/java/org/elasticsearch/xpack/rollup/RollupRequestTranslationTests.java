@@ -13,7 +13,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -59,10 +59,10 @@ public class RollupRequestTranslationTests extends ESTestCase {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
         histo.calendarInterval(new DateHistogramInterval("1d"))
                 .field("foo")
-                .extendedBounds(new ExtendedBounds(0L, 1000L))
+                .extendedBounds(new LongBounds(0L, 1000L))
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
- 
+
         List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
@@ -95,7 +95,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
         histo.calendarInterval(new DateHistogramInterval("1d"))
             .field("foo")
-            .extendedBounds(new ExtendedBounds(0L, 1000L))
+            .extendedBounds(new LongBounds(0L, 1000L))
             .format("yyyy-MM-dd")
             .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"));
 
@@ -113,7 +113,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         int i = ESTestCase.randomIntBetween(0, 2);
         List<AggregationBuilder> translated = new ArrayList<>();
 
-        Class clazz = null;
+        Class<? extends AggregationBuilder> clazz = null;
         String fieldName = null;
         int numAggs = 1;
 
@@ -302,7 +302,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testStringTerms() throws IOException {
 
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms", ValueType.STRING);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms").userValueTypeHint(ValueType.STRING);
         terms.field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));

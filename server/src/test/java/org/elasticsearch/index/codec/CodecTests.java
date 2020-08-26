@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene80.Lucene80Codec;
+import org.apache.lucene.codecs.lucene86.Lucene86Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -53,8 +53,8 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene80Codec.class));
-        assertThat(codecService.codec("Lucene80"), instanceOf(Lucene80Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene86Codec.class));
+        assertThat(codecService.codec("Lucene86"), instanceOf(Lucene86Codec.class));
     }
 
     public void testDefault() throws Exception {
@@ -94,7 +94,7 @@ public class CodecTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
         MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
-                () -> null);
+                () -> null, () -> false);
         return new CodecService(service, LogManager.getLogger("test"));
     }
 

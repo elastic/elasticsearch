@@ -28,7 +28,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -83,17 +83,19 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
                     if (!status.clean) {
-                        ESTestCase.checkIndexFailed = true;
-                        logger.warn("check index [failure] index files={}\n{}", Arrays.toString(dir.listAll()), os.bytes().utf8ToString());
-                        throw new IOException("index check failure");
+                        IOException failure = new IOException("failed to check index for shard " + shardId +
+                            ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
+                        ESTestCase.checkIndexFailures.add(failure);
+                        throw failure;
                     } else {
                         if (logger.isDebugEnabled()) {
                             logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
                         }
                     }
                 } catch (LockObtainFailedException e) {
-                    ESTestCase.checkIndexFailed = true;
-                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    IllegalStateException failure = new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    ESTestCase.checkIndexFailures.add(failure);
+                    throw failure;
                 }
             } catch (Exception e) {
                 logger.warn("failed to check index", e);
@@ -124,11 +126,11 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     }
 
     private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder()
                 // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
                 // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
-                .put(indexSettings.getIndexMetaData().getSettings())
+                .put(indexSettings.getIndexMetadata().getSettings())
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
                     RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
             .build();

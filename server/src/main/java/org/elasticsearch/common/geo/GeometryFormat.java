@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,16 +29,27 @@ import java.text.ParseException;
 /**
  * Geometry serializer/deserializer
  */
-public interface GeometryFormat {
+public interface GeometryFormat<ParsedFormat> {
+
+    /**
+     * The name of the format, for example 'wkt'.
+     */
+    String name();
 
     /**
      * Parser JSON representation of a geometry
      */
-    Geometry fromXContent(XContentParser parser) throws IOException, ParseException;
+    ParsedFormat fromXContent(XContentParser parser) throws IOException, ParseException;
 
     /**
      * Serializes the geometry into its JSON representation
      */
-    XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
+    XContentBuilder toXContent(ParsedFormat geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
+    /**
+     * Serializes the geometry into a standard Java object.
+     *
+     * For example, the GeoJson format returns the geometry as a map, while WKT returns a string.
+     */
+    Object toXContentAsObject(ParsedFormat geometry);
 }

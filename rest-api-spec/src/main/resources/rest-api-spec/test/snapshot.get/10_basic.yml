@@ -12,7 +12,7 @@ setup:
 ---
 "Get snapshot info":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:
@@ -45,7 +45,7 @@ setup:
 ---
 "Get missing snapshot info throws an exception":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:
@@ -59,7 +59,7 @@ setup:
 ---
 "Get missing snapshot info succeeds when ignore_unavailable is true":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:
@@ -73,7 +73,7 @@ setup:
 ---
 "Get snapshot info when verbose is false":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:
@@ -112,7 +112,7 @@ setup:
 ---
 "Get snapshot info contains include_global_state":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:
@@ -172,7 +172,7 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:

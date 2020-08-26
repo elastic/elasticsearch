@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -193,8 +193,8 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     private void assertTemplateNotUpdated() {
         final String name = MonitoringTemplateUtils.templateName(system.getSystem());
 
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
-            final String docMapping = template.getMappings().get("_doc").toString();
+        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
+            final String docMapping = template.getMappings().toString();
 
             assertThat(docMapping, notNullValue());
             assertThat(docMapping, containsString("test"));

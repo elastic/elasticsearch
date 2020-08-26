@@ -20,12 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,8 +70,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
 
     @Override
     protected InternalBinaryRange createTestInstance(String name,
-                                                     List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData,
+                                                     Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean keyed) {
         DocValueFormat format = DocValueFormat.RAW;
@@ -85,12 +82,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
             buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalBinaryRange> instanceReader() {
-        return InternalBinaryRange::new;
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override
@@ -130,8 +122,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;
         List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -145,17 +136,17 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
                     new BytesRef(randomAlphaOfLengthBetween(1, 20)), randomNonNegativeLong(), InternalAggregations.EMPTY));
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     /**

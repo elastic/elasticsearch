@@ -1,6 +1,19 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
+artifacts {
+  restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
+  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+}
 
 test.enabled = false
 jarHell.enabled = false

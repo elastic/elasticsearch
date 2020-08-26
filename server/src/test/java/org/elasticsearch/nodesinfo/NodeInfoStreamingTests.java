@@ -39,6 +39,8 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.search.aggregations.support.AggregationInfo;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,16 +77,16 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
-        compareJsonOutput(nodeInfo.getHttp(), readNodeInfo.getHttp());
-        compareJsonOutput(nodeInfo.getJvm(), readNodeInfo.getJvm());
-        compareJsonOutput(nodeInfo.getProcess(), readNodeInfo.getProcess());
+        compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(ProcessInfo.class), readNodeInfo.getInfo(ProcessInfo.class));
         compareJsonOutput(nodeInfo.getSettings(), readNodeInfo.getSettings());
-        compareJsonOutput(nodeInfo.getThreadPool(), readNodeInfo.getThreadPool());
-        compareJsonOutput(nodeInfo.getTransport(), readNodeInfo.getTransport());
+        compareJsonOutput(nodeInfo.getInfo(ThreadPoolInfo.class), readNodeInfo.getInfo(ThreadPoolInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(TransportInfo.class), readNodeInfo.getInfo(TransportInfo.class));
         compareJsonOutput(nodeInfo.getNode(), readNodeInfo.getNode());
-        compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
-        compareJsonOutput(nodeInfo.getPlugins(), readNodeInfo.getPlugins());
-        compareJsonOutput(nodeInfo.getIngest(), readNodeInfo.getIngest());
+        compareJsonOutput(nodeInfo.getInfo(OsInfo.class), readNodeInfo.getInfo(OsInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(PluginsAndModules.class), readNodeInfo.getInfo(PluginsAndModules.class));
+        compareJsonOutput(nodeInfo.getInfo(IngestInfo.class), readNodeInfo.getInfo(IngestInfo.class));
     }
 
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
@@ -168,12 +170,35 @@ public class NodeInfoStreamingTests extends ESTestCase {
             ingestInfo = new IngestInfo(processors);
         }
 
+        AggregationInfo aggregationInfo = null;
+        if (randomBoolean()) {
+            AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
+            int numOfAggs = randomIntBetween(0, 10);
+            for (int i = 0; i < numOfAggs; i++) {
+                String aggName = randomAlphaOfLength(10);
+
+                try {
+                    if (randomBoolean()) {
+                        builder.registerAggregationUsage(aggName);
+                    } else {
+                        int numOfTypes = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOfTypes; j++) {
+                            builder.registerAggregationUsage(aggName, randomAlphaOfLength(10));
+                        }
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // Ignore duplicate strings
+                }
+            }
+            aggregationInfo = builder.build().info();
+        }
+
         ByteSizeValue indexingBuffer = null;
         if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
         return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
-            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, indexingBuffer);
+            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, aggregationInfo, indexingBuffer);
     }
 }

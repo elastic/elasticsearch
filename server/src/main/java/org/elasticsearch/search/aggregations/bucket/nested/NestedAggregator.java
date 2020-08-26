@@ -37,16 +37,15 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -60,16 +59,15 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     SearchContext context, Aggregator parentAggregator,
-                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                     boolean collectsFromSingleBucket) throws IOException {
-        super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
+                     SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
+                     Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, cardinality, metadata);
 
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
             : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
-        this.collectsFromSingleBucket = collectsFromSingleBucket;
+        this.collectsFromSingleBucket = cardinality != CardinalityUpperBound.MANY;
     }
 
     @Override
@@ -125,14 +123,14 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
-                pipelineAggregators(), metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
-        @Override
+    @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), metadata());
     }
 
     class BufferingNestedLeafBucketCollector extends LeafBucketCollectorBase {

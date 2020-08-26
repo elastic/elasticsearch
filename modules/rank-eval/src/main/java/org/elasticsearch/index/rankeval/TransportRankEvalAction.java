@@ -129,6 +129,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
             SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
             searchRequest.indicesOptions(request.indicesOptions());
+            searchRequest.searchType(request.searchType());
             msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();

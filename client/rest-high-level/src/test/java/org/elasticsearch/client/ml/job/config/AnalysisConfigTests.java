@@ -40,7 +40,10 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         int numDetectors = randomIntBetween(1, 10);
         for (int i = 0; i < numDetectors; i++) {
             Detector.Builder builder = new Detector.Builder("count", null);
-            builder.setPartitionFieldName(isCategorization ? "mlcategory" : "part");
+            if (isCategorization) {
+                builder.setByFieldName("mlcategory");
+            }
+            builder.setPartitionFieldName("part");
             detectors.add(builder.build());
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
@@ -81,6 +84,11 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
                     }
                 }
                 builder.setCategorizationAnalyzerConfig(analyzerBuilder.build());
+            }
+            if (randomBoolean()) {
+                boolean enabled = randomBoolean();
+                builder.setPerPartitionCategorizationConfig(
+                    new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean()));
             }
         }
         if (randomBoolean()) {

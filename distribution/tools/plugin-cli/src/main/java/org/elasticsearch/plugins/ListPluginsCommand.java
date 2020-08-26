@@ -66,8 +66,15 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
-            terminal.errorPrintln("WARNING: plugin [" + info.getName() + "] was built for Elasticsearch version " + info.getVersion() +
-                " but version " + Version.CURRENT + " is required");
+            terminal.errorPrintln(
+                "WARNING: plugin ["
+                    + info.getName()
+                    + "] was built for Elasticsearch version "
+                    + info.getVersion()
+                    + " but version "
+                    + Version.CURRENT
+                    + " is required"
+            );
         }
     }
 }

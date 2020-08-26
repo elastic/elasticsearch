@@ -1,141 +1,137 @@
-
 /*
  * This project contains transport-level requests and responses that are shared between x-pack plugin and qa tests
  */
 apply plugin: 'elasticsearch.build'
 
 description = 'Request and response objects shared by the cli, jdbc ' +
-        'and the Elasticsearch plugin'
+  'and the Elasticsearch plugin'
 
 dependencies {
-    /* We'd like to just depend on xcontent but there are some bits of
-     * :server that we rely on.... */
-    compile (project(':server')) {
-        transitive = false
-    }
-    compile (project(':libs:elasticsearch-core')) {
-        transitive = false
-    }
-    compile (project(':libs:elasticsearch-x-content')) {
-        transitive = false
-    }
-    compile xpackProject('plugin:sql:sql-proto')
-    compile "org.apache.lucene:lucene-core:${versions.lucene}"
-    compile "joda-time:joda-time:${versions.joda}"
-    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    runtime "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-    runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  /* We'd like to just depend on xcontent but there are some bits of
+   * :server that we rely on.... */
+  api(project(':server')) {
+    transitive = false
+  }
+  api(project(':libs:elasticsearch-core')) {
+    transitive = false
+  }
+  api(project(':libs:elasticsearch-x-content')) {
+    transitive = false
+  }
+  api xpackProject('plugin:sql:sql-proto')
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "joda-time:joda-time:${versions.joda}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-    testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
-forbiddenApisMain {
-    //sql does not depend on server, so only jdk signatures should be checked
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  //sql does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /lucene-.*/, to: 'lucene'
-    ignoreSha 'elasticsearch'
-    ignoreSha 'elasticsearch-core'
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
-thirdPartyAudit.ignoreMissingClasses (
-        'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
-        'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+thirdPartyAudit.ignoreMissingClasses(
+  'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
+  'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
 
-        // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-        'com.fasterxml.jackson.databind.ObjectMapper',
-        'org.fusesource.jansi.Ansi',
-        'org.fusesource.jansi.AnsiRenderer$Code',
+  // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+  'com.fasterxml.jackson.databind.ObjectMapper',
+  'org.fusesource.jansi.Ansi',
+  'org.fusesource.jansi.AnsiRenderer$Code',
 
-        // from log4j
-        'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
-        'com.conversantmedia.util.concurrent.SpinPolicy',
-        'com.fasterxml.jackson.annotation.JsonInclude$Include',
-        'com.fasterxml.jackson.databind.DeserializationContext',
-        'com.fasterxml.jackson.databind.DeserializationFeature',
-        'com.fasterxml.jackson.databind.JsonMappingException',
-        'com.fasterxml.jackson.databind.JsonNode',
-        'com.fasterxml.jackson.databind.Module$SetupContext',
-        'com.fasterxml.jackson.databind.ObjectReader',
-        'com.fasterxml.jackson.databind.ObjectWriter',
-        'com.fasterxml.jackson.databind.SerializerProvider',
-        'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-        'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-        'com.fasterxml.jackson.databind.module.SimpleModule',
-        'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-        'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-        'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-        'com.fasterxml.jackson.databind.ser.std.StdSerializer',
-        'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
-        'com.fasterxml.jackson.dataformat.xml.XmlMapper',
-        'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-        'com.lmax.disruptor.BlockingWaitStrategy',
-        'com.lmax.disruptor.BusySpinWaitStrategy',
-        'com.lmax.disruptor.EventFactory',
-        'com.lmax.disruptor.EventTranslator',
-        'com.lmax.disruptor.EventTranslatorTwoArg',
-        'com.lmax.disruptor.EventTranslatorVararg',
-        'com.lmax.disruptor.ExceptionHandler',
-        'com.lmax.disruptor.LifecycleAware',
-        'com.lmax.disruptor.RingBuffer',
-        'com.lmax.disruptor.Sequence',
-        'com.lmax.disruptor.SequenceReportingEventHandler',
-        'com.lmax.disruptor.SleepingWaitStrategy',
-        'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
-        'com.lmax.disruptor.WaitStrategy',
-        'com.lmax.disruptor.YieldingWaitStrategy',
-        'com.lmax.disruptor.dsl.Disruptor',
-        'com.lmax.disruptor.dsl.ProducerType',
-        'javax.jms.Connection',
-        'javax.jms.ConnectionFactory',
-        'javax.jms.Destination',
-        'javax.jms.JMSException',
-        'javax.jms.MapMessage',
-        'javax.jms.Message',
-        'javax.jms.MessageConsumer',
-        'javax.jms.MessageProducer',
-        'javax.jms.Session',
-        'javax.mail.Authenticator',
-        'javax.mail.Message$RecipientType',
-        'javax.mail.PasswordAuthentication',
-        'javax.mail.Session',
-        'javax.mail.Transport',
-        'javax.mail.internet.InternetAddress',
-        'javax.mail.internet.InternetHeaders',
-        'javax.mail.internet.MimeBodyPart',
-        'javax.mail.internet.MimeMessage',
-        'javax.mail.internet.MimeMultipart',
-        'javax.mail.internet.MimeUtility',
-        'javax.mail.util.ByteArrayDataSource',
-        'org.apache.commons.compress.compressors.CompressorStreamFactory',
-        'org.apache.commons.compress.utils.IOUtils',
-        'org.apache.commons.csv.CSVFormat',
-        'org.apache.commons.csv.QuoteMode',
-        'org.apache.kafka.clients.producer.Callback',
-        'org.apache.kafka.clients.producer.KafkaProducer',
-        'org.apache.kafka.clients.producer.Producer',
-        'org.apache.kafka.clients.producer.ProducerRecord',
-        'org.apache.kafka.clients.producer.RecordMetadata',
-        'org.codehaus.stax2.XMLStreamWriter2',
-        'org.jctools.queues.MessagePassingQueue$Consumer',
-        'org.jctools.queues.MpscArrayQueue',
-        'org.osgi.framework.AdaptPermission',
-        'org.osgi.framework.AdminPermission',
-        'org.osgi.framework.Bundle',
-        'org.osgi.framework.BundleActivator',
-        'org.osgi.framework.BundleContext',
-        'org.osgi.framework.BundleEvent',
-        'org.osgi.framework.BundleReference',
-        'org.osgi.framework.FrameworkUtil',
-        'org.osgi.framework.ServiceRegistration',
-        'org.osgi.framework.SynchronousBundleListener',
-        'org.osgi.framework.wiring.BundleWire',
-        'org.osgi.framework.wiring.BundleWiring',
-        'org.zeromq.ZMQ$Context',
-        'org.zeromq.ZMQ$Socket',
-        'org.zeromq.ZMQ'
+  // from log4j
+  'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
+  'com.conversantmedia.util.concurrent.SpinPolicy',
+  'com.fasterxml.jackson.annotation.JsonInclude$Include',
+  'com.fasterxml.jackson.databind.DeserializationContext',
+  'com.fasterxml.jackson.databind.DeserializationFeature',
+  'com.fasterxml.jackson.databind.JsonMappingException',
+  'com.fasterxml.jackson.databind.JsonNode',
+  'com.fasterxml.jackson.databind.Module$SetupContext',
+  'com.fasterxml.jackson.databind.ObjectReader',
+  'com.fasterxml.jackson.databind.ObjectWriter',
+  'com.fasterxml.jackson.databind.SerializerProvider',
+  'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+  'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+  'com.fasterxml.jackson.databind.module.SimpleModule',
+  'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+  'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+  'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+  'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+  'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+  'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+  'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+  'com.lmax.disruptor.BlockingWaitStrategy',
+  'com.lmax.disruptor.BusySpinWaitStrategy',
+  'com.lmax.disruptor.EventFactory',
+  'com.lmax.disruptor.EventTranslator',
+  'com.lmax.disruptor.EventTranslatorTwoArg',
+  'com.lmax.disruptor.EventTranslatorVararg',
+  'com.lmax.disruptor.ExceptionHandler',
+  'com.lmax.disruptor.LifecycleAware',
+  'com.lmax.disruptor.RingBuffer',
+  'com.lmax.disruptor.Sequence',
+  'com.lmax.disruptor.SequenceReportingEventHandler',
+  'com.lmax.disruptor.SleepingWaitStrategy',
+  'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
+  'com.lmax.disruptor.WaitStrategy',
+  'com.lmax.disruptor.YieldingWaitStrategy',
+  'com.lmax.disruptor.dsl.Disruptor',
+  'com.lmax.disruptor.dsl.ProducerType',
+  'javax.jms.Connection',
+  'javax.jms.ConnectionFactory',
+  'javax.jms.Destination',
+  'javax.jms.JMSException',
+  'javax.jms.MapMessage',
+  'javax.jms.Message',
+  'javax.jms.MessageConsumer',
+  'javax.jms.MessageProducer',
+  'javax.jms.Session',
+  'javax.mail.Authenticator',
+  'javax.mail.Message$RecipientType',
+  'javax.mail.PasswordAuthentication',
+  'javax.mail.Session',
+  'javax.mail.Transport',
+  'javax.mail.internet.InternetAddress',
+  'javax.mail.internet.InternetHeaders',
+  'javax.mail.internet.MimeBodyPart',
+  'javax.mail.internet.MimeMessage',
+  'javax.mail.internet.MimeMultipart',
+  'javax.mail.internet.MimeUtility',
+  'javax.mail.util.ByteArrayDataSource',
+  'org.apache.commons.compress.compressors.CompressorStreamFactory',
+  'org.apache.commons.compress.utils.IOUtils',
+  'org.apache.commons.csv.CSVFormat',
+  'org.apache.commons.csv.QuoteMode',
+  'org.apache.kafka.clients.producer.Callback',
+  'org.apache.kafka.clients.producer.KafkaProducer',
+  'org.apache.kafka.clients.producer.Producer',
+  'org.apache.kafka.clients.producer.ProducerRecord',
+  'org.apache.kafka.clients.producer.RecordMetadata',
+  'org.codehaus.stax2.XMLStreamWriter2',
+  'org.jctools.queues.MessagePassingQueue$Consumer',
+  'org.jctools.queues.MpscArrayQueue',
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.BundleReference',
+  'org.osgi.framework.FrameworkUtil',
+  'org.osgi.framework.ServiceRegistration',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring',
+  'org.zeromq.ZMQ$Context',
+  'org.zeromq.ZMQ$Socket',
+  'org.zeromq.ZMQ'
 )

@@ -1,37 +1,42 @@
 [[mapping-types]]
-== Field datatypes
+== Field data types
 
-Elasticsearch supports a number of different datatypes for the fields in a
+Elasticsearch supports a number of different data types for the fields in a
 document:
 
-[float]
-=== Core datatypes
+[discrete]
+[[_core_datatypes]]
+=== Core data types
 
-string::         <<text,`text`>> and <<keyword,`keyword`>>
+string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>
 <<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::       `date`
 <<date_nanos>>:: `date_nanos`
 <<boolean>>::    `boolean`
 <<binary>>::     `binary`
-<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`, `ip_range`
 
-[float]
-=== Complex datatypes
+[discrete]
+=== Complex data types
 <<object>>::    `object` for single JSON objects
 <<nested>>::    `nested` for arrays of JSON objects
 
-[float]
-=== Geo datatypes
+[discrete]
+[[spatial_datatypes]]
+=== Spatial data types
 
 <<geo-point>>::     `geo_point` for lat/lon points
 <<geo-shape>>::     `geo_shape` for complex shapes like polygons
+<<point>>::         `point` for arbitrary cartesian points.
+<<shape>>::         `shape` for arbitrary cartesian geometries.
 
-[float]
-=== Specialised datatypes
+[discrete]
+=== Specialised data types
 
 <<ip>>::            `ip` for IPv4 and IPv6 addresses
-<<completion-suggester,Completion datatype>>::
+<<completion-suggester,Completion data type>>::
                     `completion` to provide auto-complete suggestions
+
 <<token-count>>::   `token_count` to count the number of tokens in a string
 {plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 {plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
@@ -46,24 +51,24 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<dense-vector>>::   Record dense vectors of float values.
 
-<<sparse-vector>>::   Record sparse vectors of float values.
-
 <<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
 
 <<alias>>::         Defines an alias to an existing field.
 
 <<flattened>>:: Allows an entire JSON object to be indexed as a single field.
 
-<<shape>>:: `shape` for arbitrary cartesian geometries.
+<<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles aggregations.
 
-[float]
+<<constant-keyword>>:: Specialization of `keyword` for the case when all documents have the same value.
+
+[discrete]
 [[types-array-handling]]
 === Arrays
-In {es}, arrays do not require a dedicated field datatype. Any field can contain
+In {es}, arrays do not require a dedicated field data type. Any field can contain
 zero or more values by default, however, all values in the array must be of the
-same datatype. See <<array>>.
+same data type. See <<array>>.
 
-[float]
+[discrete]
 === Multi-fields
 
 It is often useful to index the same field in different ways for different
@@ -74,7 +79,7 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.
 
-This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+This is the purpose of _multi-fields_.  Most data types support multi-fields
 via the <<multi-fields>> parameter.
 
 include::types/alias.asciidoc[]
@@ -90,6 +95,8 @@ include::types/date.asciidoc[]
 include::types/date_nanos.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
+
+include::types/histogram.asciidoc[]
 
 include::types/flattened.asciidoc[]
 
@@ -111,6 +118,8 @@ include::types/object.asciidoc[]
 
 include::types/percolator.asciidoc[]
 
+include::types/point.asciidoc[]
+
 include::types/range.asciidoc[]
 
 include::types/rank-feature.asciidoc[]
@@ -119,10 +128,12 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
-include::types/sparse-vector.asciidoc[]
-
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
 include::types/shape.asciidoc[]
+
+include::types/constant-keyword.asciidoc[]
+
+include::types/wildcard.asciidoc[]

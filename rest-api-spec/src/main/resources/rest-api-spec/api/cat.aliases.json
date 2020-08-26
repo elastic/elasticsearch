@@ -53,6 +53,18 @@
         "type":"boolean",
         "description":"Verbose mode. Display column headers",
         "default":false
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "all",
+        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       }
     }
   }

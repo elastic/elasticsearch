@@ -21,6 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,6 +91,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long failedWriteRequests = 0;
     private long operationWritten = 0;
     private long lastFetchTime = -1;
+    private final Queue<Tuple<Long, Long>> partialReadRequests = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
@@ -149,33 +151,31 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
         updateMapping(0L, leaderMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentMappingVersion = leaderMappingVersion;
+                currentMappingVersion = Math.max(currentMappingVersion, leaderMappingVersion);
             }
             updateSettings(leaderSettingsVersion -> {
                 synchronized (ShardFollowNodeTask.this) {
-                    currentSettingsVersion = leaderSettingsVersion;
+                    currentSettingsVersion = Math.max(currentSettingsVersion, leaderSettingsVersion);
                 }
-            });
-            updateAliases(leaderAliasesVersion -> {
-                synchronized (ShardFollowNodeTask.this) {
-                    currentAliasesVersion = leaderAliasesVersion;
-                }
-            });
-            synchronized (ShardFollowNodeTask.this) {
-                LOGGER.info(
-                        "{} following leader shard {}, " +
+                updateAliases(leaderAliasesVersion -> {
+                    synchronized (ShardFollowNodeTask.this) {
+                        currentAliasesVersion = Math.max(currentAliasesVersion, leaderAliasesVersion);
+                        LOGGER.info(
+                            "{} following leader shard {}, " +
                                 "follower global checkpoint=[{}], " +
                                 "mapping version=[{}], " +
                                 "settings version=[{}], " +
                                 "aliases version=[{}]",
-                        params.getFollowShardId(),
-                        params.getLeaderShardId(),
-                        followerGlobalCheckpoint,
-                        currentMappingVersion,
-                        currentSettingsVersion,
-                        currentAliasesVersion);
-            }
-            coordinateReads();
+                            params.getFollowShardId(),
+                            params.getLeaderShardId(),
+                            followerGlobalCheckpoint,
+                            currentMappingVersion,
+                            currentSettingsVersion,
+                            currentAliasesVersion);
+                    }
+                    coordinateReads();
+                });
+            });
         });
     }
 
@@ -187,6 +187,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         LOGGER.trace("{} coordinate reads, lastRequestedSeqNo={}, leaderGlobalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqNo, leaderGlobalCheckpoint);
+        assert partialReadRequests.size() <= params.getMaxOutstandingReadRequests() :
+            "too many partial read requests [" + partialReadRequests + "]";
+        while (hasReadBudget() && partialReadRequests.isEmpty() == false) {
+            final Tuple<Long, Long> range = partialReadRequests.remove();
+            assert range.v1() <= range.v2() && range.v2() <= lastRequestedSeqNo :
+                "invalid partial range [" + range.v1() + "," + range.v2() + "]; last requested seq_no [" + lastRequestedSeqNo + "]";
+            final long fromSeqNo = range.v1();
+            final long maxRequiredSeqNo = range.v2();
+            final int requestOpCount = Math.toIntExact(maxRequiredSeqNo - fromSeqNo + 1);
+            LOGGER.trace("{}[{} ongoing reads] continue partial read request from_seqno={} max_required_seqno={} batch_count={}",
+                params.getFollowShardId(), numOutstandingReads, fromSeqNo, maxRequiredSeqNo, requestOpCount);
+            numOutstandingReads++;
+            sendShardChangesRequest(fromSeqNo, requestOpCount, maxRequiredSeqNo);
+        }
         final int maxReadRequestOperationCount = params.getMaxReadRequestOperationCount();
         while (hasReadBudget() && lastRequestedSeqNo < leaderGlobalCheckpoint) {
             final long from = lastRequestedSeqNo + 1;
@@ -202,8 +216,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
                 params.getFollowShardId(), numOutstandingReads, from, maxRequiredSeqNo, requestOpCount);
             numOutstandingReads++;
-            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
             lastRequestedSeqNo = maxRequiredSeqNo;
+            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
         }
 
         if (numOutstandingReads == 0 && hasReadBudget()) {
@@ -219,6 +233,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private boolean hasReadBudget() {
         assert Thread.holdsLock(this);
+        // TODO: To ensure that we never overuse the buffer, we need to
+        // - Overestimate the size and count of the responses of the outstanding request when calculating the budget
+        // - Limit the size and count of next read requests by the remaining size and count of the buffer
         if (numOutstandingReads >= params.getMaxOutstandingReadRequests()) {
             LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
                 params.getFollowShardId(), numOutstandingReads);
@@ -228,7 +245,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} no new reads, buffer size limit has been reached [{}]", params.getFollowShardId(), bufferSizeInBytes);
             return false;
         }
-        if (buffer.size() > params.getMaxWriteBufferCount()) {
+        if (buffer.size() >= params.getMaxWriteBufferCount()) {
             LOGGER.trace("{} no new reads, buffer count limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
@@ -373,16 +390,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
             coordinateWrites();
         }
-        if (newFromSeqNo <= maxRequiredSeqNo && isStopped() == false) {
-            int newSize = Math.toIntExact(maxRequiredSeqNo - newFromSeqNo + 1);
-            LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
+        if (newFromSeqNo <= maxRequiredSeqNo) {
+            LOGGER.trace("{} received [{}] operations, enqueue partial read request [{}/{}]",
                 params.getFollowShardId(), response.getOperations().length, newFromSeqNo, maxRequiredSeqNo);
-            sendShardChangesRequest(newFromSeqNo, newSize, maxRequiredSeqNo);
-        } else {
-            // read is completed, decrement
-            numOutstandingReads--;
-            coordinateReads();
+            partialReadRequests.add(Tuple.tuple(newFromSeqNo, maxRequiredSeqNo));
         }
+        numOutstandingReads--;
+        coordinateReads();
     }
 
     private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
@@ -430,7 +444,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} updating mapping, mapping version [{}] is lower than minimum required mapping version [{}]",
                 params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
             updateMapping(minimumRequiredMappingVersion, mappingVersion -> {
-                currentMappingVersion = mappingVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentMappingVersion = Math.max(currentMappingVersion, mappingVersion);
+                }
                 task.run();
             });
         }
@@ -445,7 +461,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} updating settings, settings version [{}] is lower than minimum required settings version [{}]",
                     params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
             updateSettings(settingsVersion -> {
-                currentSettingsVersion = settingsVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentSettingsVersion = Math.max(currentSettingsVersion, settingsVersion);
+                }
                 task.run();
             });
         }
@@ -466,7 +484,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     currentAliasesVersion,
                     minimumRequiredAliasesVersion);
             updateAliases(aliasesVersion -> {
-                currentAliasesVersion = aliasesVersion;
+                synchronized (ShardFollowNodeTask.this) {
+                    currentAliasesVersion = Math.max(currentAliasesVersion, aliasesVersion);
+                }
                 task.run();
             });
         }
@@ -499,7 +519,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(params.getRemoteCluster(), e)) {
+        if (shouldRetry(e)) {
             if (isStopped() == false) {
                 // Only retry is the shard follow task is not stopped.
                 int currentRetry = retryCounter.incrementAndGet();
@@ -528,7 +548,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    static boolean shouldRetry(String remoteCluster, Exception e) {
+    static boolean shouldRetry(final Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)) {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
@@ -547,7 +567,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
+            actual instanceof EsRejectedExecutionException;
     }
 
     // These methods are protected for testing purposes:

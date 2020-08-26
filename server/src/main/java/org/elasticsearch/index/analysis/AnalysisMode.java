@@ -78,5 +78,5 @@ public enum AnalysisMode {
      * <li>INDEX_TIME.merge(SEARCH_TIME) throws an {@link IllegalStateException}</li>
      * </ul>
      */
-    abstract AnalysisMode merge(AnalysisMode other);
+    public abstract AnalysisMode merge(AnalysisMode other);
 }

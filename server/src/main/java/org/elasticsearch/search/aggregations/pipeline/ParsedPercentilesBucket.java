@@ -73,7 +73,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         return builder;
     }
 
-    private static ObjectParser<ParsedPercentilesBucket, Void> PARSER =
+    private static final ObjectParser<ParsedPercentilesBucket, Void> PARSER =
             new ObjectParser<>(ParsedPercentilesBucket.class.getSimpleName(), true, ParsedPercentilesBucket::new);
 
     static {

@@ -6,9 +6,12 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -16,6 +19,8 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
  * A base rest handler that handles licensing for ApiKey actions
  */
 abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger();
+
     ApiKeyBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -25,7 +30,7 @@ abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (licenseState.isApiKeyServiceAllowed()) {
+        } else if (licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)) {
             return null;
         } else {
             logger.info("API Keys are not available under the current [{}] license", licenseState.getOperationMode().description());

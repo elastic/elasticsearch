@@ -1,0 +1,36 @@
+[[snapshot-restore-apis]]
+== Snapshot and restore APIs
+
+You can use the following APIs to set up snapshot repositories, manage snapshot
+backups, and restore snapshots to a running cluster.
+
+For more information, see <<snapshot-restore>>.
+
+[discrete]
+[[snapshot-restore-repo-apis]]
+=== Snapshot repository management APIs
+* <<put-snapshot-repo-api,Put snapshot repository>>
+* <<verify-snapshot-repo-api,Verify snapshot repository>>
+* <<get-snapshot-repo-api,Get snapshot repository>>
+* <<delete-snapshot-repo-api,Delete snapshot repository>>
+* <<clean-up-snapshot-repo-api,Clean up snapshot repository>>
+
+[discrete]
+[[snapshot-management-apis]]
+=== Snapshot management APIs
+* <<create-snapshot-api,Create snapshot>>
+* <<get-snapshot-api,Get snapshot>>
+* <<get-snapshot-status-api,Get snapshot status>>
+* <<restore-snapshot-api,Restore snapshot>>
+* <<delete-snapshot-api,Delete snapshot>>
+
+include::put-repo-api.asciidoc[]
+include::verify-repo-api.asciidoc[]
+include::get-repo-api.asciidoc[]
+include::delete-repo-api.asciidoc[]
+include::clean-up-repo-api.asciidoc[]
+include::create-snapshot-api.asciidoc[]
+include::get-snapshot-api.asciidoc[]
+include::get-snapshot-status-api.asciidoc[]
+include::restore-snapshot-api.asciidoc[]
+include::delete-snapshot-api.asciidoc[]

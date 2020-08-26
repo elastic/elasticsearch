@@ -15,8 +15,7 @@ class ExecuteEnrichPolicyTask extends Task {
 
     private volatile ExecuteEnrichPolicyStatus status;
 
-    ExecuteEnrichPolicyTask(long id, String type, String action, String description, TaskId parentTask,
-                            Map<String, String> headers) {
+    ExecuteEnrichPolicyTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
     }
 

@@ -62,7 +62,7 @@ import java.util.function.LongSupplier;
 @SuppressForbidden(reason = "Channel#write")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
-    private static final long FORCE_WRITE_THRESHOLD = 1024 * 1024 * 16;
+    private static final long FORCE_WRITE_THRESHOLD = 1024 * 1024 * 4;
 
     private final ShardId shardId;
     private final ChannelFactory channelFactory;

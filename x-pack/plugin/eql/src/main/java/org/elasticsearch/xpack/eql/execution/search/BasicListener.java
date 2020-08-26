@@ -12,8 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.payload.SearchResponsePayload;
-import org.elasticsearch.xpack.eql.session.Payload;
 
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.logSearchResponse;
 
@@ -21,9 +19,9 @@ public class BasicListener implements ActionListener<SearchResponse> {
 
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
-    private final ActionListener<Payload> listener;
+    private final ActionListener<SearchResponse> listener;
 
-    public BasicListener(ActionListener<Payload> listener) {
+    public BasicListener(ActionListener<SearchResponse> listener) {
         this.listener = listener;
     }
 
@@ -37,7 +35,7 @@ public class BasicListener implements ActionListener<SearchResponse> {
                 if (log.isTraceEnabled()) {
                     logSearchResponse(response, log);
                 }
-                listener.onResponse(new SearchResponsePayload(response));
+                listener.onResponse(response);
             }
         } catch (Exception ex) {
             onFailure(ex);

@@ -23,7 +23,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -66,11 +65,11 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         assertThat(objectPath.evaluate("authentication_realm.type").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
+        assertThat(objectPath.evaluate("authentication_type").toString(), equalTo("realm"));
         List<String> roles = objectPath.evaluate("roles");
-
         if (anonymousEnabled) {
-            assertThat(roles.size(), is(2));
-            assertThat(roles, containsInAnyOrder(SecuritySettingsSource.TEST_ROLE, "foo"));
+            assertThat(roles.size(), is(3));
+            assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE, SecuritySettingsSource.TEST_ROLE, "foo"));
         } else {
             assertThat(roles.size(), is(1));
             assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));
@@ -87,7 +86,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
                 @SuppressWarnings("unchecked")
                 List<String> roles = (List<String>) objectPath.evaluate("roles");
                 assertThat(roles.size(), is(2));
-                assertThat(roles, containsInAnyOrder(SecuritySettingsSource.TEST_ROLE, "foo"));
+                assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE, "foo"));
             } else {
                 fail("request should have failed");
             }

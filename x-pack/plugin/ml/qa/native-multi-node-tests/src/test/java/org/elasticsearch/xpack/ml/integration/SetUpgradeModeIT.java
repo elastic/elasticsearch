@@ -145,7 +145,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         expectThrowsUpgradeModeException(() -> forecast(jobId, null, null));
 
         String snapshotId = "snapshot_id";
-        expectThrowsUpgradeModeException(() -> revertModelSnapshot(jobId, snapshotId));
+        expectThrowsUpgradeModeException(() -> revertModelSnapshot(jobId, snapshotId, false));
 
         String datafeedId = "datafeed_id";
         expectThrowsUpgradeModeException(() -> putDatafeed(createDatafeed(datafeedId, jobId, Collections.singletonList("index"))));

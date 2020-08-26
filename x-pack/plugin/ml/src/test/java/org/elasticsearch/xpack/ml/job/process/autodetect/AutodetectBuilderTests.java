@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.junit.Before;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class AutodetectBuilderTests extends ESTestCase {
@@ -46,15 +48,25 @@ public class AutodetectBuilderTests extends ESTestCase {
     }
 
     public void testBuildAutodetectCommand() {
+        boolean isPerPartitionCategorization = randomBoolean();
+
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         Detector.Builder detectorBuilder = new Detector.Builder("mean", "value");
+        if (isPerPartitionCategorization) {
+            detectorBuilder.setByFieldName("mlcategory");
+        }
         detectorBuilder.setPartitionFieldName("foo");
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));
         acBuilder.setLatency(TimeValue.timeValueSeconds(360));
         acBuilder.setSummaryCountFieldName("summaryField");
         acBuilder.setMultivariateByFields(true);
+        if (isPerPartitionCategorization) {
+            acBuilder.setCategorizationFieldName("bar");
+        }
+        acBuilder.setPerPartitionCategorizationConfig(
+            new PerPartitionCategorizationConfig(isPerPartitionCategorization, isPerPartitionCategorization));
 
         job.setAnalysisConfig(acBuilder);
 
@@ -65,12 +77,12 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setDataDescription(dd);
 
         List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertEquals(11, command.size());
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
         assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));
         assertTrue(command.contains(AutodetectBuilder.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
         assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
+        assertThat(command.contains(AutodetectBuilder.STOP_CATEGORIZATION_ON_WARN_ARG), is(isPerPartitionCategorization));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
@@ -82,6 +94,8 @@ public class AutodetectBuilderTests extends ESTestCase {
         assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
         int expectedMaxQuantileInterval = 21600 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
         assertTrue(command.contains(AutodetectBuilder.MAX_QUANTILE_INTERVAL_ARG + expectedMaxQuantileInterval));
+
+        assertEquals(isPerPartitionCategorization ? 12 : 11, command.size());
     }
 
     public void testBuildAutodetectCommand_defaultTimeField() {

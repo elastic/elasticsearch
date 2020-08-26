@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_cluster_changes]]
 === Cluster changes
 
@@ -23,4 +23,15 @@ Use `POST /_cluster/voting_config_exclusions?node_ids=...` and specify the nodes
 to exclude instead of using a node filter. Requests submitted to the
 `/_cluster/voting_config_exclusions/{node_filter}` endpoint will return an
 error.
+====
+
+.The `cluster.join.timeout` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `cluster.join.timeout` setting has been removed. Join attempts no longer
+time out.
+
+*Impact* +
+Do not set `cluster.join.timeout` in your `elasticsearch.yml` file.
 ====

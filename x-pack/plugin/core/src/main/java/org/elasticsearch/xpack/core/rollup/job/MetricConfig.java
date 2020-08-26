@@ -115,19 +115,21 @@ public class MetricConfig implements Writeable, ToXContentObject {
                 }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
-                } else if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
+                } else if (RollupField.DATE_FIELD_MAPPER_TYPES.contains(key)) {
                     if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
                         validationException.addValidationError(
-                            buildSupportedMetricError("date", RollupField.SUPPORTED_DATE_METRICS));
+                            buildSupportedMetricError(key, RollupField.SUPPORTED_DATE_METRICS));
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +
+                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [" +
+                        Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] type, " +
                         "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] or [date] field with name [" + field + "] in any of the " +
-                    "indices matching the index pattern.");
+            validationException.addValidationError("Could not find a [numeric] or [" +
+                Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) +
+                "] field with name [" + field + "] in any of the " + "indices matching the index pattern.");
         }
     }
 

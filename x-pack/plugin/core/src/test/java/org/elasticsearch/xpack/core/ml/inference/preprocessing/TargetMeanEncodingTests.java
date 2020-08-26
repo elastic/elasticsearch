@@ -17,13 +17,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncoding> {
 
     @Override
     protected TargetMeanEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? TargetMeanEncoding.fromXContentLenient(parser) : TargetMeanEncoding.fromXContentStrict(parser);
+        return lenient ?
+            TargetMeanEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
+            TargetMeanEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -31,7 +34,12 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         return createRandom();
     }
 
+
     public static TargetMeanEncoding createRandom() {
+        return createRandom(randomBoolean() ? randomBoolean() : null);
+    }
+
+    public static TargetMeanEncoding createRandom(Boolean isCustom) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
@@ -40,7 +48,8 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         return new TargetMeanEncoding(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             valueMap,
-            randomDoubleBetween(0.0, 1.0, false));
+            randomDoubleBetween(0.0, 1.0, false),
+            isCustom);
     }
 
     @Override
@@ -55,7 +64,7 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
             v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         Double defaultvalue = randomDouble();
-        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
         Object fieldValue = randomFrom(values);
         Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
             equalTo(valueMap.get(fieldValue.toString())));
@@ -68,24 +77,16 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         testProcess(encoding, fieldValues, matchers);
     }
 
-    public void testProcessWithNestedField() {
-        String field = "categorical.child";
-        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+    public void testInputOutputFields() {
+        String field = randomAlphaOfLength(10);
+        String encodedFeatureName = randomAlphaOfLength(10);
+        Double defaultvalue = randomDouble();
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
         Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
             v -> randomDoubleBetween(0.0, 1.0, false)));
-        String encodedFeatureName = "encoded";
-        Double defaultvalue = randomDouble();
-        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
-
-        Map<String, Object> fieldValues = new HashMap<>() {{
-            put("categorical", new HashMap<>(){{
-                put("child", "farequote");
-            }});
-        }};
-
-        encoding.process(fieldValues);
-
-        assertThat(fieldValues.get("encoded"), equalTo(valueMap.get("farequote")));
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
+        assertThat(encoding.inputFields(), containsInAnyOrder(field));
+        assertThat(encoding.outputFields(), containsInAnyOrder(encodedFeatureName));
     }
 
 }

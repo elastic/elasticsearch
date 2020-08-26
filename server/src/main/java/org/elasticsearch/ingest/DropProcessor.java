@@ -29,8 +29,8 @@ public final class DropProcessor extends AbstractProcessor {
 
     public static final String TYPE = "drop";
 
-    private DropProcessor(final String tag) {
-        super(tag);
+    private DropProcessor(final String tag, final String description) {
+        super(tag, description);
     }
 
     @Override
@@ -47,8 +47,8 @@ public final class DropProcessor extends AbstractProcessor {
 
         @Override
         public Processor create(final Map<String, Processor.Factory> processorFactories, final String tag,
-            final Map<String, Object> config) {
-            return new DropProcessor(tag);
+                                final String description, final Map<String, Object> config) {
+            return new DropProcessor(tag, description);
         }
     }
 }

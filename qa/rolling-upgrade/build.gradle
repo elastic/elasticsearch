@@ -19,11 +19,12 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.rest-resources'
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   /*
@@ -48,11 +49,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'http.content_type.required', 'true'
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn processTestResources
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
@@ -64,7 +64,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -76,7 +76,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -88,7 +88,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     doFirst {
       testClusters."${baseName}".nextNodeToNextVersion()

@@ -93,5 +93,6 @@ realms, authentication fails.
 
 See <<configuring-authorization-delegation>> for more details.
 
-NOTE: Delegated authorization requires a
-https://www.elastic.co/subscriptions[Platinum or Trial license].
+NOTE: Delegated authorization requires that you have a
+{subscriptions}[subscription] that includes custom authentication and
+authorization realms.

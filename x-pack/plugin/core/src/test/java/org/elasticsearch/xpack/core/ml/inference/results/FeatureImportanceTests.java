@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.util.function.Function;
+import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
-public class FeatureImportanceTests extends AbstractWireSerializingTestCase<FeatureImportance> {
+public class FeatureImportanceTests extends AbstractSerializingTestCase<FeatureImportance> {
 
     public static FeatureImportance createRandomInstance() {
         return randomBoolean() ? randomClassification() : randomRegression();
@@ -28,8 +28,8 @@ public class FeatureImportanceTests extends AbstractWireSerializingTestCase<Feat
             randomAlphaOfLength(10),
             Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomLongBetween(2, 10))
-                .collect(Collectors.toMap(Function.identity(), (k) -> randomDoubleBetween(-10, 10, false))));
-
+                .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
+                .collect(Collectors.toList()));
     }
 
     @Override
@@ -40,5 +40,10 @@ public class FeatureImportanceTests extends AbstractWireSerializingTestCase<Feat
     @Override
     protected Writeable.Reader<FeatureImportance> instanceReader() {
         return FeatureImportance::new;
+    }
+
+    @Override
+    protected FeatureImportance doParseInstance(XContentParser parser) throws IOException {
+        return FeatureImportance.fromXContent(parser);
     }
 }

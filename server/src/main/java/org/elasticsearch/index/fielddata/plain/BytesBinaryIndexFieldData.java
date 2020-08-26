@@ -24,16 +24,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -41,12 +39,12 @@ import java.io.IOException;
 
 public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
 
-    protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public BytesBinaryIndexFieldData(Index index, String fieldName) {
-        this.index = index;
+    public BytesBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
@@ -55,13 +53,8 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -90,14 +83,18 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final String name;
+        private final ValuesSourceType valuesSourceType;
 
-        @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
-            // Ignore breaker
-            final String fieldName = fieldType.name();
-            return new BytesBinaryIndexFieldData(indexSettings.getIndex(), fieldName);
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this.name = name;
+            this.valuesSourceType = valuesSourceType;
         }
 
+        @Override
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            // Ignore breaker
+            return new BytesBinaryIndexFieldData(name, valuesSourceType);
+        }
     }
 }

@@ -22,11 +22,17 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -41,7 +47,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.List;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends ESSingleNodeTestCase {
@@ -132,6 +140,14 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField pointField = fields[0];
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
+
+        fields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
+
+        FieldMapper m = (FieldMapper) mapper.mappers().getMapper("field");
+        Query existsQuery = m.fieldType().existsQuery(null);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), existsQuery);
     }
 
     public void testStore() throws Exception {
@@ -264,7 +280,6 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
         // it would be nice to check the entire serialized default mapper, but there are
         // a whole lot of bogus settings right now it picks up from calling super.doXContentBody...
-        assertTrue(got, got.contains("\"null_value\":null"));
         assertTrue(got, got.contains("\"ignore_malformed\":false"));
     }
 
@@ -277,5 +292,20 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        IpFieldMapper mapper = new IpFieldMapper.Builder("field", true).build(context);
+        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
+        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
+        assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
+
+        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field", true)
+            .nullValue(InetAddresses.forString("2001:db8:0:0:0:0:2:7"))
+            .build(context);
+        assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

@@ -69,7 +69,7 @@ public class TransportExplainDataFrameAnalyticsAction
     protected void doExecute(Task task,
                              PutDataFrameAnalyticsAction.Request request,
                              ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

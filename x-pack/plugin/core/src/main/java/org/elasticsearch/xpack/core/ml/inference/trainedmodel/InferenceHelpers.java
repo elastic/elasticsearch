@@ -7,15 +7,14 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,11 +27,11 @@ public final class InferenceHelpers {
     /**
      * @return Tuple of the highest scored index and the top classes
      */
-    public static Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses(double[] probabilities,
-                                                                                                List<String> classificationLabels,
-                                                                                                @Nullable double[] classificationWeights,
-                                                                                                int numToInclude,
-                                                                                                PredictionFieldType predictionFieldType) {
+    public static Tuple<TopClassificationValue, List<TopClassEntry>> topClasses(double[] probabilities,
+                                                                                List<String> classificationLabels,
+                                                                                @Nullable double[] classificationWeights,
+                                                                                int numToInclude,
+                                                                                PredictionFieldType predictionFieldType) {
 
         if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
             throw ExceptionsHelper
@@ -55,8 +54,11 @@ public final class InferenceHelpers {
             .mapToInt(i -> i)
             .toArray();
 
+        final TopClassificationValue topClassificationValue = new TopClassificationValue(sortedIndices[0],
+            probabilities[sortedIndices[0]],
+            scores[sortedIndices[0]]);
         if (numToInclude == 0) {
-            return Tuple.tuple(sortedIndices[0], Collections.emptyList());
+            return Tuple.tuple(topClassificationValue, Collections.emptyList());
         }
 
         List<String> labels = classificationLabels == null ?
@@ -65,16 +67,16 @@ public final class InferenceHelpers {
             classificationLabels;
 
         int count = numToInclude < 0 ? probabilities.length : Math.min(numToInclude, probabilities.length);
-        List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
+        List<TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(
+            topClassEntries.add(new TopClassEntry(
                 predictionFieldType.transformPredictedValue((double)idx, labels.get(idx)),
                 probabilities[idx],
                 scores[idx]));
         }
 
-        return Tuple.tuple(sortedIndices[0], topClassEntries);
+        return Tuple.tuple(topClassificationValue, topClassEntries);
     }
 
     public static String classificationLabel(Integer inferenceValue, @Nullable List<String> classificationLabels) {
@@ -96,14 +98,21 @@ public final class InferenceHelpers {
             return ((Number)value).doubleValue();
         }
         if (value instanceof String) {
-            try {
-                return Double.valueOf((String)value);
-            } catch (NumberFormatException nfe) {
-                assert false : "value is not properly formatted double [" + value + "]";
-                return null;
-            }
+            return stringToDouble((String) value);
         }
         return null;
+    }
+
+    private static Double stringToDouble(String value) {
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value);
+        } catch (NumberFormatException nfe) {
+            assert false : "value is not properly formatted double [" + value + "]";
+            return null;
+        }
     }
 
     public static Map<String, double[]> decodeFeatureImportances(Map<String, String> processedFeatureToOriginalFeatureMap,
@@ -129,11 +138,13 @@ public final class InferenceHelpers {
             if (v.length == 1) {
                 importances.add(FeatureImportance.forRegression(k, v[0]));
             } else {
-                Map<String, Double> classImportance = new LinkedHashMap<>(v.length, 1.0f);
+                List<FeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
-                    classImportance.put(classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i), v[i]);
+                    classImportance.add(new FeatureImportance.ClassImportance(
+                        classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i),
+                        v[i]));
                 }
                 importances.add(FeatureImportance.forClassification(k, classImportance));
             }
@@ -147,5 +158,29 @@ public final class InferenceHelpers {
             sumTo[i] += inc[i];
         }
         return sumTo;
+    }
+
+    public static class TopClassificationValue {
+        private final int value;
+        private final double probability;
+        private final double score;
+
+        TopClassificationValue(int value, double probability, double score) {
+            this.value = value;
+            this.probability = probability;
+            this.score = score;
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public double getProbability() {
+            return probability;
+        }
+
+        public double getScore() {
+            return score;
+        }
     }
 }

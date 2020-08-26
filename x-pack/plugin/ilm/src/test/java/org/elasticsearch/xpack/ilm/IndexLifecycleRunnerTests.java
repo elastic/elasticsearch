@@ -142,7 +142,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, indexMetadata);
+        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
         Mockito.verifyZeroInteractions(clusterService);
     }
@@ -158,7 +158,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, indexMetadata);
+        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
         Mockito.verify(clusterService, times(2)).submitStateUpdateTask(any(), any());
 
@@ -231,7 +231,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        runner.runPeriodicStep(policyName, indexMetadata);
+        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
         Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
     }
@@ -414,7 +414,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (asyncAction) {
             runner.maybeRunAsyncAction(before, indexMetadata, policyName, stepKey);
         } else if (periodicAction) {
-            runner.runPeriodicStep(policyName, indexMetadata);
+            runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
         } else {
             runner.runPolicyAfterStateChange(policyName, indexMetadata);
         }
@@ -598,7 +598,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
-        runner.runPeriodicStep(policyName, indexMetadata);
+        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
         awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         ClusterState after = clusterService.state();
@@ -947,7 +947,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();

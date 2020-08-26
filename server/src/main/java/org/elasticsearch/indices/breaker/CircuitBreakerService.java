@@ -32,11 +32,6 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Allows to register of a custom circuit breaker.
-     */
-    public abstract void registerBreaker(BreakerSettings breakerSettings);
-
-    /**
      * @return the breaker that can be used to register estimates against
      */
     public abstract CircuitBreaker getBreaker(String name);

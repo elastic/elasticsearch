@@ -28,7 +28,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -62,19 +61,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @throws java.io.IOException      When parsing fails
          */
         AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
-    }
-
-    /**
-     * Returns whether one of the parents is a {@link BucketsAggregator}.
-     */
-    public static boolean descendsFromBucketAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent instanceof BucketsAggregator) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
     }
 
     /**
@@ -180,7 +166,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
-     * Collect debug information to add to the profiling results.. This will
+     * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.
      * <p>
      * Well behaved implementations will always call the superclass

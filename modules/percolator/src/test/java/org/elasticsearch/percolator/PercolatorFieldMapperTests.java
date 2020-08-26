@@ -128,7 +128,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     private String fieldName;
     private IndexService indexService;
     private MapperService mapperService;
-    private PercolatorFieldMapper.FieldType fieldType;
+    private PercolatorFieldMapper.PercolatorFieldType fieldType;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -170,7 +170,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject(fieldName).field("type", "percolator").endObject().endObject()
                 .endObject().endObject());
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldType = (PercolatorFieldMapper.FieldType) mapperService.fieldType(fieldName);
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
     }
 
     public void testExtractTerms() throws Exception {
@@ -192,7 +192,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
@@ -248,7 +248,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
@@ -302,7 +302,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(1));
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_FAILED));
     }
@@ -321,7 +321,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(phraseQuery, parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(4));
         assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
@@ -645,7 +645,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().endObject()),
                         XContentType.JSON));
         assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
-        BytesRef queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
+        IndexableField queryBuilderField = doc.rootDoc().getField("object_field.query_field.query_builder_field");
+        assertTrue(queryBuilderField.fieldType().omitNorms());
+        IndexableField extractionResultField = doc.rootDoc().getField("object_field.query_field.extraction_result");
+        assertTrue(extractionResultField.fieldType().omitNorms());
+        BytesRef queryBuilderAsBytes = queryBuilderField.binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
         doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",

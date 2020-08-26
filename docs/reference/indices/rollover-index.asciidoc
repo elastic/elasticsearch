@@ -13,7 +13,7 @@ index becomes the data stream's write index and its generation is incremented.
 
 [source,console]
 ----
-POST /alias1/_rollover/twitter
+POST /alias1/_rollover/my-index-000002
 {
   "conditions": {
     "max_age":   "7d",
@@ -94,7 +94,7 @@ perform the rollover.
 (Optional*, string)
 Name of the target index to create and assign the index alias.
 
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 *This parameter is not permitted if `rollover-target` is a data stream. In
 that case, the new index name will be in the form `<rollover-target>-000001`
@@ -121,15 +121,15 @@ the request checks whether the index matches provided conditions
 but does not perform a rollover.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[rollover-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
 `conditions`::
 +
@@ -160,9 +160,9 @@ TIP: To see the current index size, use the <<cat-indices, _cat indices>> API.
 The `pri.store.size` value shows the combined size of all primary shards.
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 
 [[rollover-index-api-example]]
@@ -191,8 +191,8 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"my-index-000001"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created
@@ -226,29 +226,36 @@ The API returns the following response:
 ===== Roll over a data stream
 
 [source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": { }
+}
+-----------------------------------
+
+[source,console]
 --------------------------------------------------
 PUT /_data_stream/my-data-stream <1>
-{
-  "timestamp_field": "date"
-}
 
 # Add > 1000 documents to my-data-stream
 
 POST /my-data-stream/_rollover <2>
 {
   "conditions" : {
-  "max_age": "7d",
-  "max_docs": 1000,
-  "max_size": "5gb"
+    "max_age": "7d",
+    "max_docs": 1000,
+    "max_size": "5gb"
   }
 }
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream-000001"}}/]
+// TEST[continued]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-data-stream", "op_type": "create" } }/]
 <1> Creates a data stream called `my-data-stream` with one initial backing index
 named `my-data-stream-000001`.
 <2> This request creates a new backing index, `my-data-stream-000002`, and adds
-it as the write index for the `my-data-stream` data stream if the current
+it as the write index for `my-data-stream` if the current
 write index meets at least one of the following conditions:
 +
 --
@@ -264,8 +271,8 @@ The API returns the following response:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "old_index": "my-data-stream-000001", <1>
-  "new_index": "my-data-stream-000002", <2>
+  "old_index": ".ds-my-data-stream-000001", <1>
+  "new_index": ".ds-my-data-stream-000002", <2>
   "rolled_over": true, <3>
   "dry_run": false, <4>
   "conditions": { <5>
@@ -286,6 +293,7 @@ The API returns the following response:
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/template
 -----------------------------------
 // TEST[continued]
 ////

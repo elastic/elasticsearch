@@ -143,14 +143,12 @@ public class MetadataDeleteIndexService {
 
         // update snapshot restore entries
         ImmutableOpenMap<String, ClusterState.Custom> customs = currentState.getCustoms();
-        final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
-            if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
-                builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                customs = builder.build();
-            }
+        final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+        RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
+        if (updatedRestoreInProgress != restoreInProgress) {
+            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
+            builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
+            customs = builder.build();
         }
 
         return allocationService.reroute(

@@ -85,9 +85,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
      */
     public void testStringField() throws IOException {
         final String fieldName = "string";
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setName(fieldName);
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
         expectThrows(IllegalArgumentException.class,
             () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
                 iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
@@ -103,8 +101,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
-        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, RangeType.DOUBLE).fieldType();
-        fieldType.setName(fieldName);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
         RangeFieldMapper.Range range =new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
         BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
         expectThrows(IllegalArgumentException.class,
@@ -191,8 +188,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalHDRPercentiles> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         testCase(query, buildIndex, verify, fieldType, "number");
     }
 

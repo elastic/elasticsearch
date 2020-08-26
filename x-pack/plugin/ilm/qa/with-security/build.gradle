@@ -3,17 +3,15 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
 integTest {
-  runner {
-    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-  }
+  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.integTest {

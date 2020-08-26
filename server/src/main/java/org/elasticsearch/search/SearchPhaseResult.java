@@ -19,10 +19,12 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -40,7 +42,9 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
-    protected SearchContextId contextId;
+    protected ShardSearchContextId contextId;
+    private ShardSearchRequest shardSearchRequest;
+    private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
     protected SearchPhaseResult() {
 
@@ -52,8 +56,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     /**
      * Returns the search context ID that is used to reference the search context on the executing node
+     * or <code>null</code> if no context was created.
      */
-    public SearchContextId getContextId() {
+    @Nullable
+    public ShardSearchContextId getContextId() {
         return contextId;
     }
 
@@ -90,6 +96,23 @@ public abstract class SearchPhaseResult extends TransportResponse {
      * Returns the fetch result iff it's included in this response otherwise <code>null</code>
      */
     public FetchSearchResult fetchResult() { return null; }
+
+    @Nullable
+    public ShardSearchRequest getShardSearchRequest() {
+        return shardSearchRequest;
+    }
+
+    public void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
+        this.shardSearchRequest = shardSearchRequest;
+    }
+
+    public RescoreDocIds getRescoreDocIds() {
+        return rescoreDocIds;
+    }
+
+    public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
+        this.rescoreDocIds = rescoreDocIds;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

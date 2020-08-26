@@ -126,7 +126,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                     if (dataStreamTemplate != null) {
                         CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
-                            request.index(), dataStreamTemplate.getTimestampField(), request.masterNodeTimeout(), request.timeout());
+                            request.index(), request.masterNodeTimeout(), request.timeout());
                         ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
                         return clusterState;

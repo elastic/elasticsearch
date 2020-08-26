@@ -6,22 +6,22 @@ In production, you should send monitoring data to a separate _monitoring cluster
 so that historical data is available even when the nodes you are monitoring are
 not. For example, you can use {metricbeat} to ship monitoring data about {kib},
 {es}, {ls}, and Beats to the monitoring cluster.
-//If you are sending your data to the {esms-init}, see <<esms>>.
+If you are sending your data to the {esms-init}, see <<esms>>.
 
 [IMPORTANT]
 =========================
 {metricbeat} is the recommended method for collecting and shipping monitoring
 data to a monitoring cluster.
 
-If you have previously configured internal collection, you should migrate to
-using {metricbeat} collection. Use either {metricbeat} collection or
-internal collection; do not use both.
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
 
-If you have at least a gold license, using a dedicated monitoring cluster also
-enables you to monitor multiple clusters from a central location.
+If you have at least a Gold Subscription, using a dedicated monitoring cluster
+also enables you to monitor multiple clusters from a central location.
 
 To store monitoring data in a separate cluster:
 
@@ -99,11 +99,11 @@ Alternatively, use the `remote_monitoring_user` <<built-in-users,built-in user>>
 --
 
 . Configure your production cluster to collect data and send it to the
-monitoring cluster.
+monitoring cluster:
 
-** <<configuring-metricbeat,Use {metricbeat}>>.
+** <<configuring-metricbeat,{metricbeat} collection methods>>
 
-** <<collecting-monitoring-data,Use HTTP exporters>>.
+** <<collecting-monitoring-data,Legacy collection methods>>
 
 . (Optional)
 {logstash-ref}/configuring-logstash.html[Configure {ls} to collect data and send it to the monitoring cluster].
@@ -119,9 +119,9 @@ cluster.
 
 . (Optional) Configure {kib} to collect data and send it to the monitoring cluster:
 
-** {kibana-ref}/monitoring-metricbeat.html[Use {metricbeat}].
+** {kibana-ref}/monitoring-metricbeat.html[{metricbeat} collection methods]
 
-** {kibana-ref}/monitoring-kibana.html[Use HTTP exporters].
+** {kibana-ref}/monitoring-kibana.html[Legacy collection methods]
 
 . (Optional) Create a dedicated {kib} instance for monitoring, rather than using
 a single {kib} instance to access both your production cluster and monitoring

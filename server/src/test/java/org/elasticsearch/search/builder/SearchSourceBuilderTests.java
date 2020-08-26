@@ -105,6 +105,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testShallowCopy() {
+        for (int i = 0; i < 10; i++) {
+            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder copy = original.shallowCopy();
+            assertEquals(original, copy);
+        }
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
@@ -430,8 +438,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {

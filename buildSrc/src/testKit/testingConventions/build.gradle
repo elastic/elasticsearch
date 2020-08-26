@@ -10,7 +10,7 @@ allprojects {
     jcenter()
   }
   dependencies {
-    testCompile "junit:junit:4.12"
+    testImplementation "junit:junit:4.12"
   }
 
   ext.licenseFile = file("$buildDir/dummy/license")

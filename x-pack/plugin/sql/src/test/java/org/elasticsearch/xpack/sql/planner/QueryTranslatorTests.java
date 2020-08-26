@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -56,6 +57,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryStringFunction;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -64,6 +69,7 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -683,7 +689,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testStartsWithUsesPrefixQuery() {
         LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') OR STARTS_WITH(keyword, 'y')");
-        
+
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -692,7 +698,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof BoolQuery);
         BoolQuery bq = (BoolQuery) translation.query;
-        
+
         assertFalse(bq.isAnd());
         assertTrue(bq.left() instanceof PrefixQuery);
         assertTrue(bq.right() instanceof PrefixQuery);
@@ -700,7 +706,7 @@ public class QueryTranslatorTests extends ESTestCase {
         PrefixQuery pqr = (PrefixQuery) bq.right();
         assertEquals("keyword", pqr.field());
         assertEquals("y", pqr.query());
-        
+
         PrefixQuery pql = (PrefixQuery) bq.left();
         assertEquals("keyword", pql.field());
         assertEquals("x", pql.query());
@@ -709,7 +715,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testStartsWithUsesPrefixQueryAndScript() {
         LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
             + "AND STARTS_WITH(LCASE(keyword), 'xyz')");
-        
+
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -718,7 +724,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof BoolQuery);
         BoolQuery bq = (BoolQuery) translation.query;
-        
+
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof BoolQuery);
         assertTrue(bq.right() instanceof ScriptQuery);
@@ -728,7 +734,7 @@ public class QueryTranslatorTests extends ESTestCase {
         PrefixQuery pqr = (PrefixQuery) bbq.right();
         assertEquals("keyword", pqr.field());
         assertEquals("xy", pqr.query());
-        
+
         PrefixQuery pql = (PrefixQuery) bbq.left();
         assertEquals("keyword", pql.field());
         assertEquals("x", pql.query());
@@ -739,6 +745,52 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "params.v1, params.v2))",
             sq.script().toString());
         assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_WhereClause_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed FROM test WHERE " + trimFunctionName + "(keyword) = 'foo'");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
+                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=foo}]", sc.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_GroupBy_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed, count(*) FROM test GROUP BY " +
+            trimFunctionName + "(keyword)");
+
+        assertEquals(Aggregate.class, p.getClass());
+        Aggregate agg = (Aggregate) p;
+        assertEquals(1, agg.groupings().size());
+        assertEquals(2, agg.aggregates().size());
+        assertEquals(trimFunction, agg.groupings().get(0).getClass());
+        assertEquals(trimFunction, ((Alias) agg.aggregates().get(0)).child().getClass());
+        assertEquals(Count.class,((Alias) agg.aggregates().get(1)).child().getClass());
+
+        UnaryStringFunction trim = (UnaryStringFunction) agg.groupings().get(0);
+        assertEquals(1, trim.children().size());
+
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(agg.groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils." + trimFunctionName.toLowerCase(Locale.ROOT) +
+                "(InternalQlScriptUtils.docValue(doc,params.v0))",
+            scriptTemplate.toString());
+        assertEquals("[{v=keyword}]", scriptTemplate.params().toString());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {
@@ -862,8 +914,8 @@ public class QueryTranslatorTests extends ESTestCase {
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
                 "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
-                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
-                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+                "[InternalSqlScriptUtils.asDateTime(params.a0)]),InternalSqlScriptUtils.asDateTime(params.v0)))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
@@ -1252,7 +1304,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
@@ -1267,7 +1319,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(1).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(1).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true," +
                         "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
@@ -1279,10 +1331,10 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("YEAR(date)", eqe.output().get(0).qualifiedName());
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByOneMonthHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1291,10 +1343,10 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1M\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByMoreMonthsHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 5 MONTH) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1303,7 +1355,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1315,10 +1367,10 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
     }
-    
+
     public void testGroupByMoreDaysHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL '1 5' DAY TO HOUR) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1327,7 +1379,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"104400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1845,6 +1897,33 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
+    public void testExtendedStatsAggsStddevAndVar() {
+        final Map<String, String> metricToAgg =  Map.of(
+            "STDDEV_POP", "std_deviation",
+            "STDDEV_SAMP", "std_deviation_sampling",
+            "VAR_POP", "variance",
+            "VAR_SAMP", "variance_sampling"
+        );
+        for (String funcName: metricToAgg.keySet()) {
+            PhysicalPlan p = optimizeAndPlan("SELECT " + funcName + "(int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+
+            assertEquals(funcName + "(int)", eqe.output().get(0).qualifiedName());
+            assertEquals(DOUBLE, eqe.output().get(0).dataType());
+
+            FieldExtraction fe = eqe.queryContainer().fields().get(0).v1();
+            assertEquals(MetricAggRef.class, fe.getClass());
+            assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
+
+            String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}"));
+        }
+
+    }
+
     public void testGlobalCountInImplicitGroupByForcesTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -2073,5 +2152,40 @@ public class QueryTranslatorTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDatetimeField() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(date) FROM test HAVING MAX(date) > CAST('2020-05-03T12:34:56.000Z' AS DATETIME)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":{\"bucket_selector\":"
+            + "{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
+            + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\","
+            + "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-05-03T12:34:56.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDateField_AndExtendedStats() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MIN(CAST(date AS DATE)), MAX(CAST(date AS DATE)) FROM test HAVING "
+            + "MIN(CAST(date AS DATE)) > CAST('2020-05-03T12:34:56.000Z' AS DATE)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.cast("
+            + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\",\"lang\":\"painless\",\"params\":"
+            + "{\"v0\":\"date\",\"v1\":\"DATE\"}}}},\"" + havingName + "\":{\"bucket_selector\":{\"buckets_path\":"
+            + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
+            + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
+            + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
     }
 }

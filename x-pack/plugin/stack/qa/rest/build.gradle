@@ -1,0 +1,37 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('stack'))
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
+    includeXpack 'ilm', 'slm', 'stack', 'indices'
+  }
+}
+
+def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
+                          password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
+
+task restTest(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
+}
+
+testClusters.restTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  user clusterCredentials
+}
+
+check.dependsOn restTest
+test.enabled = false

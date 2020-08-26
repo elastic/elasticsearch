@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -47,7 +48,6 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
         super.tearDown();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57199")
     public void testIdempotencyIsEnforced() {
         Set<Long> seqNosReturned = ConcurrentCollections.newConcurrentSet();
         ConcurrentMap<Long, Set<PlainActionFuture<Void>>> seqToResult = ConcurrentCollections.newConcurrentMap();
@@ -59,17 +59,17 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
             final long seqNo = j;
             int iterations = randomIntBetween(2, 5);
             for (int i = 0; i < iterations; ++i) {
+                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                Set<PlainActionFuture<Void>> set = seqToResult.computeIfAbsent(seqNo, (k) -> ConcurrentCollections.newConcurrentSet());
+                set.add(future);
                 threadPool.generic().execute(() -> {
-                    PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     ActionListener<Void> listener = requestTracker.markReceivedAndCreateListener(seqNo, future);
-                    Set<PlainActionFuture<Void>> set = seqToResult.computeIfAbsent(seqNo, (k) -> ConcurrentCollections.newConcurrentSet());
-                    set.add(future);
                     if (listener != null) {
                         boolean added = seqNosReturned.add(seqNo);
                         // Ensure that we only return 1 future per sequence number
                         assertTrue(added);
                         if (rarely()) {
-                            listener.onFailure(new Exception());
+                            listener.onFailure(new ElasticsearchException(randomAlphaOfLength(10)));
                         } else {
                             listener.onResponse(null);
                         }
@@ -104,7 +104,7 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
                         future.actionGet();
                         fail("expected exception");
                     } catch (Exception e) {
-                        assertSame(e, expectedException);
+                        assertEquals(expectedException.getMessage(), e.getMessage());
                     }
                 }
             }

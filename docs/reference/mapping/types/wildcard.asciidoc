@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[wildcard]]
-=== Wildcard datatype
+=== Wildcard data type
 ++++
 <titleabbrev>Wildcard</titleabbrev>
 ++++
@@ -21,7 +21,7 @@ You index and search a wildcard field as follows
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -32,15 +32,19 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_wildcard" : "This string can be quite lengthy"
 }
 
-POST my_index/_doc/_search
+GET my-index-000001/_search
 {
   "query": {
-      "wildcard" : "*quite*lengthy"
+    "wildcard": {
+      "my_wildcard": {
+        "value": "*quite*lengthy"
+      }
+    }
   }
 }
 

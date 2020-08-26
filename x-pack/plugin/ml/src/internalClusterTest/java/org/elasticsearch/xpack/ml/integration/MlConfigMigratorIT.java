@@ -37,6 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -411,14 +412,14 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     private void addMlConfigIndex(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(AnomalyDetectorsIndex.configIndexName());
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
         indexMetadata.settings(Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         metadata.put(indexMetadata);
-        Index index = new Index(AnomalyDetectorsIndex.configIndexName(), "_uuid");
+        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
@@ -450,7 +451,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     private boolean configIndexExists() {
-        return ESIntegTestCase.indexExists(AnomalyDetectorsIndex.configIndexName(), client());
+        return ESIntegTestCase.indexExists(MlConfigIndex.indexName(), client());
     }
 }
 

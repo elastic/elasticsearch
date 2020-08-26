@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -275,29 +276,16 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeBlockSet(global, out);
-        out.writeVInt(indicesBlocks.size());
-        for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : indicesBlocks) {
-            out.writeString(entry.key);
-            writeBlockSet(entry.value, out);
-        }
+        out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
     }
 
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
-        out.writeVInt(blocks.size());
-        for (ClusterBlock block : blocks) {
-            block.writeTo(out);
-        }
+        out.writeCollection(blocks);
     }
 
     public ClusterBlocks(StreamInput in) throws IOException {
-        Set<ClusterBlock> global = readBlockSet(in);
-        int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(size);
-        for (int j = 0; j < size; j++) {
-            indicesBuilder.put(in.readString().intern(), readBlockSet(in));
-        }
-        this.global = global;
-        this.indicesBlocks = indicesBuilder.build();
+        this.global = readBlockSet(in);
+        this.indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         levelHolders = generateLevelHolders(global, indicesBlocks);
     }
 
@@ -339,9 +327,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public static class Builder {
 
-        private Set<ClusterBlock> global = new HashSet<>();
+        private final Set<ClusterBlock> global = new HashSet<>();
 
-        private Map<String, Set<ClusterBlock>> indices = new HashMap<>();
+        private final Map<String, Set<ClusterBlock>> indices = new HashMap<>();
 
         public Builder() {
         }
@@ -416,6 +404,10 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
             indices.remove(index);
             return this;
+        }
+
+        public boolean hasIndexBlock(String index, ClusterBlock block) {
+            return indices.getOrDefault(index, Collections.emptySet()).contains(block);
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {

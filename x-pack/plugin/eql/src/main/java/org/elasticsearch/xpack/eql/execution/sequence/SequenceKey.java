@@ -17,22 +17,20 @@ public class SequenceKey {
     public static final SequenceKey NONE = new SequenceKey();
 
     private final Object[] keys;
+    private final int hashCode;
 
     public SequenceKey(Object... keys) {
         this.keys = keys;
+        this.hashCode = Objects.hash(keys);
     }
 
-    public List<String> asStringList() {
-        String[] s = new String[keys.length];
-        for (int i = 0; i < keys.length; i++) {
-            s[i] = Objects.toString(keys[i]);
-        }
-        return Arrays.asList(s);
+    public List<Object> asList() {
+        return Arrays.asList(keys);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys);
+        return hashCode;
     }
 
     @Override

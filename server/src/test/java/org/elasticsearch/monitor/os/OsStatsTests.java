@@ -84,8 +84,12 @@ public class OsStatsTests extends ESTestCase {
     }
 
     public void testGetUsedMemoryWithZeroTotal() {
-        OsStats.Mem mem = new OsStats.Mem(0, 1);
+        OsStats.Mem mem = new OsStats.Mem(0, randomNonNegativeLong());
         assertThat(mem.getUsed().getBytes(), equalTo(0L));
     }
 
+    public void testGetUsedSwapWithZeroTotal() {
+        OsStats.Swap swap = new OsStats.Swap(0, randomNonNegativeLong());
+        assertThat(swap.getUsed().getBytes(), equalTo(0L));
+    }
 }

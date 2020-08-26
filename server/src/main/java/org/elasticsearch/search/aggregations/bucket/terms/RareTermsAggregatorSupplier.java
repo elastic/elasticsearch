@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-interface RareTermsAggregatorSupplier extends AggregatorSupplier {
+interface RareTermsAggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      ValuesSource valuesSource,
@@ -38,5 +38,6 @@ interface RareTermsAggregatorSupplier extends AggregatorSupplier {
                      IncludeExclude includeExclude,
                      SearchContext context,
                      Aggregator parent,
+                     CardinalityUpperBound carinality,
                      Map<String, Object> metadata) throws IOException;
 }

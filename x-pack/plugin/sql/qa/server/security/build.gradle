@@ -1,5 +1,5 @@
 dependencies {
-  testCompile project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:core')
 }
 
 Project mainProject = project
@@ -23,7 +23,7 @@ subprojects {
   configurations.create('testArtifacts')
 
   dependencies {
-    testCompile project(":x-pack:plugin:core")
+    testImplementation project(":x-pack:plugin:core")
     testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
   }
 
@@ -47,7 +47,7 @@ subprojects {
     into testArtifactsDir
   }
 
-  integTest.runner {
+  integTest {
     dependsOn copyTestClasses
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts

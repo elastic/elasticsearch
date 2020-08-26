@@ -85,6 +85,7 @@ public class RestControllerTests extends ESTestCase {
                 // We want to have reproducible results in this test, hence we disable real memory usage accounting
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         usageService = new UsageService();
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
@@ -524,8 +525,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testFaviconWithWrongHttpMethod() {
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withMethod(randomValueOtherThan(RestRequest.Method.GET, () -> randomFrom(RestRequest.Method.values())))
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+                randomValueOtherThanMany(m -> m == RestRequest.Method.GET || m == RestRequest.Method.OPTIONS,
+                        () -> randomFrom(RestRequest.Method.values())))
             .withPath("/favicon.ico")
             .build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);

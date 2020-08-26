@@ -250,7 +250,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
     }
 
     private void createBuckets(String jobId, int count) {
-        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId, () -> true);
+        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId);
         for (int i = 1; i <= count; ++i) {
             Bucket bucket = new Bucket(jobId, new Date(bucketSpan * i), bucketSpan);
             builder.persistBucket(bucket);

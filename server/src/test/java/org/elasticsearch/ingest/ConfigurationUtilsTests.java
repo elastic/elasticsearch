@@ -117,7 +117,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
+            Collections.singletonMap("test_processor", (factories, tag, description, config) -> processor);
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -131,6 +131,9 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
         Map<String, Object> unknownTaggedConfig = new HashMap<>();
         unknownTaggedConfig.put("tag", "my_unknown");
+        if (randomBoolean()) {
+            unknownTaggedConfig.put("description", "my_description");
+        }
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry));
@@ -138,6 +141,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
         assertThat(e.getMetadata("es.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
         assertThat(e.getMetadata("es.property_name"), is(nullValue()));
+        assertThat(e.getMetadata("es.processor_description"), is(nullValue()));
 
         List<Map<String, Object>> config2 = new ArrayList<>();
         unknownTaggedConfig = new HashMap<>();
@@ -164,10 +168,44 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getMetadata("es.property_name"), is(nullValue()));
     }
 
+    public void testReadProcessorNullDescription() throws Exception {
+        Processor processor = new TestProcessor("tag", "type", null, (ingestDocument) -> {});
+        Map<String, Processor.Factory> registry =
+            Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
+                assertNull(description);
+                return processor;
+            });
+
+        List<Map<String, Object>> config = new ArrayList<>();
+        Map<String, Object> emptyConfig = Collections.emptyMap();
+        config.add(Collections.singletonMap("test_processor", emptyConfig));
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(0), sameInstance(processor));
+    }
+
+    public void testReadProcessorDescription() throws Exception {
+        String testDescription = randomAlphaOfLengthBetween(10, 20);
+        Processor processor = new TestProcessor("tag", "type", testDescription, (ingestDocument) -> {});
+        Map<String, Processor.Factory> registry =
+            Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
+                assertThat(description, equalTo(processor.getDescription()));
+                return processor;
+            });
+
+        List<Map<String, Object>> config = new ArrayList<>();
+        Map<String, Object> processorConfig = new HashMap<>();
+        processorConfig.put(ConfigurationUtils.DESCRIPTION_KEY, testDescription);
+        config.add(Collections.singletonMap("test_processor", processorConfig));
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(0), sameInstance(processor));
+    }
+
     public void testReadProcessorFromObjectOrMap() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("script", (processorFactories, tag, config) -> {
+            Collections.singletonMap("script", (processorFactories, tag, description, config) -> {
                 config.clear();
                 return processor;
             });

@@ -61,7 +61,8 @@ public class EqlSession {
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
-        eqlExecutable(eql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
+        eqlExecutable(eql, params, wrap(e -> e.execute(this, wrap(p -> listener.onResponse(Results.fromPayload(p)), listener::onFailure)),
+                listener::onFailure));
     }
 
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {
@@ -94,9 +95,10 @@ public class EqlSession {
         if(configuration.isCancelled()){
             throw new TaskCancelledException("cancelled");
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), wrap(r -> {
-            listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
-        }, listener::onFailure));
+        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), configuration.filter(),
+            wrap(r -> {
+                listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
+            }, listener::onFailure));
     }
 
     private LogicalPlan doParse(String eql, ParserParams params) {

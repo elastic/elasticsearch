@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -158,7 +160,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -215,14 +217,16 @@ public class TransportStartDataFrameAnalyticsAction
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
+                // We will only warn the caller if the configured limit is too low.
                 if (startContext.config.getModelMemoryLimit()
                     .compareTo(expectedMemoryWithoutDisk) < 0) {
-                    ElasticsearchStatusException e =
-                        ExceptionsHelper.badRequestException(
-                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            startContext.config.getModelMemoryLimit(), expectedMemoryWithoutDisk);
-                    listener.onFailure(e);
-                    return;
+                    String warning =  Messages.getMessage(
+                        Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED,
+                        startContext.config.getModelMemoryLimit(),
+                        expectedMemoryWithoutDisk);
+                    auditor.warning(jobId, warning);
+                    logger.warn("[{}] {}", jobId, warning);
+                    HeaderWarning.addWarning(warning);
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -643,7 +647,7 @@ public class TransportStartDataFrameAnalyticsAction
             List<String> unavailableIndices =
                 verifyIndicesPrimaryShardsAreActive(clusterState,
                     resolver,
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {

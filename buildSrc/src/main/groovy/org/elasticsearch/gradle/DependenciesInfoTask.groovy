@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.precommit.LicenseAnalyzer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.DependencySet
+import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.internal.ConventionTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
@@ -87,7 +88,7 @@ class DependenciesInfoTask extends ConventionTask {
                 continue
             }
             // only external dependencies are checked
-            if (dependency.group != null && dependency.group.contains("org.elasticsearch")) {
+            if (dependency instanceof ProjectDependency) {
                 continue
             }
 

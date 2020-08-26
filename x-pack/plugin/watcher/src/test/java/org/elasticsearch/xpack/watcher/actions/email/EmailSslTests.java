@@ -145,10 +145,11 @@ public class EmailSslTests extends ESTestCase {
     }
 
     /**
-     * This orderining could be considered to be backwards (the global "notification" settings take precedence
+     * This ordering could be considered to be backwards (the global "notification" settings take precedence
      * over the account level "smtp.ssl.trust" setting) but smtp.ssl.trust was ignored for a period of time (see #52153)
      * so this is the least breaking way to resolve that.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testNotificationSslSettingsOverrideSmtpSslTrust() throws Exception {
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);

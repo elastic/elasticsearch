@@ -42,4 +42,6 @@ public class SearchableSnapshotsConstants {
 
     public static final String CACHE_PREWARMING_THREAD_POOL_NAME = "searchable_snapshots_cache_prewarming";
     public static final String CACHE_PREWARMING_THREAD_POOL_SETTING = "xpack.searchable_snapshots.cache_prewarming_thread_pool";
+
+    public static final String SNAPSHOT_BLOB_CACHE_INDEX = ".snapshot-blob-cache";
 }

@@ -8,10 +8,7 @@
 
 experimental::[]
 
-{es} supports the following EQL pipes:
-
-* <<eql-pipe-head>>
-* <<eql-pipe-tail>>
+{es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]
 [[eql-pipe-head]]
@@ -21,8 +18,6 @@ Returns up to a specified number of events or sequences, starting with the
 earliest matches. Works similarly to the
 {wikipedia}/Head_(Unix)[Unix head command].
 
-[%collapsible]
-====
 *Example*
 
 The following EQL query returns up to three of the earliest powershell
@@ -45,7 +40,6 @@ head <max>
 `<max>`::
 (Required, integer)
 Maximum number of matching events or sequences to return.
-====
 
 [discrete]
 [[eql-pipe-tail]]
@@ -55,8 +49,6 @@ Returns up to a specified number of events or sequences, starting with the most
 recent matches. Works similarly to the
 {wikipedia}/Tail_(Unix)[Unix tail command].
 
-[%collapsible]
-====
 *Example*
 
 The following EQL query returns up to five of the most recent `svchost.exe`
@@ -79,4 +71,3 @@ tail <max>
 `<max>`::
 (Required, integer)
 Maximum number of matching events or sequences to return.
-====

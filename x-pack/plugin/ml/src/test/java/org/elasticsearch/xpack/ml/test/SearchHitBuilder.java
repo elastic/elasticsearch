@@ -43,7 +43,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder setStringSortValue(String sortValue) {
-        hit.sortValues(new String[] { sortValue}, new DocValueFormat[] { DocValueFormat.RAW });
+        hit.sortValues(new String[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
         return this;
     }
 

@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.same;
@@ -199,7 +200,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(capturedClearScrollRequests.get(0), equalTo(lastAndEmptyResponse.getScrollId()));
 
         // Notice we've done two searches here
-        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
+        assertThat(dataExtractor.capturedSearchRequests, hasSize(2));
 
         // Assert the second search did not include a range query as the failure happened on the very first search
         String searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");

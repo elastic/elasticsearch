@@ -19,27 +19,23 @@
 
 package org.elasticsearch.gradle
 
-import com.github.tomakehurst.wiremock.WireMockServer
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
+
+import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
 class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll
     def "#distType version can be resolved"() {
         given:
-        def mockRepoUrl = urlPath(version, platform)
-        def mockedContent = filebytes(mockRepoUrl)
-
         buildFile << applyPluginAndSetupDistro(version, platform)
 
         when:
-        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-            buildFile << repositoryMockSetup(server)
-            gradleRunner('setupDistro').build()
+        def result = withMockedDistributionDownload(version, platform, gradleRunner('setupDistro', '-i')) {
+            build()
         }
 
         then:
@@ -47,30 +43,30 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertExtractedDistroCreated("build/distro")
 
         where:
-        version                              | platform  | distType
-        VersionProperties.getElasticsearch() | "linux"   | "current"
-        "8.1.0-SNAPSHOT"                     | "linux"   | "bwc"
-        "7.0.0"                              | "windows" | "released"
+        version                              | platform                                   | distType
+        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX   | "current"
+        "8.1.0-SNAPSHOT"                     | ElasticsearchDistribution.Platform.LINUX   | "bwc"
+        "7.0.0"                              | ElasticsearchDistribution.Platform.WINDOWS | "released"
     }
 
 
     def "transformed versions are kept across builds"() {
         given:
         def version = VersionProperties.getElasticsearch()
-        def mockRepoUrl = urlPath(version)
-        def mockedContent = filebytes(mockRepoUrl)
+        def platform = ElasticsearchDistribution.Platform.LINUX
 
-        buildFile << applyPluginAndSetupDistro(version, 'linux')
+        buildFile << applyPluginAndSetupDistro(version, platform)
         buildFile << """
             apply plugin:'base'
         """
 
-
         when:
-        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-            buildFile << repositoryMockSetup(server)
-            gradleRunner('clean', 'setupDistro').build()
-            gradleRunner('clean', 'setupDistro', '-i').build()
+        def runner = gradleRunner('clean', 'setupDistro', '-i')
+        def result = withMockedDistributionDownload(version, platform, runner) {
+            // initial run
+            build()
+            // 2nd invocation
+            build()
         }
 
         then:
@@ -81,8 +77,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
     def "transforms are reused across projects"() {
         given:
         def version = VersionProperties.getElasticsearch()
-        def mockRepoUrl = urlPath(version)
-        def mockedContent = filebytes(mockRepoUrl)
+        def platform = ElasticsearchDistribution.Platform.LINUX
 
         3.times {
             settingsFile << """
@@ -99,20 +94,22 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
             subprojects {
                 apply plugin: 'elasticsearch.distribution-download'
     
-                ${setupTestDistro(version, 'linux')}
+                ${setupTestDistro(version, platform)}
                 ${setupDistroTask()}
             }
         """
 
         when:
-        def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-            buildFile << repositoryMockSetup(server)
-            gradleRunner('setupDistro', '-i', '-g', testProjectDir.newFolder().toString()).build()
+        def customGradleUserHome = testProjectDir.newFolder().absolutePath;
+        def runner = gradleRunner('setupDistro', '-i', '-g', customGradleUserHome)
+        def result = withMockedDistributionDownload(version, platform, runner) {
+            build()
         }
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
+        result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform.") == 1
     }
 
     private boolean assertExtractedDistroCreated(String relativePath) {
@@ -123,25 +120,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         true
     }
 
-    private static String urlPath(String version, String platform = 'linux') {
-        String fileType = platform == "linux" ? "tar.gz" : "zip"
-        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-x86_64.$fileType"
-    }
-
-    private static String repositoryMockSetup(WireMockServer server) {
-        """allprojects{ p ->
-                p.repositories.all { repo ->
-                    repo.setUrl('${server.baseUrl()}')
-                }
-           }"""
-    }
-
-    private static byte[] filebytes(String urlPath) throws IOException {
-        String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
-        return DistributionDownloadPluginFuncTest.getResourceAsStream("fake_elasticsearch." + suffix).getBytes()
-    }
-
-    private static String applyPluginAndSetupDistro(String version, String platform) {
+    private static String applyPluginAndSetupDistro(String version, ElasticsearchDistribution.Platform platform) {
         """
             import org.elasticsearch.gradle.Architecture
 
@@ -155,7 +134,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
     }
 
-    private static String setupTestDistro(String version, String platform) {
+    private static String setupTestDistro(String version, ElasticsearchDistribution.Platform platform) {
         return """
             elasticsearch_distributions {
                 test_distro {

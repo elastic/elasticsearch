@@ -20,15 +20,14 @@ GET /_search
 }
 ----
 
-By default, you cannot use `from` and `size` to page through more than 10,000
-hits. Using `from` and `size` requires each searched shard to load hits for
-previous pages into memory. This can significantly increase memory and CPU
-usage, resulting in degraded performance or node failures.
-
-If you need to page through more than 10,000 hits, use the
-<<search-after,`search_after`>> parameter. If needed, you can use the
-<<index-max-result-window,`index.max_result_window`>> index setting to change
-the 10,000 hit safeguard.
+By default, you cannot use `from` and `size` to page through more than
+10,000 hits. This limit is a safeguard set using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+Using `from` and `size` requires each searched shard to load the hits for
+all previous pages into memory. For large result sets, this can
+significantly increase memory and CPU usage, resulting in degraded
+performance or node failures. If you need to page through more than
+10,000 hits, use the <<search-after,`search_after`>> parameter instead.
 
 WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal doc
 IDs can be completely different across replicas of the same data. When paging
@@ -44,13 +43,13 @@ using a set of <<sort-search-results,sort values>> from the previous page.
 
 Using `search_after` requires multiple search requests with the same `query` and
 `sort` values. If a <<near-real-time,refresh>> occurs between these requests,
-the order of your results may change, resulting in inconsistent pages. To
+the order of your results may change, causing inconsistent results across pages. To
 prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to
-preserve the current index state for a specified period.
+preserve the current index state over multiple searches.
 
 IMPORTANT: We don't recommend creating PITs for each user request. Each PIT
 requires additional disk space and file handles. If you want to paginate search
-results for user requests, skip this step and use `search_after` without a PIT.
+results for user requests, use `search_after` without a PIT.
 
 [source,console]
 ----
@@ -69,7 +68,7 @@ The API returns a PIT ID.
 // TESTRESPONSE[s/"id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
 
 To get the first page of results, submit a search request with a `sort`
-argument. If using a PIT, include the PIT ID as the `pit.id` argument.
+argument. If using a PIT, specify the PIT ID in the `pit.id` parameter.
 
 IMPORTANT: We recommend you include a tiebreaker field in your `sort`. This
 tiebreaker field should contain a unique value for each document. If you don't
@@ -101,7 +100,7 @@ GET /my-index-000001/_search
 <2> Sorts hits for the search.
 
 The search response includes an array of `sort` values for each hit. If you used
-a PIT, the response's `pit_id` contains an updated PIT ID.
+a PIT, the response's `pit_id` parameter contains an updated PIT ID.
 
 [source,console-result]
 ----
@@ -135,9 +134,9 @@ a PIT, the response's `pit_id` contains an updated PIT ID.
 <2> Sort values for the last returned hit.
 
 To get the next page of results, rerun the previous search using the last hit's
-sort values as the `search_after` argument. If using a PIT, use the updated PIT
-ID as the `pit.id`. The search's `query` and `sort` must remain unchanged. If
-provided, the `from` argument must be `0` (default) or `-1`.
+sort values as the `search_after` argument. If using a PIT, use the latest PIT
+ID in the `pit.id` parameter. The search's `query` and `sort` arguments must
+remain unchanged. If provided, the `from` argument must be `0` (default) or `-1`.
 
 [source,console]
 ----
@@ -169,8 +168,8 @@ GET /my-index-000001/_search
 <2> Sort values from the previous search's last hit.
 
 You can repeat this process to get additional pages of results. If using a PIT,
-you can extend the PIT's retention period each search request using the
-`keep_alive` parameter.
+you can extend the PIT's retention period using the
+`keep_alive` parameter of each search request.
 
 When you're finished, we recommend deleting your PIT.
 

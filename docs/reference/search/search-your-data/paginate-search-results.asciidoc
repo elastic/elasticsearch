@@ -21,11 +21,11 @@ GET /_search
 }
 ----
 
-Avoid using `from` and `size` to page deeply or request many results at once.
-Search requests usually span multiple shards. Each shard must load its requested
-hits and the hits for any previous pages into memory. For deep pages or large
-sets of results, these operations can significantly increase memory and CPU
-usage, resulting in degraded performance or node failures.
+Avoid using `from` and `size` to page too deeply or request too many results at
+once. Search requests usually span multiple shards. Each shard must load its
+requested hits and the hits for any previous pages into memory. For deep pages
+or large sets of results, these operations can significantly increase memory and
+CPU usage, resulting in degraded performance or node failures.
 
 By default, you cannot use `from` and `size` to page through more than 10,000
 hits. This limit is a safeguard set by the

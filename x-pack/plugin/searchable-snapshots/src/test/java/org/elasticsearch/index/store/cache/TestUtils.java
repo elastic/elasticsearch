@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
+import org.elasticsearch.blobstore.cache.CachedBlob;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -28,6 +33,7 @@ import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.random
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
@@ -207,6 +213,30 @@ public final class TestUtils {
         private UnsupportedOperationException unsupportedException() {
             assert false : "this operation is not supported and should have not be called";
             return new UnsupportedOperationException("This operation is not supported");
+        }
+    }
+
+    public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
+
+        public NoopBlobStoreCacheService() {
+            super(null, null, mock(Client.class), null);
+        }
+
+        @Override
+        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+            listener.onResponse(CachedBlob.CACHE_NOT_READY);
+        }
+
+        @Override
+        public void putAsync(
+            String repository,
+            String name,
+            String path,
+            long offset,
+            BytesReference content,
+            ActionListener<Void> listener
+        ) {
+            listener.onResponse(null);
         }
     }
 }

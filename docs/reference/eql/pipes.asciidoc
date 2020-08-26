@@ -8,10 +8,7 @@
 
 experimental::[]
 
-{es} supports the following EQL pipes:
-
-* <<eql-pipe-head>>
-* <<eql-pipe-tail>>
+{es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]
 [[eql-pipe-head]]

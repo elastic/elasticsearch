@@ -19,24 +19,22 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.specs.Spec;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -44,39 +42,28 @@ import java.util.stream.Collectors;
 
 public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
+    private ArchiveOperations archiveOperations;
+
+    @Inject
+    public InternalDistributionArchiveCheckPlugin(ArchiveOperations archiveOperations) {
+        this.archiveOperations = archiveOperations;
+    }
+
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
         String buildTaskName = calculateBuildTask(project.getName());
-        Task buildDistTask = project.getParent().getTasks().getByName(buildTaskName);
+        TaskProvider<Task> buildDistTask = project.getParent().getTasks().named(buildTaskName);
         DistributionArchiveCheckExtension distributionArchiveCheckExtension = project.getExtensions()
             .create("distributionArchiveCheck", DistributionArchiveCheckExtension.class);
 
         File archiveExtractionDir = calculateArchiveExtractionDir(project);
-        Spec<Task> toolAvailableSpec = task -> toolExists(project);
 
         // sanity checks if archives can be extracted
-        TaskProvider<LoggedExec> checkExtraction = registerCheckExtractionTask(
-            project,
-            buildDistTask,
-            archiveExtractionDir,
-            toolAvailableSpec
-        );
-        TaskProvider<Task> checkLicense = registerCheckLicenseTask(
-            project,
-            buildDistTask,
-            archiveExtractionDir,
-            toolAvailableSpec,
-            checkExtraction
-        );
+        TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
+        TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
 
-        TaskProvider<Task> checkNotice = registerCheckNoticeTask(
-            project,
-            buildDistTask,
-            archiveExtractionDir,
-            toolAvailableSpec,
-            checkExtraction
-        );
+        TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
         TaskProvider<Task> checkTask = project.getTasks().named("check");
         checkTask.configure(task -> {
             task.dependsOn(checkExtraction);
@@ -89,9 +76,6 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             project.getExtensions().add("licenseUrl", project.getExtensions().getExtraProperties().get("elasticLicenseUrl"));
             TaskProvider<Task> checkMlCppNoticeTask = registerCheckMlCppNoticeTask(
                 project,
-                buildDistTask,
-                archiveExtractionDir,
-                toolAvailableSpec,
                 checkExtraction,
                 distributionArchiveCheckExtension
             );
@@ -111,22 +95,20 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
     private static TaskProvider<Task> registerCheckMlCppNoticeTask(
         Project project,
-        Task buildDistTask,
-        File archiveExtractionDir,
-        Spec<Task> toolAvailableSpec,
-        TaskProvider<LoggedExec> checkExtraction,
+        TaskProvider<Copy> checkExtraction,
         DistributionArchiveCheckExtension extension
     ) {
         TaskProvider<Task> checkMlCppNoticeTask = project.getTasks().register("checkMlCppNotice", task -> {
-            task.dependsOn(buildDistTask, checkExtraction);
-            task.onlyIf(toolAvailableSpec);
+            task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     // this is just a small sample from the C++ notices,
                     // the idea being that if we've added these lines we've probably added all the required lines
                     final List<String> expectedLines = extension.expectedMlLicenses.get();
-                    final Path noticePath = archiveExtractionDir.toPath()
+                    final Path noticePath = checkExtraction.get()
+                        .getDestinationDir()
+                        .toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
                     final List<String> actualLines;
                     try {
@@ -145,21 +127,16 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return checkMlCppNoticeTask;
     }
 
-    private TaskProvider<Task> registerCheckNoticeTask(
-        Project project,
-        Task buildDistTask,
-        File archiveExtractionDir,
-        Spec<Task> toolAvailableSpec,
-        TaskProvider<LoggedExec> checkExtraction
-    ) {
+    private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
         return project.getTasks().register("checkNotice", task -> {
-            task.dependsOn(buildDistTask, checkExtraction);
-            task.onlyIf(toolAvailableSpec);
+            task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch");
-                    final Path noticePath = archiveExtractionDir.toPath()
+                    final Path noticePath = checkExtraction.get()
+                        .getDestinationDir()
+                        .toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/NOTICE.txt");
                     assertLinesInFile(noticePath, noticeLines);
                 }
@@ -167,16 +144,9 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         });
     }
 
-    private TaskProvider<Task> registerCheckLicenseTask(
-        Project project,
-        Task buildDistTask,
-        File archiveExtractionDir,
-        Spec<Task> toolAvailableSpec,
-        TaskProvider<LoggedExec> checkExtraction
-    ) {
+    private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
         TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
-            task.dependsOn(buildDistTask, checkExtraction);
-            task.onlyIf(toolAvailableSpec);
+            task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -189,7 +159,9 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                     final List<String> licenseLines;
                     try {
                         licenseLines = Files.readAllLines(project.getRootDir().toPath().resolve("licenses/" + licenseFilename));
-                        final Path licensePath = archiveExtractionDir.toPath()
+                        final Path licensePath = checkExtraction.get()
+                            .getDestinationDir()
+                            .toPath()
                             .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/LICENSE.txt");
                         assertLinesInFile(licensePath, licenseLines);
                     } catch (IOException ioException) {
@@ -201,47 +173,17 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return checkLicense;
     }
 
-    private TaskProvider<LoggedExec> registerCheckExtractionTask(
-        Project project,
-        Task buildDistTask,
-        File archiveExtractionDir,
-        Spec<Task> toolAvailableSpec
-    ) {
-        return project.getTasks().register("checkExtraction", LoggedExec.class, t -> {
-            t.onlyIf(toolAvailableSpec);
-            t.setCommandLine(
-                project.getName().contains("tar")
-                    ? Arrays.asList("tar", "-xvzf", distTaskOutput(buildDistTask), "-C", archiveExtractionDir)
-                    : Arrays.asList("unzip", distTaskOutput(buildDistTask), "-d", archiveExtractionDir)
-            );
-
+    private TaskProvider<Copy> registerCheckExtractionTask(Project project, TaskProvider<Task> buildDistTask, File archiveExtractionDir) {
+        return project.getTasks().register("checkExtraction", Copy.class, t -> {
             t.dependsOn(buildDistTask);
-            t.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    project.delete(archiveExtractionDir);
-                    archiveExtractionDir.mkdirs();
-                }
-            });
-
+            if (project.getName().contains("tar")) {
+                t.from(archiveOperations.tarTree(distTaskOutput(buildDistTask)));
+            } else {
+                t.from(archiveOperations.zipTree(distTaskOutput(buildDistTask)));
+            }
+            t.into(archiveExtractionDir);
             // common sanity checks on extracted archive directly as part of checkExtraction
-            t.doLast(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    // check no plain class files are packaged
-                    try {
-                        Files.walkFileTree(archiveExtractionDir.toPath(), new SimpleFileVisitor<>() {
-                            @Override
-                            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                                assertNoClassFile(file);
-                                return FileVisitResult.CONTINUE;
-                            }
-                        });
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
-                }
-            });
+            t.eachFile(fileCopyDetails -> assertNoClassFile(fileCopyDetails.getFile()));
         });
     }
 
@@ -272,9 +214,9 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         }
     }
 
-    private static void assertNoClassFile(Path path) {
-        if (path.toFile().getName().endsWith(".class")) {
-            throw new GradleException("Detected class file in distribution ('" + path.getFileName() + "')");
+    private static void assertNoClassFile(File file) {
+        if (file.getName().endsWith(".class")) {
+            throw new GradleException("Detected class file in distribution ('" + file.getName() + "')");
         }
     }
 
@@ -286,16 +228,16 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return new File("/bin/tar").exists() || new File("/usr/bin/tar").exists() || new File("/usr/local/bin/tar").exists();
     }
 
-    private Object distTaskOutput(Task buildDistTask) {
-        return new Callable<String>() {
+    private Object distTaskOutput(TaskProvider<Task> buildDistTask) {
+        return new Callable<File>() {
             @Override
-            public String call() {
-                return buildDistTask.getOutputs().getFiles().getSingleFile().getAbsolutePath();
+            public File call() {
+                return buildDistTask.get().getOutputs().getFiles().getSingleFile();
             }
 
             @Override
             public String toString() {
-                return call();
+                return call().getAbsolutePath();
             }
         };
     }

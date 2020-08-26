@@ -12,8 +12,8 @@ public interface AutoscalingDeciderContext {
     ClusterState state();
 
     /**
-     * Return current capacity of tier. Can be null if the capacity of some nodes is unavailable. If a decider relies on this value,
-     * it should return a decision with a null requiredCapacity (undecided).
+     * Return current capacity of tier. Can be null if the capacity of some nodes is unavailable. If a decider relies on this value and
+     * gets a null current capacity, it should return a decision with a null requiredCapacity (undecided).
      */
     AutoscalingCapacity currentCapacity();
 }

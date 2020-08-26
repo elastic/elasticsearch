@@ -519,6 +519,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertIsStopped(id);
         //should not throw
         startAnalytics(id);
+        waitUntilAnalyticsIsFailed(id);
         // Might have been marked as failed
         forceStopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);

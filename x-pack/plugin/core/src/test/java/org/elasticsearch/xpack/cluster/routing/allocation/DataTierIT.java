@@ -34,8 +34,8 @@ public class DataTierIT extends ESIntegTestCase {
     }
 
     public void testDefaultAllocateToHot() {
-        startWarmNode();
-        startColdNode();
+        startWarmOnlyNode();
+        startColdOnlyNode();
         ensureGreen();
 
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
@@ -48,15 +48,15 @@ public class DataTierIT extends ESIntegTestCase {
             equalTo(ClusterHealthStatus.RED));
 
         logger.info("--> starting hot node");
-        startHotNode();
+        startHotOnlyNode();
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
     }
 
     public void testOverrideDefaultAllocation() {
-        startWarmNode();
-        startColdNode();
+        startWarmOnlyNode();
+        startColdOnlyNode();
         ensureGreen();
 
         String setting = randomBoolean() ? DataTierAllocationDecider.INDEX_ROUTING_REQUIRE :
@@ -77,8 +77,8 @@ public class DataTierIT extends ESIntegTestCase {
     }
 
     public void testRequestSettingOverridesAllocation() {
-        startWarmNode();
-        startColdNode();
+        startWarmOnlyNode();
+        startColdOnlyNode();
         ensureGreen();
 
         client().admin().indices().prepareCreate(index)
@@ -121,8 +121,8 @@ public class DataTierIT extends ESIntegTestCase {
      * default setting should *not* be applied. This test checks that behavior.
      */
     public void testShrinkStaysOnTier() {
-        startWarmNode();
-        startHotNode();
+        startWarmOnlyNode();
+        startHotOnlyNode();
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -155,7 +155,7 @@ public class DataTierIT extends ESIntegTestCase {
     }
 
     public void testTemplateOverridesDefaults() {
-        startWarmNode();
+        startWarmOnlyNode();
 
         Template t = new Template(Settings.builder()
             .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
@@ -189,28 +189,28 @@ public class DataTierIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
-    public void startHotNode() {
+    public void startHotOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_hot", "ingest"))
             .build();
         internalCluster().startNode(nodeSettings);
     }
 
-    public void startWarmNode() {
+    public void startWarmOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_warm", "ingest"))
             .build();
         internalCluster().startNode(nodeSettings);
     }
 
-    public void startColdNode() {
+    public void startColdOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_cold", "ingest"))
             .build();
         internalCluster().startNode(nodeSettings);
     }
 
-    public void startFrozenNode() {
+    public void startFrozenOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
             .build();

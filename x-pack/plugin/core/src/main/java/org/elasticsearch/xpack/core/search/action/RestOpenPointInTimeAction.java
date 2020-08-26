@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -29,7 +29,9 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(POST, "/{index}/_pit"));
+        return Arrays.asList(
+            new Route(POST, "/{index}/_pit"),
+            new Route(POST, "/_pit"));
     }
 
     @Override

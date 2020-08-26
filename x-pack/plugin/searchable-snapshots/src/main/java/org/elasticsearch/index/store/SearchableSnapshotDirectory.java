@@ -21,11 +21,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
+import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -105,6 +108,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private final Supplier<BlobContainer> blobContainerSupplier;
     private final Supplier<BlobStoreIndexShardSnapshot> snapshotSupplier;
+    private final BlobStoreCacheService blobStoreCacheService;
+    private final String blobStoreCachePath;
+    private final String repository;
     private final SnapshotId snapshotId;
     private final IndexId indexId;
     private final ShardId shardId;
@@ -129,6 +135,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
         Supplier<BlobStoreIndexShardSnapshot> snapshot,
+        BlobStoreCacheService blobStoreCacheService,
+        String repository,
         SnapshotId snapshotId,
         IndexId indexId,
         ShardId shardId,
@@ -142,6 +150,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
         this.blobContainerSupplier = Objects.requireNonNull(blobContainer);
+        this.blobStoreCacheService = Objects.requireNonNull(blobStoreCacheService);
+        this.repository = Objects.requireNonNull(repository);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
@@ -155,6 +165,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
+        this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
         this.threadPool = threadPool;
         this.loaded = false;
         assert invariant();
@@ -163,6 +174,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private synchronized boolean invariant() {
         assert loaded != (snapshot == null);
         assert loaded != (blobContainer == null);
+        assert loaded != (recoveryState == null);
         return true;
     }
 
@@ -184,6 +196,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
         assert assertCurrentThreadMayLoadSnapshot();
+        // noinspection ConstantConditions in case assertions are disabled
         if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
             throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");
         }
@@ -386,7 +399,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory;
+        return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory + " shard=" + shardId;
     }
 
     private void cleanExistingRegularShardFiles() {
@@ -488,7 +501,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         IndexSettings indexSettings,
         ShardPath shardPath,
         LongSupplier currentTimeNanosSupplier,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        BlobStoreCacheService blobStoreCacheService
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
@@ -516,7 +530,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
-        final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
+        final String repositoryName = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings());
+        final Repository repository = repositories.repository(repositoryName);
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
@@ -546,6 +561,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             new SearchableSnapshotDirectory(
                 lazyBlobContainer::getOrCompute,
                 lazySnapshot::getOrCompute,
+                blobStoreCacheService,
+                repositoryName,
                 snapshotId,
                 indexId,
                 shardPath.getShardId(),
@@ -583,6 +600,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         }
         return null;
+    }
+
+    public CachedBlob getCachedBlob(String name, long offset, int length) {
+        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, offset);
+        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= offset;
+        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || offset + length <= cachedBlob.to();
+        return cachedBlob;
+    }
+
+    public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
+        blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
     }
 
     /**

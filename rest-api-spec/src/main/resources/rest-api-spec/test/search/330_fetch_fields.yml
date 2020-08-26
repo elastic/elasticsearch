@@ -25,10 +25,7 @@ setup:
           integer_range:
             gte: 0
             lte: 42
-
-  - do:
-      indices.refresh:
-        index: [ test ]
+        refresh: true
 
   - do:
       search:
@@ -67,10 +64,7 @@ setup:
         body:
           keyword: "value"
           date: "1990-12-29T22:30:00.000Z"
-
-  - do:
-      indices.refresh:
-        index: [ test ]
+        refresh: true
 
   - do:
       search:
@@ -235,10 +229,7 @@ setup:
         id:     1
         body:
           date: "1990-12-29T22:30:00.000Z"
-
-  - do:
-      indices.refresh:
-        index: [ test ]
+        refresh: true
 
   - do:
       search:
@@ -254,7 +245,7 @@ setup:
 
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
-  - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+  - match: { hits.hits.0.fields.date: ["1990/12/29"] }
 
 ---
 "Test skip malformed values":
@@ -278,10 +269,7 @@ setup:
           date:
             - "1990-12-29T22:30:00.000Z"
             - "not-a-date"
-
-  - do:
-      indices.refresh:
-        index: [ test ]
+        refresh: true
 
   - do:
       indices.put_mapping:
@@ -301,4 +289,4 @@ setup:
           _source: false
 
   - is_true: hits.hits.0._id
-  - match: { hits.hits.0.fields.date.0: "1990-12-29T22:30:00.000Z" }
+  - match: { hits.hits.0.fields.date: ["1990-12-29T22:30:00.000Z"] }

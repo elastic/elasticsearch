@@ -1,0 +1,14 @@
+---
+"Search index with joda format that generates a warning":
+  - skip:
+      features: "warnings"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: jodaindex*
+        body:
+          query:
+            range:
+              datefield:
+                gte: "2019-01-01T00:00+01:00"
+  - match: { hits.total: 5 }

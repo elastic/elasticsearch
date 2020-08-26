@@ -1,0 +1,15 @@
+---
+"Search index with joda format that generates a warning":
+  - skip:
+      features: "node_selector"
+  - do:
+      node_selector:
+        version: " - 6.6.99"
+      search:
+        index: jodaindex*
+        body:
+          query:
+            range:
+              datefield:
+                gte: "2019-01-01T00:00+01:00"
+  - match: { hits.total: 5 }

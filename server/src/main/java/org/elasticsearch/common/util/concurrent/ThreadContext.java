@@ -489,6 +489,7 @@ public final class ThreadContext implements Closeable, Writeable {
             }
         }
 
+
         private ThreadContextStruct putHeaders(Map<String, String> headers) {
             if (headers.isEmpty()) {
                 return this;

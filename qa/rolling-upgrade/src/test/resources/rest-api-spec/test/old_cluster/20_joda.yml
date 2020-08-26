@@ -1,0 +1,42 @@
+---
+"Create index with joda format that generates a warning":
+  - skip:
+      features: "warnings"
+      version: "6.7.1 - "
+      reason: date from warning wars removed in 6.7
+  - do:
+      indices.create:
+        index: jodaindex
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+          mappings:
+            "doc":
+              "properties":
+                "datefield":
+                  "type": "date"
+                  "format": "YYYY-MM-dd'T'HH:mmZZ"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "jodaindex1", "_type": "doc"}}'
+          - '{"datefield": "2019-01-02T00:00+01:00"}'
+          - '{"index": {"_index": "jodaindex2", "_type": "doc"}}'
+          - '{"datefield": "2019-01-02T00:00+01:00"}'
+          - '{"index": {"_index": "jodaindex3", "_type": "doc"}}'
+          - '{"datefield": "2019-01-02T00:00+01:00"}'
+          - '{"index": {"_index": "jodaindex4", "_type": "doc"}}'
+          - '{"datefield": "2019-01-02T00:00+01:00"}'
+
+  - do:
+      search:
+        index: jodaindex*
+        body:
+          query:
+            range:
+              datefield:
+                gte: "2019-01-01T00:00+01:00"
+  - match: { hits.total: 4 }

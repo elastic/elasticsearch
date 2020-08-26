@@ -9,6 +9,7 @@ package org.elasticsearch.blobstore.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -39,6 +40,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -227,7 +229,18 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
     public CachedBlob get(String repository, String name, String path, long offset) {
         final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
         getAsync(repository, name, path, offset, future);
-        return future.actionGet();
+        try {
+            return future.actionGet(5, TimeUnit.SECONDS);
+        } catch (ElasticsearchTimeoutException e) {
+            if (logger.isDebugEnabled()) {
+                logger.warn(() -> new ParameterizedMessage(
+                        "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
+                        CachedBlob.generateId(repository, name, path, offset)), e);
+            } else {
+                logger.warn("get from cache index timed out after [5s], retrieving from blob store instead");
+            }
+            return CachedBlob.CACHE_NOT_READY;
+        }
     }
 
     protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {

@@ -34,7 +34,6 @@ public class FieldHighlightContext {
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
     public final boolean forceSource;
-    public final boolean fromWildcard;
 
     public FieldHighlightContext(String fieldName,
                                  SearchHighlightContext.Field field,
@@ -43,7 +42,7 @@ public class FieldHighlightContext {
                                  QueryShardContext context,
                                  FetchSubPhase.HitContext hitContext,
                                  Query query,
-                                 boolean forceSource, boolean fromWildcard) {
+                                 boolean forceSource) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
@@ -52,6 +51,5 @@ public class FieldHighlightContext {
         this.hitContext = hitContext;
         this.query = query;
         this.forceSource = forceSource;
-        this.fromWildcard = fromWildcard;
     }
 }

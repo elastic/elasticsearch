@@ -70,10 +70,6 @@ public class HighlightPhase implements FetchSubPhase {
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
                     Highlighter highlighter = getHighlighter(fieldContext.field);
-                    if ((highlighter.canHighlight(fieldContext.fieldType) == false) && fieldContext.fromWildcard) {
-                        // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
-                        continue;
-                    }
                     HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {
                         // Note that we make sure to use the original field name in the response. This is because the
@@ -107,6 +103,7 @@ public class HighlightPhase implements FetchSubPhase {
                                                                                      Query query) {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         for (SearchHighlightContext.Field field : highlight.fields()) {
+            Highlighter highlighter = getHighlighter(field);
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 fieldNamesToHighlight = context.getMapperService().simpleMatchToFullName(field.field());
@@ -142,6 +139,9 @@ public class HighlightPhase implements FetchSubPhase {
                         fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
+                    if (highlighter.canHighlight(fieldType) == false) {
+                        continue;
+                    }
                 }
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
@@ -149,7 +149,7 @@ public class HighlightPhase implements FetchSubPhase {
                 boolean forceSource = highlight.forceSource(field);
                 builders.put(fieldName,
                     hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, shardTarget, context, hc,
-                        highlightQuery == null ? query : highlightQuery, forceSource, fieldNameContainsWildcards));
+                        highlightQuery == null ? query : highlightQuery, forceSource));
             }
         }
         return builders;

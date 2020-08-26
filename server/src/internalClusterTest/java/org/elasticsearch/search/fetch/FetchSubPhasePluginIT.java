@@ -128,7 +128,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             };
         }
 
-        public void hitExecute(SearchContext context, HitContext hitContext) {
+        private void hitExecute(SearchContext context, HitContext hitContext) {
             TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;

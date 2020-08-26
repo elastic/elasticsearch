@@ -48,7 +48,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
 
 /**
- * Adds a special field to the a percolator query hit to indicate which documents matched with the percolator query.
+ * Adds a special field to a percolator query hit to indicate which documents matched with the percolator query.
  * This is useful when multiple documents are being percolated in a single request.
  */
 final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
@@ -59,13 +59,14 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException {
 
         List<PercolateContext> percolateContexts = new ArrayList<>();
-        for (PercolateQuery pq : locatePercolatorQuery(searchContext.query())) {
-            percolateContexts.add(new PercolateContext(pq));
+        List<PercolateQuery> percolateQueries = locatePercolatorQuery(searchContext.query());
+        boolean singlePercolateQuery = percolateQueries.size() == 1;
+        for (PercolateQuery pq : percolateQueries) {
+            percolateContexts.add(new PercolateContext(pq, singlePercolateQuery));
         }
         if (percolateContexts.isEmpty()) {
             return null;
         }
-        boolean singlePercolateQuery = percolateContexts.size() == 1;
 
         return new FetchSubPhaseProcessor() {
 
@@ -79,7 +80,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) throws IOException {
                 for (PercolateContext pc : percolateContexts) {
-                    String fieldName = pc.fieldName(singlePercolateQuery);
+                    String fieldName = pc.fieldName();
                     Query query = pc.percolateQuery.getQueryStore().getQueries(ctx).apply(hitContext.docId());
                     if (query == null) {
                         // This is not a document with a percolator field.
@@ -105,10 +106,12 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
     static class PercolateContext {
         final PercolateQuery percolateQuery;
+        final boolean singlePercolateQuery;
         final int[] rootDocsBySlot;
 
-        PercolateContext(PercolateQuery pq) throws IOException {
+        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery) throws IOException {
             this.percolateQuery = pq;
+            this.singlePercolateQuery = singlePercolateQuery;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
             Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter());
             Weight weight = percolatorIndexSearcher.createWeight(nonNestedFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
@@ -123,7 +126,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             }
         }
 
-        String fieldName(boolean singlePercolateQuery) {
+        String fieldName() {
             return singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
         }
 

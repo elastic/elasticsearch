@@ -51,9 +51,8 @@ public class FetchScorePhase implements FetchSubPhase {
                 ScorerSupplier scorerSupplier = weight.scorerSupplier(readerContext);
                 if (scorerSupplier == null) {
                     throw new IllegalStateException("Can't compute score on document as it doesn't match the query");
-                } else {
-                    scorer = scorerSupplier.get(1L); // random-access
                 }
+                scorer = scorerSupplier.get(1L); // random-access
             }
 
             @Override

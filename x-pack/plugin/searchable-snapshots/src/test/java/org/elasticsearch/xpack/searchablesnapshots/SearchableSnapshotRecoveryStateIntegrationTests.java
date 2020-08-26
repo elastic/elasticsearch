@@ -122,6 +122,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         assertThat("Physical cache size doesn't match with recovery state data", physicalCacheSize, equalTo(recoveredBytes));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
     }
 
     @SuppressForbidden(reason = "Uses FileSystem APIs")

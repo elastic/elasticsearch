@@ -19,8 +19,8 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -64,7 +64,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {

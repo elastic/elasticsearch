@@ -54,14 +54,6 @@ public class BlockNode extends StatementNode {
         return doAllEscape;
     }
 
-    public void setStatementCount(int statementCount) {
-        this.statementCount = statementCount;
-    }
-
-    public int getStatementCount() {
-        return statementCount;
-    }
-
     /* ---- end node data, begin visitor ---- */
 
     @Override

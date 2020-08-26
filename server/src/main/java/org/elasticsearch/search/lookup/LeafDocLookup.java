@@ -39,8 +39,7 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-            = DeprecationLogger.getLogger(LeafDocLookup.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(LeafDocLookup.class);
     static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
     static final String TYPES_DEPRECATION_MESSAGE =
             "[types removal] Looking up doc types [_type] in scripts is deprecated.";

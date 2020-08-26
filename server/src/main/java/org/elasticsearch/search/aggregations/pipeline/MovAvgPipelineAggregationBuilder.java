@@ -49,8 +49,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     public static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;

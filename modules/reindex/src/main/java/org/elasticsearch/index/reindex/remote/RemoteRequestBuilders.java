@@ -54,8 +54,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(RemoteRequestBuilders.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(RemoteRequestBuilders.class);
 
     static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
         "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +

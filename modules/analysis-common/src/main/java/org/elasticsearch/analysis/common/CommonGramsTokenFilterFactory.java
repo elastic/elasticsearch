@@ -34,8 +34,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(CommonGramsTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(CommonGramsTokenFilterFactory.class);
 
     private final CharArraySet words;
 

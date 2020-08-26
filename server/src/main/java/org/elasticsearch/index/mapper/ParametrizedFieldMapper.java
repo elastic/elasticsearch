@@ -59,8 +59,7 @@ import java.util.function.Supplier;
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 
-    private static final DeprecationLogger deprecationLogger
-        = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
      * Creates a new ParametrizedFieldMapper

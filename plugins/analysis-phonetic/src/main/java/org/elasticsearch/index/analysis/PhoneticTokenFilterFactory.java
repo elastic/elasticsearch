@@ -50,8 +50,7 @@ import java.util.List;
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(PhoneticTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PhoneticTokenFilterFactory.class);
 
     private final Encoder encoder;
     private final boolean replace;

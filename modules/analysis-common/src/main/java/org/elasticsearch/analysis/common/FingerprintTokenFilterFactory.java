@@ -34,8 +34,7 @@ import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.MAX_
 
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(FingerprintTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(FingerprintTokenFilterFactory.class);
 
     private final char separator;
     private final int maxOutputSize;

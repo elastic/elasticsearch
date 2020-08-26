@@ -33,8 +33,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(EdgeNGramTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(EdgeNGramTokenFilterFactory.class);
 
     private final int minGram;
 

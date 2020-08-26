@@ -34,8 +34,7 @@ import java.util.function.Function;
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
 
     /**
      * Create a pre-configured token filter that may not vary at all.

@@ -43,8 +43,7 @@ import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = DeprecationLogger.getLogger(MultiplexerTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MultiplexerTokenFilterFactory.class);
 
     private List<String> filterNames;
     private final boolean preserveOriginal;

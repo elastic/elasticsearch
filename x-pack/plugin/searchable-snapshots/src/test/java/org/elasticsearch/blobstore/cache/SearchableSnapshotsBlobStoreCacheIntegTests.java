@@ -273,7 +273,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
         assertHitCount(
             client().prepareSearch(restoredAgainIndex)
                 .setQuery(QueryBuilders.rangeQuery("num").lte(numberOfDocs))

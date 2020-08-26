@@ -67,15 +67,6 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingCapacity.StorageAndMemory(randomByteSizeValue(), randomByteSizeValue());
     }
 
-    public static ByteSizeValue randomByteSizeValue() {
-        // do not want to test any overflow.
-        return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
-    }
-
-    public static ByteSizeValue randomNullableByteSizeValue() {
-        return randomBoolean() ? randomByteSizeValue() : null;
-    }
-
     private static AutoscalingCapacity.StorageAndMemory randomNullValueStorageAndMemory() {
         return randomNullValueStorageAndMemory(true, true);
     }
@@ -88,6 +79,15 @@ public abstract class AutoscalingTestCase extends ESTestCase {
             addStorage ? randomByteSizeValue() : null,
             addMemory ? randomByteSizeValue() : null
         );
+    }
+
+    public static ByteSizeValue randomByteSizeValue() {
+        // do not want to test any overflow.
+        return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
+    }
+
+    public static ByteSizeValue randomNullableByteSizeValue() {
+        return randomBoolean() ? randomByteSizeValue() : null;
     }
 
     public static SortedMap<String, AutoscalingDeciderConfiguration> randomAutoscalingDeciders() {

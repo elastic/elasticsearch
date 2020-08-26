@@ -703,7 +703,7 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
-            ActionListener<Void> templateCheckListener = ActionListener.wrap(
+            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
                 ok -> executeTask(analyticsTaskState, task),
                 error -> {
 

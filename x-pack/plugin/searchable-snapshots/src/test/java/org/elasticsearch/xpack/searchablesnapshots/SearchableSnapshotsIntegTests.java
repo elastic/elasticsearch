@@ -787,22 +787,20 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     if (cacheEnabled == false || nonCachedExtensions.contains(IndexFileNames.getExtension(fileName))) {
                         assertThat(
                             "Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
+                            max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
                             greaterThan(0L)
                         );
                         assertThat(
                             "Expected no cache read or write for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                            max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
                             equalTo(0L)
                         );
                     } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
                         assertThat(
                             "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
-                            Math.max(
-                                Math.max(
-                                    indexInputStats.getCachedBytesRead().getCount(),
-                                    indexInputStats.getCachedBytesWritten().getCount()
-                                ),
+                            max(
+                                indexInputStats.getCachedBytesRead().getCount(),
+                                indexInputStats.getCachedBytesWritten().getCount(),
                                 indexInputStats.getIndexCacheBytesRead().getCount()
                             ),
                             greaterThan(0L)
@@ -820,15 +818,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     } else {
                         assertThat(
                             "Expected at least 1 read or write of any kind for " + fileName + " of shard " + shardRouting,
-                            Math.max(
-                                Math.max(
-                                    indexInputStats.getCachedBytesRead().getCount(),
-                                    indexInputStats.getCachedBytesWritten().getCount()
-                                ),
-                                Math.max(
-                                    indexInputStats.getOptimizedBytesRead().getCount(),
-                                    indexInputStats.getDirectBytesRead().getCount()
-                                )
+                            max(
+                                indexInputStats.getCachedBytesRead().getCount(),
+                                indexInputStats.getCachedBytesWritten().getCount(),
+                                indexInputStats.getOptimizedBytesRead().getCount(),
+                                indexInputStats.getDirectBytesRead().getCount(),
+                                indexInputStats.getIndexCacheBytesRead().getCount()
                             ),
                             greaterThan(0L)
                         );
@@ -836,6 +831,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 }
             }
         }
+    }
+
+    private static long max(long... values) {
+        return Arrays.stream(values).max().orElseThrow(() -> new AssertionError("no values"));
     }
 
     private ByteSizeValue getCacheSizeForNode(String nodeName) {

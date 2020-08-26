@@ -110,8 +110,8 @@ setup:
 "Case insensitive query":
   - skip:
       features: headers
-      version: " - 7.10.99"
-      reason: "temporary master constraint until case insensitive regex backported to 7.10"
+      version: " - 7.9.99"
+      reason: "Case insensitive flag added in 7.10"
   - do:
       search:
         body:

@@ -72,6 +72,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .preference(request.preference())
             .routing(request.routing())
             .allowPartialSearchResults(false);
+        searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest(
             task,
             searchRequest,

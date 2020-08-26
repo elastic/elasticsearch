@@ -71,7 +71,7 @@ import java.util.function.Function;
  */
 class S3Repository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
 

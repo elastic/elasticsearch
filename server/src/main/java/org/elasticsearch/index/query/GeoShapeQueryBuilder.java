@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
@@ -52,8 +51,7 @@ import java.util.function.Supplier;
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(GeoShapeQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GeoShapeQueryBuilder.class);
 
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 

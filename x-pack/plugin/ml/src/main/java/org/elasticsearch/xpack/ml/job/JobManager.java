@@ -85,7 +85,7 @@ import java.util.regex.Pattern;
 public class JobManager {
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JobManager.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;

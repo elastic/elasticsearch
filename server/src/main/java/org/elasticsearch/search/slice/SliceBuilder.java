@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -65,7 +64,7 @@ import java.util.Set;
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOG = new DeprecationLogger(LogManager.getLogger(SliceBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOG = DeprecationLogger.getLogger(SliceBuilder.class);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");

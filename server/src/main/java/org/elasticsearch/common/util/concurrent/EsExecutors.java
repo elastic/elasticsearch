@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -49,7 +48,7 @@ import java.util.stream.Collectors;
 
 public class EsExecutors {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(EsExecutors.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
 
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.

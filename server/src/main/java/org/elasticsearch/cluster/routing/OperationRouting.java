@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,7 +51,7 @@ public class OperationRouting {
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(OperationRouting.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OperationRouting.class);
     private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "es.search.ignore_awareness_attributes";
     static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
         "searches will not be routed based on awareness attributes starting in version 8.0.0; " +

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.common.joda;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.time.FormatNames;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -60,7 +58,7 @@ public class Joda {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
+        =  new LazyInitializable(() -> DeprecationLogger.getLogger(Joda.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */

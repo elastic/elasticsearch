@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(TestDeprecationHeaderRestAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE1 =
         Setting.boolSetting("test.setting.deprecated.true1", true,

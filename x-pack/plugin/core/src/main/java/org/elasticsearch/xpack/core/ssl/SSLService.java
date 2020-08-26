@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.DIAGNOSE_TRUST_EXCEPTIO
 public class SSLService {
 
     private static final Logger logger = LogManager.getLogger(SSLService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     /**
      * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most

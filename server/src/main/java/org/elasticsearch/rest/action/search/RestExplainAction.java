@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -43,8 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestExplainAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestExplainAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying a type in explain requests is deprecated.";
 

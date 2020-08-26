@@ -46,7 +46,7 @@ import static java.util.Collections.unmodifiableSet;
  */
 public final class IndicesPermission {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndicesPermission.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
     public static final IndicesPermission NONE = new IndicesPermission();
 

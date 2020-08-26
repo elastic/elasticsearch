@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PivotConfig.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PivotConfig.class);
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;

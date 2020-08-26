@@ -27,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends WatcherRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestWatcherStatsAction.class);
 
     @Override
     public List<Route> routes() {

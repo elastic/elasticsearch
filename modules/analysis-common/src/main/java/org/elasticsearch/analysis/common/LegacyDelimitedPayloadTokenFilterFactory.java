@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTokenFilterFactory {
 
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(LegacyDelimitedPayloadTokenFilterFactory.class));
+            DeprecationLogger.getLogger(LegacyDelimitedPayloadTokenFilterFactory.class);
 
     LegacyDelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);

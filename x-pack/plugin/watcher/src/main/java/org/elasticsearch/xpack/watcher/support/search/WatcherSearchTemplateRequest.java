@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -46,7 +45,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     private boolean restTotalHitsAsInt = true;
 
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(WatcherSearchTemplateRequest.class));
+            DeprecationLogger.getLogger(WatcherSearchTemplateRequest.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher search request is deprecated.";
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,

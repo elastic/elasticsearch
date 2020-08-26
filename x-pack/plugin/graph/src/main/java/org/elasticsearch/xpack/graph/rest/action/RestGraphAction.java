@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.graph.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
@@ -42,7 +41,7 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  */
 public class RestGraphAction extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
             " Specifying types in graph requests is deprecated.";
 

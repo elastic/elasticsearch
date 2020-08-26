@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -40,8 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiGetAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiGetAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiGetAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in multi get requests is deprecated.";
 

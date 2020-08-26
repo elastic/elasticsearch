@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
@@ -55,8 +54,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(RemoteRequestBuilders.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(RemoteRequestBuilders.class);
 
     static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
         "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +

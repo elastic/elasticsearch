@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -60,8 +59,7 @@ import java.util.function.Supplier;
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(ParametrizedFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
      * Creates a new ParametrizedFieldMapper

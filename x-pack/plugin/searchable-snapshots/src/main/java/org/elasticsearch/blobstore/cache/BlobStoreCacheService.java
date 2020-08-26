@@ -316,28 +316,27 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
                     try (XContentBuilder builder = jsonBuilder()) {
                         request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
-                } catch (IOException e) {
+
+                    client.index(request, new ActionListener<>() {
+                        @Override
+                        public void onResponse(IndexResponse indexResponse) {
+                            logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
+                            listener.onResponse(null);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                            listener.onFailure(e);
+                        }
+                    });
+                } catch (Exception e) {
                     logger.warn(
                         new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
                         e
                     );
                     listener.onFailure(e);
-                    return;
                 }
-
-                client.index(request, new ActionListener<>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
-                        listener.onFailure(e);
-                    }
-                });
             }
 
             @Override

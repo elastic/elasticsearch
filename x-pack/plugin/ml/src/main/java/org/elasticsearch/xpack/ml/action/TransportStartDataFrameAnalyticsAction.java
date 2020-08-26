@@ -706,7 +706,10 @@ public class TransportStartDataFrameAnalyticsAction
             ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
                 ok -> executeTask(analyticsTaskState, task),
                 error -> {
-
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    String msg = "Failed to create internal index template [" + inferenceIndexTemplate.getTemplateName() + "]";
+                    logger.error(msg, cause);
+                    task.markAsFailed(error);
                 }
             );
 

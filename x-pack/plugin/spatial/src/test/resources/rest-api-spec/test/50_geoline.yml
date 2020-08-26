@@ -1,0 +1,56 @@
+---
+"Test geoline agg":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              rank:
+                type: double
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: locations
+              _id: 1
+          - '{"location": [13.37, 47.82], "rank": 2.0 }'
+          - index:
+              _index: locations
+              _id: 2
+          - '{"location": [13.37, 47.88], "rank": 0.0 }'
+          - index:
+              _index: locations
+              _id: 3
+          - '{"location": [13.37, 48.20], "rank": 1.2 }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                geo_point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "LineString" }
+  - length: { aggregations.path.coordinates: 3 }
+  - match: { aggregations.path.coordinates.0.0: 13.369999984279275 }
+  - match: { aggregations.path.coordinates.0.1: 47.879999969154596 }
+  - match: { aggregations.path.coordinates.1.0: 13.369999984279275 }
+  - match: { aggregations.path.coordinates.1.1: 48.19999999366701 }
+  - match: { aggregations.path.coordinates.2.0: 13.369999984279275 }
+  - match: { aggregations.path.coordinates.2.1: 47.81999995931983 }
+  - length: { aggregations.path.sorts: 3 }
+  - match: { aggregations.path.sorts.0: 0.0 }
+  - match: { aggregations.path.sorts.1: 1.2 }
+  - match: { aggregations.path.sorts.2: 2.0 }

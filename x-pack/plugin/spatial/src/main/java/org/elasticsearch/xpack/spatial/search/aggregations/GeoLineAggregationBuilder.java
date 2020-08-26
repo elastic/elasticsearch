@@ -37,9 +37,9 @@ public class GeoLineAggregationBuilder
     static final ParseField GEO_POINT_FIELD = new ParseField("geo_point");
     static final ParseField SORT_FIELD = new ParseField("sort");
 
-    static final String NAME = "geo_line";
+    public static final String NAME = "geo_line";
 
-    private static final ObjectParser<GeoLineAggregationBuilder, String> PARSER =
+    public static final ObjectParser<GeoLineAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, GeoLineAggregationBuilder::new);
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);

@@ -94,7 +94,7 @@ public class InternalGeoLine extends InternalAggregation {
         builder.field("type", "LineString");
         final List<double[]> coordinates = new ArrayList<>();
         for (int i = 0; i < length; i++) {
-            int x = (int) line[i] >> 32;
+            int x = (int) (line[i] >> 32);
             int y = (int) line[i];
             coordinates.add(new double[] { GeoEncodingUtils.decodeLongitude(x), GeoEncodingUtils.decodeLatitude(y) });
         }

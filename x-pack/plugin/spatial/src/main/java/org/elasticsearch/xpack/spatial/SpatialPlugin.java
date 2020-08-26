@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -96,9 +99,19 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             this::registerGeoShapeGridAggregators,
             SpatialPlugin::registerGeoShapeBoundsAggregator,
             SpatialPlugin::registerValueCountAggregator,
-            SpatialPlugin::registerCardinalityAggregator,
-            GeoLineAggregationBuilder::registerUsage
+            SpatialPlugin::registerCardinalityAggregator
         );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return List.of(
+            new AggregationSpec(
+                GeoLineAggregationBuilder.NAME,
+                GeoLineAggregationBuilder::new,
+                checkLicense(GeoLineAggregationBuilder.PARSER))
+                .addResultReader(InternalGeoLine::new)
+                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
     }
 
     @Override
@@ -180,5 +193,14 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+    }
+
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
+        return (parser, name) -> {
+            if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL) == false) {
+                throw LicenseUtils.newComplianceException(XPackField.SPATIAL);
+            }
+            return realParser.parse(parser, name);
+        };
     }
 }

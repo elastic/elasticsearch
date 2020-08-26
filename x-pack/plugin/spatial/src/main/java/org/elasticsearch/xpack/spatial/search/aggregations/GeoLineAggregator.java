@@ -110,7 +110,7 @@ final class GeoLineAggregator extends MetricsAggregator {
 
                     int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());
                     int encodedLon = GeoEncodingUtils.encodeLongitude(point.lon());
-                    long lonLat = (((long) encodedLon) << 32) | (encodedLat & 0xffffffffL);
+                    long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
 
                     sortVals[idx] = sort;
                     bucketLine[idx] = lonLat;

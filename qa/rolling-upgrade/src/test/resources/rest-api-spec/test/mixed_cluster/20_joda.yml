@@ -1,15 +1,54 @@
 ---
+"Index to old node":
+  - skip:
+      features: ["node_selector","warnings"]
+  - do:
+      node_selector:
+        attribute:
+          gen: "old"
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "jodaindex", "_type": "doc", "_id": "id_2"}}'
+          - '{"datefield": "2019-01-02T00:00+01:00"}'
+
+  - do:
+      indices.flush:
+        index: jodaindex
+
+  - do:
+      node_selector:
+        attribute:
+          gen: "old"
+      warnings:
+        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count]'
+      search:
+        index: jodaindex
+        body:
+          sort: datefield
+          docvalue_fields: [ "count"]
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: id_1 }
+  - match: { hits.hits.1._id: id_2 }
+  - match: { _shards.failed: 0 }
+
+
+
+---
 "Search index with joda format that generates a warning":
   - skip:
       features: "node_selector"
   - do:
       node_selector:
-        version: " - 6.6.99"
+        attribute:
+          gen: "upgraded"
       search:
-        index: jodaindex*
+        index: jodaindex
         body:
-          query:
-            range:
-              datefield:
-                gte: "2019-01-01T00:00+01:00"
-  - match: { hits.total: 5 }
+          sort: datefield
+          docvalue_fields: [ "count"]
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: id_1 }
+  - match: { hits.hits.1._id: id_2 }
+  - match: { _shards.failed: 0 }
+

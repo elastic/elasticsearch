@@ -107,7 +107,7 @@ public class AutoscalingDecisionServiceTests extends AutoscalingTestCase {
         }
     }
 
-    public void testContext() throws IOException {
+    public void testContext() {
         String tier = randomAlphaOfLength(5);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;

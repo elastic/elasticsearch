@@ -86,7 +86,7 @@ public class AutoscalingDecisions implements ToXContent, Writeable {
     }
 
     public AutoscalingCapacity requiredCapacity() {
-        if (decisions.isEmpty() || decisions.values().stream().map(AutoscalingDecision::requiredCapacity).anyMatch(Objects::isNull)) {
+        if (decisions.values().stream().map(AutoscalingDecision::requiredCapacity).anyMatch(Objects::isNull)) {
             // any undetermined decider cancels out any decision making.
             return null;
         }

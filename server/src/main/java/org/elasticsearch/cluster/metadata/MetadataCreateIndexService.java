@@ -646,10 +646,14 @@ public class MetadataCreateIndexService {
             // value).
             for (String explicitSetting : explicitDefaultSettings.keys()) {
                 if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
+                    logger.debug("removing default [{}] setting as it in set to null in a template for [{}] creation",
+                        explicitSetting, request.index());
                     explicitDefaultSettings.remove(explicitSetting);
                     templateSettings.remove(explicitSetting);
                 }
                 if (requestSettings.keys().contains(explicitSetting) && requestSettings.get(explicitSetting) == null) {
+                    logger.debug("removing default [{}] setting as it in set to null in the request for [{}] creation",
+                        explicitSetting, request.index());
                     explicitDefaultSettings.remove(explicitSetting);
                     requestSettings.remove(explicitSetting);
                 }

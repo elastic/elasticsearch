@@ -291,12 +291,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
-        if (lookup == null) {
-            lookup = new SearchLookup(
+        if (this.lookup == null) {
+            this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, lookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), lookup));
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup));
         }
-        return lookup;
+        return this.lookup;
     }
 
     public NestedScope nestedScope() {

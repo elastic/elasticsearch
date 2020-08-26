@@ -64,7 +64,10 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             }
 
             if (parsesArrayValue) {
-                values.addAll((List<?>) tryParseSourceValue(sourceValue));
+                List<?> parsedValues = (List<?>) tryParseSourceValue(sourceValue);
+                if (parsedValues != null) {
+                    values.addAll(parsedValues);
+                }
             } else {
                 // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
                 // So we need to unwrap these arrays before passing them on to be parsed.

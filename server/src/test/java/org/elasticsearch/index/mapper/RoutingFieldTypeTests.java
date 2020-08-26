@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.RegexpQuery87;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -43,11 +43,11 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
-        Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
-        assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, MOCK_QSC));
+        Query expected = new RegexpQuery87(new Term("_routing", new BytesRef("foo?")));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }

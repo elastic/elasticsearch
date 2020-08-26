@@ -631,12 +631,7 @@ public class MetadataCreateIndexService {
             // Loop through all the explicit index setting providers, adding them to the
             // explicitDefaultSettings map
             for (ExplicitIndexSettingProvider provider : explicitIndexSettingProviders) {
-                try {
-                    explicitDefaultSettings.put(provider.getExplicitIndexSettings(request.index(), templateAndRequestSettings));
-                } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("failed invoking explicit setting provider for creation of [{}] index",
-                        request.index()), e);
-                }
+                explicitDefaultSettings.put(provider.getExplicitIndexSettings(request.index(), templateAndRequestSettings));
             }
 
             // For all the explicit settings, we go through the template and request level settings

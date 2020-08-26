@@ -41,7 +41,7 @@ Full details of the mitigations are in
   the leak to show any meaningful impact on the system. Symptoms of this memory
   leak are the size of the used heap slowly rising over time, requests
   eventually being rejected by the real memory circuit breaker, and potentially
-  out of memory errors. A workaround is to restart any nodes exhibiting these
+  out-of-memory errors. A workaround is to restart any nodes exhibiting these
   symptoms.  We are actively working with the Lucene community to release a
   https://github.com/apache/lucene-solr/pull/1779[fix] in Lucene 8.6.2 to
   deliver in Elasticsearch 7.9.1 that will address this memory leak.

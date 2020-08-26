@@ -279,12 +279,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
-            if (routing() != null) {
-                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
-            }
-            if (preference() != null) {
-                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
-            }
         }
         return validationException;
     }

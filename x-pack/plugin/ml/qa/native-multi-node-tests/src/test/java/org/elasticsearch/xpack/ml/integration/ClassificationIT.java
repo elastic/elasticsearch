@@ -790,6 +790,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
         // Shouldn't throw
         startAnalytics(jobId);
+        waitUntilAnalyticsIsFailed(jobId);
         // It could be marked as failed...
         forceStopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);

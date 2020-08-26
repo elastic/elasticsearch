@@ -199,7 +199,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         BlockNode irBlockNode = new BlockNode();
         irBlockNode.setLocation(internalLocation);
         irBlockNode.setAllEscape(true);
-        irBlockNode.setStatementCount(1);
 
         irFunctionNode.setBlockNode(irBlockNode);
 
@@ -230,7 +229,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         irBlockNode = new BlockNode();
         irBlockNode.setLocation(internalLocation);
         irBlockNode.setAllEscape(true);
-        irBlockNode.setStatementCount(1);
 
         irFunctionNode.setBlockNode(irBlockNode);
 
@@ -261,7 +259,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         irBlockNode = new BlockNode();
         irBlockNode.setLocation(internalLocation);
         irBlockNode.setAllEscape(true);
-        irBlockNode.setStatementCount(1);
 
         irFunctionNode.setBlockNode(irBlockNode);
 
@@ -333,7 +330,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             BlockNode irBlockNode = new BlockNode();
             irBlockNode.setLocation(internalLocation);
             irBlockNode.setAllEscape(true);
-            irBlockNode.setStatementCount(1);
 
             irFunctionNode.setBlockNode(irBlockNode);
 
@@ -379,7 +375,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             BlockNode irCatchBlockNode = new BlockNode();
             irCatchBlockNode.setLocation(internalLocation);
             irCatchBlockNode.setAllEscape(true);
-            irCatchBlockNode.setStatementCount(1);
 
             irCatchNode.setBlockNode(irCatchBlockNode);
 
@@ -467,7 +462,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irCatchBlockNode = new BlockNode();
                 irCatchBlockNode.setLocation(internalLocation);
                 irCatchBlockNode.setAllEscape(true);
-                irCatchBlockNode.setStatementCount(1);
 
                 irCatchNode.setBlockNode(irCatchBlockNode);
 
@@ -530,9 +524,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             }
 
             irBlockNode = new BlockNode();
-            irBlockNode.setLocation(irBlockNode.getLocation());
-            irBlockNode.setAllEscape(irBlockNode.doAllEscape());
-            irBlockNode.setStatementCount(irBlockNode.getStatementCount());
+            irBlockNode.setLocation(internalLocation);
+            irBlockNode.setAllEscape(true);
             irBlockNode.addStatementNode(irTryNode);
 
             irFunctionNode.setBlockNode(irBlockNode);

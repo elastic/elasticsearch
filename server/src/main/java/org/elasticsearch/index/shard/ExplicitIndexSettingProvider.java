@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
  */
 public interface ExplicitIndexSettingProvider {
     /**
-     * Returns a map of explicitly set default index settings for the given index.
+     * Returns explicitly set default index {@link Settings} for the given index.
      */
     default Settings getExplicitIndexSettings(String indexName, Settings templateAndRequestSettings) {
         return Settings.EMPTY;

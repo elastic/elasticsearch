@@ -144,7 +144,7 @@ public class DataTier {
     }
 
     /**
-     * This listener injects the setting allocating all newly created indices with
+     * This setting provider injects the setting allocating all newly created indices with
      * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
      * setting while the index is being created (in a create index request for instance)
      */

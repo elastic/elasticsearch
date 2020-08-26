@@ -1,0 +1,106 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-kibana-tutorial]]
+=== Tutorial: Configure {ccr} using {kib}
+
+==== Scenario
+
+You are setting up {ccr} (CCR) between Elasticsearch clusters
+at two data centers for bi-directional replication.
+
+The project has the following requirements:
+
+* Each cluster has a copy of their local `logs` index and the `logs` index for
+  the other cluster.
+* Users expect access to data from the cluster geographically closest to them for
+  the best performance.
+
+==== Prerequisites
+
+* Two Elasticsearch clusters with a https://www.elastic.co/subscriptions[license for {ccr}].
+* <<ccr-leader-requirements,Soft deletes>> must be enabled on indices you want
+ to replicate.
+
+[[ccr-kibana-tutorial-remote-cluster]]
+==== Configure remote clusters
+
+To set up bi-directional replication, you must configure ClusterA and ClusterB as
+ remote clusters that replicate to each other.
+
+. Log into the Kibana UI for ClusterA to configure ClusterB as a remote cluster.
+
+. In *Management >  Stack Management > Data > Remote Clusters*, click *Add a remote cluster*.
+
++
+Use the Name `ClusterB` for your remote cluster. The Seed Nodes are the IP addresses
+ or hostnames of nodes in ClusterB, followed by the transport port.
+
++
+[role="screenshot"]
+image::images/ccr-kibana-tutorial-add-remote.png["Configure the remote cluster in {kib}"]
+
+
+. Repeat the above steps in the Kibana UI for ClusterB, entering the appropriate
+ name and seed nodes for ClusterA.
+
++
+[cols=2*]
+|===
+|*Name*
+|*Seed Nodes*
+
+|ClusterA
+|`hostname`:`transport_port`
+|===
+
+==== Create leader index
+
+A leader index is the source index that you want to replicate. For bi-directional
+replication, you must create a leader index in both clusters
+
+. In Kibana Developer Tools, create the `logs` index for ClusterA and ClusterB.
+
++
+[role="screenshot"]
+image::images/ccr-kibana-tutorial-devtools.png["Create the log index in {kib} Dev Tools"]
+
+==== Configure follower index
+
+A follower index is a remote copy of a leader index. We recommend you give the
+Follower index a unique name that indicates it is a remote copy.
+
+. In the Kibana UI for ClusterA, go to *Management > Stack Management > Data > Cross Cluster Replication*,
+ and then click *Create a follower index*.
+. To configure the follower index for ClusterB, enter the *Remote cluster name* `ClusterB`,
+ the *Leader index name* `logs`, and the *Follower index name* `remote_clusterb_logs`.
+
++
+[role="screenshot"]
+image::images/ccr-kibana-tutorial-add-follower.png["Create the follower index in {kib}"]
+
++
+NOTE: Your follower index will show as paused until it connects to the remote cluster
+                        Then, it will change to active.
+
++
+. In the Kibana UI of ClusterB, configure the follower index for ClusterA:
+
++
+[cols=3*]
+|===
+|*Remote cluster*
+|*Leader index*
+|*Follower index*
+
+|ClusterA
+|`logs`
+|`remote_clustera_logs`
+|===
+
+
++
+. Optionally, you can create an auto-follow pattern that watches for new indices
+ that match the pattern and creates the follower index for you.
+
+
+To do: Add steps for auto-follow and for verifying that the replication is working

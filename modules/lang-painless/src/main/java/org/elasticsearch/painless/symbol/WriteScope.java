@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WriteScope {
+    // TODO(stu): add compiler settings so we can fetch them from InvokeCallNode
 
     public static class Variable {
 

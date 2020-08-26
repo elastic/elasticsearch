@@ -564,10 +564,12 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
 
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
+        // TODO(stu) if annotation exists, subtract type parameter size
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
         PainlessMethod existingPainlessMethod = isStatic ?
                 painlessClassBuilder.staticMethods.get(painlessMethodKey) :
                 painlessClassBuilder.methods.get(painlessMethodKey);
+        // TODO(stu): remove the injected parameters
         PainlessMethod newPainlessMethod =
                 new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType, annotations);
 
@@ -588,6 +590,7 @@ public final class PainlessLookupBuilder {
                     "[" + typeToCanonicalTypeName(existingPainlessMethod.returnType) + "], " +
                     typesToCanonicalTypeNames(existingPainlessMethod.typeParameters) + "]");
         }
+        // TODO(stu)
     }
 
     public void addPainlessField(String targetCanonicalClassName, String fieldName, String canonicalTypeNameParameter) {

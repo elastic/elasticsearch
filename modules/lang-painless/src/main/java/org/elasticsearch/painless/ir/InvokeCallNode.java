@@ -72,6 +72,7 @@ public class InvokeCallNode extends ArgumentsNode {
             methodWriter.box(MethodWriter.getType(box));
         }
 
+        // TODO(stu): Check for annotation, put constant on stack for this method
         for (ExpressionNode argumentNode : getArgumentNodes()) {
             argumentNode.write(classWriter, methodWriter, writeScope);
         }

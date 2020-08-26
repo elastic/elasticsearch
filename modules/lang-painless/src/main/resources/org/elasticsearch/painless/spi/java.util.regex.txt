@@ -27,11 +27,15 @@ class java.util.regex.Pattern {
 #                           the script is run which is super slow. LRegex generates code that calls this method but it skips these checks.
   Predicate asPredicate()
   int flags()
-  Matcher matcher(CharSequence)
+  # TODO(stu): wrap with limit
+  Matcher matcher(CharSequence) @inject_constant[1="regex_limit_factor"]
   String pattern()
   String quote(String)
+  # TODO(stu): wrap with limit
   String[] split(CharSequence)
+  # TODO(stu): wrap with limit
   String[] split(CharSequence,int)
+  # TODO(stu): wrap with limit
   Stream splitAsStream(CharSequence)
 }
 

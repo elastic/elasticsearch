@@ -1827,13 +1827,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
 
+
+            // TODO(stu): if annotation exists, inject constant nodes for arguments irInvokeCallNode.addArgumentNode(new ConstantNode)
             for (AExpression userArgumentNode : userCallNode.getArgumentNodes()) {
                 irInvokeCallNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
             }
 
             irInvokeCallNode.setLocation(userCallNode.getLocation());
             irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());;
-            irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod());
+            irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod()); // TODO(stu): painless method here
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
         }

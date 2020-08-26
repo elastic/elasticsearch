@@ -232,6 +232,7 @@ final class Compiler {
             for (Map.Entry<String, Object> staticConstant : scriptScope.getStaticConstants().entrySet()) {
                 clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
+            // TODO(stu): set compiler constants here
 
             return scriptScope;
         } catch (Exception exception) {

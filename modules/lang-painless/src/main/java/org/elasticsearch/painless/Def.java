@@ -190,15 +190,15 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions,
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions, // TODO(stu): lookup method
             MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object args[])
             throws Throwable {
-
+        // TODO(stu): combine constants into method handle
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1); // TODO(stu): painless method is here
 
              if (painlessMethod == null) {
                  throw new IllegalArgumentException("dynamic method " +

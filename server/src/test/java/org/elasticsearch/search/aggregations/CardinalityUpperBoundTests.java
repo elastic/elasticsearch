@@ -50,7 +50,8 @@ public class CardinalityUpperBoundTests extends ESTestCase {
 
         assertThat(known.multiply(0), sameInstance(CardinalityUpperBound.NONE));
         assertThat(known.multiply(1), sameInstance(known));
-        assertThat(known.multiply(between(Short.MAX_VALUE, Integer.MAX_VALUE)), sameInstance(CardinalityUpperBound.MANY));
+        int minOverflow = (int) Math.ceil((double) Integer.MAX_VALUE / estimate);
+        assertThat(known.multiply(between(minOverflow, Integer.MAX_VALUE)), sameInstance(CardinalityUpperBound.MANY));
 
         int multiplier = between(2, Short.MAX_VALUE - 1);
         assertThat(known.multiply(multiplier).map(i -> i), equalTo(estimate * multiplier));

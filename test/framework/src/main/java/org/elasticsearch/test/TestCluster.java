@@ -127,8 +127,7 @@ public abstract class TestCluster implements Closeable {
     public abstract void close() throws IOException;
 
     /**
-     * Deletes the given indices from the tests cluster. If no index name is passed to this method
-     * all indices are removed.
+     * Deletes the given indices from the tests cluster. Pass "_all" to remove all indices.
      */
     public void wipeIndices(String... indices) {
         assert indices != null && indices.length > 0;

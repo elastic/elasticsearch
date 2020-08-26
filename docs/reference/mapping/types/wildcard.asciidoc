@@ -37,10 +37,14 @@ PUT my-index-000001/_doc/1
   "my_wildcard" : "This string can be quite lengthy"
 }
 
-POST my-index-000001/_doc/_search
+GET my-index-000001/_search
 {
   "query": {
-      "wildcard" : "*quite*lengthy"
+    "wildcard": {
+      "my_wildcard": {
+        "value": "*quite*lengthy"
+      }
+    }
   }
 }
 

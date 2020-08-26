@@ -22,7 +22,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.RegexpQuery87;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -175,7 +175,8 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query regexpQuery(
             String value,
-            int flags,
+            int syntaxFlags,
+            int matchFlags,
             int maxDeterminizedStates,
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
@@ -186,7 +187,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexed();
-            RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), flags, maxDeterminizedStates) {
+            RegexpQuery87 query = new RegexpQuery87(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
@@ -45,6 +46,7 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
@@ -56,7 +58,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
-    private static final int COPY_BUFFER_SIZE = 8192;
+    private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
@@ -219,7 +221,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         );
                         stats.addIndexCacheBytesRead(cachedBlob.length());
 
-                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(Math.toIntExact(position), length).iterator();
+                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(toIntBytes(position), length).iterator();
                         BytesRef bytesRef;
                         while ((bytesRef = cachedBytesIterator.next()) != null) {
                             b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
@@ -235,7 +237,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                                 (channel, from, to, progressUpdater) -> {
                                     final long startTimeNanos = stats.currentTimeNanos();
                                     final BytesRefIterator iterator = cachedBlob.bytes()
-                                        .slice(Math.toIntExact(from - cachedBlob.from()), Math.toIntExact(to - from))
+                                        .slice(toIntBytes(from - cachedBlob.from()), toIntBytes(to - from))
                                         .iterator();
                                     long writePosition = from;
                                     BytesRef current;
@@ -298,7 +300,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     final int read;
                     if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
                         final ByteBuffer duplicate = b.duplicate();
-                        duplicate.limit(duplicate.position() + Math.toIntExact(rangeToRead.v2() - rangeToRead.v1()));
+                        duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
                         read = readCacheFile(channel, position, duplicate);
                         assert duplicate.position() <= b.limit();
                         b.position(duplicate.position());
@@ -311,7 +313,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (indexCacheMiss != null) {
                     final Releasable onCacheFillComplete = stats.addIndexCacheFill();
                     final CompletableFuture<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
-                        final int indexCacheMissLength = Math.toIntExact(indexCacheMiss.v2() - indexCacheMiss.v1());
+                        final int indexCacheMissLength = toIntBytes(indexCacheMiss.v2() - indexCacheMiss.v1());
 
                         // We assume that we only cache small portions of blobs so that we do not need to:
                         // - use a BigArrays for allocation
@@ -373,7 +375,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
                 final long length = b.remaining();
-                final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
+                final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "direct reading of range [{}-{}] for cache file [{}]",
@@ -481,7 +483,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
                 final FileChannel fc = cacheFile.getChannel();
                 assert assertFileChannelOpen(fc);
-                final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, rangeLength))];
+                final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, rangeLength))];
 
                 long totalBytesRead = 0L;
                 final AtomicLong totalBytesWritten = new AtomicLong();
@@ -507,8 +509,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             (channel, start, end, progressUpdater) -> {
                                 final ByteBuffer byteBuffer = ByteBuffer.wrap(
                                     copyBuffer,
-                                    Math.toIntExact(start - readStart),
-                                    Math.toIntExact(end - start)
+                                    toIntBytes(start - readStart),
+                                    toIntBytes(end - start)
                                 );
                                 final int writtenBytes = positionalWrite(channel, start, byteBuffer);
                                 logger.trace(
@@ -557,7 +559,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long remaining,
         CacheFileReference cacheFileReference
     ) throws IOException {
-        final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
+        final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
         final int bytesRead = inputStream.read(copyBuffer, 0, len);
         if (bytesRead == -1) {
             throw new EOFException(
@@ -616,7 +618,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
-        final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
+        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
         long bytesCopied = 0L;
@@ -704,7 +706,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private long getLengthOfPart(long part) {
-        return fileInfo.partBytes(Math.toIntExact(part));
+        return fileInfo.partBytes(toIntBytes(part));
     }
 
     private void ensureValidPosition(long position) {

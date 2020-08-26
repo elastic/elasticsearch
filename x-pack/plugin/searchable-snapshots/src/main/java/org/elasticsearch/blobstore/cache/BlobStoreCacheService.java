@@ -51,7 +51,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    public static final int DEFAULT_CACHED_BLOB_SIZE = Math.toIntExact(ByteSizeUnit.KB.toBytes(4L));
+    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;

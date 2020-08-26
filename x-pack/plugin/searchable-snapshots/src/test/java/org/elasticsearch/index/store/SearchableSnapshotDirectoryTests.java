@@ -127,6 +127,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -317,7 +318,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     IndexInput::getFilePointer
                 );
 
-                int available = Math.toIntExact(indexInput.length() - indexInput.getFilePointer());
+                int available = toIntBytes(indexInput.length() - indexInput.getFilePointer());
                 if (available == 0) {
                     expectThrows(EOFException.class, () -> snapshotIndexInput.readBytes(snapshotBuffer, 0, snapshotBuffer.length));
                     return;
@@ -720,7 +721,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {
                     final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
-                    final int fileLength = Math.toIntExact(fileInfo.length());
+                    final int fileLength = toIntBytes(fileInfo.length());
 
                     try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
                         assertThat(input.length(), equalTo((long) fileLength));
@@ -729,7 +730,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                         input.seek(start);
                         while (input.getFilePointer() < end) {
-                            input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
+                            input.readBytes(buffer, 0, toIntBytes(Math.min(buffer.length, end - input.getFilePointer())));
                         }
                     }
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));

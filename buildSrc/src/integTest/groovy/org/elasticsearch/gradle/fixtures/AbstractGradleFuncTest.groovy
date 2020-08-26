@@ -52,12 +52,14 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def assertOutputContains(String givenOutput, String expected) {
-        assert normalizedString(givenOutput).contains(normalizedString(expected))
+        assert normalizedOutput(givenOutput).contains(normalizedOutput(expected))
         true
     }
 
-    String normalizedString(String input) {
-        return input.readLines().join("\n")
+    String normalizedOutput(String input) {
+        return input.readLines()
+                .collect {it.replaceAll(testProjectDir.root.canonicalPath, ".") }
+                .join("\n")
     }
 
     File file(String path) {

@@ -172,11 +172,11 @@ public class MetadataCreateDataStreamService {
             validateBackingIndices(currentState, dataStreamName);
 
             // hide existing indices and remove aliases
+            Metadata.Builder b = Metadata.builder(currentState.metadata());
             for (IndexMetadata backingIndex : backingIndices) {
-                Metadata.Builder b = Metadata.builder(currentState.metadata());
-                b.put(hideAndRemoveAlias(backingIndex, dataStreamName), false);
-                currentState = ClusterState.builder(currentState).metadata(b).build();
+                hideAndRemoveAlias(b, backingIndex, dataStreamName);
             }
+            currentState = ClusterState.builder(currentState).metadata(b).build();
         }
 
         if (writeIndex == null) {
@@ -188,9 +188,9 @@ public class MetadataCreateDataStreamService {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
             writeIndex = currentState.metadata().index(firstBackingIndexName);
         } else {
-            writeIndex = hideAndRemoveAlias(writeIndex, dataStreamName);
-            currentState = ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata()).put(writeIndex, false).build()).build();
+            Metadata.Builder b = Metadata.builder(currentState.metadata());
+            hideAndRemoveAlias(b, writeIndex, dataStreamName);
+            currentState = ClusterState.builder(currentState).metadata(b).build();
         }
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
@@ -205,11 +205,11 @@ public class MetadataCreateDataStreamService {
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
-    private static IndexMetadata hideAndRemoveAlias(IndexMetadata im, String dataStreamName) {
-        return IndexMetadata.builder(im)
+    private static void hideAndRemoveAlias(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
+        b.put(IndexMetadata.builder(im)
                 .removeAlias(dataStreamName)
                 .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
-            .build();
+            .build(), false);
     }
 
     // package-visible for testing

@@ -96,7 +96,7 @@ unknown license content line 2
         then:
         result.task(":darwin-tar:checkLicense").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output).contains("> expected line [2] in " +
-                "[./darwin-tar/build/tar-extracted/elasticsearch-8.0.0-SNAPSHOT/LICENSE.txt] " +
+                "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/LICENSE.txt] " +
                 "to be [elastic license coorp stuff line 2] but was [unknown license content line 2]")
     }
 
@@ -122,8 +122,8 @@ Copyright 2009-2018 Acme Coorp"""
         then:
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output).contains("> expected line [2] in " +
-                "[./darwin-tar/build/tar-extracted/elasticsearch-8.0.0-SNAPSHOT/NOTICE.txt] to be " +
-                "[Copyright 2009-2018 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
+                "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/NOTICE.txt] " +
+                "to be [Copyright 2009-2018 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
     def "fails on unexpected ml notice content"() {
@@ -158,7 +158,8 @@ Copyright 2009-2018 Elasticsearch"""
         then:
         result.task(":darwin-tar:checkMlCppNotice").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output)
-                .contains("> expected [./darwin-tar/build/tar-extracted/elasticsearch-8.0.0-SNAPSHOT/modules/x-pack-ml/NOTICE.txt " +
+                .contains("> expected [./darwin-tar/build/tar-extracted/elasticsearch-" +
+                        "${VersionProperties.getElasticsearch()}/modules/x-pack-ml/NOTICE.txt " +
                         "to contain [foo license] but it did not")
     }
 

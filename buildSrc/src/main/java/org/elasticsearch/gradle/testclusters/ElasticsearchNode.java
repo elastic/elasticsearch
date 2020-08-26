@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -84,6 +85,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -191,11 +193,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Internal
     public Version getVersion() {
         return Version.fromString(distributions.get(currentDistro).getVersion());
-    }
-
-    @Internal
-    public Path getDistroDir() {
-        return workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }
 
     @Override
@@ -420,7 +417,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
-
         if (Files.exists(getExtractedDistributionDir()) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + getExtractedDistributionDir());
         }
@@ -437,7 +433,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
                 isWorkingDirConfigured = true;
             }
-            createWorkingDir(getExtractedDistributionDir());
+            setupNodeDistribution(getExtractedDistributionDir());
+            createWorkingDir();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
@@ -467,7 +464,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keystorePassword.length() > 0) {
             runElasticsearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "elasticsearch-keystore", "create", "-p");
         } else {
-            runElasticsearchBinScript("elasticsearch-keystore", "create");
+            runElasticsearchBinScript("elasticsearch-keystore", "-v", "create");
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
@@ -514,6 +511,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         logToProcessStdout("Starting Elasticsearch process");
         startElasticsearchProcess();
+    }
+
+    private boolean canUseSharedDistribution() {
+        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
@@ -749,10 +750,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
-
+        Path effectiveDistroDir = getDistroDir();
         List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> Arrays.asList(workingDir.relativize(getDistroDir()).resolve("./bin/elasticsearch").toString()))
-            .onWindows(() -> Arrays.asList("cmd", "/c", workingDir.relativize(getDistroDir()).resolve("bin\\elasticsearch.bat").toString()))
+            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()))
+            .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\elasticsearch.bat").toString()))
             .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());
@@ -780,6 +781,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
         reaper.registerPid(toString(), esProcess.pid());
+    }
+
+    @Internal
+    public Path getDistroDir() {
+        return canUseSharedDistribution()
+            ? getExtractedDistributionDir().toFile().listFiles()[0].toPath()
+            : workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }
 
     @Override
@@ -989,10 +997,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void createWorkingDir(Path distroExtractDir) throws IOException {
-        if (Files.exists(getDistroDir()) == false) {
-            syncWithLinks(distroExtractDir, getDistroDir());
-        }
+    private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
         project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
@@ -1000,6 +1005,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Files.createDirectories(confPathData);
         Files.createDirectories(confPathLogs);
         Files.createDirectories(tmpDir);
+    }
+
+    private void setupNodeDistribution(Path distroExtractDir) throws IOException {
+        if (canUseSharedDistribution() == false) {
+            logToProcessStdout("Configuring custom cluster specific distro directory: " + getDistroDir());
+            if (Files.exists(getDistroDir()) == false) {
+                try {
+                    syncWithLinks(distroExtractDir, getDistroDir());
+                } catch (LinkCreationException e) {
+                    // Note does not work for network drives, e.g. Vagrant
+                    LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
+                    // ensure we get a clean copy
+                    FileUtils.deleteDirectory(getDistroDir().toFile());
+                    syncWithCopy(distroExtractDir, getDistroDir());
+                }
+            }
+        }
     }
 
     /**
@@ -1011,6 +1033,27 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @param destinationRoot destination to link to
      */
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
+        sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
+            try {
+                Files.createLink(d, s);
+            } catch (IOException e) {
+                // Note does not work for network drives, e.g. Vagrant
+                throw new LinkCreationException("Failed to create hard link " + d + " pointing to " + s, e);
+            }
+        });
+    }
+
+    private void syncWithCopy(Path sourceRoot, Path destinationRoot) {
+        sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
+            try {
+                Files.copy(s, d);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to copy " + s + " to " + d, e);
+            }
+        });
+    }
+
+    private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
@@ -1034,12 +1077,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     } catch (IOException e) {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
-                    try {
-                        Files.createLink(destination, source);
-                    } catch (IOException e) {
-                        // Note does not work for network drives, e.g. Vagrant
-                        throw new UncheckedIOException("Failed to create hard link " + destination + " pointing to " + source, e);
-                    }
+                    syncMethod.accept(destination, source);
+
                 }
             });
         } catch (IOException e) {
@@ -1102,6 +1141,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Make sure no duplicate config keys
         settings.keySet().stream().filter(OVERRIDABLE_SETTINGS::contains).forEach(baseConfig::remove);
 
+        final Path configFileRoot = configFile.getParent();
         try {
             Files.write(
                 configFile,
@@ -1127,7 +1167,36 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write config file: " + configFile, e);
         }
+
+        tweakJvmOptions(configFileRoot);
         LOGGER.info("Written config file:{} for {}", configFile, this);
+    }
+
+    private void tweakJvmOptions(Path configFileRoot) {
+        LOGGER.info("Tweak jvm options {}.", configFileRoot.resolve("jvm.options"));
+        Map<String, String> expansions = Map.of(
+            "-XX:HeapDumpPath=data",
+            "-XX:HeapDumpPath=" + confPathLogs.toString(),
+            "-XX:ErrorFile=logs/hs_err_pid%p.log",
+            "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString(),
+            "logs/gc.log",
+            confPathLogs.resolve("gc.log").toString()
+        );
+
+        Path jvmOptions = configFileRoot.resolve("jvm.options");
+        try {
+            String content = new String(Files.readAllBytes(jvmOptions));
+            Set<String> keys = expansions.keySet();
+            for (String key : keys) {
+                if (!content.contains(key)) {
+                    throw new IOException("template property " + key + " not found in template.");
+                }
+                content = content.replaceAll(key, expansions.get(key));
+            }
+            Files.write(jvmOptions, content.getBytes());
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
     }
 
     private void checkFrozen() {
@@ -1390,6 +1459,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         @Input
         public CharSequence[] getArgs() {
             return args;
+        }
+    }
+
+    private static class LinkCreationException extends UncheckedIOException {
+        LinkCreationException(String message, IOException cause) {
+            super(message, cause);
         }
     }
 }

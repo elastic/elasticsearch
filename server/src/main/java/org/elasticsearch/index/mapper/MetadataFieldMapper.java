@@ -45,6 +45,14 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
          * @param parserContext context that may be useful to build the field like analyzers
          */
         MetadataFieldMapper getDefault(ParserContext parserContext);
+
+        /**
+         *  @return Whether a metadata field can be included in the document _source.
+         */
+        default boolean isAllowedInSource() {
+            // By default return false for metadata fields.
+            return false;
+        }
     }
 
     /**

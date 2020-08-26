@@ -79,6 +79,18 @@ public final class MapperRegistry {
     }
 
     /**
+     * Returns true if the provided field can be included in the document _source.
+     */
+    public boolean isAllowedInSource(Version indexCreatedVersion, String field) {
+        MetadataFieldMapper.TypeParser parser = getMetadataMapperParsers(indexCreatedVersion).get(field);
+        if (parser != null) {
+            return parser.isAllowedInSource();
+        }
+        // Non metadata fields should alway be allowed in document _source.
+        return true;
+    }
+
+    /**
      * Returns a function that given an index name, returns a predicate that fields must match in order to be returned by get mappings,
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
      * The predicate receives the field name as input arguments. In case multiple plugins register a field filter through

@@ -424,6 +424,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(restoredIndexName);
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
     }
 
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {

@@ -18,6 +18,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -334,12 +335,11 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
             // point query on the 16byte prefix
             Query pointPrefixQuery = BinaryPoint.newRangeQuery(name(), lowerBytes, upperBytes);
 
-            ValidationOnSortedDv validationQuery = new ValidationOnSortedDv(name(), lower, upper, includeLower, includeUpper);
-
+            Query validationQuery = SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, includeLower, includeUpper);
             BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
-            qBuilder.add(pointPrefixQuery, Occur.MUST);
-            qBuilder.add(validationQuery, Occur.MUST);
-            return qBuilder.build();
+            qBuilder.add(pointPrefixQuery, Occur.FILTER);
+            qBuilder.add(validationQuery, Occur.FILTER);
+            return new ConstantScoreQuery(qBuilder.build());
         }
     }
 

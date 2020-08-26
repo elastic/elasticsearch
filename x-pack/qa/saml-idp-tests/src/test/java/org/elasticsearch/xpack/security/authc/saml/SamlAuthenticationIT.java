@@ -240,7 +240,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44410")
     public void testLoginUserWithSamlRoleMapping() throws Exception {
         // this ACS comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_1);
@@ -249,7 +248,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenForRoleMapping(accessToken);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44410")
     public void testLoginUserWithAuthorizingRealm() throws Exception {
         // this ACS comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_2);

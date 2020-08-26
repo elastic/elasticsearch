@@ -183,9 +183,6 @@ public final class IndexSortConfig {
             if (ft == null) {
                 throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
             }
-            if (ft.isRuntimeField()) {
-                throw new IllegalArgumentException("index sort on runtime field:[" + sortSpec.field + "] not supported");
-            }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;
             if (mode == null) {

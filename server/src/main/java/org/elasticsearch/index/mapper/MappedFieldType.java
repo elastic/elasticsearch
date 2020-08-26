@@ -94,13 +94,6 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
-    /**
-     * Return true for field types that are runtime fields implementation, false otherwise
-     */
-    public boolean isRuntimeField() {
-        return false;
-    }
-
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 
@@ -225,7 +218,7 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates, 
+    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
         @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");

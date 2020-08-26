@@ -525,8 +525,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
 
         AuthenticateResponse response = restClient.security().authenticate(superuserOptions);
-        ;
+
         assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.getUser().getUsername());
+        assertEquals("realm", response.getAuthenticationType());
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
@@ -604,6 +605,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             "Bearer " + accessToken).build());
         assertThat(authResponse.getUser().getUsername(), equalTo(expectedUser));
+        assertThat(authResponse.getAuthenticationType(), equalTo("token"));
     }
 
     private void assertUnauthorizedToken(String accessToken) {

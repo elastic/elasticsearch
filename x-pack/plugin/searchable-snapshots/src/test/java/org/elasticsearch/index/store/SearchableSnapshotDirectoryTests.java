@@ -596,6 +596,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
+                        new TestUtils.NoopBlobStoreCacheService(),
+                        "_repo",
                         snapshotId,
                         indexId,
                         shardId,
@@ -691,6 +693,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
                     () -> snapshot,
+                    new TestUtils.NoopBlobStoreCacheService(),
+                    "_repo",
                     snapshotId,
                     indexId,
                     shardId,
@@ -761,7 +765,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
             );
         }
     }
@@ -775,7 +779,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         try {
             SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
             testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-                assertBusy(() -> assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE)));
+                boolean areAllFilesReused = snapshotDirectory.snapshot()
+                    .indexFiles()
+                    .stream()
+                    .allMatch(fileInfo -> fileInfo.metadata().hashEqualsContents());
+                assertBusy(() -> {
+                    // When the number of indexed documents == 0, the index snapshot only contains the
+                    // commit file, meaning that the recovery won't fail in that case.
+                    RecoveryState.Stage expectedStage = areAllFilesReused ? RecoveryState.Stage.DONE : RecoveryState.Stage.FINALIZE;
+                    assertThat(recoveryState.getStage(), equalTo(expectedStage));
+                });
                 // All pre-warm tasks failed
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
             });

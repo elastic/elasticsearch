@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Clock;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -67,6 +68,8 @@ public class DataFrameAnalyticsManager {
     private final AnalyticsProcessManager processManager;
     private final DataFrameAnalyticsAuditor auditor;
     private final IndexNameExpressionResolver expressionResolver;
+    /** Indicates whether the node is shutting down. */
+    private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
     public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
                                      AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor,
@@ -391,5 +394,13 @@ public class DataFrameAnalyticsManager {
 
     public void stop(DataFrameAnalyticsTask task) {
         processManager.stop(task);
+    }
+
+    public boolean isNodeShuttingDown() {
+        return nodeShuttingDown.get();
+    }
+
+    public void markNodeAsShuttingDown() {
+        nodeShuttingDown.set(true);
     }
 }

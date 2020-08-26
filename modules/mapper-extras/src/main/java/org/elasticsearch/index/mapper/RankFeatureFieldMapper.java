@@ -181,11 +181,16 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Float parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return objectToFloat(value);
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Float parseSourceValue(Object value) {
+                return objectToFloat(value);
+            }
+        };
     }
 
     @Override

@@ -26,19 +26,7 @@ import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StringConcatenationNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private boolean cat;
-
-    public void setCat(boolean cat) {
-        this.cat = cat;
-    }
-
-    public boolean getCat() {
-        return cat;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -55,27 +43,13 @@ public class StringConcatenationNode extends ArgumentsNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
+        methodWriter.writeNewStrings();
 
-        if (cat == false) {
-            methodWriter.writeNewStrings();
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.write(classWriter, methodWriter, writeScope);
+            methodWriter.writeAppendStrings(argumentNode.getExpressionType());
         }
 
-        ExpressionNode leftNode = getArgumentNodes().get(0);
-        leftNode.write(classWriter, methodWriter, writeScope);
-
-        if (leftNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)leftNode).getCat() == false) {
-            methodWriter.writeAppendStrings(leftNode.getExpressionType());
-        }
-
-        ExpressionNode rightNode = getArgumentNodes().get(1);
-        rightNode.write(classWriter, methodWriter, writeScope);
-
-        if (rightNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)rightNode).getCat() == false) {
-            methodWriter.writeAppendStrings(rightNode.getExpressionType());
-        }
-
-        if (cat == false) {
-            methodWriter.writeToStrings();
-        }
+        methodWriter.writeToStrings();
     }
 }

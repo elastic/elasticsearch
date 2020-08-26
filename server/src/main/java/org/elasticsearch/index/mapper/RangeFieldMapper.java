@@ -375,28 +375,34 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected Object parseSourceValue(Object value, String format) {
-        RangeType rangeType = fieldType().rangeType();
-        if (!(value instanceof Map)) {
-            assert rangeType == RangeType.IP;
-            Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
-            return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
-        }
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
 
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
 
-        Map<String, Object> range = (Map<String, Object>) value;
-        Map<String, Object> parsedRange = new HashMap<>();
-        for (Map.Entry<String, Object> entry : range.entrySet()) {
-            Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-            Object formattedValue = rangeType.formatValue(parsedValue, dateTimeFormatter);
-            parsedRange.put(entry.getKey(), formattedValue);
-        }
-        return parsedRange;
+            @Override
+            @SuppressWarnings("unchecked")
+            protected Object parseSourceValue(Object value) {
+                RangeType rangeType = fieldType().rangeType();
+                if (!(value instanceof Map)) {
+                    assert rangeType == RangeType.IP;
+                    Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                    return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                }
+
+                Map<String, Object> range = (Map<String, Object>) value;
+                Map<String, Object> parsedRange = new HashMap<>();
+                for (Map.Entry<String, Object> entry : range.entrySet()) {
+                    Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+                    Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                    parsedRange.put(entry.getKey(), formattedValue);
+                }
+                return parsedRange;
+            }
+        };
     }
 
     @Override

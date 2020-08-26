@@ -29,6 +29,23 @@ find out about the issue after upgrading then reindexing is required to recover.
 Full details of the mitigations are in
 {ml-docs}/ml-troubleshooting.html#ml-troubleshooting-mappings[Upgrade to 7.9.0 causes incorrect mappings].
 
+* Lucene 8.6.0, on which Elasticsearch 7.9.0 is based,
+  https://issues.apache.org/jira/browse/LUCENE-9478[contains a memory
+  leak]. This memory leak manifests in Elasticsearch when a single document is
+  updated repeatedly with a forced refresh. The cluster state storage layer in
+  Elasticsearch is based on Lucene and does use single-document updates with
+  forced refreshes, meaning that this memory leak manifests in Elasticsearch under
+  normal conditions. It also manifests when user-controlled workloads update a
+  single document in an index repeatedly with a forced refresh. In both cases,
+  the memory leak is around 500 bytes per update, so it does take some time for
+  the leak to show any meaningful impact on the system. Symptoms of this memory
+  leak are the size of the used heap slowly rising over time, requests
+  eventually being rejected by the real memory circuit breaker, and potentially
+  out-of-memory errors. A workaround is to restart any nodes exhibiting these
+  symptoms.  We are actively working with the Lucene community to release a
+  https://github.com/apache/lucene-solr/pull/1779[fix] in Lucene 8.6.2 to
+  deliver in Elasticsearch 7.9.1 that will address this memory leak.
+
 [[breaking-7.9.0]]
 [discrete]
 === Breaking changes

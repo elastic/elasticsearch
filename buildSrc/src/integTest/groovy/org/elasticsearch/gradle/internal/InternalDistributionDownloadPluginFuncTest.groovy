@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -107,7 +108,6 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         given:
         internalBuild()
         bwcMinorProjectSetup()
-        def distroVersion = "8.1.0"
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 

@@ -366,7 +366,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             if (shouldSucceed == false) {
                 assertHttpUnauthorized(e.getResponse().getStatusLine());
             }
-            return Map.of();
+            return Collections.emptyMap();
         }
     }
 

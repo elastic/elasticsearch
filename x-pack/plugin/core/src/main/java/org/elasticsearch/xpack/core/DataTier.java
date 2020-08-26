@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -149,6 +151,8 @@ public class DataTier {
      * setting while the index is being created (in a create index request for instance)
      */
     public static class DefaultHotAllocationSettingProvider implements ExplicitIndexSettingProvider {
+        private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
+
         @Override
         public Settings getExplicitIndexSettings(String indexName, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
@@ -159,6 +163,7 @@ public class DataTier {
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
                 // A different index level require, include, or exclude has been specified, so don't put the setting
+                logger.debug("index [{}] specifies custom index level routing filtering, skipping hot tier allocation", indexName);
                 return Settings.EMPTY;
             } else {
                 // Otherwise, put the setting in place by default

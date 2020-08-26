@@ -34,7 +34,7 @@ Full details of the mitigations are in
   leak]. This memory leak manifests in Elasticsearch when a single document is
   updated repeatedly with a forced refresh. The cluster state storage layer in
   Elasticsearch is based on Lucene and does use single-document updates with
-  forced refreshes, meaning that this memory manifests in Elasticsearch under
+  forced refreshes, meaning that this memory leak manifests in Elasticsearch under
   normal conditions. It also manifests when user-controlled workloads update a
   single document in an index repeatedly with a forced refresh. In both cases,
   the memory leak is around 500 bytes per update, so it does take some time for

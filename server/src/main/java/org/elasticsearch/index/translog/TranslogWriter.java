@@ -192,11 +192,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Operation operation = new Operation(seqNo, translogLocation, data);
         buffer.addLast(operation);
 
-        if (isClosed()) {
+        final boolean isClosed = isClosed();
+        if (isClosed) {
             if (buffer.removeLastOccurrence(operation)) {
                 operation.close();
+                throwAlreadyClosedException();
             }
-            throwAlreadyClosedException();
         }
 
         operationCounter.getAndIncrement();
@@ -204,7 +205,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert assertNoSeqNumberConflict(seqNo, data);
 
         final long bufferSize = newTotalOffset - writtenOffset.get();
-        if (bufferSize > FORCE_WRITE_THRESHOLD) {
+        // Do not try to write if this writer is closed. Someone else will handle it.
+        if (bufferSize > FORCE_WRITE_THRESHOLD && isClosed == false) {
             // Block if the buffer is twice the size of the force write threshold
             writeUpTo(newTotalOffset, bufferSize > FORCE_WRITE_THRESHOLD * 2);
         }
@@ -565,6 +567,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
+    // TODO: Bugs
     private void releaseQueuedOperations() {
         Operation operation;
         while ((operation = buffer.pollFirst()) != null) {

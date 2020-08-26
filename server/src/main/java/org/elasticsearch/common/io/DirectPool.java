@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 public class DirectPool {
 
     public static final int BUFFER_SIZE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.direct.buffer.size", "1m"), "es.direct.buffer.size").getBytes());
+        System.getProperty("es.direct.buffer.size", "64KB"), "es.direct.buffer.size").getBytes());
 
     private static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(BUFFER_SIZE));
 

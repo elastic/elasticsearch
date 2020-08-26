@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,17 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.tasksplugin;
+package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 
-public class TasksPluginTests extends ESTestCase {
+public class DistributionArchiveCheckExtension {
 
-    public void testDummy() {
-        // This is a dummy test case to satisfy the conventions
-        TasksPlugin plugin = new TasksPlugin();
-        assertThat(plugin.getSystemIndexDescriptors(Settings.EMPTY), Matchers.hasSize(1));
+    ListProperty<String> expectedMlLicenses;
+
+    public DistributionArchiveCheckExtension(ObjectFactory factory) {
+        this.expectedMlLicenses = factory.listProperty(String.class);
     }
 }

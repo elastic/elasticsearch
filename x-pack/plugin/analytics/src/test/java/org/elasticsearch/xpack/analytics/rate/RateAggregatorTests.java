@@ -209,7 +209,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIncompatibleIntervalRate() {
-        String interval = randomFrom("1s", "2m", "4h", "5d", "6w");
+        String interval = randomFrom("1s", "2m", "4h", "5d");
         String rate = randomFrom("month", "quarter", "year", "1M", "1q", "1y");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,

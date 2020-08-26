@@ -29,27 +29,7 @@ import groovy.io.FileType
 import java.nio.file.Files
 import java.nio.file.Path
 
-// need this so Zip/Tar tasks get basic defaults...
-apply plugin: 'base'
-
-// CopySpec does not make it easy to create an empty directory so we
-// create the directory that we want, and then point CopySpec to its
-// parent to copy to the root of the distribution
-ext.logsDir = new File(buildDir, 'logs-hack/logs')
-tasks.register('createLogsDir', EmptyDirTask) {
-  dir = "${logsDir}"
-  dirMode = 0755
-}
-ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
-tasks.register('createPluginsDir', EmptyDirTask) {
-  dir = "${pluginsDir}"
-  dirMode = 0755
-}
-ext.jvmOptionsDir = new File(buildDir, 'jvm-options-hack/jvm.options.d')
-tasks.register('createJvmOptionsDir', EmptyDirTask) {
-  dir = "${jvmOptionsDir}"
-  dirMode = 0750
-}
+apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean oss, boolean jdk) {
   return copySpec {
@@ -102,115 +82,83 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   }
 }
 
-// common config across all zip/tar
-tasks.withType(AbstractArchiveTask).configureEach {
-  dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
-  String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
-  destinationDirectory = file("${subdir}/build/distributions")
-  archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
-}
-
-Closure commonZipConfig = {
-  dirMode 0755
-  fileMode 0644
-}
-
 tasks.register('buildIntegTestZip', Zip) {
-  configure(commonZipConfig)
   with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
 }
 
 tasks.register('buildWindowsZip', Zip) {
-  configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
 }
 
 tasks.register('buildOssWindowsZip', Zip) {
-  configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkWindowsZip', Zip) {
-  configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
   with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkWindowsZip', Zip) {
-  configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
   with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
 }
 
-Closure commonTarConfig = {
-  archiveExtension = 'tar.gz'
-  compression = Compression.GZIP
-  dirMode 0755
-  fileMode 0644
-}
-
 tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
 }
 
 tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
 }
 
 tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
   with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
 }
 
 tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
 }
 
 tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
   with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
 }
 
 tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
   with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
 }
 
+tasks.register("buildAllTars") {
+  dependsOn tasks.withType(SymbolicLinkPreservingTar)
+}
 // This configures the default artifact for the distribution specific
 // subprojects. We have subprojects for two reasons:
 // 1. Gradle project substitutions can only bind to the default

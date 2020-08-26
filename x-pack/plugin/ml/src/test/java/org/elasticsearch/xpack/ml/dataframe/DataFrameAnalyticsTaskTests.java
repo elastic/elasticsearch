@@ -181,6 +181,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.threadPool()).thenReturn(threadPool);
         ClusterService clusterService = mock(ClusterService.class);
         DataFrameAnalyticsManager analyticsManager = mock(DataFrameAnalyticsManager.class);

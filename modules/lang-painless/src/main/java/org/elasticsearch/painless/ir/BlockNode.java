@@ -44,7 +44,6 @@ public class BlockNode extends StatementNode {
     /* ---- end tree structure, begin node data ---- */
 
     private boolean doAllEscape;
-    private int statementCount;
 
     public void setAllEscape(boolean doAllEscape) {
         this.doAllEscape = doAllEscape;

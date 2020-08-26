@@ -178,7 +178,7 @@ public class SparseFileTracker {
                         final Range requiredRange = requiredRanges.get(0);
                         requiredRange.completionListener.addListener(
                             ActionListener.map(listener, progress -> null),
-                            Math.min(requiredRange.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
+                            Math.min(requiredRange.end, subRange.v2())
                         );
                         break;
                     default:
@@ -187,10 +187,7 @@ public class SparseFileTracker {
                             requiredRanges.size()
                         );
                         requiredRanges.forEach(
-                            r -> r.completionListener.addListener(
-                                groupedActionListener,
-                                Math.min(r.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
-                            )
+                            r -> r.completionListener.addListener(groupedActionListener, Math.min(r.end, subRange.v2()))
                         );
                 }
 
@@ -201,6 +198,90 @@ public class SparseFileTracker {
         assert gaps.isEmpty(); // or else pendingRanges.isEmpty() == false so we already returned
         listener.onResponse(null);
         return Collections.emptyList();
+    }
+
+    /**
+     * Called before reading a range from the file to ensure that this range is present. Unlike
+     * {@link SparseFileTracker#waitForRange(Tuple, Tuple, ActionListener)} this method does not expect the caller to fill in any gaps.
+     *
+     * @param range    A tuple that contains the (inclusive) start and (exclusive) end of the desired range
+     * @param listener Listener for when the listening range is fully available
+     * @return {@code true} if the requested range is entirely pending or present and the listener will eventually be notified when the
+     *                      range is entirely present; {@code false} if the requested range contains gaps that are not currently being
+     *                      filled.
+     * @throws IllegalArgumentException if invalid range is requested
+     */
+    public boolean waitForRangeIfPending(final Tuple<Long, Long> range, final ActionListener<Void> listener) {
+        final long start = range.v1();
+        final long end = range.v2();
+        if (end < start || start < 0L || length < end) {
+            throw new IllegalArgumentException("invalid range [start=" + start + ", end=" + end + ", length=" + length + "]");
+        }
+
+        synchronized (mutex) {
+            assert invariant();
+
+            final List<Range> pendingRanges = new ArrayList<>();
+
+            final Range targetRange = new Range(start, end, null);
+            final SortedSet<Range> earlierRanges = ranges.headSet(targetRange, false); // ranges with strictly earlier starts
+            if (earlierRanges.isEmpty() == false) {
+                final Range lastEarlierRange = earlierRanges.last();
+                if (start < lastEarlierRange.end) {
+                    if (lastEarlierRange.isPending()) {
+                        pendingRanges.add(lastEarlierRange);
+                    }
+                    targetRange.start = Math.min(end, lastEarlierRange.end);
+                }
+            }
+
+            while (targetRange.start < end) {
+                assert 0 <= targetRange.start : targetRange;
+                assert invariant();
+
+                final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
+                if (existingRanges.isEmpty()) {
+                    return false;
+                } else {
+                    final Range firstExistingRange = existingRanges.first();
+                    assert targetRange.start <= firstExistingRange.start : targetRange + " vs " + firstExistingRange;
+
+                    if (targetRange.start == firstExistingRange.start) {
+                        if (firstExistingRange.isPending()) {
+                            pendingRanges.add(firstExistingRange);
+                        }
+                        targetRange.start = Math.min(end, firstExistingRange.end);
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            assert targetRange.start == targetRange.end : targetRange;
+            assert targetRange.start == end : targetRange;
+            assert invariant();
+
+            switch (pendingRanges.size()) {
+                case 0:
+                    break;
+                case 1:
+                    final Range pendingRange = pendingRanges.get(0);
+                    pendingRange.completionListener.addListener(
+                        ActionListener.map(listener, progress -> null),
+                        Math.min(pendingRange.end, end)
+                    );
+                    return true;
+                default:
+                    final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
+                        ActionListener.map(listener, progress -> null),
+                        pendingRanges.size()
+                    );
+                    pendingRanges.forEach(r -> r.completionListener.addListener(groupedActionListener, Math.min(r.end, end)));
+                    return true;
+            }
+        }
+
+        listener.onResponse(null);
+        return true;
     }
 
     /**

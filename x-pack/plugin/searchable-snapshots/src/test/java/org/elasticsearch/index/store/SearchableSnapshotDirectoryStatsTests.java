@@ -26,6 +26,8 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.cache.TestUtils;
+import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -125,20 +127,18 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 assertBusy(() -> {
                     assertThat(inputStats.getCachedBytesWritten(), notNullValue());
                     assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
-                    assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
+                    final long actualWriteCount = inputStats.getCachedBytesWritten().count();
+                    assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
                     assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
-                    assertThat(
-                        inputStats.getCachedBytesWritten().max(),
-                        (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
-                    );
+                    assertThat(inputStats.getCachedBytesWritten().max(), lessThanOrEqualTo(length));
                     assertThat(
                         inputStats.getCachedBytesWritten().totalNanoseconds(),
                         allOf(
                             // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
-                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
+                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount),
 
                             // worst case: we start all reads before finishing any of them
-                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
+                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount * actualWriteCount)
                         )
                     );
                 });
@@ -147,10 +147,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 assertThat(inputStats.getCachedBytesRead().total(), greaterThanOrEqualTo(length));
                 assertThat(inputStats.getCachedBytesRead().count(), greaterThan(0L));
                 assertThat(inputStats.getCachedBytesRead().min(), greaterThan(0L));
-                assertThat(
-                    inputStats.getCachedBytesRead().max(),
-                    (length < rangeSize.getBytes()) ? lessThanOrEqualTo(length) : lessThanOrEqualTo(rangeSize.getBytes())
-                );
+                assertThat(inputStats.getCachedBytesRead().max(), lessThanOrEqualTo(length));
 
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
@@ -322,7 +319,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = (long) BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -614,6 +611,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             throw new UncheckedIOException(e);
         }
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
         final Path cacheDir = createTempDir();
 
         try (
@@ -621,6 +619,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
+                new NoopBlobStoreCacheService(),
+                "_repo",
                 snapshotId,
                 indexId,
                 shardId,

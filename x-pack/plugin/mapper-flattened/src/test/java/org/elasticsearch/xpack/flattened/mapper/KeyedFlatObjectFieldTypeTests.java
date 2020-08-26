@@ -130,7 +130,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         KeyedFlatObjectFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("valu*", 0, 10, null, randomMockShardContext()));
+            () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 

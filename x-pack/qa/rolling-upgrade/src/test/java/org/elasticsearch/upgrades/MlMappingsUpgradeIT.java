@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,6 +31,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+
+    private static final List<String> INDICES_TO_WATCH = Collections.unmodifiableList(
+        Arrays.asList(".transform-internal-005")
+    );
 
     @Override
     protected Collection<String> templatesToWaitFor() {

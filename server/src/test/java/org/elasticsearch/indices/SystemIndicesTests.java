@@ -19,14 +19,18 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -45,14 +49,14 @@ public class SystemIndicesTests extends ESTestCase {
         String broadPatternSource = "AAA" + randomAlphaOfLength(5);
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
-        descriptors.put(broadPatternSource, Collections.singletonList(broadPattern));
+        descriptors.put(broadPatternSource, singletonList(broadPattern));
         descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
         assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
-            "] from plugin [" + broadPatternSource + "] overlaps with other system index descriptors:"));
-        String fromPluginString = " from plugin [" + otherSource + "]";
+            "] from [" + broadPatternSource + "] overlaps with other system index descriptors:"));
+        String fromPluginString = " from [" + otherSource + "]";
         assertThat(exception.getMessage(), containsString(overlapping1.toString() + fromPluginString));
         assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
@@ -72,16 +76,31 @@ public class SystemIndicesTests extends ESTestCase {
         String source1 = "AAA" + randomAlphaOfLength(5);
         String source2 = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
-        descriptors.put(source1, Collections.singletonList(pattern1));
-        descriptors.put(source2, Collections.singletonList(pattern2));
+        descriptors.put(source1, singletonList(pattern1));
+        descriptors.put(source2, singletonList(pattern2));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
         assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
-            "] from plugin [" + source1 + "] overlaps with other system index descriptors:"));
-        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from plugin [" + source2 + "]"));
+            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
         IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
+    }
+
+    public void testBuiltInSystemIndices() {
+        SystemIndices systemIndices = new SystemIndices(emptyMap());
+        assertTrue(systemIndices.isSystemIndex(".tasks"));
+        assertTrue(systemIndices.isSystemIndex(".tasks1"));
+        assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+    }
+
+    public void testPluginCannotOverrideBuiltInSystemIndex() {
+        Map<String, Collection<SystemIndexDescriptor>> pluginMap = singletonMap(
+            TaskResultsService.class.getName(), singletonList(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
+        assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
     }
 }

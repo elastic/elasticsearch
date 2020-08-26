@@ -3038,11 +3038,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     final Optional<Translog.Location> max = candidates.stream().map(Tuple::v1).max(Translog.Location::compareTo);
                     if (max.isPresent()) {
-                        if (max.get() == Translog.Location.MAX_LOCATION) {
-                            engineSupplier.get().syncTranslog();
-                        } else {
-                            engineSupplier.get().ensureTranslogSynced(Stream.of(max.get()));
-                        }
+                        engineSupplier.get().ensureTranslogSynced(Stream.of(max.get()));
                     }
                 } catch (AlreadyClosedException ex) {
                     // that's fine since we already synced everything on engine close - this also is conform with the methods

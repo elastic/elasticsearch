@@ -62,7 +62,7 @@ public abstract class NewAsyncIOProcessor<Item> {
         // we try to have only one caller that processes pending items to disc while others just add to the queue but
         // at the same time never overload the node by pushing too many items into the queue.
 
-        if (Translog.Location.MAX_LOCATION != item && isAlreadyWritten(item)) {
+        if (isAlreadyWritten(item)) {
             notifyListener(null, listener);
             return;
         }
@@ -101,7 +101,7 @@ public abstract class NewAsyncIOProcessor<Item> {
 
     private void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
         Exception exception;
-        
+
         queue.drainTo(candidates);
         final List<Tuple<Item, Consumer<Exception>>> written = new ArrayList<>(candidates.size());
         final List<Tuple<Item, Consumer<Exception>>> unwritten = new ArrayList<>(candidates.size());

@@ -104,9 +104,10 @@ SQL statement from the categorization algorithm.
 
 If you enable per-partition categorization, categories are determined
 independently for each partition. For example, if your data includes messages
-from multiple types of logs (such as access logs and error logs), you can use a
-field like the ECS {ecs-ref}/ecs-event.html[`event.dataset` field] as the 
-`partition_field_name` and categorize the messages for each log separately.
+from multiple types of logs from different applications, you can use a field
+like the ECS {ecs-ref}/ecs-event.html[`event.dataset` field] as the 
+`partition_field_name` and categorize the messages for each type of log
+separately.
 
 If your job has multiple detectors, every detector that uses the `mlcategory`
 keyword must also define a `partition_field_name`. You must use the same

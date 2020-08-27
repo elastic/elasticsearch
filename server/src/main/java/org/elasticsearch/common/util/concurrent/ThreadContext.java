@@ -350,6 +350,13 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Removes the transient header object from this context, if it exists.
+     */
+    public void removeTransient(String key) {
+        threadLocal.set(threadLocal.get().removeTransient(key));
+    }
+
+    /**
      * Returns a transient header object or <code>null</code> if there is no header for the given key
      */
     @SuppressWarnings("unchecked") // (T)object
@@ -592,12 +599,20 @@ public final class ThreadContext implements Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
-
         private ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             if (newTransient.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
+        }
+
+        private ThreadContextStruct removeTransient(String key) {
+            if (false == this.transientHeaders.containsKey(key)) {
+                return this;
+            }
+            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
+            newTransient.remove(key);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 

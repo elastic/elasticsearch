@@ -90,6 +90,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
@@ -168,6 +169,7 @@ public class AuthorizationService {
      */
     public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
                           final ActionListener<Void> listener) throws ElasticsearchSecurityException {
+
         // prior to doing any authorization lets set the originating action in the context only
         putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
@@ -247,7 +249,7 @@ public class AuthorizationService {
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener =
                 wrapPreservingContext(new AuthorizationResultListener<>(result -> {
-                        putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+                        threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                         listener.onResponse(null);
                     }, listener::onFailure, requestInfo, requestId, authzInfo), threadContext);
             authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
@@ -291,8 +293,7 @@ public class AuthorizationService {
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
         if (result.getIndicesAccessControl() != null) {
-            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                result.getIndicesAccessControl());
+            threadContext.putTransient(INDICES_PERMISSIONS_KEY, result.getIndicesAccessControl());
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
@@ -384,7 +385,7 @@ public class AuthorizationService {
                                      final TransportRequest request, final ActionListener<Void> listener) {
         final AuditTrail auditTrail = auditTrailService.get();
         if (SystemUser.isAuthorized(action)) {
-            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+            threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
             putTransientIfNonExisting(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
             auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
             listener.onResponse(null);

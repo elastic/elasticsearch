@@ -439,7 +439,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                 assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
-                final int numberOfParts = Math.toIntExact(file.numberOfParts());
+                final int numberOfParts = file.numberOfParts();
                 final StepListener<Collection<Void>> fileCompletionListener = new StepListener<>();
                 fileCompletionListener.whenComplete(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input));
                 fileCompletionListener.whenComplete(voids -> completionListener.onResponse(null), completionListener::onFailure);

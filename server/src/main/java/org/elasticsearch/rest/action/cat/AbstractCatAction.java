@@ -43,6 +43,11 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     protected abstract Table getTableWithHeader(RestRequest request);
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {

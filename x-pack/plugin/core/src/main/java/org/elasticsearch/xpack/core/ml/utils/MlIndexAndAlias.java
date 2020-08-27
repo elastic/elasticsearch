@@ -242,7 +242,7 @@ public final class MlIndexAndAlias {
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (haveIndexTemplate(clusterState, templateName)) {
+        if (hasIndexTemplate(clusterState, templateName)) {
             listener.onResponse(true);
             return;
         }
@@ -254,7 +254,7 @@ public final class MlIndexAndAlias {
         ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
             response ->  {
                 if (response.isAcknowledged() == false) {
-                    logger.error("error adding legacy template [{}], request was not acknowledged", templateName);
+                    logger.warn("error adding legacy template [{}], request was not acknowledged", templateName);
                 }
                 listener.onResponse(response.isAcknowledged());
             },
@@ -264,7 +264,7 @@ public final class MlIndexAndAlias {
             client.admin().indices()::putTemplate);
     }
 
-    static boolean haveIndexTemplate(ClusterState state, String templateName) {
+    private static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().getTemplates().containsKey(templateName);
     }
 }

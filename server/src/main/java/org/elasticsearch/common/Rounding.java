@@ -1254,5 +1254,10 @@ public abstract class Rounding implements Writeable {
         public long nextRoundingValue(long utcMillis) {
             return delegate.nextRoundingValue(utcMillis);
         }
+
+        @Override
+        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            return delegate.roundingSize(utcMillis, timeUnit);
+        }
     }
 }

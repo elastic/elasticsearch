@@ -44,7 +44,8 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
             ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
-        false);
+        false
+    );
 
     public void testNormal() throws Exception {
         int numIndexExpressions = randomIntBetween(1, 9);

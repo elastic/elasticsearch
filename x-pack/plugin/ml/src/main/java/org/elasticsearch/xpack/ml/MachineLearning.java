@@ -729,8 +729,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider,
             dataFrameAnalyticsConfigProvider);
         this.memoryTracker.set(memoryTracker);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedManager, mlController,
-            autodetectProcessManager, memoryTracker);
+        MlLifeCycleService mlLifeCycleService =
+            new MlLifeCycleService(
+                clusterService, datafeedManager, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 

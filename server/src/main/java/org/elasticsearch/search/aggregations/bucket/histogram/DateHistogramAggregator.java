@@ -50,7 +50,7 @@ import java.util.function.BiConsumer;
  *
  * @see Rounding
  */
-class DateHistogramAggregator extends BucketsAggregator {
+class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -181,5 +181,19 @@ class DateHistogramAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
+    }
+
+    /**
+     * Returns the size of the bucket in specified units.
+     *
+     * If unitSize is null, returns 1.0
+     */
+    @Override
+    public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {
+        if (unitSize != null) {
+            return preparedRounding.roundingSize(bucketOrds.get(bucket), unitSize);
+        } else {
+            return 1.0;
+        }
     }
 }

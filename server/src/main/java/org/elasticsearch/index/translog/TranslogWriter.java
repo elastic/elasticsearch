@@ -65,7 +65,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private static final long FORCE_WRITE_THRESHOLD = 1024 * 1024 * 4;
 
     private final ShardId shardId;
-    private final ChannelFactory channelFactory;
     private final FileChannel channel;
     private final FileChannel checkPointChannel;
     // the last checkpoint that was written when the translog was last synced
@@ -117,7 +116,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
                 + channel.position() + "]";
         this.shardId = shardId;
-        this.channelFactory = channelFactory;
         this.minTranslogGenerationSupplier = minTranslogGenerationSupplier;
         this.lastWrittenCheckpoint = initialCheckpoint;
         this.lastSyncedCheckpoint = initialCheckpoint;

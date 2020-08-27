@@ -342,72 +342,80 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "docs" : [
+  "docs": [
     {
-      "processor_results" : [
+      "processor_results": [
         {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_source" : {
-              "field2" : "_value2",
-              "foo" : "bar"
+          "processor_type": "set",
+          "status": "success",
+          "doc": {
+            "_index": "index",
+            "_type": "_doc",
+            "_id": "id",
+            "_source": {
+              "field2": "_value2",
+              "foo": "bar"
             },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            "_ingest": {
+              "pipeline": "_simulate_pipeline",
+              "timestamp": "2020-07-30T01:21:24.251836Z"
             }
           }
         },
         {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_source" : {
-              "field3" : "_value3",
-              "field2" : "_value2",
-              "foo" : "bar"
+          "processor_type": "set",
+          "status": "success",
+          "doc": {
+            "_index": "index",
+            "_type": "_doc",
+            "_id": "id",
+            "_source": {
+              "field3": "_value3",
+              "field2": "_value2",
+              "foo": "bar"
             },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            "_ingest": {
+              "pipeline": "_simulate_pipeline",
+              "timestamp": "2020-07-30T01:21:24.251836Z"
             }
           }
         }
       ]
     },
     {
-      "processor_results" : [
+      "processor_results": [
         {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_source" : {
-              "field2" : "_value2",
-              "foo" : "rab"
+          "processor_type": "set",
+          "status": "success",
+          "doc": {
+            "_index": "index",
+            "_type": "_doc",
+            "_id": "id",
+            "_source": {
+              "field2": "_value2",
+              "foo": "rab"
             },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            "_ingest": {
+              "pipeline": "_simulate_pipeline",
+              "timestamp": "2020-07-30T01:21:24.251863Z"
             }
           }
         },
         {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_source" : {
-              "field3" : "_value3",
-              "field2" : "_value2",
-              "foo" : "rab"
+          "processor_type": "set",
+          "status": "success",
+          "doc": {
+            "_index": "index",
+            "_type": "_doc",
+            "_id": "id",
+            "_source": {
+              "field3": "_value3",
+              "field2": "_value2",
+              "foo": "rab"
             },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            "_ingest": {
+              "pipeline": "_simulate_pipeline",
+              "timestamp": "2020-07-30T01:21:24.251863Z"
             }
           }
         }
@@ -415,6 +423,7 @@ The API returns the following response:
     }
   ]
 }
+
 ----
 // TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
 // TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]

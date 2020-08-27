@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -380,7 +381,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     public Set<DiscoveryNodeRole> getRoles() {
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
+        roles.addAll(super.getRoles());
         return roles;
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        Set<IndexSettingProvider> providers = new HashSet<>();
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
+        providers.addAll(super.getAdditionalIndexSettingProviders());
+        return providers;
+
     }
 
     @Override
@@ -493,10 +504,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return filterPlugins(ClusterPlugin.class)
+        Set<AllocationDecider> deciders = new HashSet<>();
+        deciders.addAll(filterPlugins(ClusterPlugin.class)
             .stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
-            .collect(Collectors.toList());
+            .collect(Collectors.toList()));
+        deciders.addAll(super.createAllocationDeciders(settings, clusterSettings));
+        return deciders;
     }
 
     @Override
